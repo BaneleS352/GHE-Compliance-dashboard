@@ -273,7 +273,7 @@ function TopBar({ userName, role, onSignOut }: { userName: string; role: Role; o
       <div className="flex items-center gap-3">
         <ImageWithFallback src={groupLogoImg} alt="Hollywoodbets Group" className="h-7 w-auto object-contain" />
         <div className="h-5 w-px bg-border" />
-        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden md:block">GHE Declaration System</span>
+        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden md:block">Gift, Hospitality or Entertainment ("GHE") Declaration System</span>
       </div>
       <div className="flex items-center gap-3">
         <button className="relative w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted transition-colors">
