@@ -835,10 +835,38 @@ function DeclarationDetailView({ data, onBack }: { data: Record<string, string> 
   const status: StatusType = d ? d.status : "Pending";
 
   const workflowSteps = [
-    { label: "Submitted", actor: "Team Member", done: true, date: d ? d.submitted : new Date().toLocaleDateString("en-ZA") },
-    { label: "Line Manager Review", actor: d ? d.lineManager : (data as Record<string,string>).lineManager, done: status === "Approved" || status === "Rejected", date: "Pending" },
-    { label: "HR Review", actor: "Head of HR", done: status === "Approved", date: "Pending" },
-    { label: "CEO Approval", actor: "Group CEO", done: false, date: "Pending" },
+    {
+      label: "Submission",
+      actor: "Team Member",
+      done: true,
+      updates: [
+        { status: "Submitted", date: d ? d.submitted : new Date().toLocaleDateString("en-ZA"), time: "08:45" },
+      ],
+    },
+    {
+      label: "Line Manager Review",
+      actor: d ? d.lineManager : (data as Record<string,string>).lineManager,
+      done: status === "Approved" || status === "Rejected",
+      updates: status === "Approved"
+        ? [{ status: "Approved", date: "2026-07-01", time: "10:15" }]
+        : status === "Rejected"
+        ? [{ status: "Rejected", date: "2026-07-01", time: "10:15" }]
+        : [{ status: "Pending", date: "-", time: "-" }],
+    },
+    {
+      label: "HR Review",
+      actor: "Head of HR",
+      done: status === "Approved",
+      updates: status === "Approved"
+        ? [{ status: "Approved", date: "2026-07-02", time: "12:30" }]
+        : [{ status: "Pending", date: "-", time: "-" }],
+    },
+    {
+      label: "CEO Approval",
+      actor: "Group CEO",
+      done: false,
+      updates: [{ status: "Pending", date: "-", time: "-" }],
+    },
   ];
 
   return (
@@ -920,18 +948,36 @@ function DeclarationDetailView({ data, onBack }: { data: Record<string, string> 
                 <p className="text-sm font-semibold text-foreground">
                   {step.label}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground mb-2">
                   {step.actor}
                 </p>
-                <span
-                  className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                    step.done
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {step.done ? "Complete" : step.date}
-                </span>
+
+                <div className="space-y-1">
+                  {step.updates.map((u, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between text-[11px] px-2 py-1 rounded-md bg-muted/40 border border-border/30"
+                    >
+                      <span
+                        className={`font-semibold ${
+                          u.status === "Approved"
+                            ? "text-emerald-600"
+                            : u.status === "Rejected"
+                            ? "text-red-600"
+                            : u.status === "Returned" || u.status === "Request for More Information"
+                            ? "text-amber-600"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        {u.status}
+                      </span>
+
+                      <span className="text-muted-foreground">
+                        {u.date} {u.time}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
             </div>
