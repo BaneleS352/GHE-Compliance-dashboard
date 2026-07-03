@@ -180,11 +180,11 @@ All three relationship dropdowns: Yes / No / Unsure / N/A
 
 ### My Declarations
 
-**KPI cards (5):** Total Declarations, Pending, Approved, Rejected, Total Value
+**KPI cards (5):** Total Declarations, Pending, Approved, Declined, Total Value
 - Use 5-column grid `grid-cols-5`
 - Total Value shows sum in Rand (e.g. "R 67.6K")
 
-**Filter bar:** Search input + Type chip filters (All/Gift/Hospitality/Entertainment) + Status chip filters (All/Draft/Pending/Approved/Rejected) + Export to Excel button
+**Filter bar:** Search input + Type chip filters (All/Gift/Hospitality/Entertainment) + Status chip filters (All/Draft/Pending/Approved/Declined) + Export to Excel button
 
 **Table:**
 - Header row: lavender `bg-[#EDE8FF]`
@@ -195,14 +195,14 @@ All three relationship dropdowns: Yes / No / Unsure / N/A
 
 ### Approver Dashboard
 
-**KPI row (6 cards):** Pending Queue, Approved This Month, Rejected, Escalated, Avg Processing, Total Value
+**KPI row (6 cards):** Pending Queue, Approved This Month, Declined, Escalated, Avg Processing, Total Value
 
 **My Next Step box:** Yellow left-border card, shows 2 overdue items, "View My Actions" CTA
 
 **Pending Approvals mini-table:** 4 rows, links to Approval Queue
 
 **Two charts (recharts):**
-1. Grouped bar chart: Approved vs Rejected per month
+1. Grouped bar chart: Approved vs Declined per month
 2. Donut pie: Declarations by type (Gift/Hospitality/Entertainment)
 
 ### Approval Queue

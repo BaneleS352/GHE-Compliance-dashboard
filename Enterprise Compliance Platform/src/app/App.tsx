@@ -21,7 +21,7 @@ import bannerImg from "@/imports/Button.png";
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Screen = "landing" | "login" | "new-declaration" | "my-declarations" | "approver-dashboard" | "approval-queue" | "approval-detail" | "declaration-detail";
 type Role = "teamMember" | "approver";
-type StatusType = "Draft" | "Pending" | "Approved" | "Rejected" | "Escalated" | "Info Requested";
+type StatusType = "Draft" | "Pending" | "Approved" | "Declined" | "Escalated" | "Info Requested";
 type ApprovalDecision = "accept" | "discuss-org" | "discuss-foundation" | "return" | null;
 
 interface Declaration {
@@ -40,7 +40,7 @@ const declarations: Declaration[] = [
   { id: "GHE-2024-0047", employee: "Nomvula Dlamini", teamMemberNumber: "HB-204478", lineManager: "Sipho Nkosi", position: "Senior Brand Manager", department: "Marketing", company: "Hollywoodbets Group", team: "Brand & Communications", type: "Hospitality", vendor: "Tsogo Sun Hotels", value: 8500, submitted: "2024-11-12", approver: "Sipho Nkosi", status: "Pending", priority: "High", description: "Corporate dinner for key partners at Sandton Sun", relationship: "Client – Strategic Partner", receivedGiven: "Received", from: "Supplier", contactPerson: "John Smith", biddingProcess: "No", occasion: "Relationship Maintenance", date: "2024-11-10", instances: "2", publicOfficial: "No" },
   { id: "GHE-2024-0046", employee: "Thabo Mokoena", teamMemberNumber: "HB-187234", lineManager: "Lindiwe Zulu", position: "Sales Executive", department: "Sales", company: "Hollywoodbets Group", team: "Enterprise Sales", type: "Gift", vendor: "Makro", value: 1200, submitted: "2024-11-10", approver: "Sipho Nkosi", status: "Approved", priority: "Low", description: "End-of-year gift basket received from supplier", relationship: "Supplier – Regular", receivedGiven: "Received", from: "Supplier", contactPerson: "Jane Dube", biddingProcess: "No", occasion: "Festive", date: "2024-11-08", instances: "1", publicOfficial: "No" },
   { id: "GHE-2024-0045", employee: "Ayanda Khumalo", teamMemberNumber: "HB-219033", lineManager: "Sipho Nkosi", position: "Operations Manager", department: "Operations", company: "Hollywoodbets Group", team: "Operations", type: "Entertainment", vendor: "Emirates Airline", value: 34000, submitted: "2024-11-08", approver: "Lindiwe Zulu", status: "Escalated", priority: "High", description: "Business class flights and lounge access for conference", relationship: "Vendor – Technology", receivedGiven: "Received", from: "Customer", contactPerson: "Ahmed Al-Rashid", biddingProcess: "Yes", occasion: "Other", date: "2024-11-05", instances: "3", publicOfficial: "No" },
-  { id: "GHE-2024-0044", employee: "Pieter van der Berg", teamMemberNumber: "HB-156902", lineManager: "Lindiwe Zulu", position: "Finance Analyst", department: "Finance", company: "Hollywoodbets Group", team: "Financial Reporting", type: "Hospitality", vendor: "La Colombe Restaurant", value: 3200, submitted: "2024-11-06", approver: "Sipho Nkosi", status: "Rejected", priority: "Medium", description: "Lunch meeting with audit consultants", relationship: "Service Provider – Annual", receivedGiven: "Given", from: "Customer", contactPerson: "Mark Johnson", biddingProcess: "No", occasion: "Relationship Maintenance", date: "2024-11-04", instances: "1", publicOfficial: "No" },
+  { id: "GHE-2024-0044", employee: "Pieter van der Berg", teamMemberNumber: "HB-156902", lineManager: "Lindiwe Zulu", position: "Finance Analyst", department: "Finance", company: "Hollywoodbets Group", team: "Financial Reporting", type: "Hospitality", vendor: "La Colombe Restaurant", value: 3200, submitted: "2024-11-06", approver: "Sipho Nkosi", status: "Declined", priority: "Medium", description: "Lunch meeting with audit consultants", relationship: "Service Provider – Annual", receivedGiven: "Given", from: "Customer", contactPerson: "Mark Johnson", biddingProcess: "No", occasion: "Relationship Maintenance", date: "2024-11-04", instances: "1", publicOfficial: "No" },
   { id: "GHE-2024-0043", employee: "Zanele Sithole", teamMemberNumber: "HB-198741", lineManager: "Sipho Nkosi", position: "HR Generalist", department: "HR", company: "Hollywoodbets Group", team: "People & Culture", type: "Gift", vendor: "Woolworths", value: 650, submitted: "2024-11-04", approver: "Lindiwe Zulu", status: "Approved", priority: "Low", description: "Festive season hamper from staffing agency", relationship: "Supplier – Staffing", receivedGiven: "Received", from: "Supplier", contactPerson: "Thandi Molefe", biddingProcess: "No", occasion: "Festive", date: "2024-11-02", instances: "1", publicOfficial: "No" },
   { id: "GHE-2024-0042", employee: "Bongani Cele", teamMemberNumber: "HB-234512", lineManager: "Lindiwe Zulu", position: "IT Systems Lead", department: "IT", company: "Hollywoodbets Group", team: "Technology", type: "Entertainment", vendor: "Sun International", value: 12800, submitted: "2024-11-02", approver: "Sipho Nkosi", status: "Pending", priority: "Medium", description: "Golf day and networking event hosted by Sun International", relationship: "Vendor – IT Solutions", receivedGiven: "Received", from: "Supplier", contactPerson: "Riaan Botha", biddingProcess: "Yes", occasion: "Relationship Maintenance", date: "2024-10-31", instances: "2", publicOfficial: "No" },
   { id: "GHE-2024-0041", employee: "Fatima Ismail", teamMemberNumber: "HB-167823", lineManager: "Sipho Nkosi", position: "Legal Counsel", department: "Legal", company: "Hollywoodbets Group", team: "Legal & Compliance", type: "Gift", vendor: "Edgars", value: 890, submitted: "2024-10-30", approver: "Lindiwe Zulu", status: "Info Requested", priority: "Medium", description: "Clothing voucher received at legal conference", relationship: "External – Industry Event", receivedGiven: "Received", from: "Customer", contactPerson: "Priya Naidoo", biddingProcess: "N/A", occasion: "Other", date: "2024-10-28", instances: "1", publicOfficial: "No" },
@@ -48,9 +48,9 @@ const declarations: Declaration[] = [
 ];
 
 const complianceTrend = [
-  { month: "Jun", approved: 14, rejected: 4 }, { month: "Jul", approved: 19, rejected: 5 },
-  { month: "Aug", approved: 15, rejected: 4 }, { month: "Sep", approved: 25, rejected: 6 },
-  { month: "Oct", approved: 22, rejected: 6 }, { month: "Nov", approved: 18, rejected: 4 },
+  { month: "Jun", approved: 14, Declined: 4 }, { month: "Jul", approved: 19, Declined: 5 },
+  { month: "Aug", approved: 15, Declined: 4 }, { month: "Sep", approved: 25, Declined: 6 },
+  { month: "Oct", approved: 22, Declined: 6 }, { month: "Nov", approved: 18, Declined: 4 },
 ];
 const typeBreakdown = [
   { name: "Gift", value: 38, color: "#7c3aed" },
@@ -81,7 +81,7 @@ const statusConfig: Record<StatusType, { bg: string; text: string; ring: string 
   Draft:            { bg: "bg-slate-100",  text: "text-slate-600",   ring: "bg-slate-400" },
   Pending:          { bg: "bg-amber-50",   text: "text-amber-700",   ring: "bg-amber-400" },
   Approved:         { bg: "bg-emerald-50", text: "text-emerald-700", ring: "bg-emerald-500" },
-  Rejected:         { bg: "bg-red-50",     text: "text-red-700",     ring: "bg-red-500" },
+  Declined:         { bg: "bg-red-50",     text: "text-red-700",     ring: "bg-red-500" },
   Escalated:        { bg: "bg-orange-50",  text: "text-orange-700",  ring: "bg-orange-500" },
   "Info Requested": { bg: "bg-blue-50",    text: "text-blue-700",    ring: "bg-blue-500" },
 };
@@ -836,7 +836,7 @@ function DeclarationDetailView({ data, onBack }: { data: Record<string, string> 
 
   const workflowSteps = [
     { label: "Submitted", actor: "Team Member", done: true, date: d ? d.submitted : new Date().toLocaleDateString("en-ZA") },
-    { label: "Line Manager Review", actor: d ? d.lineManager : (data as Record<string,string>).lineManager, done: status === "Approved" || status === "Rejected", date: "Pending" },
+    { label: "Line Manager Review", actor: d ? d.lineManager : (data as Record<string,string>).lineManager, done: status === "Approved" || status === "Declined", date: "Pending" },
     { label: "HR Review", actor: "Head of HR", done: status === "Approved", date: "Pending" },
     { label: "CEO Approval", actor: "Group CEO", done: false, date: "Pending" },
   ];
@@ -941,12 +941,12 @@ function MyDeclarationsScreen() {
           </button>
         } />
 
-      {/* 5 KPI cards — Total, Pending, Approved, Rejected, Total Value */}
+      {/* 5 KPI cards — Total, Pending, Approved, Declined, Total Value */}
       <div className="grid grid-cols-5 gap-4 mb-7">
         <KpiCard label="Total Declarations" value={String(declarations.length)} icon={FileText}   iconBg="#EDE8FF" iconColor={PURPLE} />
         <KpiCard label="Pending Approval"   value="2"   icon={Clock}       iconBg="#fffbeb" iconColor="#d97706" trend="Awaiting review" trendColor="#d97706" />
         <KpiCard label="Approved"           value="2"   icon={Check}       iconBg="#ecfdf5" iconColor="#059669" trend="Compliant"       trendColor="#059669" />
-        <KpiCard label="Rejected"           value="1"   icon={X}           iconBg="#fef2f2" iconColor="#dc2626" />
+        <KpiCard label="Declined"           value="1"   icon={X}           iconBg="#fef2f2" iconColor="#dc2626" />
         <KpiCard label="Total Value"        value={`R ${Math.round(totalValue / 1000)}K`} icon={DollarSign} iconBg="#EDE8FF" iconColor={PURPLE} trend="All declarations" />
       </div>
 
@@ -966,7 +966,7 @@ function MyDeclarationsScreen() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-muted-foreground">Status:</span>
-          {["All","Draft","Pending","Approved","Rejected"].map(s => (
+          {["All","Draft","Pending","Approved","Declined"].map(s => (
             <button key={s} onClick={() => setStatusFilter(s)} className="h-8 px-3 rounded-lg text-xs font-semibold transition-colors"
               style={statusFilter === s ? { background: PURPLE, color: "#fff" } : { background: "#F0EEF8", color: "#6B6B80" }}>{s}</button>
           ))}
@@ -1015,7 +1015,7 @@ function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) 
   const kpis = [
     { label: "Pending Queue",        value: "14",      icon: Clock,       iconBg: "#fffbeb", iconColor: "#d97706", trend: "+3 today" },
     { label: "Approved This Month",  value: "47",      icon: Check,       iconBg: "#ecfdf5", iconColor: "#059669", trend: "+12 vs last month" },
-    { label: "Rejected",             value: "8",       icon: X,           iconBg: "#fef2f2", iconColor: "#dc2626", trend: "-2 vs last month" },
+    { label: "Declined",             value: "8",       icon: X,           iconBg: "#fef2f2", iconColor: "#dc2626", trend: "-2 vs last month" },
     { label: "Escalated",            value: "3",       icon: ArrowUp,     iconBg: "#fff7ed", iconColor: "#ea580c", trend: "Requires attention" },
     { label: "Avg Processing",       value: "2.4d",    icon: TrendingUp,  iconBg: "#f5f3ff", iconColor: "#7c3aed", trend: "-0.3d improvement" },
     { label: "Total Value Declared", value: "R284.5K", icon: DollarSign,  iconBg: "#EDE8FF", iconColor: PURPLE,    trend: "This month" },
@@ -1078,7 +1078,7 @@ function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) 
       <div className="grid grid-cols-3 gap-5">
         <Card className="col-span-2 p-6">
           <h3 className="text-sm font-bold text-foreground mb-0.5">Monthly Declaration Volume</h3>
-          <p className="text-xs text-muted-foreground mb-5">Approved vs Rejected per month</p>
+          <p className="text-xs text-muted-foreground mb-5">Approved vs Declined per month</p>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={complianceTrend} barGap={4} barSize={18}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgb(79 29 149 / 0.06)" vertical={false} />
@@ -1087,7 +1087,7 @@ function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) 
               <Tooltip contentStyle={{ background: "#fff", border: "1px solid rgb(79 29 149 / 0.12)", borderRadius: 12, fontSize: 12, fontFamily: "'Plus Jakarta Sans',sans-serif" }} cursor={{ fill: "rgb(79 29 149 / 0.04)" }} />
               <Legend wrapperStyle={{ fontSize: 12, fontFamily: "'Plus Jakarta Sans',sans-serif" }} />
               <Bar dataKey="approved" name="Approved" fill="#059669" radius={[4,4,0,0]} />
-              <Bar dataKey="rejected" name="Rejected" fill="#dc2626" radius={[4,4,0,0]} />
+              <Bar dataKey="Declined" name="Declined" fill="#dc2626" radius={[4,4,0,0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
