@@ -1023,7 +1023,7 @@ function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) 
   const queue = declarations.filter(d => ["Pending", "Escalated"].includes(d.status)).slice(0, 4);
   return (
     <div className="space-y-6">
-      <PageHeader title="Approver Dashboard" subtitle="Hollywoodbets GHE Compliance Overview — November 2024"
+      <PageHeader title="Approver Dashboard" subtitle="Hollywoodbets GHE Overview"
         actions={
           <button onClick={() => onNavigate("approval-queue")} className="h-10 px-5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-all flex items-center gap-2"
             style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}>
