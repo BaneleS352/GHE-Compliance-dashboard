@@ -302,9 +302,9 @@ function AppShell({ role, screen, userName, onNavigate, onSignOut, children }: {
   return (
     <div className="flex h-screen w-screen overflow-hidden" style={F}>
       <Sidebar role={role} screen={screen} onNavigate={onNavigate} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
-      <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex flex-col flex-1 min-w-0 min-h-0">
         <TopBar userName={userName} role={role} onSignOut={onSignOut} />
-        <main className="flex-1 overflow-y-auto bg-background p-7">{children}</main>
+        <main className="flex-1 min-h-0 overflow-y-auto bg-background p-7">{children}</main>
       </div>
     </div>
   );
