@@ -956,25 +956,34 @@ function DeclarationDetailView({ data, onBack }: { data: Record<string, string> 
                   {step.updates.map((u, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between text-[11px] px-2 py-1 rounded-md bg-muted/40 border border-border/30"
+                      className="text-[11px] px-3 py-2 rounded-md bg-muted/40 border border-border/30 space-y-1"
                     >
-                      <span
-                        className={`font-semibold ${
-                          u.status === "Approved"
-                            ? "text-emerald-600"
-                            : u.status === "Rejected"
-                            ? "text-red-600"
-                            : u.status === "Returned" || u.status === "Request for More Information"
-                            ? "text-amber-600"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {u.status}
-                      </span>
+                      <div className="flex gap-2">
+                        <span className="text-muted-foreground font-medium w-12">Status:</span>
+                        <span
+                          className={`font-semibold ${
+                            u.status === "Approved"
+                              ? "text-emerald-600"
+                              : u.status === "Rejected"
+                              ? "text-red-600"
+                              : u.status === "Returned" || u.status === "Request for More Information"
+                              ? "text-amber-600"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {u.status}
+                        </span>
+                      </div>
 
-                      <span className="text-muted-foreground">
-                        {u.date} {u.time}
-                      </span>
+                      <div className="flex gap-2">
+                        <span className="text-muted-foreground font-medium w-12">Date:</span>
+                        <span className="text-foreground">{u.date}</span>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <span className="text-muted-foreground font-medium w-12">Time:</span>
+                        <span className="text-foreground">{u.time}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
