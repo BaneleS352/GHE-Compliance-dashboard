@@ -650,7 +650,7 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
             </div>
             <div className="grid grid-cols-3 gap-5">
               <div>
-                <FL required error={errors.biddingProcess}>Is the Supplier or Team Member involved in a bidding process?</FL>
+                <FL required error={errors.biddingProcess}>Is the Supplier or Team Member involved in a Bid In Progress?</FL>
                 <Sel value={form.biddingProcess} onChange={v => setF("biddingProcess", v)} className={errors.biddingProcess ? "border-red-400" : ""}>
                   <option value="">Select…</option>{ynu.map(o => <option key={o}>{o}</option>)}
                 </Sel>
@@ -817,7 +817,7 @@ function DeclarationDetailView({ data, onBack }: { data: Record<string, string> 
     ["Category", d.type], ["Counterparty", d.Counterparty],
     ["Contact Person", d.contactPerson], ["Date", d.date],
     ["Value", formatRand(d.value)], ["Occasion", d.occasion],
-    ["Bidding Process", d.biddingProcess], ["Instances", d.instances],
+    ["Bid In Progress", d.biddingProcess], ["Instances", d.instances],
     ["Description", d.description],
   ] : [
     ["Team Member", (data as Record<string,string>).employee], ["TeamMemberCode", (data as Record<string,string>).employeeCode],
@@ -827,7 +827,7 @@ function DeclarationDetailView({ data, onBack }: { data: Record<string, string> 
     ["Category", (data as Record<string,string>).type], ["Counterparty", (data as Record<string,string>).Counterparty],
     ["Contact Person", (data as Record<string,string>).contactPerson], ["Date", (data as Record<string,string>).date],
     ["Value", (data as Record<string,string>).value], ["Occasion", (data as Record<string,string>).occasion],
-    ["Bidding Process", (data as Record<string,string>).biddingProcess], ["Contract Negotiation", (data as Record<string,string>).contractNegotiation],
+    ["Bid In Progress", (data as Record<string,string>).biddingProcess], ["Contract Negotiation", (data as Record<string,string>).contractNegotiation],
     ["Description", (data as Record<string,string>).description],
   ];
 
