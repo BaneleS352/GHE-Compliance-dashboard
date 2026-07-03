@@ -842,57 +842,119 @@ function DeclarationDetailView({ data, onBack }: { data: Record<string, string> 
   ];
 
   return (
-    <div>
-      <div className="flex items-center gap-2.5 mb-7 pb-5 border-b border-border">
-        <button onClick={onBack} className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-sm font-semibold border border-border bg-white hover:bg-muted transition-colors text-muted-foreground"><ArrowLeft size={14} /> Back</button>
-        <div className="h-5 w-px bg-border mx-1" />
-        <span className="font-mono text-sm font-bold" style={{ color: PURPLE }}>{id}</span>
-        <StatusBadge status={status} />
-      </div>
-      <div className="grid grid-cols-5 gap-5">
-        <div className="col-span-3 space-y-4">
-          <Card className="p-6">
-            <h2 className="text-sm font-bold text-foreground uppercase tracking-wide mb-4">Declaration Details</h2>
-            <div className="grid grid-cols-2 gap-3">
-              {fields.filter(([, v]) => v).map(([k, v]) => (
-                <div key={k} className={`rounded-xl p-3 bg-muted/30 border border-border/40 ${k === "Description" ? "col-span-2" : ""}`}>
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{k}</p>
-                  <p className="text-sm font-medium text-foreground mt-1">{v}</p>
-                </div>
-              ))}
+    <div className="grid grid-cols-5 gap-5">
+
+  {/* ROW 1 (shared height) */}
+  <div className="col-span-5 flex gap-5">
+    
+    {/* LEFT: Declaration Details */}
+    <div className="flex-[3]">
+      <Card className="p-6 h-full">
+        <h2 className="text-sm font-bold text-foreground uppercase tracking-wide mb-4">
+          Declaration Details
+        </h2>
+        <div className="grid grid-cols-2 gap-3">
+          {fields.filter(([, v]) => v).map(([k, v]) => (
+            <div
+              key={k}
+              className={`rounded-xl p-3 bg-muted/30 border border-border/40 ${
+                k === "Description" ? "col-span-2" : ""
+              }`}
+            >
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                {k}
+              </p>
+              <p className="text-sm font-medium text-foreground mt-1">{v}</p>
             </div>
-          </Card>
-            <Card className="p-6">
-              <h3 className="text-sm font-bold text-foreground uppercase tracking-wide mb-3">Supporting Documents</h3>
-              <p className="text-sm text-muted-foreground">{(data as Record<string,string>).files}</p>
-            </Card>
+          ))}
         </div>
-        <div className="col-span-2 space-y-4">
-          <Card className="p-6">
-            <h3 className="text-sm font-bold text-foreground uppercase tracking-wide mb-4">Approval Workflow</h3>
-            <div className="space-y-0">
-              {workflowSteps.map((step, i) => (
-                <div key={i} className="flex items-start gap-3 relative">
-                  {i < workflowSteps.length - 1 && <div className="absolute left-[14px] top-7 w-0.5 h-8 bg-border" />}
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${step.done ? "text-white" : "bg-muted text-muted-foreground"}`}
-                    style={step.done ? { background: "#059669" } : {}}>
-                    {step.done ? <Check size={12} /> : <span className="text-[10px] font-bold">{i + 1}</span>}
-                  </div>
-                  <div className="pb-6 flex-1">
-                    <p className="text-sm font-semibold text-foreground">{step.label}</p>
-                    <p className="text-xs text-muted-foreground">{step.actor}</p>
-                    <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${step.done ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-                      {step.done ? "Complete" : step.date}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-          
-        </div>
-      </div>
+      </Card>
     </div>
+
+    {/* RIGHT: Approval Workflow */}
+    <div className="flex-[2]">
+      <Card className="p-6 h-full flex flex-col">
+        <h3 className="text-sm font-bold text-foreground uppercase tracking-wide mb-4">
+          Approval Workflow
+        </h3>
+
+        {/* Timeline container */}
+        <div className="relative flex flex-col justify-between flex-1">
+
+          {/* Base vertical line */}
+          <div className="absolute left-[14px] top-7 bottom-7 w-[2px] bg-border" />
+
+          {/* Progress line */}
+          <div
+            className="absolute left-[14px] top-7 w-[2px] bg-emerald-600 transition-all duration-500 ease-out"
+            style={{
+              height: `${
+                ((workflowSteps.filter(s => s.done).length - 1) /
+                  (workflowSteps.length - 1 || 1)) * 100
+              }%`,
+            }}
+          />
+
+          {/* Steps */}
+          {workflowSteps.map((step, i) => (
+            <div key={i} className="flex items-start gap-3 relative">
+              
+              {/* Step circle */}
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                  step.done
+                    ? "text-white"
+                    : "bg-muted text-muted-foreground"
+                }`}
+                style={step.done ? { background: "#059669" } : {}}
+              >
+                {step.done ? (
+                  <Check size={12} />
+                ) : (
+                  <span className="text-[10px] font-bold">{i + 1}</span>
+                )}
+              </div>
+
+              {/* Step content */}
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-foreground">
+                  {step.label}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {step.actor}
+                </p>
+                <span
+                  className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                    step.done
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {step.done ? "Complete" : step.date}
+                </span>
+              </div>
+
+            </div>
+          ))}
+        </div>
+      </Card>
+    </div>
+
+  </div>
+
+  {/* ROW 2 (independent) */}
+  <div className="col-span-3">
+    <Card className="p-6">
+      <h3 className="text-sm font-bold text-foreground uppercase tracking-wide mb-3">
+        Supporting Documents
+      </h3>
+      <p className="text-sm text-muted-foreground">
+        {(data as Record<string, string>).files}
+      </p>
+    </Card>
+  </div>
+
+</div>
   );
 }
 
