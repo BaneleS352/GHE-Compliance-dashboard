@@ -862,12 +862,10 @@ function DeclarationDetailView({ data, onBack }: { data: Record<string, string> 
               ))}
             </div>
           </Card>
-          {(data as Record<string,string>).files && (
             <Card className="p-6">
               <h3 className="text-sm font-bold text-foreground uppercase tracking-wide mb-3">Supporting Documents</h3>
               <p className="text-sm text-muted-foreground">{(data as Record<string,string>).files}</p>
             </Card>
-          )}
         </div>
         <div className="col-span-2 space-y-4">
           <Card className="p-6">
