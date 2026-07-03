@@ -144,14 +144,14 @@ Consistent height across all inputs and selects. Error state: `border-red-400`.
 - Section sidebar: `sticky top-0` in normal document flow
 - Form content: `flex-1 min-w-0 space-y-7` — fills full available width
 
-**Section 1 — Team Member Details:**
-Fields: Name, Employee Code, Manager Name, Company, Department, Team, Role/Position
+**Section 1 — TeamMemberDetails:**
+Fields: Name, TeamMemberCode, Manager Name, Company, Department, Team, Role/Position
 Layout: 2-column grid `grid-cols-2 gap-5`, Role/Position spans full width (`col-span-2`)
 
 **Section 2 — Declaration Details:**
 Fields on same row with correct alignment:
-- Row 1 (2-col): Received/Given selector | Who from/to selector
-- Row 2 (full): Vendor name
+- Row 1 (2-col): GHE Received/Given selector | Who from/to selector
+- Row 2 (full): Counterparty name
 - Row 3 (full): Contact person name
 - Row 4 (3-col equal): Bidding process | Existing relationship | Contract negotiation
 All three relationship dropdowns: Yes / No / Unsure / N/A
@@ -227,7 +227,7 @@ Only update `--background`:
 ## Verification
 
 1. App opens on Landing+Login combined screen — dark purple left, white login right
-2. Sign in as Team Member → New Declaration form loads without blank space; form fills width
+2. Sign in as TeamMember→ New Declaration form loads without blank space; form fills width
 3. Sticky sidebar nav highlights correct section as user scrolls
 4. All required fields (*) show red error + auto-scroll to first error on Submit attempt
 5. Submit with valid data → confetti modal → "View Declaration" shows detail + workflow tracker

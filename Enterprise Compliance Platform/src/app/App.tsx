@@ -25,7 +25,7 @@ type StatusType = "Draft" | "Pending" | "Approved" | "Declined" | "Escalated" | 
 type ApprovalDecision = "accept" | "discuss-org" | "discuss-foundation" | "return" | null;
 
 interface Declaration {
-  id: string; employee: string; department: string; type: string; vendor: string;
+  id: string; employee: string; department: string; type: string; Counterparty: string;
   value: number; submitted: string; approver: string; status: StatusType;
   priority: "High" | "Medium" | "Low"; description: string; relationship: string;
   teamMemberNumber: string; lineManager: string; position: string;
@@ -37,14 +37,14 @@ interface UploadedFile { name: string; size: number; type: string; url: string; 
 
 // ─── Data ──────────────────────────────────────────────────────────────────────
 const declarations: Declaration[] = [
-  { id: "GHE-2024-0047", employee: "Nomvula Dlamini", teamMemberNumber: "HB-204478", lineManager: "Sipho Nkosi", position: "Senior Brand Manager", department: "Marketing", company: "Hollywoodbets Group", team: "Brand & Communications", type: "Hospitality", vendor: "Tsogo Sun Hotels", value: 8500, submitted: "2024-11-12", approver: "Sipho Nkosi", status: "Pending", priority: "High", description: "Corporate dinner for key partners at Sandton Sun", relationship: "Client – Strategic Partner", receivedGiven: "Received", from: "Supplier", contactPerson: "John Smith", biddingProcess: "No", occasion: "Relationship Maintenance", date: "2024-11-10", instances: "2", publicOfficial: "No" },
-  { id: "GHE-2024-0046", employee: "Thabo Mokoena", teamMemberNumber: "HB-187234", lineManager: "Lindiwe Zulu", position: "Sales Executive", department: "Sales", company: "Hollywoodbets Group", team: "Enterprise Sales", type: "Gift", vendor: "Makro", value: 1200, submitted: "2024-11-10", approver: "Sipho Nkosi", status: "Approved", priority: "Low", description: "End-of-year gift basket received from supplier", relationship: "Supplier – Regular", receivedGiven: "Received", from: "Supplier", contactPerson: "Jane Dube", biddingProcess: "No", occasion: "Festive", date: "2024-11-08", instances: "1", publicOfficial: "No" },
-  { id: "GHE-2024-0045", employee: "Ayanda Khumalo", teamMemberNumber: "HB-219033", lineManager: "Sipho Nkosi", position: "Operations Manager", department: "Operations", company: "Hollywoodbets Group", team: "Operations", type: "Entertainment", vendor: "Emirates Airline", value: 34000, submitted: "2024-11-08", approver: "Lindiwe Zulu", status: "Escalated", priority: "High", description: "Business class flights and lounge access for conference", relationship: "Vendor – Technology", receivedGiven: "Received", from: "Customer", contactPerson: "Ahmed Al-Rashid", biddingProcess: "Yes", occasion: "Other", date: "2024-11-05", instances: "3", publicOfficial: "No" },
-  { id: "GHE-2024-0044", employee: "Pieter van der Berg", teamMemberNumber: "HB-156902", lineManager: "Lindiwe Zulu", position: "Finance Analyst", department: "Finance", company: "Hollywoodbets Group", team: "Financial Reporting", type: "Hospitality", vendor: "La Colombe Restaurant", value: 3200, submitted: "2024-11-06", approver: "Sipho Nkosi", status: "Declined", priority: "Medium", description: "Lunch meeting with audit consultants", relationship: "Service Provider – Annual", receivedGiven: "Given", from: "Customer", contactPerson: "Mark Johnson", biddingProcess: "No", occasion: "Relationship Maintenance", date: "2024-11-04", instances: "1", publicOfficial: "No" },
-  { id: "GHE-2024-0043", employee: "Zanele Sithole", teamMemberNumber: "HB-198741", lineManager: "Sipho Nkosi", position: "HR Generalist", department: "HR", company: "Hollywoodbets Group", team: "People & Culture", type: "Gift", vendor: "Woolworths", value: 650, submitted: "2024-11-04", approver: "Lindiwe Zulu", status: "Approved", priority: "Low", description: "Festive season hamper from staffing agency", relationship: "Supplier – Staffing", receivedGiven: "Received", from: "Supplier", contactPerson: "Thandi Molefe", biddingProcess: "No", occasion: "Festive", date: "2024-11-02", instances: "1", publicOfficial: "No" },
-  { id: "GHE-2024-0042", employee: "Bongani Cele", teamMemberNumber: "HB-234512", lineManager: "Lindiwe Zulu", position: "IT Systems Lead", department: "IT", company: "Hollywoodbets Group", team: "Technology", type: "Entertainment", vendor: "Sun International", value: 12800, submitted: "2024-11-02", approver: "Sipho Nkosi", status: "Pending", priority: "Medium", description: "Golf day and networking event hosted by Sun International", relationship: "Vendor – IT Solutions", receivedGiven: "Received", from: "Supplier", contactPerson: "Riaan Botha", biddingProcess: "Yes", occasion: "Relationship Maintenance", date: "2024-10-31", instances: "2", publicOfficial: "No" },
-  { id: "GHE-2024-0041", employee: "Fatima Ismail", teamMemberNumber: "HB-167823", lineManager: "Sipho Nkosi", position: "Legal Counsel", department: "Legal", company: "Hollywoodbets Group", team: "Legal & Compliance", type: "Gift", vendor: "Edgars", value: 890, submitted: "2024-10-30", approver: "Lindiwe Zulu", status: "Info Requested", priority: "Medium", description: "Clothing voucher received at legal conference", relationship: "External – Industry Event", receivedGiven: "Received", from: "Customer", contactPerson: "Priya Naidoo", biddingProcess: "N/A", occasion: "Other", date: "2024-10-28", instances: "1", publicOfficial: "No" },
-  { id: "GHE-2024-0040", employee: "Siphamandla Ndlovu", teamMemberNumber: "HB-244001", lineManager: "Lindiwe Zulu", position: "Brand Strategist", department: "Marketing", company: "Hollywoodbets Group", team: "Brand & Communications", type: "Hospitality", vendor: "Radisson Blu", value: 5600, submitted: "2024-10-28", approver: "Sipho Nkosi", status: "Draft", priority: "Low", description: "Team dinner for campaign launch celebration", relationship: "Internal – Team Event", receivedGiven: "Given", from: "Team Member", contactPerson: "Lebo Mahlangu", biddingProcess: "No", occasion: "Milestone", date: "2024-10-25", instances: "1", publicOfficial: "No" },
+  { id: "GHE-2024-0047", employee: "Nomvula Dlamini", teamMemberNumber: "HB-204478", lineManager: "Sipho Nkosi", position: "Senior Brand Manager", department: "Marketing", company: "Hollywoodbets Group", team: "Brand & Communications", type: "Hospitality", Counterparty: "Tsogo Sun Hotels", value: 8500, submitted: "2024-11-12", approver: "Sipho Nkosi", status: "Pending", priority: "High", description: "Corporate dinner for key partners at Sandton Sun", relationship: "Client – Strategic Partner", receivedGiven: "Received", from: "Supplier", contactPerson: "John Smith", biddingProcess: "No", occasion: "Relationship Maintenance", date: "2024-11-10", instances: "2", publicOfficial: "No" },
+  { id: "GHE-2024-0046", employee: "Thabo Mokoena", teamMemberNumber: "HB-187234", lineManager: "Lindiwe Zulu", position: "Sales Executive", department: "Sales", company: "Hollywoodbets Group", team: "Enterprise Sales", type: "Gift", Counterparty: "Makro", value: 1200, submitted: "2024-11-10", approver: "Sipho Nkosi", status: "Approved", priority: "Low", description: "End-of-year gift basket received from supplier", relationship: "Supplier – Regular", receivedGiven: "Received", from: "Supplier", contactPerson: "Jane Dube", biddingProcess: "No", occasion: "Festive", date: "2024-11-08", instances: "1", publicOfficial: "No" },
+  { id: "GHE-2024-0045", employee: "Ayanda Khumalo", teamMemberNumber: "HB-219033", lineManager: "Sipho Nkosi", position: "Operations Manager", department: "Operations", company: "Hollywoodbets Group", team: "Operations", type: "Entertainment", Counterparty: "Emirates Airline", value: 34000, submitted: "2024-11-08", approver: "Lindiwe Zulu", status: "Escalated", priority: "High", description: "Business class flights and lounge access for conference", relationship: "Counterparty – Technology", receivedGiven: "Received", from: "Customer", contactPerson: "Ahmed Al-Rashid", biddingProcess: "Yes", occasion: "Other", date: "2024-11-05", instances: "3", publicOfficial: "No" },
+  { id: "GHE-2024-0044", employee: "Pieter van der Berg", teamMemberNumber: "HB-156902", lineManager: "Lindiwe Zulu", position: "Finance Analyst", department: "Finance", company: "Hollywoodbets Group", team: "Financial Reporting", type: "Hospitality", Counterparty: "La Colombe Restaurant", value: 3200, submitted: "2024-11-06", approver: "Sipho Nkosi", status: "Declined", priority: "Medium", description: "Lunch meeting with audit consultants", relationship: "Service Provider – Annual", receivedGiven: "Given", from: "Customer", contactPerson: "Mark Johnson", biddingProcess: "No", occasion: "Relationship Maintenance", date: "2024-11-04", instances: "1", publicOfficial: "No" },
+  { id: "GHE-2024-0043", employee: "Zanele Sithole", teamMemberNumber: "HB-198741", lineManager: "Sipho Nkosi", position: "HR Generalist", department: "HR", company: "Hollywoodbets Group", team: "People & Culture", type: "Gift", Counterparty: "Woolworths", value: 650, submitted: "2024-11-04", approver: "Lindiwe Zulu", status: "Approved", priority: "Low", description: "Festive season hamper from staffing agency", relationship: "Supplier – Staffing", receivedGiven: "Received", from: "Supplier", contactPerson: "Thandi Molefe", biddingProcess: "No", occasion: "Festive", date: "2024-11-02", instances: "1", publicOfficial: "No" },
+  { id: "GHE-2024-0042", employee: "Bongani Cele", teamMemberNumber: "HB-234512", lineManager: "Lindiwe Zulu", position: "IT Systems Lead", department: "IT", company: "Hollywoodbets Group", team: "Technology", type: "Entertainment", Counterparty: "Sun International", value: 12800, submitted: "2024-11-02", approver: "Sipho Nkosi", status: "Pending", priority: "Medium", description: "Golf day and networking event hosted by Sun International", relationship: "Counterparty – IT Solutions", receivedGiven: "Received", from: "Supplier", contactPerson: "Riaan Botha", biddingProcess: "Yes", occasion: "Relationship Maintenance", date: "2024-10-31", instances: "2", publicOfficial: "No" },
+  { id: "GHE-2024-0041", employee: "Fatima Ismail", teamMemberNumber: "HB-167823", lineManager: "Sipho Nkosi", position: "Legal Counsel", department: "Legal", company: "Hollywoodbets Group", team: "Legal & Compliance", type: "Gift", Counterparty: "Edgars", value: 890, submitted: "2024-10-30", approver: "Lindiwe Zulu", status: "Info Requested", priority: "Medium", description: "Clothing voucher received at legal conference", relationship: "External – Industry Event", receivedGiven: "Received", from: "Customer", contactPerson: "Priya Naidoo", biddingProcess: "N/A", occasion: "Other", date: "2024-10-28", instances: "1", publicOfficial: "No" },
+  { id: "GHE-2024-0040", employee: "Siphamandla Ndlovu", teamMemberNumber: "HB-244001", lineManager: "Lindiwe Zulu", position: "Brand Strategist", department: "Marketing", company: "Hollywoodbets Group", team: "Brand & Communications", type: "Hospitality", Counterparty: "Radisson Blu", value: 5600, submitted: "2024-10-28", approver: "Sipho Nkosi", status: "Draft", priority: "Low", description: "Team dinner for campaign launch celebration", relationship: "Internal – Team Event", receivedGiven: "Given", from: "Team Member", contactPerson: "Lebo Mahlangu", biddingProcess: "No", occasion: "Milestone", date: "2024-10-25", instances: "1", publicOfficial: "No" },
 ];
 
 const complianceTrend = [
@@ -198,7 +198,7 @@ function SuccessModal({ data, onClose, onView }: { data: Record<string, string>;
         <p className="text-sm text-muted-foreground leading-relaxed mb-1">Thank you, <span className="font-semibold text-foreground">{data.employee}</span>.</p>
         <p className="text-sm text-muted-foreground leading-relaxed mb-6">Your declaration <span className="font-mono font-bold" style={{ color: PURPLE }}>{data.id}</span> has been submitted for approval. Your line manager will be notified shortly.</p>
         <div className="rounded-2xl p-4 mb-6 text-left space-y-2" style={{ background: "#F5F2FF" }}>
-          {[["Declaration ID", data.id], ["Type", data.type], ["Vendor", data.vendor], ["Submitted", new Date().toLocaleDateString("en-ZA")], ["Status", "Pending Approval"]].map(([k, v]) => (
+          {[["Declaration ID", data.id], ["Type", data.type], ["Counterparty", data.Counterparty], ["Submitted", new Date().toLocaleDateString("en-ZA")], ["Status", "Pending Approval"]].map(([k, v]) => (
             <div key={k} className="flex justify-between"><span className="text-xs text-muted-foreground">{k}</span><span className="text-xs font-semibold text-foreground">{v}</span></div>
           ))}
         </div>
@@ -418,7 +418,7 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
     employeeName: "Nomvula Dlamini", employeeCode: "HB-204478",
     lineManager: "Sipho Nkosi", company: "Hollywoodbets Group",
     department: "Marketing", team: "Brand & Communications", position: "Senior Brand Manager",
-    partyType: "", vendor: "", contactPerson: "",
+    partyType: "", Counterparty: "", contactPerson: "",
     existingRelationship: "", contractNegotiation: "", biddingProcess: "",
     occasion: "", date: "", value: "", currency: "ZAR",
     substantiation: "", instances: "", description: "",
@@ -476,7 +476,7 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
     if (!form.department.trim()) errs.department = "Required";
     if (!form.position.trim()) errs.position = "Required";
     if (!form.partyType) errs.partyType = "Required";
-    if (!form.vendor.trim()) errs.vendor = "Required";
+    if (!form.Counterparty.trim()) errs.Counterparty = "Required";
     if (!form.contactPerson.trim()) errs.contactPerson = "Required";
     if (!form.existingRelationship) errs.existingRelationship = "Required";
     if (!form.contractNegotiation) errs.contractNegotiation = "Required";
@@ -490,7 +490,7 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
     if (Object.keys(errs).length > 0) {
       const sectionMap: Record<string, string> = {
         employeeName: "sec-team", employeeCode: "sec-team", lineManager: "sec-team", company: "sec-team", department: "sec-team", position: "sec-team",
-        partyType: "sec-declaration", vendor: "sec-declaration", contactPerson: "sec-declaration",
+        partyType: "sec-declaration", Counterparty: "sec-declaration", contactPerson: "sec-declaration",
         existingRelationship: "sec-declaration", contractNegotiation: "sec-declaration", biddingProcess: "sec-declaration",
         category: "sec-ghe", description: "sec-ghe", date: "sec-ghe", instances: "sec-ghe",
         confirmed: "sec-undertaking",
@@ -508,7 +508,7 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
       id, employee: form.employeeName, employeeCode: form.employeeCode,
       lineManager: form.lineManager, company: form.company, department: form.department,
       team: form.team, position: form.position, receivedGiven,
-      partyType: form.partyType, vendor: form.vendor, contactPerson: form.contactPerson,
+      partyType: form.partyType, Counterparty: form.Counterparty, contactPerson: form.contactPerson,
       existingRelationship: form.existingRelationship, contractNegotiation: form.contractNegotiation,
       biddingProcess: form.biddingProcess, type: category, date: form.date,
       value: form.value ? `R ${form.value}` : "Not specified", occasion: form.occasion,
@@ -599,7 +599,7 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
               <ErrInp field="employeeName" value={form.employeeName} onChange={e => setF("employeeName", e.target.value)} />
             </div>
             <div>
-              <FL required hint="Your Hollywoodbets employee number." error={errors.employeeCode}>Employee Code</FL>
+              <FL required hint="Your Hollywoodbets TeamMembernumber." error={errors.employeeCode}>TeamMemberCode</FL>
               <ErrInp field="employeeCode" value={form.employeeCode} onChange={e => setF("employeeCode", e.target.value)} placeholder="e.g. HB-204478" />
             </div>
             <div>
@@ -641,8 +641,8 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
               </div>
             </div>
             <div>
-              <FL required hint="Full name of the organisation or individual." error={errors.vendor}>Name of the Supplier, Customer, Public Official or Team Member</FL>
-              <input className={`${inp} ${errors.vendor ? "border-red-400" : ""}`} value={form.vendor} onChange={e => setF("vendor", e.target.value)} placeholder="Full legal name" />
+              <FL required hint="Full name of the organisation or individual." error={errors.Counterparty}>Name of the Supplier, Customer, Public Official or Team Member</FL>
+              <input className={`${inp} ${errors.Counterparty ? "border-red-400" : ""}`} value={form.Counterparty} onChange={e => setF("Counterparty", e.target.value)} placeholder="Full legal name" />
             </div>
             <div>
               <FL required error={errors.contactPerson}>Name of the person {receivedGiven === "Received" ? "giving" : "receiving"} the Gift, Hospitality or Entertainment</FL>
@@ -811,20 +811,20 @@ function DeclarationDetailView({ data, onBack }: { data: Record<string, string> 
   const d = isRecord ? data as Declaration : null;
 
   const fields = d ? [
-    ["Team Member", d.employee], ["Employee Code", d.teamMemberNumber],
+    ["Team Member", d.employee], ["TeamMemberCode", d.teamMemberNumber],
     ["Manager", d.lineManager], ["Department", d.department],
     ["Position", d.position], ["Received / Given", d.receivedGiven],
-    ["Category", d.type], ["Vendor", d.vendor],
+    ["Category", d.type], ["Counterparty", d.Counterparty],
     ["Contact Person", d.contactPerson], ["Date", d.date],
     ["Value", formatRand(d.value)], ["Occasion", d.occasion],
     ["Bidding Process", d.biddingProcess], ["Instances", d.instances],
     ["Description", d.description],
   ] : [
-    ["Team Member", (data as Record<string,string>).employee], ["Employee Code", (data as Record<string,string>).employeeCode],
+    ["Team Member", (data as Record<string,string>).employee], ["TeamMemberCode", (data as Record<string,string>).employeeCode],
     ["Manager", (data as Record<string,string>).lineManager], ["Company", (data as Record<string,string>).company],
     ["Department", (data as Record<string,string>).department], ["Team", (data as Record<string,string>).team],
     ["Position", (data as Record<string,string>).position], ["Received / Given", (data as Record<string,string>).receivedGiven],
-    ["Category", (data as Record<string,string>).type], ["Vendor", (data as Record<string,string>).vendor],
+    ["Category", (data as Record<string,string>).type], ["Counterparty", (data as Record<string,string>).Counterparty],
     ["Contact Person", (data as Record<string,string>).contactPerson], ["Date", (data as Record<string,string>).date],
     ["Value", (data as Record<string,string>).value], ["Occasion", (data as Record<string,string>).occasion],
     ["Bidding Process", (data as Record<string,string>).biddingProcess], ["Contract Negotiation", (data as Record<string,string>).contractNegotiation],
@@ -916,7 +916,7 @@ function MyDeclarationsScreen() {
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
 
   const filtered = declarations.filter(d =>
-    (!search || d.vendor.toLowerCase().includes(search.toLowerCase()) || d.id.toLowerCase().includes(search.toLowerCase()) || d.employee.toLowerCase().includes(search.toLowerCase())) &&
+    (!search || d.Counterparty.toLowerCase().includes(search.toLowerCase()) || d.id.toLowerCase().includes(search.toLowerCase()) || d.employee.toLowerCase().includes(search.toLowerCase())) &&
     (typeFilter === "All" || d.type === typeFilter) &&
     (statusFilter === "All" || d.status === statusFilter)
   );
@@ -924,8 +924,8 @@ function MyDeclarationsScreen() {
   const totalValue = declarations.reduce((s, d) => s + d.value, 0);
 
   const exportCSV = () => {
-    const headers = ["Declaration ID", "Employee", "Type", "Vendor", "Value", "Submitted", "Status", "Approver"];
-    const rows = filtered.map(d => [d.id, d.employee, d.type, d.vendor, formatRand(d.value), d.submitted, d.status, d.approver]);
+    const headers = ["Declaration ID", "Employee", "Type", "Counterparty", "Value", "Submitted", "Status", "Approver"];
+    const rows = filtered.map(d => [d.id, d.employee, d.type, d.Counterparty, formatRand(d.value), d.submitted, d.status, d.approver]);
     const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(",")).join("\n");
     const a = document.createElement("a"); a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`; a.download = "GHE_Declarations.csv"; a.click();
   };
@@ -954,7 +954,7 @@ function MyDeclarationsScreen() {
       <Card className="p-3.5 mb-4 flex gap-3 flex-wrap items-center">
         <div className="relative flex-1 min-w-44">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by ID, vendor or employee…" className="w-full h-9 pl-9 pr-4 rounded-lg text-sm border border-border bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by ID, Counterparty or employee…" className="w-full h-9 pl-9 pr-4 rounded-lg text-sm border border-border bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
         </div>
         <div className="flex items-center gap-2">
           <Filter size={13} className="text-muted-foreground" />
@@ -975,13 +975,13 @@ function MyDeclarationsScreen() {
 
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
-          <THead cols={["Declaration ID", "Type", "Vendor", "Value", "Submitted", "Approver", "Status", "Actions"]} />
+          <THead cols={["Declaration ID", "Type", "Counterparty", "Value", "Submitted", "Approver", "Status", "Actions"]} />
           <tbody className="divide-y divide-border">
             {filtered.map(d => (
               <tr key={d.id} className="hover:bg-muted/20 transition-colors">
                 <td className="px-5 py-3.5"><span className="font-mono text-xs font-bold" style={{ color: PURPLE }}>{d.id}</span></td>
                 <td className="px-5 py-3.5"><TypeBadge type={d.type} /></td>
-                <td className="px-5 py-3.5 text-sm font-medium text-foreground">{d.vendor}</td>
+                <td className="px-5 py-3.5 text-sm font-medium text-foreground">{d.Counterparty}</td>
                 <td className="px-5 py-3.5 text-sm font-semibold text-foreground tabular-nums">{formatRand(d.value)}</td>
                 <td className="px-5 py-3.5 text-sm text-muted-foreground tabular-nums">{d.submitted}</td>
                 <td className="px-5 py-3.5 text-sm text-muted-foreground">{d.approver}</td>
@@ -1135,7 +1135,7 @@ function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void }) {
       </Card>
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
-          <THead cols={["Declaration ID", "Employee", "Dept", "Type", "Vendor", "Value", "Submitted", "Priority", "Status", "Actions"]} />
+          <THead cols={["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status", "Actions"]} />
           <tbody className="divide-y divide-border">
             {queue.map(d => (
               <tr key={d.id} className="hover:bg-muted/20 transition-colors">
@@ -1143,7 +1143,7 @@ function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void }) {
                 <td className="px-5 py-3.5 text-sm font-medium text-foreground whitespace-nowrap">{d.employee}</td>
                 <td className="px-5 py-3.5 text-xs text-muted-foreground">{d.department}</td>
                 <td className="px-5 py-3.5"><TypeBadge type={d.type} /></td>
-                <td className="px-5 py-3.5 text-sm font-medium text-foreground">{d.vendor}</td>
+                <td className="px-5 py-3.5 text-sm font-medium text-foreground">{d.Counterparty}</td>
                 <td className="px-5 py-3.5 text-sm font-semibold tabular-nums whitespace-nowrap">{formatRand(d.value)}</td>
                 <td className="px-5 py-3.5 text-xs text-muted-foreground tabular-nums whitespace-nowrap">{d.submitted}</td>
                 <td className="px-5 py-3.5"><span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${priorityStyle[d.priority]}`}>{d.priority}</span></td>
