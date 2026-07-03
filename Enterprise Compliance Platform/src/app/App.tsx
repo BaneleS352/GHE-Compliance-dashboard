@@ -891,17 +891,7 @@ function DeclarationDetailView({ data, onBack }: { data: Record<string, string> 
               ))}
             </div>
           </Card>
-          <Card className="p-6">
-            <h3 className="text-sm font-bold text-foreground uppercase tracking-wide mb-3">Declaration Summary</h3>
-            <div className="space-y-2">
-              {[["ID", id], ["Status", status], ["Submitted", d ? d.submitted : new Date().toLocaleDateString("en-ZA")]].map(([k, v]) => (
-                <div key={k} className="flex justify-between items-center py-2 border-b border-border last:border-0">
-                  <span className="text-xs text-muted-foreground">{k}</span>
-                  <span className="text-xs font-semibold text-foreground">{k === "Status" ? <StatusBadge status={v as StatusType} /> : v}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
+          
         </div>
       </div>
     </div>
