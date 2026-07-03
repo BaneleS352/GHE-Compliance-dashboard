@@ -152,8 +152,8 @@ Layout: 2-column grid `grid-cols-2 gap-5`, Role/Position spans full width (`col-
 Fields on same row with correct alignment:
 - Row 1 (2-col): GHE Received/Given selector | Who from/to selector
 - Row 2 (full): Counterparty name
-- Row 3 (full): Contact person name
-- Row 4 (3-col equal): Bidding process | Existing relationship | Contract negotiation
+- Row 3 (full): Name of Contact person name
+- Row 4 (3-col equal): Bid In Progress | Existing relationship | Contract negotiation
 All three relationship dropdowns: Yes / No / Unsure / N/A
 
 **Section 3 — GHE Details:**
