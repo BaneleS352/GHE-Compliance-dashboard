@@ -273,7 +273,7 @@ function TopBar({ userName, role, onSignOut }: { userName: string; role: Role; o
       <div className="flex items-center gap-3">
         <ImageWithFallback src={groupLogoImg} alt="Hollywoodbets Group" className="h-7 w-auto object-contain" />
         <div className="h-5 w-px bg-border" />
-        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden md:block">GHE Declaration System</span>
+        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden md:block">Gift, Hospitality or Entertainment ("GHE") Declaration System</span>
       </div>
       <div className="flex items-center gap-3">
         <button className="relative w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted transition-colors">
@@ -302,9 +302,9 @@ function AppShell({ role, screen, userName, onNavigate, onSignOut, children }: {
   return (
     <div className="flex h-screen w-screen overflow-hidden" style={F}>
       <Sidebar role={role} screen={screen} onNavigate={onNavigate} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
-      <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex flex-col flex-1 min-w-0 min-h-0">
         <TopBar userName={userName} role={role} onSignOut={onSignOut} />
-        <main className="flex-1 overflow-y-auto bg-background p-7">{children}</main>
+        <main className="flex-1 min-h-0 overflow-y-auto bg-background p-7">{children}</main>
       </div>
     </div>
   );
@@ -426,21 +426,30 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
   const setF = (k: string, v: string) => { setFormState(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
 
   useEffect(() => {
-    const el = scrollRef.current; if (!el) return;
+    const el = scrollRef.current;
+    const scrollRoot = el?.closest("main") as HTMLElement | null;
+    if (!el || !scrollRoot) return;
+
     const onScroll = () => {
+      const rootTop = scrollRoot.getBoundingClientRect().top;
       for (const s of [...FORM_SECTIONS].reverse()) {
         const node = el.querySelector(`#${s.id}`) as HTMLElement | null;
-        if (node && node.offsetTop - el.scrollTop <= 120) { setActiveSection(s.id); return; }
+        if (node && node.getBoundingClientRect().top - rootTop <= 36) {
+          setActiveSection(s.id);
+          return;
+        }
       }
     };
-    el.addEventListener("scroll", onScroll);
-    return () => el.removeEventListener("scroll", onScroll);
+
+    onScroll();
+    scrollRoot.addEventListener("scroll", onScroll, { passive: true });
+    return () => scrollRoot.removeEventListener("scroll", onScroll);
   }, []);
 
   const jumpTo = (id: string) => {
     const el = scrollRef.current;
     const node = el?.querySelector(`#${id}`) as HTMLElement | null;
-    if (el && node) el.scrollTo({ top: node.offsetTop - 16, behavior: "smooth" });
+    node?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   const ALLOWED = ["application/pdf", "image/png", "image/jpeg", "application/msword",
@@ -521,7 +530,7 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
   );
 
   return (
-    <div className="flex gap-6 h-full">
+    <div className="flex items-start gap-6 max-w-7xl mx-auto">
       {/* Sticky nav */}
       <aside className="w-48 flex-shrink-0 hidden lg:flex flex-col gap-3">
         <div className="sticky top-0 flex flex-col gap-3">
@@ -552,11 +561,20 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
               </div>
             ))}
           </div>
+          <div className="rounded-2xl border border-primary/10 p-3.5 bg-white">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: PURPLE }}>Related Policies</p>
+            {["Gifts, Hospitality & Entertainment Policy", "Anti-Bribery and Corruption Policy"].map(policy => (
+              <div key={policy} className="flex items-start gap-2 rounded-xl border border-primary/5 bg-secondary/20 p-2.5 mb-2 last:mb-0">
+                <FileText size={13} className="mt-0.5 flex-shrink-0" style={{ color: PURPLE }} />
+                <p className="text-[11px] font-semibold text-foreground leading-snug">{policy}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </aside>
 
-      {/* Scrollable form */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto pb-10 pr-0.5 space-y-7" style={{ scrollbarWidth: "none" }}>
+      {/* Form content */}
+      <div ref={scrollRef} className="flex-1 min-w-0 space-y-7 pb-2">
         {/* Header */}
         <div className="flex items-center justify-between pb-5 border-b border-border gap-4">
           <div>
@@ -755,17 +773,6 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
               <div key={i} className="flex items-start gap-3 py-3 px-4 rounded-xl bg-muted/30 border border-border/50">
                 <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center flex-shrink-0 mt-0.5"><Check size={10} style={{ color: PURPLE }} /></div>
                 <p className="text-sm text-foreground leading-relaxed">{item}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Policy reference links (non-clickable display only) */}
-          <div className="mb-5 p-4 rounded-xl border border-border bg-muted/20 space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Related Policies</p>
-            {["Gifts, Hospitality & Entertainment Policy", "Anti-Bribery and Corruption Policy"].map(policy => (
-              <div key={policy} className="flex items-center gap-2 text-sm" style={{ color: PURPLE }}>
-                <FileText size={13} />
-                <span className="font-medium underline-offset-2 underline opacity-80">{policy}</span>
               </div>
             ))}
           </div>
