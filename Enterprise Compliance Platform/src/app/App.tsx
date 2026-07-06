@@ -19,11 +19,18 @@ import logoImg from "@/imports/Logo.png";
 import groupLogoImg from "@/imports/Hollywood_Group_Logo.png";
 import bannerImg from "@/imports/Button.png";
 
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Screen = "landing" | "login" | "new-declaration" | "my-declarations" | "approver-dashboard" | "approval-queue" | "approval-detail" | "declaration-detail";
 type Role = "teamMember" | "approver";
 type StatusType = "Draft" | "Pending" | "Approved" | "Declined" | "Escalated" | "Info Requested";
-type ApprovalDecision = "accept" | "discuss-org" | "discuss-foundation" | "return" | null;
+type ApprovalDecision =
+  | "return"
+  | "accept"
+  | "org"
+  | "foundation"
+  | "decline"
+  | null;
 
 interface Declaration {
   id: string; employee: string; department: string; type: string; Counterparty: string;
@@ -31,8 +38,8 @@ interface Declaration {
   priority: "High" | "Medium" | "Low"; description: string; relationship: string;
   teamMemberNumber: string; lineManager: string; position: string;
   receivedGiven: string; from: string; contactPerson: string;
-  biddingProcess: string; occasion: string; date: string; instances: string; publicOfficial: string;
-  company?: string; team?: string;
+  biddingProcess: string; contractNegotiation?: string;  occasion: string; date: string; instances: string; publicOfficial: string;
+  company?: string; team?: string; substantiation?: string; 
 }
 interface UploadedFile { name: string; size: number; type: string; url: string; }
 
@@ -58,11 +65,29 @@ const typeBreakdown = [
   { name: "Hospitality", value: 41, color: "#0891b2" },
   { name: "Entertainment", value: 21, color: "#d97706" },
 ];
+
+
 const approvalOptions = [
-  { value: "accept", label: "Accept the actual GHE or offered Gift / Hospitality / Entertainment", description: "Approve the declaration as submitted — the GHE is compliant and may be accepted or given." },
-  { value: "discuss-org", label: "Approved — Team Member to discuss with the Organisation Post", description: "Approved, and Team Member must discuss the actual GHE or offered GHE with the Organisation Post." },
-  { value: "discuss-foundation", label: "Approved — Team Member to discuss with Hollywoodbets Foundation", description: "Approved, and Team Member must discuss the actual GHE with the Hollywoodbets Foundation." },
-  { value: "return", label: "Return / Reject the GHE", description: "Team Member must return the actual GHE or reject the offered Gift/Hospitality/Entertainment." },
+  {
+    value: "return",
+    label: "Return - Team member to provide additional information.",
+  },
+  {
+    value: "accept",
+    label: "Approved - Team Member to accept the actual GHE or offered GHE in their personal capacity.",
+  },
+  {
+    value: "org",
+    label: "Approved - Team Member to share the actual GHE or offered GHE with the Organisation Pool.",
+  },
+  {
+    value: "foundation",
+    label: "Approved - Team Member to donate the actual GHE or offered GHE to the Hollywood Foundation.",
+  },
+  {
+    value: "decline",
+    label: "Declined - Team Member to return the actual GHE or regret the offered GHE.",
+  },
 ];
 
 // ─── Design tokens ─────────────────────────────────────────────────────────────
@@ -139,9 +164,23 @@ function Sel({ children, value, onChange, className = "" }: { children: React.Re
     </Select.Root>
   );
 }
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+    children: React.ReactNode;
+}
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-white/70 backdrop-blur-xl rounded-2xl border border-white/60 shadow-[0_8px_32px_rgba(31,38,135,0.04)] hover:shadow-[0_8px_32px_rgba(31,38,135,0.08)] transition-shadow duration-300 ${className}`}>{children}</div>;
+function Card({
+    children,
+    className = "",
+    ...props
+}: CardProps) {
+    return (
+        <div
+            className={`bg-white rounded-2xl border border-border shadow-sm ${className}`}
+            {...props}
+        >
+            {children}
+        </div>
+    );
 }
 
 function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
@@ -153,16 +192,44 @@ function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: st
   );
 }
 
-function KpiCard({ label, value, icon: Icon, iconBg, iconColor, trend, trendColor }: {
-  label: string; value: string; icon: React.ElementType; iconBg: string; iconColor: string; trend?: string; trendColor?: string;
+
+
+function KpiCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  icon: React.ElementType;
+  color: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <Card className="p-5">
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: iconBg }}><Icon size={18} style={{ color: iconColor }} /></div>
-      <p className="text-2xl font-bold text-foreground tracking-tight">{value}</p>
-      <p className="text-xs font-medium text-muted-foreground mt-1 leading-tight">{label}</p>
-      {trend && <p className="text-[11px] font-semibold mt-2" style={{ color: trendColor ?? iconColor }}>{trend}</p>}
-    </Card>
+    <div
+      onClick={onClick}
+      className={`p-5 rounded-2xl cursor-pointer transition-all duration-300 border transform
+        ${active ? "scale-105 shadow-xl" : "hover:scale-[1.02] hover:shadow-md"}
+      `}
+      style={{
+        background: `linear-gradient(135deg, ${color}15, ${color}05)`,
+        borderColor: active ? color : "#eee",
+      }}
+    >
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+        style={{ background: color + "20" }}
+      >
+        <Icon size={18} style={{ color }} />
+      </div>
+
+      <p className="text-2xl font-bold">{value}</p>
+      <p className="text-xs mt-1">{label}</p>
+    </div>
   );
 }
 
@@ -819,205 +886,478 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
 }
 
 // ─── Declaration Detail View (with approval workflow) ──────────────────────────
-function DeclarationDetailView({ data, onBack }: { data: Record<string, string> | Declaration; onBack: () => void }) {
+function DeclarationDetailView({
+  data,
+  onBack,
+}: {
+  data: Record<string, string> | Declaration;
+  onBack: () => void;
+}) {
   const isRecord = typeof (data as Declaration).value === "number";
-  const d = isRecord ? data as Declaration : null;
+  const d = isRecord ? (data as Declaration) : null;
+  const record = !d ? (data as Record<string, string>) : null;
 
-  const fields = d ? [
-    ["Team Member", d.employee], ["TeamMemberCode", d.teamMemberNumber],
-    ["Manager", d.lineManager], ["Department", d.department],
-    ["Position", d.position], ["Received / Given", d.receivedGiven],
-    ["Category", d.type], ["Counterparty", d.Counterparty],
-    ["Contact Person", d.contactPerson], ["Date", d.date],
-    ["Value", formatRand(d.value)], ["Occasion", d.occasion],
-    ["Bid In Progress", d.biddingProcess], ["Instances", d.instances],
-    ["Description", d.description],
-  ] : [
-    ["Team Member", (data as Record<string,string>).employee], ["TeamMemberCode", (data as Record<string,string>).employeeCode],
-    ["Manager", (data as Record<string,string>).lineManager], ["Company", (data as Record<string,string>).company],
-    ["Department", (data as Record<string,string>).department], ["Team", (data as Record<string,string>).team],
-    ["Position", (data as Record<string,string>).position], ["Received / Given", (data as Record<string,string>).receivedGiven],
-    ["Category", (data as Record<string,string>).type], ["Counterparty", (data as Record<string,string>).Counterparty],
-    ["Contact Person", (data as Record<string,string>).contactPerson], ["Date", (data as Record<string,string>).date],
-    ["Value", (data as Record<string,string>).value], ["Occasion", (data as Record<string,string>).occasion],
-    ["Bid In Progress", (data as Record<string,string>).biddingProcess], ["Contract Negotiation", (data as Record<string,string>).contractNegotiation],
-    ["Description", (data as Record<string,string>).description],
-  ];
+  const safe = (v: any) => v ?? "—";
 
-  const id = d ? d.id : (data as Record<string,string>).id;
+  const fields: [string, string][] = d
+    ? [
+        ["Team Member", safe(d.employee)],
+        ["Team Member Code", safe(d.teamMemberNumber)],
+        ["Manager", safe(d.lineManager)],
+        ["Company", safe(d.company)],
+        ["Department", safe(d.department)],
+        ["Position", safe(d.position)],
+        ["Received / Given", safe(d.receivedGiven)],
+        ["Category", safe(d.type)],
+        ["Counter Party Name", safe(d.Counterparty)],
+        ["Name Of Counter Person", safe(d.contactPerson)],
+        ["Date", safe(d.date)],
+        ["Value", formatRand(d.value)],
+        ["Reason/Occasion", safe(d.occasion)],
+        ["Bid In Progress", safe(d.biddingProcess)],
+        ["Contract In Progress", safe(d.contractNegotiation)],
+        ["No. of GHE past 12 months", safe(d.instances)],
+        ["Description", safe(d.description)],
+        ...(d.value > 2000
+          ? ([["Substantiation (> R2 000)", safe(d.substantiation || "Required")]] as [string, string][])
+          : []),
+      ]
+    : [
+        ["Team Member", safe(record?.employee)],
+        ["Team Member Code", safe(record?.teamMemberNumber)],
+        ["Manager", safe(record?.lineManager)],
+        ["Company", safe(record?.company)],
+        ["Department", safe(record?.department)],
+        ["Team", safe(record?.team)],
+        ["Position", safe(record?.position)],
+        ["Received / Given", safe(record?.receivedGiven)],
+        ["Category", safe(record?.type)],
+        ["Counter Party Name", safe(record?.Counterparty)],
+        ["Name Of Counter Person", safe(record?.contactPerson)],
+        ["Date", safe(record?.date)],
+        ["Value", safe(record?.value)],
+        ["Reason/Occasion", safe(record?.occasion)],
+        ["Bid In Progress", safe(record?.biddingProcess)],
+        ["Contract In Progress", safe(record?.contractNegotiation)],
+        ["No. of GHE past 12 months", safe(record?.instances)],
+        ["Description", safe(record?.description)],
+        ...(Number(record?.value) > 2000
+          ? ([["Substantiation (> R2 000)", safe(record?.substantiation || "Required")]] as [string, string][])
+          : []),
+      ];
+
   const status: StatusType = d ? d.status : "Pending";
 
   const workflowSteps = [
-    { label: "Submitted", actor: "Team Member", done: true, date: d ? d.submitted : new Date().toLocaleDateString("en-ZA") },
-    { label: "Line Manager Review", actor: d ? d.lineManager : (data as Record<string,string>).lineManager, done: status === "Approved" || status === "Declined", date: "Pending" },
-    { label: "HR Review", actor: "Head of HR", done: status === "Approved", date: "Pending" },
-    { label: "CEO Approval", actor: "Group CEO", done: false, date: "Pending" },
+    {
+      label: "Submission",
+      actor: "Team Member",
+      done: true,
+      updates: [
+        {
+          status: "Submitted",
+          date: d
+            ? d.submitted
+            : new Date().toLocaleDateString("en-ZA"),
+          time: "08:45",
+        },
+      ],
+    },
+    {
+      label: "Line Manager Review",
+      actor: d ? d.lineManager : safe(record?.lineManager),
+      done: status === "Approved" || status === "Declined",
+      updates:
+        status === "Approved"
+          ? [{ status: "Approved", date: "2026-07-01", time: "10:15" }]
+          : status === "Declined"
+          ? [{ status: "Declined", date: "2026-07-01", time: "10:15" }]
+          : [{ status: "Pending", date: "-", time: "-" }],
+    },
+    {
+      label: "HR Review",
+      actor: "Head of HR",
+      done: status === "Approved",
+      updates:
+        status === "Approved"
+          ? [{ status: "Approved", date: "2026-07-02", time: "12:30" }]
+          : [{ status: "Pending", date: "-", time: "-" }],
+    },
+    {
+      label: "CEO Approval",
+      actor: "Group CEO",
+      done: false,
+      updates: [{ status: "Pending", date: "-", time: "-" }],
+    },
   ];
 
   return (
-    <div>
-      <div className="flex items-center gap-2.5 mb-7 pb-5 border-b border-border">
-        <button onClick={onBack} className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-sm font-semibold border border-border bg-white hover:bg-muted transition-colors text-muted-foreground"><ArrowLeft size={14} /> Back</button>
-        <div className="h-5 w-px bg-border mx-1" />
-        <span className="font-mono text-sm font-bold" style={{ color: PURPLE }}>{id}</span>
-        <StatusBadge status={status} />
-      </div>
-      <div className="grid grid-cols-5 gap-5">
-        <div className="col-span-3 space-y-4">
-          <Card className="p-6">
-            <h2 className="text-sm font-bold text-foreground uppercase tracking-wide mb-4">Declaration Details</h2>
+    <div className="grid grid-cols-5 gap-5">
+
+      {/* ROW 1 */}
+      <div className="col-span-5 flex gap-5">
+
+        {/* LEFT */}
+        <div className="flex-[3]">
+          <Card className="p-6 h-full">
+            <h2 className="text-sm font-bold uppercase mb-4">
+              Declaration Details
+            </h2>
+
             <div className="grid grid-cols-2 gap-3">
-              {fields.filter(([, v]) => v).map(([k, v]) => (
-                <div key={k} className={`rounded-xl p-3 bg-muted/30 border border-border/40 ${k === "Description" ? "col-span-2" : ""}`}>
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">{k}</p>
-                  <p className="text-sm font-medium text-foreground mt-1">{v}</p>
+              {fields.map(([k, v]) => (
+                <div
+                  key={k}
+                  className={`rounded-xl p-3 bg-muted/30 border ${
+                    ["Description", "Substantiation (> R2 000)"].includes(k)
+                      ? "col-span-2"
+                      : ""
+                  }`}
+                >
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase">
+                    {k}
+                  </p>
+                  <p className="text-sm font-medium mt-1">{v}</p>
                 </div>
               ))}
             </div>
           </Card>
-          {(data as Record<string,string>).files && (
-            <Card className="p-6">
-              <h3 className="text-sm font-bold text-foreground uppercase tracking-wide mb-3">Supporting Documents</h3>
-              <p className="text-sm text-muted-foreground">{(data as Record<string,string>).files}</p>
-            </Card>
-          )}
         </div>
-        <div className="col-span-2 space-y-4">
-          <Card className="p-6">
-            <h3 className="text-sm font-bold text-foreground uppercase tracking-wide mb-4">Approval Workflow</h3>
-            <div className="space-y-0">
+
+        {/* RIGHT */}
+        <div className="flex-[2]">
+          <Card className="p-6 h-full flex flex-col">
+            <h3 className="text-sm font-bold uppercase mb-4">
+              Approval Workflow
+            </h3>
+
+            <div className="relative flex flex-col justify-between flex-1">
+
+              <div className="absolute left-[14px] top-7 bottom-7 w-[2px] bg-border" />
+
+              <div
+                className="absolute left-[14px] top-7 w-[2px] bg-emerald-600"
+                style={{
+                  height: `${
+                    ((workflowSteps.filter((s) => s.done).length - 1) /
+                      (workflowSteps.length - 1 || 1)) *
+                    100
+                  }%`,
+                }}
+              />
+
               {workflowSteps.map((step, i) => (
-                <div key={i} className="flex items-start gap-3 relative">
-                  {i < workflowSteps.length - 1 && <div className="absolute left-[14px] top-7 w-0.5 h-8 bg-border" />}
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${step.done ? "text-white" : "bg-muted text-muted-foreground"}`}
-                    style={step.done ? { background: "#059669" } : {}}>
-                    {step.done ? <Check size={12} /> : <span className="text-[10px] font-bold">{i + 1}</span>}
+                <div key={i} className="flex items-start gap-3">
+
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                      step.done
+                        ? "bg-emerald-600 text-white"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {step.done ? <Check size={12} /> : i + 1}
                   </div>
-                  <div className="pb-6 flex-1">
-                    <p className="text-sm font-semibold text-foreground">{step.label}</p>
-                    <p className="text-xs text-muted-foreground">{step.actor}</p>
-                    <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${step.done ? "bg-emerald-50 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-                      {step.done ? "Complete" : step.date}
-                    </span>
+
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold">{step.label}</p>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      {step.actor}
+                    </p>
+
+                    {step.updates.map((u, idx) => (
+                      <div key={idx} className="text-[11px] px-3 py-2 rounded-md bg-muted/40 border space-y-1">
+                        <div className="flex gap-2">
+                          <span className="w-14 text-muted-foreground">Status:</span>
+                          <span>{u.status}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="w-14 text-muted-foreground">Date:</span>
+                          <span>{u.date}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="w-14 text-muted-foreground">Time:</span>
+                          <span>{u.time}</span>
+                        </div>
+                      </div>
+                    ))}
+
                   </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-          <Card className="p-6">
-            <h3 className="text-sm font-bold text-foreground uppercase tracking-wide mb-3">Declaration Summary</h3>
-            <div className="space-y-2">
-              {[["ID", id], ["Status", status], ["Submitted", d ? d.submitted : new Date().toLocaleDateString("en-ZA")]].map(([k, v]) => (
-                <div key={k} className="flex justify-between items-center py-2 border-b border-border last:border-0">
-                  <span className="text-xs text-muted-foreground">{k}</span>
-                  <span className="text-xs font-semibold text-foreground">{k === "Status" ? <StatusBadge status={v as StatusType} /> : v}</span>
                 </div>
               ))}
             </div>
           </Card>
         </div>
+
       </div>
+
+      {/* ROW 2 */}
+      <div className="col-span-3">
+        <Card className="p-6">
+          <h3 className="text-sm font-bold uppercase mb-3">
+            Supporting Documents
+          </h3>
+
+          <div className="space-y-2">
+            {(record?.files ?? "")
+              .split(",")
+              .filter(Boolean)
+              .map((file, i) => (
+                <button
+                  key={i}
+                  className="w-full text-left text-sm px-3 py-2 rounded-lg border bg-muted/40 hover:bg-muted"
+                  onClick={() => window.open(file.trim(), "_blank")}
+                >
+                  📄 {file.trim()}
+                </button>
+              ))}
+          </div>
+
+        </Card>
+      </div>
+
     </div>
   );
 }
 
 // ─── My Declarations ───────────────────────────────────────────────────────────
+import * as XLSX from "xlsx";
+
 function MyDeclarationsScreen() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [approverFilter, setApproverFilter] = useState("All");
+  const [dateFilter, setDateFilter] = useState("");
+  const [activeKpi, setActiveKpi] = useState("All");
+
+  const [sortKey, setSortKey] = useState<keyof Declaration | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
 
+  // FILTERING
   const filtered = declarations.filter(d =>
-    (!search || d.Counterparty.toLowerCase().includes(search.toLowerCase()) || d.id.toLowerCase().includes(search.toLowerCase()) || d.employee.toLowerCase().includes(search.toLowerCase())) &&
+    (!search ||
+      d.id.toLowerCase().includes(search.toLowerCase()) ||
+      d.Counterparty.toLowerCase().includes(search.toLowerCase()) ||
+      d.employee.toLowerCase().includes(search.toLowerCase())
+    ) &&
     (typeFilter === "All" || d.type === typeFilter) &&
-    (statusFilter === "All" || d.status === statusFilter)
+    (statusFilter === "All" || d.status === statusFilter) &&
+    (approverFilter === "All" || d.approver === approverFilter) &&
+    (!dateFilter || d.submitted === dateFilter)
   );
 
+  // SORTING
+  const sorted = [...filtered].sort((a, b) => {
+  if (!sortKey) return 0;
+
+  const aVal = a[sortKey] ?? "";
+  const bVal = b[sortKey] ?? "";
+
+  // Convert numbers safely
+  if (typeof aVal === "number" && typeof bVal === "number") {
+    return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+  }
+
+  // Convert everything else to string
+  const aStr = String(aVal).toLowerCase();
+  const bStr = String(bVal).toLowerCase();
+
+  if (aStr < bStr) return sortDir === "asc" ? -1 : 1;
+  if (aStr > bStr) return sortDir === "asc" ? 1 : -1;
+
+  return 0;
+});
+
+  // PAGINATION
+  const totalPages = Math.ceil(sorted.length / pageSize);
+
+  const paginated = sorted.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // KPI
   const totalValue = declarations.reduce((s, d) => s + d.value, 0);
 
-  const exportCSV = () => {
-    const headers = ["Declaration ID", "Employee", "Type", "Counterparty", "Value", "Submitted", "Status", "Approver"];
-    const rows = filtered.map(d => [d.id, d.employee, d.type, d.Counterparty, formatRand(d.value), d.submitted, d.status, d.approver]);
-    const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(",")).join("\n");
-    const a = document.createElement("a"); a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`; a.download = "GHE_Declarations.csv"; a.click();
+  const handleKpiClick = (type: string) => {
+    setActiveKpi(type);
+    setCurrentPage(1);
+    setStatusFilter(type === "All" ? "All" : type);
+  };
+
+  // EXCEL EXPORT
+  const exportExcel = () => {
+    const data = filtered.map(d => ({
+      ID: d.id,
+      Employee: d.employee,
+      Type: d.type,
+      Vendor: d.Counterparty,
+      Value: d.value,
+      Submitted: d.submitted,
+      Status: d.status,
+      Approver: d.approver,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Declarations");
+
+    XLSX.writeFile(wb, "Declarations.xlsx");
   };
 
   if (viewDecl) return <DeclarationDetailView data={viewDecl} onBack={() => setViewDecl(null)} />;
 
   return (
     <div>
-      <PageHeader title="My Declarations" subtitle="View and manage your GHE declaration history"
-        actions={
-          <button onClick={exportCSV} className="h-9 px-4 rounded-xl text-sm font-semibold border border-border bg-white hover:bg-muted transition-colors flex items-center gap-2">
-            <Download size={13} /> Export to Excel
-          </button>
-        } />
 
-      {/* 5 KPI cards — Total, Pending, Approved, Declined, Total Value */}
+      <PageHeader
+        title="My Declarations"
+        subtitle="Manage and review your declarations"
+        actions={
+          <button onClick={exportExcel} className="h-9 px-4 rounded-xl border bg-white hover:bg-muted flex gap-2 items-center">
+            <Download size={13}/> Export Excel
+          </button>
+        }
+      />
+
+      {/* KPI CARDS */}
       <div className="grid grid-cols-5 gap-4 mb-7">
-        <KpiCard label="Total Declarations" value={String(declarations.length)} icon={FileText}   iconBg="#EDE8FF" iconColor={PURPLE} />
-        <KpiCard label="Pending Approval"   value="2"   icon={Clock}       iconBg="#fffbeb" iconColor="#d97706" trend="Awaiting review" trendColor="#d97706" />
-        <KpiCard label="Approved"           value="2"   icon={Check}       iconBg="#ecfdf5" iconColor="#059669" trend="Compliant"       trendColor="#059669" />
-        <KpiCard label="Declined"           value="1"   icon={X}           iconBg="#fef2f2" iconColor="#dc2626" />
-        <KpiCard label="Total Value"        value={`R ${Math.round(totalValue / 1000)}K`} icon={DollarSign} iconBg="#EDE8FF" iconColor={PURPLE} trend="All declarations" />
+        <KpiCard label="Total" value={String(declarations.length)} icon={FileText} color="#7c3aed" active={activeKpi==="All"} onClick={()=>handleKpiClick("All")} />
+        <KpiCard label="Pending" value={String(declarations.filter(d=>d.status==="Pending").length)} icon={Clock} color="#f59e0b" active={activeKpi==="Pending"} onClick={()=>handleKpiClick("Pending")} />
+        <KpiCard label="Approved" value={String(declarations.filter(d=>d.status==="Approved").length)} icon={Check} color="#10b981" active={activeKpi==="Approved"} onClick={()=>handleKpiClick("Approved")} />
+        <KpiCard label="Declined" value={String(declarations.filter(d=>d.status==="Declined").length)} icon={X} color="#ef4444" active={activeKpi==="Declined"} onClick={()=>handleKpiClick("Declined")} />
+        <KpiCard label="Total Value" value={`R ${Math.round(totalValue/1000)}K`} icon={DollarSign} color="#6366f1" />
       </div>
 
-      {/* Filter bar */}
-      <Card className="p-3.5 mb-4 flex gap-3 flex-wrap items-center">
-        <div className="relative flex-1 min-w-44">
-          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by ID, Counterparty or employee…" className="w-full h-9 pl-9 pr-4 rounded-lg text-sm border border-border bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter size={13} className="text-muted-foreground" />
-          <span className="text-xs font-semibold text-muted-foreground">Type:</span>
-          {["All","Gift","Hospitality","Entertainment"].map(t => (
-            <button key={t} onClick={() => setTypeFilter(t)} className="h-8 px-3 rounded-lg text-xs font-semibold transition-colors"
-              style={typeFilter === t ? { background: PURPLE, color: "#fff" } : { background: "#F0EEF8", color: "#6B6B80" }}>{t}</button>
+      {/* FILTERS */}
+      <Card className="p-3 mb-4 flex gap-3 flex-wrap">
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." className="h-9 px-3 border rounded-lg"/>
+
+        <select onChange={e=>setTypeFilter(e.target.value)} className="h-9 border rounded-lg px-2">
+          <option>All</option>
+          <option>Gift</option>
+          <option>Hospitality</option>
+          <option>Entertainment</option>
+        </select>
+
+        <select onChange={e=>setStatusFilter(e.target.value)} className="h-9 border rounded-lg px-2">
+          <option>All</option>
+          <option>Pending</option>
+          <option>Approved</option>
+          <option>Declined</option>
+        </select>
+
+        <select onChange={e=>setApproverFilter(e.target.value)} className="h-9 border rounded-lg px-2">
+          <option>All</option>
+          {[...new Set(declarations.map(d=>d.approver))].map(a=>(
+            <option key={a}>{a}</option>
           ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-muted-foreground">Status:</span>
-          {["All","Draft","Pending","Approved","Declined"].map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)} className="h-8 px-3 rounded-lg text-xs font-semibold transition-colors"
-              style={statusFilter === s ? { background: PURPLE, color: "#fff" } : { background: "#F0EEF8", color: "#6B6B80" }}>{s}</button>
-          ))}
-        </div>
+        </select>
+
+        <input type="date" onChange={e=>setDateFilter(e.target.value)} className="h-9 border rounded-lg px-2"/>
       </Card>
 
+      {/* TABLE */}
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
-          <THead cols={["Declaration ID", "Type", "Counterparty", "Value", "Submitted", "Approver", "Status", "Actions"]} />
-          <tbody className="divide-y divide-border">
-            {filtered.map(d => (
-              <tr key={d.id} className="hover:bg-muted/20 transition-colors">
-                <td className="px-5 py-3.5"><span className="font-mono text-xs font-bold" style={{ color: PURPLE }}>{d.id}</span></td>
-                <td className="px-5 py-3.5"><TypeBadge type={d.type} /></td>
-                <td className="px-5 py-3.5 text-sm font-medium text-foreground">{d.Counterparty}</td>
-                <td className="px-5 py-3.5 text-sm font-semibold text-foreground tabular-nums">{formatRand(d.value)}</td>
-                <td className="px-5 py-3.5 text-sm text-muted-foreground tabular-nums">{d.submitted}</td>
-                <td className="px-5 py-3.5 text-sm text-muted-foreground">{d.approver}</td>
-                <td className="px-5 py-3.5"><StatusBadge status={d.status} /></td>
-                <td className="px-5 py-3.5">
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setViewDecl(d)} title="View" className="h-8 px-3 rounded-lg text-xs font-semibold bg-secondary text-secondary-foreground hover:bg-secondary/70 transition-colors flex items-center gap-1.5">
-                      <Eye size={12} /> View
-                    </button>
-                    <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(Object.entries(d).map(([k,v]) => `${k},${v}`).join("\n"))}`} download={`${d.id}.csv`} title="Export"
-                      className="h-8 px-3 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-primary hover:border-primary transition-colors flex items-center gap-1.5">
-                      <Download size={12} /> Export
-                    </a>
-                  </div>
+          <thead className="sticky top-0 bg-white z-10">
+            <tr>
+              {["id","type","vendor","value","submitted","approver"].map(key=>(
+                <th
+                  key={key}
+                  onClick={()=>{
+                    if (sortKey===key) setSortDir(sortDir==="asc"?"desc":"asc");
+                    else { setSortKey(key as keyof Declaration); setSortDir("asc"); }
+                  }}
+                  className="px-5 py-3 text-left cursor-pointer text-xs font-bold hover:text-primary"
+                >
+                  {key.toUpperCase()}
+                </th>
+              ))}
+              <th className="px-5 py-3 text-xs font-bold">ACTIONS</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {paginated.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-10 text-muted-foreground">
+                  No declarations found
                 </td>
               </tr>
-            ))}
+            ) : (
+              paginated.map(d=>(
+                <tr key={d.id} className="hover:bg-muted/20 transition">
+                  <td className="px-5 py-3">{d.id}</td>
+                  <td>{d.type}</td>
+                  <td>{d.Counterparty}</td>
+                  <td>{formatRand(d.value)}</td>
+                  <td>{d.submitted}</td>
+                  <td>{d.approver}</td>
+                  <td><StatusBadge status={d.status}/></td>
+
+                  {/*  ACTIONS COLUMN */}
+                  <td className="px-5 py-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setViewDecl(d)}
+                        className="h-8 px-3 rounded-lg text-xs font-semibold bg-secondary hover:bg-secondary/70 flex items-center gap-1"
+                      >
+                        <Eye size={12}/> View
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const csv = Object.entries(d)
+                            .map(([k,v]) => `${k},${v}`)
+                            .join("\n");
+
+                          const a = document.createElement("a");
+                          a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
+                          a.download = `${d.id}.csv`;
+                          a.click();
+                        }}
+                        className="h-8 px-3 rounded-lg text-xs border hover:border-primary flex items-center gap-1"
+                      >
+                        <Download size={12}/> Export
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
-        <div className="px-5 py-3.5 border-t border-border flex items-center justify-between bg-[#F7F8FC]">
-          <p className="text-xs text-muted-foreground">Showing <span className="font-semibold text-foreground">{filtered.length}</span> of {declarations.length} declarations</p>
-          <div className="flex gap-1.5">{[1,2,3].map(p => <button key={p} className="w-8 h-8 rounded-lg text-xs font-semibold" style={p === 1 ? { background: PURPLE, color: "#fff" } : { background: "#F0EEF8", color: "#6B6B80" }}>{p}</button>)}</div>
+
+        {/* FOOTER */}
+        <div className="flex justify-between p-4 border-t">
+          <p className="text-xs">
+            Showing {(currentPage-1)*pageSize+1}–
+            {Math.min(currentPage*pageSize, filtered.length)} of {filtered.length}
+          </p>
+
+          <div className="flex gap-2">
+            <button disabled={currentPage===1} onClick={()=>setCurrentPage(p=>p-1)}>Prev</button>
+
+            {[...Array(totalPages)].map((_,i)=>(
+              <button key={i}
+                onClick={()=>setCurrentPage(i+1)}
+                className={currentPage===i+1 ? "bg-purple-600 text-white px-2" : "px-2"}
+              >
+                {i+1}
+              </button>
+            ))}
+
+            <button disabled={currentPage===totalPages} onClick={()=>setCurrentPage(p=>p+1)}>Next</button>
+          </div>
         </div>
+
       </Card>
     </div>
   );
@@ -1025,14 +1365,50 @@ function MyDeclarationsScreen() {
 
 // ─── Approver Dashboard ────────────────────────────────────────────────────────
 function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) {
+  
+  const pending = declarations.filter(d => d.status === "Pending");
+  const approved = declarations.filter(d => d.status === "Approved");
+  const declined = declarations.filter(d => d.status === "Declined");
+  const escalated = declarations.filter(d => d.status === "Escalated");
+
+  const totalValue = declarations.reduce((s, d) => s + d.value, 0);
   const kpis = [
-    { label: "Pending Queue",        value: "14",      icon: Clock,       iconBg: "#fffbeb", iconColor: "#d97706", trend: "+3 today" },
-    { label: "Approved This Month",  value: "47",      icon: Check,       iconBg: "#ecfdf5", iconColor: "#059669", trend: "+12 vs last month" },
-    { label: "Declined",             value: "8",       icon: X,           iconBg: "#fef2f2", iconColor: "#dc2626", trend: "-2 vs last month" },
-    { label: "Escalated",            value: "3",       icon: ArrowUp,     iconBg: "#fff7ed", iconColor: "#ea580c", trend: "Requires attention" },
-    { label: "Avg Processing",       value: "2.4d",    icon: TrendingUp,  iconBg: "#f5f3ff", iconColor: "#7c3aed", trend: "-0.3d improvement" },
-    { label: "Total Value Declared", value: "R284.5K", icon: DollarSign,  iconBg: "#EDE8FF", iconColor: PURPLE,    trend: "This month" },
+    {
+      label: "Pending Queue",
+      value: pending.length,
+      icon: Clock,
+      color: "#f59e0b",
+      onClick: () => onNavigate("approval-queue"),
+    },
+    {
+      label: "Approved",
+      value: approved.length,
+      icon: Check,
+      color: "#10b981",
+      onClick: () => onNavigate("approval-queue"),
+    },
+    {
+      label: "Declined",
+      value: declined.length,
+      icon: X,
+      color: "#ef4444",
+      onClick: () => onNavigate("approval-queue"),
+    },
+    {
+      label: "Escalated",
+      value: escalated.length,
+      icon: ArrowUp,
+      color: "#f97316",
+      onClick: () => onNavigate("approval-queue"),
+    },
+    {
+      label: "Total Value",
+      value: `R ${Math.round(totalValue / 1000)}K`,
+      icon: DollarSign,
+      color: "#6366f1",
+    },
   ];
+
   const queue = declarations.filter(d => ["Pending", "Escalated"].includes(d.status)).slice(0, 4);
   return (
     <div className="space-y-6">
@@ -1044,8 +1420,28 @@ function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) 
             <span className="ml-0.5 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: YELLOW, color: "#1E1E2D" }}>14</span>
           </button>
         } />
-      <div className="grid grid-cols-3 xl:grid-cols-6 gap-4">
-        {kpis.map(k => <KpiCard key={k.label} {...k} />)}
+      <div className="grid grid-cols-5 gap-4 mb-6">
+        {kpis.map((k, i) => (
+          <div
+            key={i}
+            onClick={k.onClick}
+            className="p-5 rounded-2xl cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:shadow-lg border"
+            style={{
+              background: `linear-gradient(135deg, ${k.color}15, ${k.color}05)`,
+              borderColor: "#eee",
+            }}
+          >
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+              style={{ background: k.color + "20" }}
+            >
+              <k.icon size={18} style={{ color: k.color }} />
+            </div>
+
+            <p className="text-2xl font-bold text-foreground">{k.value}</p>
+            <p className="text-xs text-muted-foreground mt-1">{k.label}</p>
+          </div>
+        ))}
       </div>
       <div className="grid grid-cols-3 gap-5">
         <Card className="col-span-1 p-5 flex flex-col" style={{ borderLeft: `4px solid ${YELLOW}` }}>
@@ -1175,76 +1571,239 @@ function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void }) {
   );
 }
 
+
 // ─── Approver Decision Block ───────────────────────────────────────────────────
-function ApproverDecisionBlock({ title, role, decision, onSelect, notes, onNotesChange }: {
-  title: string; role: string; decision: ApprovalDecision;
-  onSelect: (v: ApprovalDecision) => void; notes: string; onNotesChange: (v: string) => void;
+function ApproverDecisionBlock({
+  title,
+  role,
+  decision,
+  onSelect,
+  notes,
+  onNotesChange,
+}: {
+  title: string;
+  role: string;
+  decision: ApprovalDecision;
+  onSelect: (v: ApprovalDecision) => void;
+  notes: string;
+  onNotesChange: (v: string) => void;
 }) {
   return (
     <Card className="p-5">
+      {/* HEADER */}
       <div className="flex items-center gap-2.5 mb-4 pb-3.5 border-b border-border">
-        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: PURPLE }} />
-        <div><p className="text-sm font-bold text-foreground">{title}</p><p className="text-xs text-muted-foreground mt-0.5">{role}</p></div>
+        <div className="w-2 h-2 rounded-full" style={{ background: PURPLE }} />
+        <div>
+          <p className="text-sm font-bold">{title}</p>
+          <p className="text-xs text-muted-foreground">{role}</p>
+        </div>
       </div>
-      <div className="space-y-2 mb-4">
+
+      {/* OPTIONS (FIXED HEIGHT + NO LAYOUT SHIFT) */}
+      <div className="space-y-2 mb-4 min-h-[220px]">
         {approvalOptions.map(opt => (
-          <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${decision === opt.value ? "border-primary/60" : "border-border hover:border-primary/20 hover:bg-muted/20"}`}
-            style={decision === opt.value ? { background: "#F5F2FF" } : {}}>
-            <div className="mt-0.5 flex-shrink-0">
-              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${decision === opt.value ? "border-primary" : "border-muted-foreground/40"}`}>
-                {decision === opt.value && <div className="w-2 h-2 rounded-full" style={{ background: PURPLE }} />}
+          <label
+            key={opt.value}
+            className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-colors
+              ${
+                decision === opt.value
+                  ? "border-primary bg-[#F5F2FF]"
+                  : "border-transparent hover:border-border hover:bg-muted/20"
+              }`}
+          >
+            {/* RADIO ICON */}
+            <div className="flex-shrink-0">
+              <div
+                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center
+                  ${
+                    decision === opt.value
+                      ? "border-primary"
+                      : "border-muted-foreground/40"
+                  }`}
+              >
+                {decision === opt.value && (
+                  <div
+                    className="w-2 h-2 rounded-full"
+                    style={{ background: PURPLE }}
+                  />
+                )}
               </div>
             </div>
-            <div className="flex-1"><p className="text-xs font-semibold text-foreground leading-snug">{opt.label}</p><p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">{opt.description}</p></div>
-            <input type="radio" name={title} value={opt.value} checked={decision === opt.value} onChange={() => onSelect(opt.value as ApprovalDecision)} className="sr-only" />
+
+            {/* TEXT */}
+            <p className="text-sm text-foreground leading-snug">
+              {opt.label}
+            </p>
+
+            <input
+              type="radio"
+              name={title}
+              checked={decision === opt.value}
+              onChange={() => onSelect(opt.value as ApprovalDecision)}
+              className="sr-only"
+            />
           </label>
         ))}
       </div>
+
+      {/* NOTES */}
       <div>
-        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">Notes / Comments</label>
-        <textarea value={notes} onChange={e => onNotesChange(e.target.value)} rows={2} placeholder="Add notes or reasoning for this decision…"
-          className="w-full rounded-xl px-3.5 py-2.5 text-sm border border-border bg-muted/20 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all resize-none placeholder:text-muted-foreground/50" />
+        <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
+          Notes / Comments
+        </label>
+        <textarea
+          value={notes}
+          onChange={e => onNotesChange(e.target.value)}
+          rows={2}
+          className="w-full rounded-xl px-3.5 py-2.5 text-sm border bg-muted/20"
+          placeholder="Add notes or reasoning..."
+        />
       </div>
     </Card>
   );
 }
 
 // ─── Approval Detail ───────────────────────────────────────────────────────────
-function ApprovalDetail({ declaration, onBack }: { declaration: Declaration; onBack: () => void }) {
+function ApprovalDetail({
+  declaration,
+  onBack,
+}: {
+  declaration: Declaration;
+  onBack: () => void;
+}) {
   const [lmDecision, setLmDecision] = useState<ApprovalDecision>(null);
   const [hrDecision, setHrDecision] = useState<ApprovalDecision>(null);
   const [ceoDecision, setCeoDecision] = useState<ApprovalDecision>(null);
-  const [lmNotes, setLmNotes] = useState(""); const [hrNotes, setHrNotes] = useState(""); const [ceoNotes, setCeoNotes] = useState("");
+
+  const [lmNotes, setLmNotes] = useState("");
+  const [hrNotes, setHrNotes] = useState("");
+  const [ceoNotes, setCeoNotes] = useState("");
+
+  // 🔒 STEP LOGIC
+  const isHrEnabled = !!lmDecision;
+  const isCeoEnabled = !!lmDecision && !!hrDecision;
+
+  // SAVE
+  const handleSave = () => {
+    console.log("Saved:", {
+      lmDecision,
+      hrDecision,
+      ceoDecision,
+    });
+    alert("Progress saved");
+  };
+
+  // SUBMIT
+  const handleSubmit = () => {
+    if (!lmDecision) {
+      alert("Line Manager decision is required");
+      return;
+    }
+
+    if (!hrDecision) {
+      alert("HR decision is required");
+      return;
+    }
+
+    if (!ceoDecision) {
+      alert("CEO decision is required");
+      return;
+    }
+
+    console.log("Final submission:", {
+      declarationId: declaration.id,
+      lmDecision,
+      hrDecision,
+      ceoDecision,
+    });
+
+    alert("Workflow completed");
+    onBack();
+  };
+
   return (
     <div>
+      {/* HEADER */}
       <div className="flex items-center gap-2.5 mb-7 pb-5 border-b border-border">
-        <button onClick={onBack} className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-sm font-semibold border border-border bg-white hover:bg-muted transition-colors text-muted-foreground"><ArrowLeft size={14} /> Back</button>
-        <div className="h-5 w-px bg-border mx-1" />
-        <span className="font-mono text-sm font-bold" style={{ color: PURPLE }}>{declaration.id}</span>
+        <button onClick={onBack} className="h-9 px-3.5 border rounded-xl">
+          <ArrowLeft size={14} /> Back
+        </button>
+
+        <span className="font-mono font-bold">{declaration.id}</span>
         <StatusBadge status={declaration.status} />
       </div>
+
       <div className="grid grid-cols-5 gap-5">
-        <div className="col-span-3 space-y-4">
+
+        {/* LEFT */}
+        <div className="col-span-3">
           <DeclarationDetailView data={declaration} onBack={onBack} />
         </div>
-        <div className="col-span-2 space-y-4">
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex gap-3">
-            <AlertCircle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-800 leading-relaxed">Select <strong>one option</strong> per approver level. A reminder email is sent every Monday morning.</p>
+
+        {/* RIGHT */}
+        <div className="col-span-2 space-y-4 sticky top-4 self-start">
+
+          {/* STEP 1 */}
+          <ApproverDecisionBlock
+            title="1. Line Manager Approval"
+            role="Sipho Nkosi"
+            decision={lmDecision}
+            onSelect={setLmDecision}
+            notes={lmNotes}
+            onNotesChange={setLmNotes}
+          />
+
+          {/* STEP 2 */}
+          <div className={!isHrEnabled ? "opacity-50 pointer-events-none" : ""}>
+            <ApproverDecisionBlock
+              title="2. Head of HR Approval"
+              role="Lindiwe Zulu"
+              decision={hrDecision}
+              onSelect={setHrDecision}
+              notes={hrNotes}
+              onNotesChange={setHrNotes}
+            />
           </div>
-          <ApproverDecisionBlock title="3.1 – 3.4  Line Manager Approval" role="Sipho Nkosi — Line Manager" decision={lmDecision} onSelect={setLmDecision} notes={lmNotes} onNotesChange={setLmNotes} />
-          <ApproverDecisionBlock title="Head of HR Approval" role="Lindiwe Zulu — Head of HR" decision={hrDecision} onSelect={setHrDecision} notes={hrNotes} onNotesChange={setHrNotes} />
-          <ApproverDecisionBlock title="Group CEO Approval" role="Sandile Shabalala — Group CEO" decision={ceoDecision} onSelect={setCeoDecision} notes={ceoNotes} onNotesChange={setCeoNotes} />
+
+          {/* STEP 3 */}
+          <div className={!isCeoEnabled ? "opacity-50 pointer-events-none" : ""}>
+            <ApproverDecisionBlock
+              title="3. Group CEO Approval"
+              role="Sandile Shabalala"
+              decision={ceoDecision}
+              onSelect={setCeoDecision}
+              notes={ceoNotes}
+              onNotesChange={setCeoNotes}
+            />
+          </div>
+
+          {/* ACTIONS */}
           <Card className="p-5">
-            <p className="text-xs text-muted-foreground mb-4">The Line Manager must select an option before submission can proceed.</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              Complete all steps in sequence before submitting.
+            </p>
+
             <div className="flex gap-2.5">
-              <button className="flex-1 h-10 rounded-xl text-sm font-semibold border border-border bg-white hover:bg-muted transition-colors">Save Progress</button>
-              <button disabled={!lmDecision} className="flex-1 h-10 rounded-xl text-sm font-semibold text-white disabled:opacity-40 hover:opacity-90 flex items-center justify-center gap-2"
-                style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}>
-                <Check size={14} /> Submit Decision
+              <button
+                onClick={handleSave}
+                className="flex-1 h-10 border rounded-xl"
+              >
+                Save Progress
+              </button>
+
+              <button
+                onClick={handleSubmit}
+                disabled={!lmDecision || !hrDecision || !ceoDecision}
+                className="flex-1 h-10 text-white rounded-xl disabled:opacity-40"
+                style={{
+                  background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`,
+                }}
+              >
+                Submit Decision
               </button>
             </div>
           </Card>
+
         </div>
       </div>
     </div>
