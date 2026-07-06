@@ -1,6 +1,7 @@
 import image_Hollywood_Group_Logo from '@/imports/Hollywood_Group_Logo.png'
 import image_Logo_1 from '@/imports/Logo-1.png'
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import * as Select from "@radix-ui/react-select";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
@@ -128,15 +129,39 @@ function TypeBadge({ type }: { type: string }) {
 function formatRand(v: number) { return `R ${v.toLocaleString("en-ZA")}`; }
 function formatBytes(b: number) { return b < 1_048_576 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1_048_576).toFixed(1)} MB`; }
 
-const inp = "w-full h-11 rounded-xl px-4 text-sm border border-border bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-muted-foreground/50";
-const sel = `${inp} appearance-none pr-10 cursor-pointer`;
+const inp = "w-full h-11 rounded-xl px-4 text-sm border border-slate-200 bg-slate-50 text-foreground focus:outline-none focus:ring-4 focus:ring-purple-500/20 focus:border-purple-600 focus:bg-white hover:border-purple-300 transition-all duration-200 ease-out placeholder:text-muted-foreground/50";
+const sel = `${inp} appearance-none pr-10 cursor-pointer bg-white border-slate-200 hover:bg-purple-50 hover:border-purple-400 hover:text-[15.5px] hover:font-semibold hover:text-purple-900 focus:bg-white focus:border-purple-600 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_14px_rgba(79,29,149,0.12)] transition-all duration-300`;
 
 function Sel({ children, value, onChange, className = "" }: { children: React.ReactNode; value?: string; onChange?: (v: string) => void; className?: string }) {
+  const options = React.Children.toArray(children).map(child => {
+    if (React.isValidElement(child) && child.type === 'option') {
+      const val = (child.props.value !== undefined ? child.props.value : child.props.children) as string;
+      return { value: val === "" ? "__placeholder__" : val, label: child.props.children };
+    }
+    return null;
+  }).filter(Boolean) as {value: string, label: React.ReactNode}[];
+
+  const safeValue = value === "" ? "__placeholder__" : value;
+  const selectedLabel = options.find(o => o.value === safeValue)?.label || options[0]?.label;
+
   return (
-    <div className="relative">
-      <select value={value} onChange={e => onChange?.(e.target.value)} className={`${sel} ${className}`}>{children}</select>
-      <ChevronDown size={15} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-    </div>
+    <Select.Root value={safeValue} onValueChange={(v) => onChange?.(v === "__placeholder__" ? "" : v)}>
+      <Select.Trigger className={`${sel} flex items-center justify-between group ${className}`}>
+        <Select.Value>{selectedLabel}</Select.Value>
+        <Select.Icon><ChevronDown size={15} className="text-slate-400 group-hover:text-purple-500 transition-colors" /></Select.Icon>
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Content position="popper" sideOffset={4} className="bg-white rounded-xl shadow-xl border border-slate-100 overflow-hidden z-50 w-[var(--radix-select-trigger-width)]">
+          <Select.Viewport className="p-1.5">
+            {options.map((opt, i) => (
+              <Select.Item key={i} value={opt.value} className="text-sm font-medium text-slate-700 px-3 py-2.5 rounded-lg cursor-pointer outline-none data-[highlighted]:bg-yellow-400 data-[highlighted]:text-yellow-950 transition-colors">
+                <Select.ItemText>{opt.label}</Select.ItemText>
+              </Select.Item>
+            ))}
+          </Select.Viewport>
+        </Select.Content>
+      </Select.Portal>
+    </Select.Root>
   );
 }
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -336,26 +361,31 @@ function Sidebar({ role, screen, onNavigate, collapsed, onToggle }: {
 function TopBar({ userName, role, onSignOut }: { userName: string; role: Role; onSignOut: () => void }) {
   const initials = userName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase();
   return (
-    <header className="h-14 bg-white border-b border-border flex items-center justify-between px-6 flex-shrink-0">
-      <div className="flex items-center gap-3">
-        <ImageWithFallback src={groupLogoImg} alt="Hollywoodbets Group" className="h-7 w-auto object-contain" />
-        <div className="h-5 w-px bg-border" />
-        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground hidden md:block">Gift, Hospitality or Entertainment ("GHE") Declaration System</span>
+    <header className="h-16 bg-white/60 backdrop-blur-xl border-b border-white/60 flex items-center justify-between px-6 flex-shrink-0 relative z-20 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+      <div className="flex items-center gap-4 flex-1 mr-6">
+        <ImageWithFallback src={groupLogoImg} alt="Hollywoodbets Group" className="h-8 w-auto object-contain drop-shadow-sm flex-shrink-0" />
+        <div className="h-6 w-px bg-slate-200/80 flex-shrink-0" />
+        <div className="hidden md:flex flex-1 items-center justify-center gap-3 bg-gradient-to-r from-purple-100/50 to-indigo-50/50 border border-purple-200/60 px-8 py-2 rounded-full shadow-sm backdrop-blur-md hover:shadow-md transition-all">
+          <span className="w-2.5 h-2.5 rounded-full bg-purple-600 animate-pulse shadow-[0_0_8px_rgba(147,51,234,0.6)] flex-shrink-0" />
+          <span className="text-sm font-black uppercase tracking-widest bg-gradient-to-r from-purple-600 via-pink-500 to-indigo-600 bg-clip-text text-transparent drop-shadow-sm animate-gradient-text truncate">GHE Declaration System</span>
+        </div>
       </div>
-      <div className="flex items-center gap-3">
-        <button className="relative w-9 h-9 flex items-center justify-center rounded-xl hover:bg-muted transition-colors">
-          <Bell size={17} className="text-muted-foreground" />
-          <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full" style={{ background: YELLOW }} />
+      <div className="flex items-center gap-4 flex-shrink-0">
+        <button className="relative w-10 h-10 flex items-center justify-center rounded-full bg-white/60 border border-white/80 shadow-sm hover:shadow-md hover:scale-105 transition-all text-slate-500 hover:text-purple-600">
+          <Bell size={18} />
+          <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full ring-2 ring-white" style={{ background: YELLOW }} />
         </button>
-        <div className="h-6 w-px bg-border" />
-        <div className="flex items-center gap-2.5 pl-1">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ background: PURPLE }}>{initials}</div>
+        <div className="h-6 w-px bg-slate-200/80" />
+        <div className="flex items-center gap-3 bg-white/60 border border-white/80 rounded-full pl-1.5 pr-4 py-1.5 shadow-sm hover:bg-white transition-colors cursor-pointer group">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md group-hover:scale-105 transition-transform" style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}>{initials}</div>
           <div className="hidden md:block">
-            <p className="text-sm font-semibold text-foreground leading-tight">{userName}</p>
-            <p className="text-[10px] text-muted-foreground capitalize">{role === "teamMember" ? "Team Member" : "Approver"}</p>
+            <p className="text-sm font-bold text-slate-800 leading-none">{userName}</p>
+            <p className="text-[10px] font-semibold text-purple-600 mt-0.5 uppercase tracking-wider">{role === "teamMember" ? "Team Member" : "Approver"}</p>
           </div>
         </div>
-        <button onClick={onSignOut} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-muted transition-colors text-muted-foreground"><LogOut size={15} /></button>
+        <button onClick={onSignOut} className="w-10 h-10 flex items-center justify-center rounded-full bg-white/60 border border-white/80 shadow-sm hover:shadow-md hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all text-slate-500">
+          <LogOut size={16} />
+        </button>
       </div>
     </header>
   );
@@ -367,11 +397,16 @@ function AppShell({ role, screen, userName, onNavigate, onSignOut, children }: {
 }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <div className="flex h-screen w-screen overflow-hidden" style={F}>
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 relative" style={F}>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[10%] w-[40%] h-[40%] rounded-full bg-purple-400/20 blur-[120px]" />
+        <div className="absolute top-[30%] right-[-5%] w-[30%] h-[50%] rounded-full bg-blue-400/15 blur-[100px]" />
+        <div className="absolute bottom-[-10%] left-[20%] w-[50%] h-[40%] rounded-full bg-fuchsia-400/15 blur-[120px]" />
+      </div>
       <Sidebar role={role} screen={screen} onNavigate={onNavigate} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
-      <div className="flex flex-col flex-1 min-w-0 min-h-0">
+      <div className="flex flex-col flex-1 min-w-0 min-h-0 relative z-10">
         <TopBar userName={userName} role={role} onSignOut={onSignOut} />
-        <main className="flex-1 min-h-0 overflow-y-auto bg-background p-7">{children}</main>
+        <main className="flex-1 min-h-0 overflow-y-auto p-7">{children}</main>
       </div>
     </div>
   );
@@ -448,7 +483,7 @@ function FL({ children, required, hint, error }: { children: React.ReactNode; re
 const FORM_SECTIONS = [
   { id: "sec-team",        num: "1", label: "Team Member Details" },
   { id: "sec-declaration", num: "2", label: "Declaration Details" },
-  { id: "sec-ghe",         num: "3", label: "GHE Details" },
+  { id: "sec-ghe",         num: "3", label: "Gift, Hospitality or Entertainment Details" },
   { id: "sec-docs",        num: "4", label: "Supporting Documents" },
   { id: "sec-undertaking", num: "5", label: "Declaration & Undertaking" },
 ];
@@ -456,12 +491,12 @@ const FORM_SECTIONS = [
 function FS({ id, num, title, children }: { id: string; num: string; title: string; children: React.ReactNode }) {
   return (
     <section id={id} className="scroll-mt-4">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold text-white flex-shrink-0" style={{ background: PURPLE }}>{num}</div>
-        <h3 className="text-sm font-bold text-foreground uppercase tracking-wide">{title}</h3>
-        <div className="flex-1 h-px bg-border" />
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold text-white shadow-[0_4px_10px_rgba(79,29,149,0.2)] flex-shrink-0" style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}>{num}</div>
+        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">{title}</h3>
+        <div className="flex-1 h-px bg-gradient-to-r from-border to-transparent" />
       </div>
-      <Card className="p-6 lg:p-7">{children}</Card>
+      <Card className="p-6 lg:p-8">{children}</Card>
     </section>
   );
 }
@@ -473,7 +508,6 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
 }) {
   const [receivedGiven, setReceivedGiven] = useState("Received");
   const [category, setCategory] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
   const [activeSection, setActiveSection] = useState("sec-team");
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -552,7 +586,6 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
     if (!form.description.trim()) errs.description = "Required";
     if (!form.date) errs.date = "Required";
     if (!form.instances) errs.instances = "Required";
-    if (!confirmed) errs.confirmed = "You must confirm the declaration";
     setErrors(errs);
     if (Object.keys(errs).length > 0) {
       const sectionMap: Record<string, string> = {
@@ -560,7 +593,6 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
         partyType: "sec-declaration", Counterparty: "sec-declaration", contactPerson: "sec-declaration",
         existingRelationship: "sec-declaration", contractNegotiation: "sec-declaration", biddingProcess: "sec-declaration",
         category: "sec-ghe", description: "sec-ghe", date: "sec-ghe", instances: "sec-ghe",
-        confirmed: "sec-undertaking",
       };
       jumpTo(sectionMap[Object.keys(errs)[0]] ?? "sec-team");
       return false;
@@ -584,23 +616,23 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
   };
 
   const partyOptions = ["Supplier", "Customer", "Team Member", "Public Official"];
-  const ynu = ["Yes", "No", "Unsure", "N/A"];
+  const ynu = ["Yes", "No", "N/A"];
   const categoryDefs: Record<string, string> = {
     Gift: "Anything of value, including cash, vouchers, goods, services, preferential discounts or favours.",
     Hospitality: "Accommodation, travel, conferences, tickets or formal business functions.",
     Entertainment: "Meals, events, sporting or cultural activities or recreational activities.",
   };
-  const occasionOptions = ["Milestone", "Festive", "Relationship Maintenance", "Business Development", "Conference / Event", "Year-End Function", "Other"];
+  const occasionOptions = ["Festive Season", "Year End", "Milestone", "Business Meeting", "Relationship Maintenance", "Other"];
 
   const ErrInp = ({ field, ...props }: { field: string } & React.InputHTMLAttributes<HTMLInputElement>) => (
-    <input {...props} className={`${inp} ${errors[field] ? "border-red-400 focus:ring-red-200" : ""}`} />
+    <input {...props} className={`${inp} ${errors[field] ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`} />
   );
 
   return (
     <div className="flex items-start gap-6 max-w-7xl mx-auto">
       {/* Sticky nav */}
-      <aside className="w-48 flex-shrink-0 hidden lg:flex flex-col gap-3">
-        <div className="sticky top-0 flex flex-col gap-3">
+      <aside className="w-48 flex-shrink-0 hidden lg:flex flex-col gap-3 sticky top-6 self-start">
+        <div className="flex flex-col gap-3">
           <Card className="p-3.5">
             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2.5 px-1">Sections</p>
             <nav className="space-y-0.5">
@@ -608,9 +640,9 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
                 const active = activeSection === s.id;
                 return (
                   <button key={s.id} onClick={() => jumpTo(s.id)}
-                    className={`w-full flex items-center gap-2 text-left py-2 px-2 rounded-lg text-xs transition-all ${active ? "text-primary font-semibold bg-secondary/50" : "text-muted-foreground hover:text-foreground hover:bg-muted/40 font-medium"}`}>
-                    <span className="w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                      style={active ? { background: PURPLE, color: "#fff" } : { background: "#F0EEF8", color: "#6B6B80" }}>
+                    className={`w-full flex items-center gap-3 text-left py-2.5 px-3 rounded-xl text-sm transition-all duration-200 ${active ? "text-purple-900 font-semibold bg-purple-50 shadow-sm" : "text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-medium"}`}>
+                    <span className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-sm transition-colors duration-200"
+                      style={active ? { background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, color: "#fff" } : { background: "#F0EEF8", color: "#6B6B80" }}>
                       {s.num}
                     </span>
                     <span className="leading-tight">{s.label}</span>
@@ -619,16 +651,16 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
               })}
             </nav>
           </Card>
-          <div className="rounded-2xl border border-primary/10 p-3.5" style={{ background: "#F5F2FF" }}>
+          <div className="rounded-2xl border border-white p-3.5 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
             <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: PURPLE }}>Definitions</p>
-            {[{ t: "Gift", d: "Cash, vouchers, goods, services or preferential favours." }, { t: "Hospitality", d: "Accommodation, travel, conferences or formal functions." }, { t: "Entertainment", d: "Meals, events, sporting or recreational activities." }].map(d => (
+            {[{ t: "Gift", d: "Anything of value including cash, vouchers, goods, services, preferential discount or favours." }, { t: "Hospitality", d: "Accommodation, travel, conferences, tickets or formal business functions." }, { t: "Entertainment", d: "Meals, events, sporting, cultural or recreational activities." }].map(d => (
               <div key={d.t} className="mb-2.5 last:mb-0">
                 <p className="text-[11px] font-bold text-foreground">{d.t}</p>
                 <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">{d.d}</p>
               </div>
             ))}
           </div>
-          <div className="rounded-2xl border border-primary/10 p-3.5 bg-white">
+          <div className="rounded-2xl border border-white/60 p-3.5 bg-white/70 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.03)]">
             <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: PURPLE }}>Related Policies</p>
             {["Gifts, Hospitality & Entertainment Policy", "Anti-Bribery and Corruption Policy"].map(policy => (
               <div key={policy} className="flex items-start gap-2 rounded-xl border border-primary/5 bg-secondary/20 p-2.5 mb-2 last:mb-0">
@@ -646,15 +678,10 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
         <div className="flex items-center justify-between pb-5 border-b border-border gap-4">
           <div>
             <h1 className="text-[22px] font-bold tracking-tight text-foreground">New Declaration</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">Fields marked <span className="text-red-400 font-bold">*</span> are required.</p>
+            <p className="text-sm text-muted-foreground mt-0.5">Fields marked <span className="text-red-400 font-bold">*</span> are mandatory.</p>
           </div>
           <div className="flex items-center gap-2.5">
             <span className="h-7 px-3 rounded-full text-xs font-bold bg-amber-100 text-amber-700 flex items-center">Draft</span>
-            <button onClick={onDraftSaved} className="h-10 px-4 rounded-xl text-sm font-semibold border border-border bg-white hover:bg-muted transition-colors">Save Draft</button>
-            <button onClick={handleSubmit} className="h-10 px-5 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-all flex items-center gap-2"
-              style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}>
-              <Send size={13} /> Submit
-            </button>
           </div>
         </div>
 
@@ -666,7 +693,7 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
               <ErrInp field="employeeName" value={form.employeeName} onChange={e => setF("employeeName", e.target.value)} />
             </div>
             <div>
-              <FL required hint="Your Hollywoodbets TeamMembernumber." error={errors.employeeCode}>TeamMemberCode</FL>
+              <FL error={errors.employeeCode}>Team Member Code</FL>
               <ErrInp field="employeeCode" value={form.employeeCode} onChange={e => setF("employeeCode", e.target.value)} placeholder="e.g. HB-204478" />
             </div>
             <div>
@@ -682,10 +709,6 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
               <ErrInp field="department" value={form.department} onChange={e => setF("department", e.target.value)} />
             </div>
             <div>
-              <FL hint="The team or business unit you belong to.">Team</FL>
-              <input className={inp} value={form.team} onChange={e => setF("team", e.target.value)} placeholder="e.g. Brand & Communications" />
-            </div>
-            <div className="col-span-2">
               <FL required error={errors.position}>Role / Position</FL>
               <ErrInp field="position" value={form.position} onChange={e => setF("position", e.target.value)} />
             </div>
@@ -695,36 +718,34 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
         {/* Section 2 */}
         <FS id="sec-declaration" num="2" title="Declaration Details">
           <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-5">
-              <div>
+            <div className="grid grid-cols-2 gap-5 items-stretch">
+              <div className="flex flex-col">
                 <FL required>Did you receive or give a Gift, Hospitality or Entertainment?</FL>
-                <Sel value={receivedGiven} onChange={setReceivedGiven}><option>Received</option><option>Given</option></Sel>
+                <div className="mt-auto">
+                  <Sel value={receivedGiven} onChange={setReceivedGiven}><option>Received</option><option>Given</option></Sel>
+                </div>
               </div>
-              <div>
+              <div className="flex flex-col">
                 <FL required error={errors.partyType}>{receivedGiven === "Received" ? "Who did you receive it from?" : "Who did you give it to?"}</FL>
-                <Sel value={form.partyType} onChange={v => setF("partyType", v)} className={errors.partyType ? "border-red-400" : ""}>
-                  <option value="">Select…</option>{partyOptions.map(o => <option key={o}>{o}</option>)}
-                </Sel>
+                <div className="mt-auto">
+                  <Sel value={form.partyType} onChange={v => setF("partyType", v)} className={errors.partyType ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600" : ""}>
+                    <option value="">Select…</option>{partyOptions.map(o => <option key={o}>{o}</option>)}
+                  </Sel>
+                </div>
               </div>
             </div>
             <div>
-              <FL required hint="Full name of the organisation or individual." error={errors.Counterparty}>Name of the Supplier, Customer, Public Official or Team Member</FL>
+              <FL required hint="Full name of the organisation or individual." error={errors.Counterparty}>Name of the Supplier, Customer, Team Member or Public Official</FL>
               <input className={`${inp} ${errors.Counterparty ? "border-red-400" : ""}`} value={form.Counterparty} onChange={e => setF("Counterparty", e.target.value)} placeholder="Full legal name" />
             </div>
             <div>
-              <FL required error={errors.contactPerson}>Name of the person {receivedGiven === "Received" ? "giving" : "receiving"} the Gift, Hospitality or Entertainment</FL>
+              <FL required error={errors.contactPerson}>Name of the person giving or receiving the gift at the Supplier or Customer, or name of the Public Official</FL>
               <input className={`${inp} ${errors.contactPerson ? "border-red-400" : ""}`} value={form.contactPerson} onChange={e => setF("contactPerson", e.target.value)} placeholder="e.g. Ahmed Al-Rashid" />
             </div>
-            <div className="grid grid-cols-3 gap-5">
+            <div className="space-y-5">
               <div>
                 <FL required error={errors.biddingProcess}>Is the Supplier or Team Member involved in a Bid In Progress?</FL>
                 <Sel value={form.biddingProcess} onChange={v => setF("biddingProcess", v)} className={errors.biddingProcess ? "border-red-400" : ""}>
-                  <option value="">Select…</option>{ynu.map(o => <option key={o}>{o}</option>)}
-                </Sel>
-              </div>
-              <div>
-                <FL required hint="Is there an existing or soon-to-start relationship?" error={errors.existingRelationship}>Is there an existing or imminent relationship with the supplier/customer?</FL>
-                <Sel value={form.existingRelationship} onChange={v => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
                   <option value="">Select…</option>{ynu.map(o => <option key={o}>{o}</option>)}
                 </Sel>
               </div>
@@ -734,12 +755,18 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
                   <option value="">Select…</option>{ynu.map(o => <option key={o}>{o}</option>)}
                 </Sel>
               </div>
+              <div>
+                <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the supplier/customer?</FL>
+                <Sel value={form.existingRelationship} onChange={v => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
+                  <option value="">Select…</option>{ynu.map(o => <option key={o}>{o}</option>)}
+                </Sel>
+              </div>
             </div>
           </div>
         </FS>
 
         {/* Section 3 */}
-        <FS id="sec-ghe" num="3" title="GHE Details">
+        <FS id="sec-ghe" num="3" title="Gift, Hospitality or Entertainment Details">
           <div className="space-y-5">
             <div>
               <FL required error={errors.category}>What category does the nature of the gift fall into?</FL>
@@ -760,34 +787,33 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
             </div>
             <div className="grid grid-cols-2 gap-5">
               <div>
-                <FL>Reason / Occasion</FL>
+                <FL>Reason / Occasion for the gift</FL>
                 <Sel value={form.occasion} onChange={v => setF("occasion", v)}>
                   <option value="">Select reason…</option>{occasionOptions.map(o => <option key={o}>{o}</option>)}
                 </Sel>
               </div>
               <div>
-                <FL required error={errors.date}>Date of Gift, Hospitality or Entertainment</FL>
+                <FL required error={errors.date}>Date of Gift</FL>
                 <input type="date" className={`${inp} ${errors.date ? "border-red-400" : ""}`} value={form.date} onChange={e => setF("date", e.target.value)} />
               </div>
             </div>
             <div>
-              <FL required error={errors.instances}>Number of instances from this party in the past months</FL>
+              <FL required error={errors.instances}>Number of instances a gift has been given/received between you and this party in the past 12 months</FL>
               <Sel value={form.instances} onChange={v => setF("instances", v)} className={errors.instances ? "border-red-400" : ""}>
-                <option value="">Select…</option>{[1,2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n}>{n}</option>)}
+                <option value="">Select…</option>{["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", ">10"].map(n => <option key={n}>{n}</option>)}
               </Sel>
             </div>
             {/* VAT threshold at end of section */}
             <div>
               <FL hint="Enter the Rand value including VAT. Convert foreign currency to ZAR equivalent.">Rand Value or Equivalent Rand Value (including VAT)</FL>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-2"><input type="number" className={inp} value={form.value} onChange={e => setF("value", e.target.value)} placeholder="0.00" /></div>
-                <Sel value={form.currency} onChange={v => setF("currency", v)}><option>ZAR</option><option>USD</option><option>EUR</option><option>GBP</option></Sel>
+              <div>
+                <input type="number" className={inp} value={form.value} onChange={e => setF("value", e.target.value)} placeholder="0.00" />
               </div>
             </div>
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
               <div className="flex items-start gap-2.5 mb-3">
                 <AlertCircle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-amber-800 leading-relaxed">If the Rand Value including VAT <strong>exceeds R2,000.00</strong>, please substantiate why this Gift, Hospitality or Entertainment should be allowed or given.</p>
+                <p className="text-sm text-amber-800 leading-relaxed">If the Rand Value including VAT <strong>exceeds R2, 000.00</strong>, please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.</p>
               </div>
               <textarea className="w-full h-20 rounded-xl px-4 py-3 text-sm border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/40 transition-all resize-none placeholder:text-muted-foreground/50"
                 value={form.substantiation} onChange={e => setF("substantiation", e.target.value)} placeholder="Substantiation for value exceeding R2,000.00 (if applicable)…" />
@@ -804,9 +830,9 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
             onDragLeave={() => setDragging(false)}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={`rounded-xl border-2 border-dashed py-10 px-6 text-center cursor-pointer transition-all ${dragging ? "border-primary bg-secondary/20" : "border-primary/20 bg-secondary/10 hover:border-primary/40 hover:bg-secondary/20"}`}>
-            <div className="w-11 h-11 rounded-2xl bg-secondary/50 flex items-center justify-center mx-auto mb-3"><Upload size={20} style={{ color: PURPLE }} /></div>
-            <p className="text-sm font-semibold text-foreground mb-1">Drag &amp; drop files here, or click to browse</p>
+            className={`rounded-2xl border-2 border-dashed py-12 px-6 text-center cursor-pointer transition-all duration-300 ease-out group ${dragging ? "border-purple-500 bg-purple-50/50 scale-[1.02] shadow-sm" : "border-slate-300 bg-slate-50 hover:border-purple-400 hover:bg-purple-50/30 hover:shadow-sm"}`}>
+            <div className="w-14 h-14 rounded-full bg-white shadow-sm flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:shadow-md transition-all duration-300"><Upload size={24} style={{ color: PURPLE }} /></div>
+            <p className="text-sm font-semibold text-foreground mb-1.5">Drag &amp; drop files here, or click to browse</p>
             <p className="text-xs text-muted-foreground">PDF (preferred), PNG, JPG, DOCX — max 20 MB each</p>
           </div>
           {files.length > 0 && (
@@ -837,32 +863,19 @@ function NewDeclarationScreen({ onSubmitSuccess, onDraftSaved }: {
               "No conflict of interest or perceived conflict of interest has been created.",
               "The information provided is valid, accurate and complete.",
             ].map((item, i) => (
-              <div key={i} className="flex items-start gap-3 py-3 px-4 rounded-xl bg-muted/30 border border-border/50">
-                <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center flex-shrink-0 mt-0.5"><Check size={10} style={{ color: PURPLE }} /></div>
-                <p className="text-sm text-foreground leading-relaxed">{item}</p>
+              <div key={i} className="group flex items-start gap-3 py-3 px-4 rounded-xl bg-muted/30 border border-border/50 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-sm hover:border-purple-200/60 hover:bg-purple-50/40">
+                <div className="w-5 h-5 rounded-full bg-secondary flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:scale-110 group-hover:bg-purple-100 transition-all duration-300"><Check size={10} style={{ color: PURPLE }} /></div>
+                <p className="text-sm text-foreground leading-relaxed transition-colors group-hover:text-purple-950">{item}</p>
               </div>
             ))}
           </div>
 
-          <div className="pt-5 border-t border-border">
-            <label className="flex items-start gap-3 cursor-pointer select-none group mb-6">
-              <div className="relative mt-0.5 flex-shrink-0">
-                <input type="checkbox" checked={confirmed} onChange={e => { setConfirmed(e.target.checked); setErrors(er => ({ ...er, confirmed: "" })); }} className="sr-only" />
-                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${confirmed ? "border-primary" : errors.confirmed ? "border-red-400 bg-red-50" : "bg-white border-border group-hover:border-primary/40"}`}
-                  style={confirmed ? { background: PURPLE } : {}}>
-                  {confirmed && <Check size={10} className="text-white" />}
-                </div>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-foreground leading-relaxed">I confirm that the above information is accurate and that I understand and accept the Hollywoodbets Group Gifting, Hospitality &amp; Entertainment Policy.</span>
-                {errors.confirmed && <p className="text-xs text-red-500 mt-1 font-medium">{errors.confirmed}</p>}
-              </div>
-            </label>
-            <div className="flex justify-end gap-2.5">
-              <button onClick={onDraftSaved} className="h-10 px-5 rounded-xl text-sm font-semibold border border-border bg-white hover:bg-muted transition-colors">Save Draft</button>
-              <button onClick={handleSubmit} className="h-10 px-6 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-all flex items-center gap-2"
+          <div className="pt-6 mt-2 border-t border-slate-100">
+            <div className="flex justify-end gap-3">
+              <button onClick={onDraftSaved} className="h-12 px-6 rounded-xl text-sm font-semibold border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98]">Save Draft</button>
+              <button onClick={handleSubmit} className="h-12 px-8 rounded-xl text-sm font-semibold text-white transition-all duration-300 ease-out flex items-center gap-2 shadow-[0_4px_14px_rgba(79,29,149,0.39)] hover:shadow-[0_6px_20px_rgba(79,29,149,0.23)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
                 style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}>
-                <Send size={13} /> Submit Declaration
+                <Send size={14} /> Submit Declaration
               </button>
             </div>
           </div>
