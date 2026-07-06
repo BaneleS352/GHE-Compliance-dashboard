@@ -1194,7 +1194,7 @@ function MyDeclarationsScreen() {
         <KpiCard label="Total" value={String(declarations.length)} icon={FileText} color="#7c3aed" active={activeKpi==="All"} onClick={()=>handleKpiClick("All")} />
         <KpiCard label="Pending" value={String(declarations.filter(d=>d.status==="Pending").length)} icon={Clock} color="#f59e0b" active={activeKpi==="Pending"} onClick={()=>handleKpiClick("Pending")} />
         <KpiCard label="Approved" value={String(declarations.filter(d=>d.status==="Approved").length)} icon={Check} color="#10b981" active={activeKpi==="Approved"} onClick={()=>handleKpiClick("Approved")} />
-        <KpiCard label="Declined" value={String(declarations.filter(d=>d.status==="Declined").length)} icon={X} color="#ef4444" active={activeKpi==="Rejected"} onClick={()=>handleKpiClick("Rejected")} />
+        <KpiCard label="Declined" value={String(declarations.filter(d=>d.status==="Declined").length)} icon={X} color="#ef4444" active={activeKpi==="Declined"} onClick={()=>handleKpiClick("Declined")} />
         <KpiCard label="Total Value" value={`R ${Math.round(totalValue/1000)}K`} icon={DollarSign} color="#6366f1" />
       </div>
 
@@ -1213,7 +1213,7 @@ function MyDeclarationsScreen() {
           <option>All</option>
           <option>Pending</option>
           <option>Approved</option>
-          <option>Rejected</option>
+          <option>Declined</option>
         </select>
 
         <select onChange={e=>setApproverFilter(e.target.value)} className="h-9 border rounded-lg px-2">
