@@ -18,6 +18,7 @@ import logoImg from "@/imports/Logo.png";
 import groupLogoImg from "@/imports/Hollywood_Group_Logo.png";
 import bannerImg from "@/imports/Button.png";
 
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type Screen = "landing" | "login" | "new-declaration" | "my-declarations" | "approver-dashboard" | "approval-queue" | "approval-detail" | "declaration-detail";
 type Role = "teamMember" | "approver";
@@ -114,9 +115,23 @@ function Sel({ children, value, onChange, className = "" }: { children: React.Re
     </div>
   );
 }
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+    children: React.ReactNode;
+}
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`bg-white rounded-2xl border border-border shadow-sm ${className}`}>{children}</div>;
+function Card({
+    children,
+    className = "",
+    ...props
+}: CardProps) {
+    return (
+        <div
+            className={`bg-white rounded-2xl border border-border shadow-sm ${className}`}
+            {...props}
+        >
+            {children}
+        </div>
+    );
 }
 
 function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: React.ReactNode }) {
@@ -128,16 +143,44 @@ function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: st
   );
 }
 
-function KpiCard({ label, value, icon: Icon, iconBg, iconColor, trend, trendColor }: {
-  label: string; value: string; icon: React.ElementType; iconBg: string; iconColor: string; trend?: string; trendColor?: string;
+
+
+function KpiCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  icon: React.ElementType;
+  color: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <Card className="p-5">
-      <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: iconBg }}><Icon size={18} style={{ color: iconColor }} /></div>
-      <p className="text-2xl font-bold text-foreground tracking-tight">{value}</p>
-      <p className="text-xs font-medium text-muted-foreground mt-1 leading-tight">{label}</p>
-      {trend && <p className="text-[11px] font-semibold mt-2" style={{ color: trendColor ?? iconColor }}>{trend}</p>}
-    </Card>
+    <div
+      onClick={onClick}
+      className={`p-5 rounded-2xl cursor-pointer transition-all duration-300 border transform
+        ${active ? "scale-105 shadow-xl" : "hover:scale-[1.02] hover:shadow-md"}
+      `}
+      style={{
+        background: `linear-gradient(135deg, ${color}15, ${color}05)`,
+        borderColor: active ? color : "#eee",
+      }}
+    >
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+        style={{ background: color + "20" }}
+      >
+        <Icon size={18} style={{ color }} />
+      </div>
+
+      <p className="text-2xl font-bold">{value}</p>
+      <p className="text-xs mt-1">{label}</p>
+    </div>
   );
 }
 
@@ -829,7 +872,7 @@ function DeclarationDetailView({
         ["Position", safe(d.position)],
         ["Received / Given", safe(d.receivedGiven)],
         ["Category", safe(d.type)],
-        ["Counter Party Name", safe(d.vendor)],
+        ["Counter Party Name", safe(d.Counterparty)],
         ["Name Of Counter Person", safe(d.contactPerson)],
         ["Date", safe(d.date)],
         ["Value", formatRand(d.value)],
@@ -852,7 +895,7 @@ function DeclarationDetailView({
         ["Position", safe(record?.position)],
         ["Received / Given", safe(record?.receivedGiven)],
         ["Category", safe(record?.type)],
-        ["Counter Party Name", safe(record?.vendor)],
+        ["Counter Party Name", safe(record?.Counterparty)],
         ["Name Of Counter Person", safe(record?.contactPerson)],
         ["Date", safe(record?.date)],
         ["Value", safe(record?.value)],
@@ -886,12 +929,12 @@ function DeclarationDetailView({
     {
       label: "Line Manager Review",
       actor: d ? d.lineManager : safe(record?.lineManager),
-      done: status === "Approved" || status === "Rejected",
+      done: status === "Approved" || status === "Declined",
       updates:
         status === "Approved"
           ? [{ status: "Approved", date: "2026-07-01", time: "10:15" }]
-          : status === "Rejected"
-          ? [{ status: "Rejected", date: "2026-07-01", time: "10:15" }]
+          : status === "Declined"
+          ? [{ status: "Declined", date: "2026-07-01", time: "10:15" }]
           : [{ status: "Pending", date: "-", time: "-" }],
     },
     {
@@ -1041,102 +1084,214 @@ function DeclarationDetailView({
 }
 
 // ─── My Declarations ───────────────────────────────────────────────────────────
+import * as XLSX from "xlsx";
+
 function MyDeclarationsScreen() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [approverFilter, setApproverFilter] = useState("All");
+  const [dateFilter, setDateFilter] = useState("");
+  const [activeKpi, setActiveKpi] = useState("All");
+
+  const [sortKey, setSortKey] = useState<keyof Declaration | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
+
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
 
+  // FILTERING
   const filtered = declarations.filter(d =>
-    (!search || d.Counterparty.toLowerCase().includes(search.toLowerCase()) || d.id.toLowerCase().includes(search.toLowerCase()) || d.employee.toLowerCase().includes(search.toLowerCase())) &&
+    (!search ||
+      d.id.toLowerCase().includes(search.toLowerCase()) ||
+      d.Counterparty.toLowerCase().includes(search.toLowerCase()) ||
+      d.employee.toLowerCase().includes(search.toLowerCase())
+    ) &&
     (typeFilter === "All" || d.type === typeFilter) &&
-    (statusFilter === "All" || d.status === statusFilter)
+    (statusFilter === "All" || d.status === statusFilter) &&
+    (approverFilter === "All" || d.approver === approverFilter) &&
+    (!dateFilter || d.submitted === dateFilter)
   );
 
+  // SORTING
+  const sorted = [...filtered].sort((a, b) => {
+  if (!sortKey) return 0;
+
+  const aVal = a[sortKey] ?? "";
+  const bVal = b[sortKey] ?? "";
+
+  // Convert numbers safely
+  if (typeof aVal === "number" && typeof bVal === "number") {
+    return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+  }
+
+  // Convert everything else to string
+  const aStr = String(aVal).toLowerCase();
+  const bStr = String(bVal).toLowerCase();
+
+  if (aStr < bStr) return sortDir === "asc" ? -1 : 1;
+  if (aStr > bStr) return sortDir === "asc" ? 1 : -1;
+
+  return 0;
+});
+
+  // PAGINATION
+  const totalPages = Math.ceil(sorted.length / pageSize);
+
+  const paginated = sorted.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // KPI
   const totalValue = declarations.reduce((s, d) => s + d.value, 0);
 
-  const exportCSV = () => {
-    const headers = ["Declaration ID", "Employee", "Type", "Counterparty", "Value", "Submitted", "Status", "Approver"];
-    const rows = filtered.map(d => [d.id, d.employee, d.type, d.Counterparty, formatRand(d.value), d.submitted, d.status, d.approver]);
-    const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(",")).join("\n");
-    const a = document.createElement("a"); a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`; a.download = "GHE_Declarations.csv"; a.click();
+  const handleKpiClick = (type: string) => {
+    setActiveKpi(type);
+    setCurrentPage(1);
+    setStatusFilter(type === "All" ? "All" : type);
+  };
+
+  // EXCEL EXPORT
+  const exportExcel = () => {
+    const data = filtered.map(d => ({
+      ID: d.id,
+      Employee: d.employee,
+      Type: d.type,
+      Vendor: d.Counterparty,
+      Value: d.value,
+      Submitted: d.submitted,
+      Status: d.status,
+      Approver: d.approver,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Declarations");
+
+    XLSX.writeFile(wb, "Declarations.xlsx");
   };
 
   if (viewDecl) return <DeclarationDetailView data={viewDecl} onBack={() => setViewDecl(null)} />;
 
   return (
     <div>
-      <PageHeader title="My Declarations" subtitle="View and manage your GHE declaration history"
-        actions={
-          <button onClick={exportCSV} className="h-9 px-4 rounded-xl text-sm font-semibold border border-border bg-white hover:bg-muted transition-colors flex items-center gap-2">
-            <Download size={13} /> Export to Excel
-          </button>
-        } />
 
-      {/* 5 KPI cards — Total, Pending, Approved, Declined, Total Value */}
+      <PageHeader
+        title="My Declarations"
+        subtitle="Manage and review your declarations"
+        actions={
+          <button onClick={exportExcel} className="h-9 px-4 rounded-xl border bg-white hover:bg-muted flex gap-2 items-center">
+            <Download size={13}/> Export Excel
+          </button>
+        }
+      />
+
+      {/* KPI CARDS */}
       <div className="grid grid-cols-5 gap-4 mb-7">
-        <KpiCard label="Total Declarations" value={String(declarations.length)} icon={FileText}   iconBg="#EDE8FF" iconColor={PURPLE} />
-        <KpiCard label="Pending Approval"   value="2"   icon={Clock}       iconBg="#fffbeb" iconColor="#d97706" trend="Awaiting review" trendColor="#d97706" />
-        <KpiCard label="Approved"           value="2"   icon={Check}       iconBg="#ecfdf5" iconColor="#059669" trend="Compliant"       trendColor="#059669" />
-        <KpiCard label="Declined"           value="1"   icon={X}           iconBg="#fef2f2" iconColor="#dc2626" />
-        <KpiCard label="Total Value"        value={`R ${Math.round(totalValue / 1000)}K`} icon={DollarSign} iconBg="#EDE8FF" iconColor={PURPLE} trend="All declarations" />
+        <KpiCard label="Total" value={String(declarations.length)} icon={FileText} color="#7c3aed" active={activeKpi==="All"} onClick={()=>handleKpiClick("All")} />
+        <KpiCard label="Pending" value={String(declarations.filter(d=>d.status==="Pending").length)} icon={Clock} color="#f59e0b" active={activeKpi==="Pending"} onClick={()=>handleKpiClick("Pending")} />
+        <KpiCard label="Approved" value={String(declarations.filter(d=>d.status==="Approved").length)} icon={Check} color="#10b981" active={activeKpi==="Approved"} onClick={()=>handleKpiClick("Approved")} />
+        <KpiCard label="Declined" value={String(declarations.filter(d=>d.status==="Declined").length)} icon={X} color="#ef4444" active={activeKpi==="Rejected"} onClick={()=>handleKpiClick("Rejected")} />
+        <KpiCard label="Total Value" value={`R ${Math.round(totalValue/1000)}K`} icon={DollarSign} color="#6366f1" />
       </div>
 
-      {/* Filter bar */}
-      <Card className="p-3.5 mb-4 flex gap-3 flex-wrap items-center">
-        <div className="relative flex-1 min-w-44">
-          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by ID, Counterparty or employee…" className="w-full h-9 pl-9 pr-4 rounded-lg text-sm border border-border bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" />
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter size={13} className="text-muted-foreground" />
-          <span className="text-xs font-semibold text-muted-foreground">Type:</span>
-          {["All","Gift","Hospitality","Entertainment"].map(t => (
-            <button key={t} onClick={() => setTypeFilter(t)} className="h-8 px-3 rounded-lg text-xs font-semibold transition-colors"
-              style={typeFilter === t ? { background: PURPLE, color: "#fff" } : { background: "#F0EEF8", color: "#6B6B80" }}>{t}</button>
+      {/* FILTERS */}
+      <Card className="p-3 mb-4 flex gap-3 flex-wrap">
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." className="h-9 px-3 border rounded-lg"/>
+
+        <select onChange={e=>setTypeFilter(e.target.value)} className="h-9 border rounded-lg px-2">
+          <option>All</option>
+          <option>Gift</option>
+          <option>Hospitality</option>
+          <option>Entertainment</option>
+        </select>
+
+        <select onChange={e=>setStatusFilter(e.target.value)} className="h-9 border rounded-lg px-2">
+          <option>All</option>
+          <option>Pending</option>
+          <option>Approved</option>
+          <option>Rejected</option>
+        </select>
+
+        <select onChange={e=>setApproverFilter(e.target.value)} className="h-9 border rounded-lg px-2">
+          <option>All</option>
+          {[...new Set(declarations.map(d=>d.approver))].map(a=>(
+            <option key={a}>{a}</option>
           ))}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-muted-foreground">Status:</span>
-          {["All","Draft","Pending","Approved","Declined"].map(s => (
-            <button key={s} onClick={() => setStatusFilter(s)} className="h-8 px-3 rounded-lg text-xs font-semibold transition-colors"
-              style={statusFilter === s ? { background: PURPLE, color: "#fff" } : { background: "#F0EEF8", color: "#6B6B80" }}>{s}</button>
-          ))}
-        </div>
+        </select>
+
+        <input type="date" onChange={e=>setDateFilter(e.target.value)} className="h-9 border rounded-lg px-2"/>
       </Card>
 
+      {/* TABLE */}
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
-          <THead cols={["Declaration ID", "Type", "Counterparty", "Value", "Submitted", "Approver", "Status", "Actions"]} />
-          <tbody className="divide-y divide-border">
-            {filtered.map(d => (
-              <tr key={d.id} className="hover:bg-muted/20 transition-colors">
-                <td className="px-5 py-3.5"><span className="font-mono text-xs font-bold" style={{ color: PURPLE }}>{d.id}</span></td>
-                <td className="px-5 py-3.5"><TypeBadge type={d.type} /></td>
-                <td className="px-5 py-3.5 text-sm font-medium text-foreground">{d.Counterparty}</td>
-                <td className="px-5 py-3.5 text-sm font-semibold text-foreground tabular-nums">{formatRand(d.value)}</td>
-                <td className="px-5 py-3.5 text-sm text-muted-foreground tabular-nums">{d.submitted}</td>
-                <td className="px-5 py-3.5 text-sm text-muted-foreground">{d.approver}</td>
-                <td className="px-5 py-3.5"><StatusBadge status={d.status} /></td>
-                <td className="px-5 py-3.5">
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setViewDecl(d)} title="View" className="h-8 px-3 rounded-lg text-xs font-semibold bg-secondary text-secondary-foreground hover:bg-secondary/70 transition-colors flex items-center gap-1.5">
-                      <Eye size={12} /> View
-                    </button>
-                    <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(Object.entries(d).map(([k,v]) => `${k},${v}`).join("\n"))}`} download={`${d.id}.csv`} title="Export"
-                      className="h-8 px-3 rounded-lg text-xs font-semibold border border-border text-muted-foreground hover:text-primary hover:border-primary transition-colors flex items-center gap-1.5">
-                      <Download size={12} /> Export
-                    </a>
-                  </div>
+          <thead className="sticky top-0 bg-white z-10">
+            <tr>
+              {["id","type","vendor","value","submitted","approver"].map(key=>(
+                <th key={key}
+                  onClick={()=>{
+                    if (sortKey===key) setSortDir(sortDir==="asc"?"desc":"asc");
+                    else { setSortKey(key as keyof Declaration); setSortDir("asc"); }
+                  }}
+                  className="px-5 py-3 text-left cursor-pointer text-xs font-bold hover:text-primary"
+                >
+                  {key.toUpperCase()}
+                </th>
+              ))}
+              <th>Status</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {paginated.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="text-center py-10 text-muted-foreground">
+                  No declarations found
                 </td>
               </tr>
-            ))}
+            ) : (
+              paginated.map(d=>(
+                <tr key={d.id} className="hover:bg-muted/20 transition">
+                  <td className="px-5 py-3">{d.id}</td>
+                  <td>{d.type}</td>
+                  <td>{d.Counterparty}</td>
+                  <td>{formatRand(d.value)}</td>
+                  <td>{d.submitted}</td>
+                  <td>{d.approver}</td>
+                  <td><StatusBadge status={d.status}/></td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
-        <div className="px-5 py-3.5 border-t border-border flex items-center justify-between bg-[#F7F8FC]">
-          <p className="text-xs text-muted-foreground">Showing <span className="font-semibold text-foreground">{filtered.length}</span> of {declarations.length} declarations</p>
-          <div className="flex gap-1.5">{[1,2,3].map(p => <button key={p} className="w-8 h-8 rounded-lg text-xs font-semibold" style={p === 1 ? { background: PURPLE, color: "#fff" } : { background: "#F0EEF8", color: "#6B6B80" }}>{p}</button>)}</div>
+
+        {/* FOOTER */}
+        <div className="flex justify-between p-4 border-t">
+          <p className="text-xs">
+            Showing {(currentPage-1)*pageSize+1}–
+            {Math.min(currentPage*pageSize, filtered.length)} of {filtered.length}
+          </p>
+
+          <div className="flex gap-2">
+            <button disabled={currentPage===1} onClick={()=>setCurrentPage(p=>p-1)}>Prev</button>
+
+            {[...Array(totalPages)].map((_,i)=>(
+              <button key={i}
+                onClick={()=>setCurrentPage(i+1)}
+                className={currentPage===i+1 ? "bg-purple-600 text-white px-2" : "px-2"}
+              >
+                {i+1}
+              </button>
+            ))}
+
+            <button disabled={currentPage===totalPages} onClick={()=>setCurrentPage(p=>p+1)}>Next</button>
+          </div>
         </div>
+
       </Card>
     </div>
   );
@@ -1144,14 +1299,50 @@ function MyDeclarationsScreen() {
 
 // ─── Approver Dashboard ────────────────────────────────────────────────────────
 function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) {
+  
+  const pending = declarations.filter(d => d.status === "Pending");
+  const approved = declarations.filter(d => d.status === "Approved");
+  const declined = declarations.filter(d => d.status === "Declined");
+  const escalated = declarations.filter(d => d.status === "Escalated");
+
+  const totalValue = declarations.reduce((s, d) => s + d.value, 0);
   const kpis = [
-    { label: "Pending Queue",        value: "14",      icon: Clock,       iconBg: "#fffbeb", iconColor: "#d97706", trend: "+3 today" },
-    { label: "Approved This Month",  value: "47",      icon: Check,       iconBg: "#ecfdf5", iconColor: "#059669", trend: "+12 vs last month" },
-    { label: "Declined",             value: "8",       icon: X,           iconBg: "#fef2f2", iconColor: "#dc2626", trend: "-2 vs last month" },
-    { label: "Escalated",            value: "3",       icon: ArrowUp,     iconBg: "#fff7ed", iconColor: "#ea580c", trend: "Requires attention" },
-    { label: "Avg Processing",       value: "2.4d",    icon: TrendingUp,  iconBg: "#f5f3ff", iconColor: "#7c3aed", trend: "-0.3d improvement" },
-    { label: "Total Value Declared", value: "R284.5K", icon: DollarSign,  iconBg: "#EDE8FF", iconColor: PURPLE,    trend: "This month" },
+    {
+      label: "Pending Queue",
+      value: pending.length,
+      icon: Clock,
+      color: "#f59e0b",
+      onClick: () => onNavigate("approval-queue"),
+    },
+    {
+      label: "Approved",
+      value: approved.length,
+      icon: Check,
+      color: "#10b981",
+      onClick: () => onNavigate("approval-queue"),
+    },
+    {
+      label: "Declined",
+      value: declined.length,
+      icon: X,
+      color: "#ef4444",
+      onClick: () => onNavigate("approval-queue"),
+    },
+    {
+      label: "Escalated",
+      value: escalated.length,
+      icon: ArrowUp,
+      color: "#f97316",
+      onClick: () => onNavigate("approval-queue"),
+    },
+    {
+      label: "Total Value",
+      value: `R ${Math.round(totalValue / 1000)}K`,
+      icon: DollarSign,
+      color: "#6366f1",
+    },
   ];
+
   const queue = declarations.filter(d => ["Pending", "Escalated"].includes(d.status)).slice(0, 4);
   return (
     <div className="space-y-6">
@@ -1163,8 +1354,28 @@ function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) 
             <span className="ml-0.5 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: YELLOW, color: "#1E1E2D" }}>14</span>
           </button>
         } />
-      <div className="grid grid-cols-3 xl:grid-cols-6 gap-4">
-        {kpis.map(k => <KpiCard key={k.label} {...k} />)}
+      <div className="grid grid-cols-5 gap-4 mb-6">
+        {kpis.map((k, i) => (
+          <div
+            key={i}
+            onClick={k.onClick}
+            className="p-5 rounded-2xl cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:shadow-lg border"
+            style={{
+              background: `linear-gradient(135deg, ${k.color}15, ${k.color}05)`,
+              borderColor: "#eee",
+            }}
+          >
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+              style={{ background: k.color + "20" }}
+            >
+              <k.icon size={18} style={{ color: k.color }} />
+            </div>
+
+            <p className="text-2xl font-bold text-foreground">{k.value}</p>
+            <p className="text-xs text-muted-foreground mt-1">{k.label}</p>
+          </div>
+        ))}
       </div>
       <div className="grid grid-cols-3 gap-5">
         <Card className="col-span-1 p-5 flex flex-col" style={{ borderLeft: `4px solid ${YELLOW}` }}>
