@@ -144,16 +144,16 @@ Consistent height across all inputs and selects. Error state: `border-red-400`.
 - Section sidebar: `sticky top-0` in normal document flow
 - Form content: `flex-1 min-w-0 space-y-7` — fills full available width
 
-**Section 1 — Team Member Details:**
-Fields: Name, Employee Code, Manager Name, Company, Department, Team, Role/Position
+**Section 1 — TeamMemberDetails:**
+Fields: Name, TeamMemberCode, Manager Name, Company, Department, Team, Role/Position
 Layout: 2-column grid `grid-cols-2 gap-5`, Role/Position spans full width (`col-span-2`)
 
 **Section 2 — Declaration Details:**
 Fields on same row with correct alignment:
-- Row 1 (2-col): Received/Given selector | Who from/to selector
-- Row 2 (full): Vendor name
-- Row 3 (full): Contact person name
-- Row 4 (3-col equal): Bidding process | Existing relationship | Contract negotiation
+- Row 1 (2-col): GHE Received/Given selector | Who from/to selector
+- Row 2 (full): Counterparty name
+- Row 3 (full): Name of Contact person name
+- Row 4 (3-col equal): Bid In Progress | Existing relationship | Contract negotiation
 All three relationship dropdowns: Yes / No / Unsure / N/A
 
 **Section 3 — GHE Details:**
@@ -180,11 +180,11 @@ All three relationship dropdowns: Yes / No / Unsure / N/A
 
 ### My Declarations
 
-**KPI cards (5):** Total Declarations, Pending, Approved, Rejected, Total Value
+**KPI cards (5):** Total Declarations, Pending, Approved, Declined, Total Value
 - Use 5-column grid `grid-cols-5`
 - Total Value shows sum in Rand (e.g. "R 67.6K")
 
-**Filter bar:** Search input + Type chip filters (All/Gift/Hospitality/Entertainment) + Status chip filters (All/Draft/Pending/Approved/Rejected) + Export to Excel button
+**Filter bar:** Search input + Type chip filters (All/Gift/Hospitality/Entertainment) + Status chip filters (All/Draft/Pending/Approved/Declined) + Export to Excel button
 
 **Table:**
 - Header row: lavender `bg-[#EDE8FF]`
@@ -195,14 +195,14 @@ All three relationship dropdowns: Yes / No / Unsure / N/A
 
 ### Approver Dashboard
 
-**KPI row (6 cards):** Pending Queue, Approved This Month, Rejected, Escalated, Avg Processing, Total Value
+**KPI row (6 cards):** Pending Queue, Approved This Month, Declined, Escalated, Avg Processing, Total Value
 
 **My Next Step box:** Yellow left-border card, shows 2 overdue items, "View My Actions" CTA
 
 **Pending Approvals mini-table:** 4 rows, links to Approval Queue
 
 **Two charts (recharts):**
-1. Grouped bar chart: Approved vs Rejected per month
+1. Grouped bar chart: Approved vs Declined per month
 2. Donut pie: Declarations by type (Gift/Hospitality/Entertainment)
 
 ### Approval Queue
@@ -227,7 +227,7 @@ Only update `--background`:
 ## Verification
 
 1. App opens on Landing+Login combined screen — dark purple left, white login right
-2. Sign in as Team Member → New Declaration form loads without blank space; form fills width
+2. Sign in as TeamMember→ New Declaration form loads without blank space; form fills width
 3. Sticky sidebar nav highlights correct section as user scrolls
 4. All required fields (*) show red error + auto-scroll to first error on Submit attempt
 5. Submit with valid data → confetti modal → "View Declaration" shows detail + workflow tracker
