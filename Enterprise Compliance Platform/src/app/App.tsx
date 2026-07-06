@@ -1232,7 +1232,8 @@ function MyDeclarationsScreen() {
           <thead className="sticky top-0 bg-white z-10">
             <tr>
               {["id","type","vendor","value","submitted","approver"].map(key=>(
-                <th key={key}
+                <th
+                  key={key}
                   onClick={()=>{
                     if (sortKey===key) setSortDir(sortDir==="asc"?"desc":"asc");
                     else { setSortKey(key as keyof Declaration); setSortDir("asc"); }
@@ -1242,7 +1243,7 @@ function MyDeclarationsScreen() {
                   {key.toUpperCase()}
                 </th>
               ))}
-              <th>Status</th>
+              <th className="px-5 py-3 text-xs font-bold">ACTIONS</th>
             </tr>
           </thead>
 
@@ -1263,6 +1264,34 @@ function MyDeclarationsScreen() {
                   <td>{d.submitted}</td>
                   <td>{d.approver}</td>
                   <td><StatusBadge status={d.status}/></td>
+
+                  {/*  ACTIONS COLUMN */}
+                  <td className="px-5 py-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setViewDecl(d)}
+                        className="h-8 px-3 rounded-lg text-xs font-semibold bg-secondary hover:bg-secondary/70 flex items-center gap-1"
+                      >
+                        <Eye size={12}/> View
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const csv = Object.entries(d)
+                            .map(([k,v]) => `${k},${v}`)
+                            .join("\n");
+
+                          const a = document.createElement("a");
+                          a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
+                          a.download = `${d.id}.csv`;
+                          a.click();
+                        }}
+                        className="h-8 px-3 rounded-lg text-xs border hover:border-primary flex items-center gap-1"
+                      >
+                        <Download size={12}/> Export
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))
             )}
