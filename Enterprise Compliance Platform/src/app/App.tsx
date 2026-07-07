@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { AppShell } from "../shell/AppShell";
-import { LandingScreen } from "../screens/LandingScreen";
-import { NewDeclarationScreen } from "../screens/NewDeclarationScreen";
-import { MyDeclarationsScreen } from "../screens/MyDeclarationsScreen";
-import { ApproverDashboard } from "../screens/ApproverDashboard";
-import { ApprovalQueue } from "../screens/ApprovalQueue";
-import { ApprovalDetail } from "../screens/ApprovalDetail";
-import { DeclarationDetailView } from "../screens/DeclarationDetailView";
-import { SuccessModal } from "../components/SuccessModal";
-import { DraftBanner } from "../components/DraftBanner";
+import { LandingScreen } from "./pages/LandingScreen";
+import { NewDeclarationScreen } from "./pages/NewDeclarationScreen";
+import { MyDeclarationsScreen } from "./pages/MyDeclarationsScreen";
+import { ApproverDashboard } from "./pages/ApproverDashboard";
+import { ApprovalQueue } from "./pages/ApprovalQueue";
+import { ApprovalDetail } from "./pages/ApprovalDetail";
+import { DeclarationDetailView } from "./pages/DeclarationDetailView";
+import { SuccessModal } from "./components/SuccessModal";
+import { DraftBanner } from "./components/DraftBanner";
 import { Screen, Role, Declaration } from "../types/declaration";
 
 

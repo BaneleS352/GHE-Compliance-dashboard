@@ -2,14 +2,14 @@
 import * as XLSX from "xlsx";
 import { useState } from "react";
 import { Download, FileText, Clock, Check, X, DollarSign, Eye } from "lucide-react";
-import { declarations } from "../data/declarations";
-import { Declaration } from "../types/declaration";
-import { formatRand } from "../config/theme";
+import { declarations } from "../../data/declarations";
+import { Declaration } from "../../types/declaration";
+import { formatRand } from "../../config/theme";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
 import { StatusBadge } from "../components/StatusBadge";
-import { DeclarationDetailView } from "../screens/DeclarationDetailView";
+import { DeclarationDetailView } from "../pages/DeclarationDetailView";
 
 export function MyDeclarationsScreen() {
   const [search, setSearch] = useState("");
