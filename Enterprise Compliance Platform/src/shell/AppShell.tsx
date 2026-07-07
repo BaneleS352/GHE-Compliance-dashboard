@@ -1,8 +1,15 @@
 import React, { useState } from "react";
+<<<<<<< Updated upstream
 import { Sidebar } from "@/shell/Sidebar";
 import { TopBar } from "@/shell/TopBar";
 import { F } from "@/config/theme";
 import { Role, Screen } from "@/types/declaration";
+=======
+import { Sidebar } from "../shell/Sidebar";
+import { TopBar } from "../shell/TopBar";
+import { F } from "../config/theme";
+import { Role, Screen } from "../types/declaration";
+>>>>>>> Stashed changes
 
 export function AppShell({
   role,

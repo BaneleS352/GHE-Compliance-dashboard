@@ -2,6 +2,7 @@
 import * as XLSX from "xlsx";
 import { useState } from "react";
 import { Download, FileText, Clock, Check, X, DollarSign, Eye } from "lucide-react";
+<<<<<<< Updated upstream
 import { declarations } from "@/data/declarations";
 import { Declaration } from "@/types/declaration";
 import { formatRand } from "@/config/theme";
@@ -10,6 +11,16 @@ import { PageHeader } from "@/components/PageHeader";
 import { KpiCard } from "@/components/KpiCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { DeclarationDetailView } from "@/screens/DeclarationDetailView";
+=======
+import { declarations } from "../data/declarations";
+import { Declaration } from "../types/declaration";
+import { formatRand } from "../config/theme";
+import { Card } from "../components/Card";
+import { PageHeader } from "../components/PageHeader";
+import { KpiCard } from "../components/KpiCard";
+import { StatusBadge } from "../components/StatusBadge";
+import { DeclarationDetailView } from "../screens/DeclarationDetailView";
+>>>>>>> Stashed changes
 
 export function MyDeclarationsScreen() {
   const [search, setSearch] = useState("");

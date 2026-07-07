@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Filter, Download, Search, ChevronDown } from "lucide-react";
+<<<<<<< Updated upstream
 import { declarations, approvalOptions } from "@/data/declarations";
 import { Declaration, ApprovalDecision } from "@/types/declaration";
 import { PURPLE } from "@/config/theme";
@@ -9,6 +10,17 @@ import { THead } from "@/components/THead";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TypeBadge } from "@/components/TypeBadge";
 import { formatRand } from "@/config/theme";
+=======
+import { declarations, approvalOptions } from "../data/declarations";
+import { Declaration, ApprovalDecision } from "../types/declaration";
+import { PURPLE } from "../config/theme";
+import { Card } from "../components/Card";
+import { PageHeader } from "../components/PageHeader";
+import { THead } from "../components/THead";
+import { StatusBadge } from "../components/StatusBadge";
+import { TypeBadge } from "../components/TypeBadge";
+import { formatRand } from "../config/theme";
+>>>>>>> Stashed changes
 
 // ─── Approver Decision Block ────────────────────────────────────────────────────
 export function ApproverDecisionBlock({
