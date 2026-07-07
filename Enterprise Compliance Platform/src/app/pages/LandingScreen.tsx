@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ImageWithFallback } from "../components/figma/ImageWithFallback";
+import { ImageWithFallback } from "../components/ImageWithFallback";
 import logoImg from "../../assets/Logo.png";
 import bannerImg from "../../assets/Button.png";
 import { Sel } from "../components/Sel";
