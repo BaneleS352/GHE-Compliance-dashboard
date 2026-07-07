@@ -1,5 +1,9 @@
 import { Check, Sparkles, X } from "lucide-react";
+<<<<<<< Updated upstream
 import { PURPLE, YELLOW, F } from "@/config/theme";
+=======
+import { PURPLE, YELLOW, F } from "../config/theme";
+>>>>>>> Stashed changes
 
 export function SuccessModal({
   data,

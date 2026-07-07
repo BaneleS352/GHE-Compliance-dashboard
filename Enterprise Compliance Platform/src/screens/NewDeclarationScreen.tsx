@@ -3,12 +3,21 @@ import {
   FileText, Upload, Download, Check, AlertCircle,
   Paperclip, Trash2, Send,
 } from "lucide-react";
+<<<<<<< Updated upstream
 import { Sel } from "@/components/Sel";
 import { FL } from "@/components/FL";
 import { FS, FORM_SECTIONS } from "@/components/FS";
 import { Card } from "@/components/Card";
 import { PURPLE, F, inp } from "@/config/theme";
 import { UploadedFile } from "@/types/declaration";
+=======
+import { Sel } from "../components/Sel";
+import { FL } from "../components/FL";
+import { FS, FORM_SECTIONS } from "../components/FS";
+import { Card } from "../components/Card";
+import { PURPLE, F, inp } from "../config/theme";
+import { UploadedFile } from "../types/declaration";
+>>>>>>> Stashed changes
 
 export function NewDeclarationScreen({
   onSubmitSuccess,
@@ -442,7 +451,11 @@ export function NewDeclarationScreen({
               </FL>
               <Sel value={form.instances} onChange={(v) => setF("instances", v)} className={errors.instances ? "border-red-400" : ""}>
                 <option value="">Select…</option>
+<<<<<<< Updated upstream
                 {["0","1","2","3","4","5","6","7","8","9","10",">10"].map((n) => <option key={n}>{n}</option>)}
+=======
+                {["0","1","2","3","4","5","6","7","8","9",">10"].map((n) => <option key={n}>{n}</option>)}
+>>>>>>> Stashed changes
               </Sel>
             </div>
             <div>

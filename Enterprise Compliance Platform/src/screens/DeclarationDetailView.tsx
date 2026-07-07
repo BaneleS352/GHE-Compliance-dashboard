@@ -1,8 +1,15 @@
 import { Check } from "lucide-react";
+<<<<<<< Updated upstream
 import { Card } from "@/components/Card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatRand } from "@/config/theme";
 import { Declaration, StatusType } from "@/types/declaration";
+=======
+import { Card } from "../components/Card";
+import { StatusBadge } from "../components/StatusBadge";
+import { formatRand } from "../config/theme";
+import { Declaration, StatusType } from "../types/declaration";
+>>>>>>> Stashed changes
 
 export function DeclarationDetailView({
   data,
