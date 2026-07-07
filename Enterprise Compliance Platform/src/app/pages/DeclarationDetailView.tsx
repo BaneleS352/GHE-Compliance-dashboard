@@ -1,8 +1,8 @@
 import { Check } from "lucide-react";
 import { Card } from "../components/ui/card";
-import { StatusBadge } from "../components/";
-import { formatRand } from "../config/theme";
-import { Declaration, StatusType } from "../types/declaration";
+import { StatusBadge } from "../components/StatusBadge";
+import { formatRand } from "../../config/theme";
+import { Declaration, StatusType } from "../../types/declaration";
 
 export function DeclarationDetailView({
   data,

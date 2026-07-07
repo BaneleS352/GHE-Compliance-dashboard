@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Filter, Download, Search, ChevronDown } from "lucide-react";
-import { declarations, approvalOptions } from "../data/declarations";
-import { Declaration, ApprovalDecision } from "../types/declaration";
-import { PURPLE } from "../config/theme";
+import { declarations, approvalOptions } from "../../data/declarations";
+import { Declaration, ApprovalDecision } from "../../types/declaration";
+import { PURPLE } from "../../config/theme";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 import { THead } from "../components/THead";
 import { StatusBadge } from "../components/StatusBadge";
 import { TypeBadge } from "../components/TypeBadge";
-import { formatRand } from "../config/theme";
+import { formatRand } from "../../config/theme";
 
 // ─── Approver Decision Block ────────────────────────────────────────────────────
 export function ApproverDecisionBlock({

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { ImageWithFallback } from "../app/components/figma/ImageWithFallback";
-import logoImg from "../imports/Logo.png";
-import bannerImg from "../imports/Button.png";
+import { ImageWithFallback } from "../components/figma/ImageWithFallback";
+import logoImg from "../../assets/Logo.png";
+import bannerImg from "../../assets/Button.png";
 import { Sel } from "../components/Sel";
-import { PURPLE, F, inp } from "../config/theme";
-import { Role } from "../types/declaration";
+import { PURPLE, F, inp } from "../../config/theme";
+import { Role } from "../../types/declaration";
 
 export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string) => void }) {
   const [role, setRole] = useState<Role>("teamMember");
