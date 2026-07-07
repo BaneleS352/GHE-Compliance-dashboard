@@ -49,7 +49,7 @@ export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => v
       />
 
       {/* KPI strip */}
-      <div className="grid grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
         {kpis.map((k, i) => (
           <div
             key={i}
@@ -67,8 +67,8 @@ export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => v
       </div>
 
       {/* Actions + pending table */}
-      <div className="grid grid-cols-3 gap-5">
-        <Card className="col-span-1 p-5 flex flex-col" style={{ borderLeft: `4px solid ${YELLOW}` }}>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        <Card className="p-5 flex flex-col" style={{ borderLeft: `4px solid ${YELLOW}` }}>
           <div className="flex items-center gap-2 mb-1">
             <AlertTriangle size={14} style={{ color: "#d97706" }} />
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">My Next Step</p>
@@ -101,14 +101,14 @@ export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => v
           </button>
         </Card>
 
-        <Card className="col-span-2 overflow-hidden">
+        <Card className="xl:col-span-2 overflow-x-auto">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between">
             <h3 className="text-sm font-bold text-foreground">Pending Approvals</h3>
             <button onClick={() => onNavigate("approval-queue")} className="text-xs font-semibold hover:underline" style={{ color: PURPLE }}>
               View all
             </button>
           </div>
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[680px] text-sm">
             <THead cols={["ID", "Employee", "Type", "Value", "Priority", "Status"]} />
             <tbody className="divide-y divide-border">
               {queue.map((d) => (
@@ -131,8 +131,8 @@ export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => v
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-3 gap-5">
-        <Card className="col-span-2 p-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        <Card className="xl:col-span-2 p-4 sm:p-6">
           <h3 className="text-sm font-bold text-foreground mb-0.5">Monthly Declaration Volume</h3>
           <p className="text-xs text-muted-foreground mb-5">Approved vs Declined per month</p>
           <ResponsiveContainer width="100%" height={200}>
@@ -148,7 +148,7 @@ export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => v
           </ResponsiveContainer>
         </Card>
 
-        <Card className="p-6 flex flex-col">
+        <Card className="p-4 sm:p-6 flex flex-col">
           <h3 className="text-sm font-bold text-foreground mb-0.5">Declarations by Type</h3>
           <p className="text-xs text-muted-foreground mb-4">This month's breakdown</p>
           <div className="flex-1 flex items-center justify-center">

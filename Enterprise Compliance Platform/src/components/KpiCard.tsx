@@ -18,7 +18,7 @@ export function KpiCard({
   return (
     <div
       onClick={onClick}
-      className={`p-5 rounded-2xl cursor-pointer transition-all duration-300 border transform
+      className={`p-4 sm:p-5 rounded-2xl cursor-pointer transition-all duration-300 border transform
         ${active ? "scale-105 shadow-xl" : "hover:scale-[1.02] hover:shadow-md"}
       `}
       style={{
@@ -32,7 +32,7 @@ export function KpiCard({
       >
         <Icon size={18} style={{ color }} />
       </div>
-      <p className="text-2xl font-bold">{value}</p>
+      <p className="text-xl sm:text-2xl font-bold">{value}</p>
       <p className="text-xs mt-1">{label}</p>
     </div>
   );

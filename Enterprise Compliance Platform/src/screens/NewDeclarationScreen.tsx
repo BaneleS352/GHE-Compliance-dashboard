@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   FileText, Upload, Download, Check, AlertCircle,
-  Paperclip, Trash2, Send,
+  Paperclip, Trash2, Send, X,
 } from "lucide-react";
 import { Sel } from "../components/Sel";
 import { FL } from "../components/FL";
@@ -23,6 +23,7 @@ export function NewDeclarationScreen({
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [dragging, setDragging] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [uploadError, setUploadError] = useState<{ title: string; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -41,6 +42,7 @@ export function NewDeclarationScreen({
     contractNegotiation: "",
     biddingProcess: "",
     occasion: "",
+    occasionOther: "",
     date: "",
     value: "",
     currency: "ZAR",
@@ -76,6 +78,12 @@ export function NewDeclarationScreen({
     return () => scrollRoot.removeEventListener("scroll", onScroll);
   }, []);
 
+  useEffect(() => {
+    if (!uploadError) return;
+    const t = setTimeout(() => setUploadError(null), 5000);
+    return () => clearTimeout(t);
+  }, [uploadError]);
+
   const jumpTo = (id: string) => {
     const node = scrollRef.current?.querySelector(`#${id}`) as HTMLElement | null;
     node?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -94,13 +102,20 @@ export function NewDeclarationScreen({
     if (!rawFiles) return;
     Array.from(rawFiles).forEach((file) => {
       if (!ALLOWED.includes(file.type)) {
-        alert(`${file.name}: unsupported format. Use PDF, PNG, JPG, or DOCX.`);
+        setUploadError({
+          title: "Unsupported file type",
+          message: `${file.name} cannot be uploaded. Use PDF, PNG, JPG, DOC, or DOCX files.`,
+        });
         return;
       }
       if (file.size > MAX_SIZE) {
-        alert(`${file.name} exceeds the 20 MB limit.`);
+        setUploadError({
+          title: "File is too large",
+          message: `${file.name} exceeds the 20 MB limit. Please upload a smaller supporting document.`,
+        });
         return;
       }
+      setUploadError(null);
       setFiles((f) => [...f, { name: file.name, size: file.size, type: file.type, url: URL.createObjectURL(file) }]);
     });
   }, []);
@@ -110,6 +125,10 @@ export function NewDeclarationScreen({
     setDragging(false);
     processFiles(e.dataTransfer.files);
   };
+
+  const randValue = Number(form.value);
+  const requiresSubstantiation = Number.isFinite(randValue) && randValue > 2000;
+  const requiresOccasionOther = form.occasion === "Other";
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -129,6 +148,8 @@ export function NewDeclarationScreen({
     if (!form.description.trim())        errs.description = "Required";
     if (!form.date)                      errs.date = "Required";
     if (!form.instances)                 errs.instances = "Required";
+    if (requiresOccasionOther && !form.occasionOther.trim()) errs.occasionOther = "Required";
+    if (requiresSubstantiation && !form.substantiation.trim()) errs.substantiation = "Required";
     setErrors(errs);
     if (Object.keys(errs).length > 0) {
       const sectionMap: Record<string, string> = {
@@ -138,6 +159,8 @@ export function NewDeclarationScreen({
         contactPerson: "sec-declaration", existingRelationship: "sec-declaration",
         contractNegotiation: "sec-declaration", biddingProcess: "sec-declaration",
         category: "sec-ghe", description: "sec-ghe", date: "sec-ghe", instances: "sec-ghe",
+        occasionOther: "sec-ghe",
+        substantiation: "sec-ghe",
       };
       jumpTo(sectionMap[Object.keys(errs)[0]] ?? "sec-team");
       return false;
@@ -167,8 +190,10 @@ export function NewDeclarationScreen({
       type: category,
       date: form.date,
       value: form.value ? `R ${form.value}` : "Not specified",
-      occasion: form.occasion,
+      occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
+      occasionOther: requiresOccasionOther ? form.occasionOther : "",
       description: form.description,
+      substantiation: requiresSubstantiation ? form.substantiation : "",
       files: files.length ? files.map((f) => f.name).join(", ") : "",
     });
   };
@@ -193,6 +218,27 @@ export function NewDeclarationScreen({
 
   return (
     <div className="flex items-start gap-6 max-w-7xl mx-auto">
+      {uploadError && (
+        <div className="fixed top-5 left-1/2 z-50 w-[min(92vw,460px)] -translate-x-1/2 rounded-2xl border border-amber-200 bg-white p-4 shadow-[0_18px_50px_rgba(79,29,149,0.18)]" style={F}>
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, #F8D74A, #f59e0b)" }}>
+              <AlertCircle size={20} className="text-purple-950" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-foreground">{uploadError.title}</p>
+              <p className="text-sm text-muted-foreground leading-relaxed mt-0.5">{uploadError.message}</p>
+            </div>
+            <button
+              onClick={() => setUploadError(null)}
+              className="h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+              aria-label="Dismiss upload error"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Sticky section nav */}
       <aside className="w-48 flex-shrink-0 hidden lg:flex flex-col gap-3 sticky top-6 self-start">
         <Card className="p-3.5">
@@ -263,14 +309,14 @@ export function NewDeclarationScreen({
       {/* Form content */}
       <div ref={scrollRef} className="flex-1 min-w-0 space-y-7 pb-2">
         {/* Header */}
-        <div className="flex items-center justify-between pb-5 border-b border-border gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-5 border-b border-border gap-4">
           <div>
             <h1 className="text-[22px] font-bold tracking-tight text-foreground">New Declaration</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Fields marked <span className="text-red-400 font-bold">*</span> are mandatory.
             </p>
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 self-start sm:self-auto">
             <span className="h-7 px-3 rounded-full text-xs font-bold bg-amber-100 text-amber-700 flex items-center">
               Draft
             </span>
@@ -279,7 +325,7 @@ export function NewDeclarationScreen({
 
         {/* Section 1 — Team Member Details */}
         <FS id="sec-team" num="1" title="Team Member Details">
-          <div className="grid grid-cols-2 gap-x-5 gap-y-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-5">
             <div>
               <FL required error={errors.employeeName}>Team Member Name</FL>
               <ErrInp field="employeeName" value={form.employeeName} onChange={(e) => setF("employeeName", e.target.value)} />
@@ -310,7 +356,7 @@ export function NewDeclarationScreen({
         {/* Section 2 — Declaration Details */}
         <FS id="sec-declaration" num="2" title="Declaration Details">
           <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-5 items-stretch">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
               <div className="flex flex-col">
                 <FL required>Did you receive or give a Gift, Hospitality or Entertainment?</FL>
                 <div className="mt-auto">
@@ -360,8 +406,8 @@ export function NewDeclarationScreen({
             </div>
             <div className="space-y-5">
               <div>
-                <FL required error={errors.biddingProcess}>Is the Supplier or Team Member involved in a Bid In Progress?</FL>
-                <Sel value={form.biddingProcess} onChange={(v) => setF("biddingProcess", v)} className={errors.biddingProcess ? "border-red-400" : ""}>
+                <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the supplier/customer?</FL>
+                <Sel value={form.existingRelationship} onChange={(v) => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
                   <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
@@ -374,8 +420,8 @@ export function NewDeclarationScreen({
                 </Sel>
               </div>
               <div>
-                <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the supplier/customer?</FL>
-                <Sel value={form.existingRelationship} onChange={(v) => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
+                <FL required error={errors.biddingProcess}>Is the Supplier or Team Member involved in a Bidding Process?</FL>
+                <Sel value={form.biddingProcess} onChange={(v) => setF("biddingProcess", v)} className={errors.biddingProcess ? "border-red-400" : ""}>
                   <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
@@ -418,15 +464,23 @@ export function NewDeclarationScreen({
                 placeholder="e.g. Corporate dinner at Sandton Sun for 4 guests including wine and dessert. Estimated value R 4,200."
               />
             </div>
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
               <div>
-                <FL>Reason / Occasion for the gift</FL>
+                <FL error={errors.occasionOther}>Reason/Occassion for Gift</FL>
                 <Sel value={form.occasion} onChange={(v) => setF("occasion", v)}>
                   <option value="">Select reason…</option>
                   {occasionOptions.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
+                {requiresOccasionOther && (
+                  <input
+                    className={`${inp} mt-3 ${errors.occasionOther ? "border-red-400" : ""}`}
+                    value={form.occasionOther}
+                    onChange={(e) => setF("occasionOther", e.target.value)}
+                    placeholder="Please specify the reason"
+                  />
+                )}
               </div>
-              <div>
+              <div className="self-start">
                 <FL required error={errors.date}>Date of Gift</FL>
                 <input
                   type="date"
@@ -457,20 +511,24 @@ export function NewDeclarationScreen({
                 placeholder="0.00"
               />
             </div>
+            {requiresSubstantiation && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
               <div className="flex items-start gap-2.5 mb-3">
                 <AlertCircle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-800 leading-relaxed">
-                  If the Rand Value including VAT <strong>exceeds R2,000.00</strong>, please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.
+                  The Rand Value including VAT exceeds <strong>R2,000.00</strong>. Please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.
                 </p>
               </div>
               <textarea
-                className="w-full h-20 rounded-xl px-4 py-3 text-sm border border-amber-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300/40 transition-all resize-none placeholder:text-muted-foreground/50"
+                className={`w-full h-20 rounded-xl px-4 py-3 text-sm border bg-white focus:outline-none focus:ring-2 transition-all resize-none placeholder:text-muted-foreground/50 ${
+                  errors.substantiation ? "border-red-400 focus:ring-red-300/40" : "border-amber-200 focus:ring-amber-300/40"
+                }`}
                 value={form.substantiation}
                 onChange={(e) => setF("substantiation", e.target.value)}
                 placeholder="Substantiation for value exceeding R2,000.00 (if applicable)…"
               />
             </div>
+            )}
           </div>
         </FS>
 
@@ -554,17 +612,17 @@ export function NewDeclarationScreen({
             ))}
           </div>
           <div className="pt-6 mt-2 border-t border-slate-100">
-            <div className="flex justify-end gap-3">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
               <button
                 onClick={onDraftSaved}
-                className="h-12 px-6 rounded-xl text-sm font-semibold border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98]"
+                className="h-12 px-6 rounded-xl text-sm font-semibold border border-slate-200 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:border-purple-200 hover:bg-purple-50 hover:shadow-sm active:translate-y-0 active:scale-[0.98]"
               >
                 Save Draft
               </button>
               <button
                 onClick={handleSubmit}
-                className="h-12 px-8 rounded-xl text-sm font-semibold text-white transition-all duration-300 ease-out flex items-center gap-2 shadow-[0_4px_14px_rgba(79,29,149,0.39)] hover:shadow-[0_6px_20px_rgba(79,29,149,0.23)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
-                style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
+                className="h-12 px-8 rounded-xl text-sm font-semibold text-white transition-all duration-300 ease-out flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(79,29,149,0.39)] hover:-translate-y-0.5 hover:border-yellow-400 hover:bg-yellow-400 hover:text-white hover:shadow-[0_8px_24px_rgba(250,204,21,0.35)] active:translate-y-0 active:scale-[0.98]"
+                style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent" }}
               >
                 <Send size={14} /> Submit Declaration
               </button>

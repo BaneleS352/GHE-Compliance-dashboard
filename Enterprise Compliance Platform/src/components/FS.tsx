@@ -31,10 +31,10 @@ export function FS({
         >
           {num}
         </div>
-        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">{title}</h3>
-        <div className="flex-1 h-px bg-gradient-to-r from-border to-transparent" />
+        <h3 className="text-xs sm:text-sm font-bold text-foreground uppercase tracking-wider leading-snug">{title}</h3>
+        <div className="hidden sm:block flex-1 h-px bg-gradient-to-r from-border to-transparent" />
       </div>
-      <Card className="p-6 lg:p-8">{children}</Card>
+      <Card className="p-4 sm:p-6 lg:p-8">{children}</Card>
     </section>
   );
 }

@@ -70,7 +70,7 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
       </div>
 
       {/* Right panel — login form */}
-      <div className="flex-1 flex items-center justify-center bg-background px-8 py-10">
+      <div className="flex-1 flex items-center justify-center bg-background px-5 py-8 sm:px-8 sm:py-10">
         <div className="w-full max-w-[380px]">
           <div className="lg:hidden mb-8">
             <ImageWithFallback src={logoImg} alt="Hollywoodbets" className="h-9 w-auto object-contain" />
@@ -106,7 +106,7 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
               </button>
             </div>
           </form>
-          <div className="flex gap-2.5 mt-3">
+          <div className="flex flex-col sm:flex-row gap-2.5 mt-3">
             <button className="flex-1 h-9 rounded-xl text-xs font-semibold text-muted-foreground border border-border hover:bg-muted transition-colors">
               Forgot Password
             </button>

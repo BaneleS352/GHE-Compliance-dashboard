@@ -102,19 +102,19 @@ export function DeclarationDetailView({
   ];
 
   return (
-    <div className="grid grid-cols-5 gap-5">
+    <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
       {/* ROW 1 */}
-      <div className="col-span-5 flex gap-5">
+      <div className="xl:col-span-5 flex flex-col xl:flex-row gap-5">
         {/* Declaration fields */}
         <div className="flex-[3]">
           <Card className="p-6 h-full">
             <h2 className="text-sm font-bold uppercase mb-4">Declaration Details</h2>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {fields.map(([k, v]) => (
                 <div
                   key={k}
                   className={`rounded-xl p-3 bg-muted/30 border ${
-                    ["Description", "Substantiation (> R2 000)"].includes(k) ? "col-span-2" : ""
+                    ["Description", "Substantiation (> R2 000)"].includes(k) ? "sm:col-span-2" : ""
                   }`}
                 >
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase">{k}</p>
@@ -169,7 +169,7 @@ export function DeclarationDetailView({
       </div>
 
       {/* ROW 2 — Supporting Documents */}
-      <div className="col-span-3">
+      <div className="xl:col-span-3">
         <Card className="p-6">
           <h3 className="text-sm font-bold uppercase mb-3">Supporting Documents</h3>
           <div className="space-y-2">
