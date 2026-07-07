@@ -1,6 +1,5 @@
 import { Bell, LogOut } from "lucide-react";
 import { ImageWithFallback } from "../app/components/figma/ImageWithFallback";
-import groupLogoImg from "../imports/Hollywood_Group_Logo.png";
 import { PURPLE, YELLOW } from "../config/theme";
 import { Role } from "../types/declaration";
 
@@ -22,17 +21,12 @@ export function TopBar({
 
   return (
     <header className="h-16 bg-white/60 backdrop-blur-xl border-b border-white/60 flex items-center justify-between px-6 flex-shrink-0 relative z-20 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-      <div className="flex items-center gap-4 flex-1 mr-6">
-        <ImageWithFallback
-          src={groupLogoImg}
-          alt="Hollywoodbets Group"
-          className="h-8 w-auto object-contain drop-shadow-sm flex-shrink-0"
-        />
+      <div className="flex items-center gap-4 flex-1 mr-6">        
         <div className="h-6 w-px bg-slate-200/80 flex-shrink-0" />
         <div className="hidden md:flex flex-1 items-center justify-center gap-3 bg-gradient-to-r from-purple-100/50 to-indigo-50/50 border border-purple-200/60 px-8 py-2 rounded-full shadow-sm backdrop-blur-md hover:shadow-md transition-all">
           <span className="w-2.5 h-2.5 rounded-full bg-purple-600 animate-pulse shadow-[0_0_8px_rgba(147,51,234,0.6)] flex-shrink-0" />
           <span className="text-sm font-black uppercase tracking-widest bg-gradient-to-r from-purple-600 via-pink-500 to-indigo-600 bg-clip-text text-transparent drop-shadow-sm animate-gradient-text truncate">
-            GHE Declaration System
+            Gift, Hospitality and Entertainment Declaration System
           </span>
         </div>
       </div>
