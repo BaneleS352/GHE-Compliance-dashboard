@@ -3,16 +3,6 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-<<<<<<< Updated upstream
-import { declarations, complianceTrend, typeBreakdown } from "@/data/declarations";
-import { Screen } from "@/types/declaration";
-import { PURPLE, YELLOW, formatRand } from "@/config/theme";
-import { Card } from "@/components/Card";
-import { PageHeader } from "@/components/PageHeader";
-import { StatusBadge } from "@/components/StatusBadge";
-import { TypeBadge } from "@/components/TypeBadge";
-import { THead } from "@/components/THead";
-=======
 import { declarations, complianceTrend, typeBreakdown } from "../data/declarations";
 import { Screen } from "../types/declaration";
 import { PURPLE, YELLOW, formatRand } from "../config/theme";
@@ -21,7 +11,6 @@ import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";
 import { TypeBadge } from "../components/TypeBadge";
 import { THead } from "../components/THead";
->>>>>>> Stashed changes
 
 export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   const pending   = declarations.filter((d) => d.status === "Pending");

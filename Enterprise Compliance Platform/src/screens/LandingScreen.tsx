@@ -1,19 +1,10 @@
 import { useState } from "react";
-<<<<<<< Updated upstream
-import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
-import logoImg from "@/imports/Logo.png";
-import bannerImg from "@/imports/Button.png";
-import { Sel } from "@/components/Sel";
-import { PURPLE, F, inp } from "@/config/theme";
-import { Role } from "@/types/declaration";
-=======
 import { ImageWithFallback } from "../app/components/figma/ImageWithFallback";
 import logoImg from "../imports/Logo.png";
 import bannerImg from "../imports/Button.png";
 import { Sel } from "../components/Sel";
 import { PURPLE, F, inp } from "../config/theme";
 import { Role } from "../types/declaration";
->>>>>>> Stashed changes
 
 export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string) => void }) {
   const [role, setRole] = useState<Role>("teamMember");

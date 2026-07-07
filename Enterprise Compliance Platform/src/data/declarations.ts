@@ -1,8 +1,4 @@
-<<<<<<< Updated upstream
-import { Declaration } from "@/types/declaration";
-=======
 import { Declaration } from "../types/declaration";
->>>>>>> Stashed changes
 
 // ─── Seed declarations ──────────────────────────────────────────────────────────
 export const declarations: Declaration[] = [

@@ -1,38 +1,3 @@
-<<<<<<< Updated upstream
-import { useState } from "react";
-import { AppShell } from "@/shell/AppShell";
-import { LandingScreen } from "@/screens/LandingScreen";
-import { NewDeclarationScreen } from "@/screens/NewDeclarationScreen";
-import { MyDeclarationsScreen } from "@/screens/MyDeclarationsScreen";
-import { ApproverDashboard } from "@/screens/ApproverDashboard";
-import { ApprovalQueue } from "@/screens/ApprovalQueue";
-import { ApprovalDetail } from "@/screens/ApprovalDetail";
-import { DeclarationDetailView } from "@/screens/DeclarationDetailView";
-import { SuccessModal } from "@/components/SuccessModal";
-import { DraftBanner } from "@/components/DraftBanner";
-import { Screen, Role, Declaration } from "@/types/declaration";
-=======
-<<<<<<< Updated upstream
-import image_Hollywood_Group_Logo from '@/imports/Hollywood_Group_Logo.png'
-import image_Logo_1 from '@/imports/Logo-1.png'
-import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, Legend,
-} from "recharts";
-import {
-  FileText, CheckSquare, Home, Settings, LogOut, Bell,
-  ChevronRight, Upload, Eye, Download, X, Check, AlertCircle,
-  ArrowLeft, TrendingUp, Clock, DollarSign, Filter, Search,
-  ChevronDown, ArrowUp, MoreHorizontal, Send, Gift,
-  Menu, ChevronLeft, Paperclip, Trash2, AlertTriangle,
-  Sparkles, Star, Building2, Users, Layers,
-} from "lucide-react";
-import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
-import logoImg from "@/imports/Logo.png";
-import groupLogoImg from "@/imports/Hollywood_Group_Logo.png";
-import bannerImg from "@/imports/Button.png";
-=======
 import { useState } from "react";
 import { AppShell } from "../shell/AppShell";
 import { LandingScreen } from "../screens/LandingScreen";
@@ -45,8 +10,7 @@ import { DeclarationDetailView } from "../screens/DeclarationDetailView";
 import { SuccessModal } from "../components/SuccessModal";
 import { DraftBanner } from "../components/DraftBanner";
 import { Screen, Role, Declaration } from "../types/declaration";
->>>>>>> Stashed changes
->>>>>>> Stashed changes
+
 
 export default function App() {
   const [screen, setScreen]             = useState<Screen>("landing");

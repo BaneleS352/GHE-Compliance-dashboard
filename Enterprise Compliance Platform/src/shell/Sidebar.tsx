@@ -1,15 +1,8 @@
 import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings } from "lucide-react";
-<<<<<<< Updated upstream
-import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
-import logoImg from "@/imports/Logo.png";
-import { YELLOW } from "@/config/theme";
-import { Role, Screen } from "@/types/declaration";
-=======
 import { ImageWithFallback } from "../app/components/figma/ImageWithFallback";
 import logoImg from "../imports/Logo.png";
 import { YELLOW } from "../config/theme";
 import { Role, Screen } from "../types/declaration";
->>>>>>> Stashed changes
 
 export function Sidebar({
   role,

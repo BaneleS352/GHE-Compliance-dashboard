@@ -1,20 +1,11 @@
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
-<<<<<<< Updated upstream
-import { Declaration, ApprovalDecision } from "@/types/declaration";
-import { PURPLE } from "@/config/theme";
-import { Card } from "@/components/Card";
-import { StatusBadge } from "@/components/StatusBadge";
-import { DeclarationDetailView } from "@/screens/DeclarationDetailView";
-import { ApproverDecisionBlock } from "@/screens/ApprovalQueue";
-=======
 import { Declaration, ApprovalDecision } from "../types/declaration";
 import { PURPLE } from "../config/theme";
 import { Card } from "../components/Card";
 import { StatusBadge } from "../components/StatusBadge";
 import { DeclarationDetailView } from "../screens/DeclarationDetailView";
 import { ApproverDecisionBlock } from "../screens/ApprovalQueue";
->>>>>>> Stashed changes
 
 export function ApprovalDetail({
   declaration,

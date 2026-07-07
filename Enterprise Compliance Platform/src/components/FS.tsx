@@ -1,11 +1,6 @@
 import React from "react";
-<<<<<<< Updated upstream
-import { Card } from "@/components/Card";
-import { PURPLE } from "@/config/theme";
-=======
 import { Card } from "../components/Card";
 import { PURPLE } from "../config/theme";
->>>>>>> Stashed changes
 
 export const FORM_SECTIONS = [
   { id: "sec-team",        num: "1", label: "Team Member Details" },

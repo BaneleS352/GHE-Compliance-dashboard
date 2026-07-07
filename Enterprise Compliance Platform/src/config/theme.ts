@@ -1,8 +1,4 @@
-<<<<<<< Updated upstream
-import { StatusType } from "@/types/declaration";
-=======
 import { StatusType } from "../types/declaration";
->>>>>>> Stashed changes
 
 // ─── Brand tokens ───────────────────────────────────────────────────────────────
 export const PURPLE = "#4F1D95";

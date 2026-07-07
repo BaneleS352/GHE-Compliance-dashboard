@@ -1,10 +1,5 @@
-<<<<<<< Updated upstream
-import { statusConfig } from "@/config/theme";
-import { StatusType } from "@/types/declaration";
-=======
 import { statusConfig } from "../config/theme";
 import { StatusType } from "../types/declaration";
->>>>>>> Stashed changes
 
 export function StatusBadge({ status }: { status: StatusType }) {
   const c = statusConfig[status];

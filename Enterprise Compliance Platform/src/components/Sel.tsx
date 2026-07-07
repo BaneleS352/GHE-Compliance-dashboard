@@ -1,11 +1,7 @@
 import React from "react";
 import * as Select from "@radix-ui/react-select";
 import { ChevronDown } from "lucide-react";
-<<<<<<< Updated upstream
-import { sel } from "@/config/theme";
-=======
 import { sel } from "../config/theme";
->>>>>>> Stashed changes
 
 export function Sel({
   children,

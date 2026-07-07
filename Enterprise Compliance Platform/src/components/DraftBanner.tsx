@@ -1,10 +1,6 @@
 import { useEffect } from "react";
 import { Check, X } from "lucide-react";
-<<<<<<< Updated upstream
-import { DEEP, PURPLE, F } from "@/config/theme";
-=======
 import { DEEP, PURPLE, F } from "../config/theme";
->>>>>>> Stashed changes
 
 export function DraftBanner({ onDismiss }: { onDismiss: () => void }) {
   useEffect(() => {

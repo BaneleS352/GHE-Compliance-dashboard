@@ -1,15 +1,8 @@
 import { Bell, LogOut } from "lucide-react";
-<<<<<<< Updated upstream
-import { ImageWithFallback } from "@/app/components/figma/ImageWithFallback";
-import groupLogoImg from "@/imports/Hollywood_Group_Logo.png";
-import { PURPLE, YELLOW } from "@/config/theme";
-import { Role } from "@/types/declaration";
-=======
 import { ImageWithFallback } from "../app/components/figma/ImageWithFallback";
 import groupLogoImg from "../imports/Hollywood_Group_Logo.png";
 import { PURPLE, YELLOW } from "../config/theme";
 import { Role } from "../types/declaration";
->>>>>>> Stashed changes
 
 export function TopBar({
   userName,
