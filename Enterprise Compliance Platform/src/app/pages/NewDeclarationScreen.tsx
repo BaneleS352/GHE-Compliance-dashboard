@@ -217,7 +217,7 @@ export function NewDeclarationScreen({
   );
 
   return (
-    <div className="flex items-start gap-6 max-w-7xl mx-auto">
+    <div className="flex items-start gap-3 max-w-none">
       {uploadError && (
         <div className="fixed top-5 left-1/2 z-50 w-[min(92vw,460px)] -translate-x-1/2 rounded-2xl border border-amber-200 bg-white p-4 shadow-[0_18px_50px_rgba(79,29,149,0.18)]" style={F}>
           <div className="flex items-start gap-3">
@@ -240,7 +240,7 @@ export function NewDeclarationScreen({
       )}
 
       {/* Sticky section nav */}
-      <aside className="w-48 flex-shrink-0 hidden lg:flex flex-col gap-3 sticky top-6 self-start">
+      <aside className="w-48 flex-shrink-0 hidden lg:flex flex-col gap-3 sticky top-4 self-start">
         <Card className="p-3.5">
           <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2.5 px-1">
             Sections

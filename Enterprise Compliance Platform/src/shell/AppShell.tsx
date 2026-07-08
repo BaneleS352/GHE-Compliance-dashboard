@@ -40,7 +40,7 @@ export function AppShell({
 
       <div className="flex flex-col flex-1 min-w-0 min-h-0 relative z-10">
         <TopBar userName={userName} role={role} onSignOut={onSignOut} />
-        <main className="flex-1 min-h-0 overflow-y-auto px-4 py-5 pb-24 sm:px-5 md:pb-5 lg:p-7">{children}</main>
+        <main className="flex-1 min-h-0 overflow-y-auto px-3 py-4 pb-24 sm:px-4 md:pb-4 lg:px-5 lg:py-5">{children}</main>
       </div>
     </div>
   );

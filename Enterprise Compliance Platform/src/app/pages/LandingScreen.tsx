@@ -77,7 +77,7 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
           </div>
           <div className="mb-8">
             <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
-            <p className="text-sm text-muted-foreground mt-1">Sign in to the GHE Declaration Portal</p>
+            <p className="text-sm text-muted-foreground mt-1">Sign in to the Gift, Hospitality and Entertainment Declaration Portal</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
