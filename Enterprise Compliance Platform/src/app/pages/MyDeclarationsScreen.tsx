@@ -97,7 +97,7 @@ export function MyDeclarationsScreen() {
       />
 
       {/* KPI cards */}
-      <div className="grid grid-cols-5 gap-4 mb-7">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-7">
         <KpiCard label="Total"    value={String(declarations.length)}                                         icon={FileText}   color="#7c3aed" active={activeKpi === "All"}      onClick={() => handleKpiClick("All")} />
         <KpiCard label="Pending"  value={String(declarations.filter((d) => d.status === "Pending").length)}  icon={Clock}      color="#f59e0b" active={activeKpi === "Pending"}  onClick={() => handleKpiClick("Pending")} />
         <KpiCard label="Approved" value={String(declarations.filter((d) => d.status === "Approved").length)} icon={Check}      color="#10b981" active={activeKpi === "Approved"} onClick={() => handleKpiClick("Approved")} />
@@ -106,24 +106,24 @@ export function MyDeclarationsScreen() {
       </div>
 
       {/* Filters */}
-      <Card className="p-3 mb-4 flex gap-3 flex-wrap">
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="h-9 px-3 border rounded-lg" />
-        <select onChange={(e) => setTypeFilter(e.target.value)} className="h-9 border rounded-lg px-2">
+      <Card className="p-3 mb-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="h-9 px-3 border rounded-lg w-full" />
+        <select onChange={(e) => setTypeFilter(e.target.value)} className="h-9 border rounded-lg px-2 w-full">
           <option>All</option><option>Gift</option><option>Hospitality</option><option>Entertainment</option>
         </select>
-        <select onChange={(e) => setStatusFilter(e.target.value)} className="h-9 border rounded-lg px-2">
+        <select onChange={(e) => setStatusFilter(e.target.value)} className="h-9 border rounded-lg px-2 w-full">
           <option>All</option><option>Pending</option><option>Approved</option><option>Declined</option>
         </select>
-        <select onChange={(e) => setApproverFilter(e.target.value)} className="h-9 border rounded-lg px-2">
+        <select onChange={(e) => setApproverFilter(e.target.value)} className="h-9 border rounded-lg px-2 w-full">
           <option>All</option>
           {[...new Set(declarations.map((d) => d.approver))].map((a) => <option key={a}>{a}</option>)}
         </select>
-        <input type="date" onChange={(e) => setDateFilter(e.target.value)} className="h-9 border rounded-lg px-2" />
+        <input type="date" onChange={(e) => setDateFilter(e.target.value)} className="h-9 border rounded-lg px-2 w-full" />
       </Card>
 
       {/* Table */}
-      <Card className="overflow-hidden">
-        <table className="w-full text-sm">
+      <Card className="overflow-x-auto">
+        <table className="w-full min-w-[860px] text-sm">
           <thead className="sticky top-0 bg-white z-10">
             <tr>
               {["id", "type", "vendor", "value", "submitted", "approver"].map((key) => (
@@ -180,11 +180,11 @@ export function MyDeclarationsScreen() {
         </table>
 
         {/* Pagination footer */}
-        <div className="flex justify-between p-4 border-t">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-t">
           <p className="text-xs">
             Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
           </p>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>Prev</button>
             {[...Array(totalPages)].map((_, i) => (
               <button key={i} onClick={() => setCurrentPage(i + 1)} className={currentPage === i + 1 ? "bg-purple-600 text-white px-2" : "px-2"}>

@@ -30,8 +30,9 @@ export function Sidebar({
         ];
 
   return (
+    <>
     <aside
-      className={`flex-shrink-0 flex flex-col transition-all duration-300 ${collapsed ? "w-16" : "w-56"}`}
+      className={`hidden md:flex flex-shrink-0 flex-col transition-all duration-300 ${collapsed ? "w-16" : "w-56"}`}
       style={{ background: "linear-gradient(180deg, #0f0225 0%, #39156F 100%)" }}
     >
       <div
@@ -93,5 +94,28 @@ export function Sidebar({
         </button>
       </div>
     </aside>
+    <nav className="md:hidden fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-white/15 bg-[#16062f]/95 p-2 shadow-[0_18px_50px_rgba(15,2,37,0.35)] backdrop-blur-xl">
+      <div className="flex items-center justify-around gap-1">
+        {links.map((link) => {
+          const active =
+            screen === link.screen ||
+            (screen === "declaration-detail" && link.screen === "my-declarations");
+          return (
+            <button
+              key={link.screen}
+              onClick={() => onNavigate(link.screen)}
+              className={`min-w-0 flex-1 rounded-xl px-2 py-2 text-[11px] font-semibold transition-all ${
+                active ? "text-[#1E1E2D]" : "text-[#c4b5fd] hover:bg-white/10"
+              }`}
+              style={active ? { background: YELLOW } : {}}
+            >
+              <link.icon size={16} className="mx-auto mb-1" />
+              <span className="block truncate">{link.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </nav>
+    </>
   );
 }

@@ -41,7 +41,7 @@ export function ApprovalDetail({
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center gap-2.5 mb-7 pb-5 border-b border-border">
+      <div className="flex flex-wrap items-center gap-2.5 mb-7 pb-5 border-b border-border">
         <button onClick={onBack} className="h-9 px-3.5 border rounded-xl flex items-center gap-1.5 text-sm">
           <ArrowLeft size={14} /> Back
         </button>
@@ -49,14 +49,14 @@ export function ApprovalDetail({
         <StatusBadge status={declaration.status} />
       </div>
 
-      <div className="grid grid-cols-5 gap-5">
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
         {/* Left — declaration detail */}
-        <div className="col-span-3">
+        <div className="xl:col-span-3">
           <DeclarationDetailView data={declaration} onBack={onBack} />
         </div>
 
         {/* Right — approval steps */}
-        <div className="col-span-2 space-y-4 sticky top-4 self-start">
+        <div className="xl:col-span-2 space-y-4 xl:sticky xl:top-4 self-start">
           {/* Step 1 */}
           <ApproverDecisionBlock
             title="1. Line Manager Approval"
@@ -96,7 +96,7 @@ export function ApprovalDetail({
             <p className="text-xs text-muted-foreground mb-3">
               Complete all steps in sequence before submitting.
             </p>
-            <div className="flex gap-2.5">
+            <div className="flex flex-col sm:flex-row gap-2.5">
               <button onClick={handleSave} className="flex-1 h-10 border rounded-xl text-sm">
                 Save Progress
               </button>

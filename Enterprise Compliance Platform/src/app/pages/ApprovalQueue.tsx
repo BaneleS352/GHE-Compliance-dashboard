@@ -112,7 +112,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       />
 
       {/* Search bar */}
-      <Card className="p-3.5 mb-4 flex gap-3">
+      <Card className="p-3.5 mb-4 flex flex-col md:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -120,8 +120,8 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             className="w-full h-9 pl-9 pr-4 rounded-lg text-sm border border-border bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
           />
         </div>
-        <div className="relative">
-          <select className="h-9 pl-3.5 pr-9 rounded-lg text-sm border border-border bg-white appearance-none">
+        <div className="relative w-full md:w-auto">
+          <select className="h-9 w-full md:w-auto pl-3.5 pr-9 rounded-lg text-sm border border-border bg-white appearance-none">
             <option>All Departments</option>
             <option>Marketing</option>
             <option>Sales</option>
@@ -132,8 +132,8 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       </Card>
 
       {/* Queue table */}
-      <Card className="overflow-hidden">
-        <table className="w-full text-sm">
+      <Card className="overflow-x-auto">
+        <table className="w-full min-w-[1050px] text-sm">
           <THead cols={["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status", "Actions"]} />
           <tbody className="divide-y divide-border">
             {queue.map((d) => (
@@ -162,7 +162,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             ))}
           </tbody>
         </table>
-        <div className="px-5 py-3.5 border-t border-border flex items-center justify-between bg-[#F7F8FC]">
+        <div className="px-5 py-3.5 border-t border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-[#F7F8FC]">
           <p className="text-xs text-muted-foreground">
             Showing <span className="font-semibold text-foreground">{queue.length}</span> declarations
           </p>
