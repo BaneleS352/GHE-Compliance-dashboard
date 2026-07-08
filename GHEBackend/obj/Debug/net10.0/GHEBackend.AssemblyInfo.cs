@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GHEBackend")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fe9826984f2b8c88610ecfe783ea4398d650b847")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+6c254f0bbb40821abff2f0c5069be8091b897923")]
 [assembly: System.Reflection.AssemblyProductAttribute("GHEBackend")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GHEBackend")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

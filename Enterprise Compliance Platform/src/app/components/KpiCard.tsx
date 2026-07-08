@@ -18,8 +18,9 @@ export function KpiCard({
   return (
     <div
       onClick={onClick}
-      className={`p-4 sm:p-5 rounded-2xl cursor-pointer transition-all duration-300 border transform
-        ${active ? "scale-105 shadow-xl" : "hover:scale-[1.02] hover:shadow-md"}
+      className={`min-h-32 rounded-2xl border p-4 transition-all duration-300 sm:min-h-36 sm:p-5
+        ${onClick ? "cursor-pointer" : "cursor-default"}
+        ${active ? "shadow-xl sm:scale-[1.03]" : "hover:shadow-md sm:hover:scale-[1.02]"}
       `}
       style={{
         background: `linear-gradient(135deg, ${color}15, ${color}05)`,
@@ -32,8 +33,8 @@ export function KpiCard({
       >
         <Icon size={18} style={{ color }} />
       </div>
-      <p className="text-xl sm:text-2xl font-bold">{value}</p>
-      <p className="text-xs mt-1">{label}</p>
+      <p className="text-xl font-bold break-words sm:text-2xl">{value}</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{label}</p>
     </div>
   );
 }

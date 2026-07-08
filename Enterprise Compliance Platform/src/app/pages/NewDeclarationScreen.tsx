@@ -86,7 +86,16 @@ export function NewDeclarationScreen({
 
   const jumpTo = (id: string) => {
     const node = scrollRef.current?.querySelector(`#${id}`) as HTMLElement | null;
-    node?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const scrollRoot = scrollRef.current?.closest("main") as HTMLElement | null;
+    if (node && scrollRoot) {
+      const topPos = node.getBoundingClientRect().top + scrollRoot.scrollTop - scrollRoot.getBoundingClientRect().top;
+      const maxScrollTop = Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight);
+      const nextScrollTop = Math.min(Math.max(topPos - 24, 0), maxScrollTop);
+      setActiveSection(id);
+      scrollRoot.scrollTo({ top: nextScrollTop, behavior: "smooth" });
+    } else {
+      node?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   const ALLOWED = [

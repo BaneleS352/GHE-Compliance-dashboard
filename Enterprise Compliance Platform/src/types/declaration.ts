@@ -8,9 +8,15 @@ export type Screen =
   | "approver-dashboard"
   | "approval-queue"
   | "approval-detail"
-  | "declaration-detail";
+  | "declaration-detail"
+  | "admin-dashboard"
+  | "admin-users"
+  | "admin-workflows"
+  | "admin-config"
+  | "admin-dropdowns"
+  | "admin-reports";
 
-export type Role = "teamMember" | "approver";
+export type Role = "teamMember" | "approver" | "admin";
 
 export type StatusType =
   | "Draft"

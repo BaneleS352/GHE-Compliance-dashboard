@@ -7,6 +7,12 @@ import { ApproverDashboard } from "./pages/ApproverDashboard";
 import { ApprovalQueue } from "./pages/ApprovalQueue";
 import { ApprovalDetail } from "./pages/ApprovalDetail";
 import { DeclarationDetailView } from "./pages/DeclarationDetailView";
+import { AdminDashboard } from "./pages/admin/AdminDashboard";
+import { AdminUsers } from "./pages/admin/AdminUsers";
+import { AdminWorkflows } from "./pages/admin/AdminWorkflows";
+import { AdminDropdowns } from "./pages/admin/AdminDropdowns";
+import { AdminConfig } from "./pages/admin/AdminConfig";
+import { AdminReports } from "./pages/admin/AdminReports";
 import { SuccessModal } from "./components/SuccessModal";
 import { DraftBanner } from "./components/DraftBanner";
 import { Screen, Role, Declaration } from "../types/declaration";
@@ -25,7 +31,7 @@ export default function App() {
   const handleLogin = (r: Role, name: string) => {
     setRole(r);
     setUserName(name);
-    setScreen(r === "approver" ? "approver-dashboard" : "new-declaration");
+    setScreen(r === "admin" ? "admin-dashboard" : r === "approver" ? "approver-dashboard" : "new-declaration");
   };
 
   const handleSignOut = () => {
@@ -69,6 +75,12 @@ export default function App() {
         {screen === "approval-detail" && selectedDecl && (
           <ApprovalDetail declaration={selectedDecl} onBack={() => setScreen("approval-queue")} />
         )}
+        {screen === "admin-dashboard" && <AdminDashboard onNavigate={setScreen} />}
+        {screen === "admin-users"     && <AdminUsers />}
+        {screen === "admin-workflows" && <AdminWorkflows />}
+        {screen === "admin-dropdowns" && <AdminDropdowns />}
+        {screen === "admin-config"    && <AdminConfig />}
+        {screen === "admin-reports"   && <AdminReports />}
       </AppShell>
 
       {showSuccess && submittedData && (

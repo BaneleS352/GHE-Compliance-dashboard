@@ -1,4 +1,4 @@
-import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings } from "lucide-react";
+import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, Activity, List } from "lucide-react";
 import { ImageWithFallback } from "../app/components/ImageWithFallback";
 import logoImg from "../assets/Logo.png";
 import { YELLOW } from "../config/theme";
@@ -18,7 +18,16 @@ export function Sidebar({
   onToggle: () => void;
 }) {
   const links =
-    role === "teamMember"
+    role === "admin"
+      ? [
+          { screen: "admin-dashboard" as Screen, icon: Home,     label: "Dashboard" },
+          { screen: "admin-users"     as Screen, icon: Users,    label: "Users" },
+          { screen: "admin-workflows" as Screen, icon: Activity, label: "Workflows" },
+          { screen: "admin-dropdowns" as Screen, icon: List,     label: "Dropdowns" },
+          { screen: "admin-config"    as Screen, icon: Settings, label: "Config" },
+          { screen: "admin-reports"   as Screen, icon: FileText, label: "Reports" },
+        ]
+      : role === "teamMember"
       ? [
           { screen: "new-declaration" as Screen, icon: Gift,        label: "New Declaration" },
           { screen: "my-declarations"  as Screen, icon: FileText,   label: "My Declarations" },
@@ -56,7 +65,7 @@ export function Sidebar({
             className="text-xs font-bold uppercase tracking-widest px-3 pb-3"
             style={{ color: "rgb(237 232 255 / 0.8)" }}
           >
-            {role === "teamMember" ? "Team Member" : "Approver"}
+            {role === "admin" ? "Administrator" : role === "teamMember" ? "Team Member" : "Approver"}
           </p>
         )}
         <div className="space-y-0.5">
