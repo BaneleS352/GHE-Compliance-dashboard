@@ -1,6 +1,6 @@
 import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings } from "lucide-react";
-import { ImageWithFallback } from "../app/components/figma/ImageWithFallback";
-import logoImg from "../imports/Logo.png";
+import { ImageWithFallback } from "../app/components/ImageWithFallback";
+import logoImg from "../assets/Logo.png";
 import { YELLOW } from "../config/theme";
 import { Role, Screen } from "../types/declaration";
 

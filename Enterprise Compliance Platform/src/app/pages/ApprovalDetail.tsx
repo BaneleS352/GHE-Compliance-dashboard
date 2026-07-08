@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { Declaration, ApprovalDecision } from "../types/declaration";
-import { PURPLE } from "../config/theme";
+import { Declaration, ApprovalDecision } from "../../types/declaration";
+import { PURPLE } from "../../config/theme";
 import { Card } from "../components/Card";
 import { StatusBadge } from "../components/StatusBadge";
-import { DeclarationDetailView } from "../screens/DeclarationDetailView";
-import { ApproverDecisionBlock } from "../screens/ApprovalQueue";
+import { DeclarationDetailView } from "../pages/DeclarationDetailView";
+import { ApproverDecisionBlock } from "../pages/ApprovalQueue";
 
 export function ApprovalDetail({
   declaration,

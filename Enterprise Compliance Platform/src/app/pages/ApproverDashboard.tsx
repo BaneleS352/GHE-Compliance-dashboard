@@ -3,9 +3,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { declarations, complianceTrend, typeBreakdown } from "../data/declarations";
-import { Screen } from "../types/declaration";
-import { PURPLE, YELLOW, formatRand } from "../config/theme";
+import { declarations, complianceTrend, typeBreakdown } from "../../data/declarations";
+import { Screen } from "../../types/declaration";
+import { PURPLE, YELLOW, formatRand } from "../../config/theme";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 import { StatusBadge } from "../components/StatusBadge";

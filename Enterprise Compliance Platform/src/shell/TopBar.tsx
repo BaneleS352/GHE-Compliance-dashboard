@@ -1,5 +1,5 @@
 import { Bell, LogOut } from "lucide-react";
-import { ImageWithFallback } from "../app/components/figma/ImageWithFallback";
+import { ImageWithFallback } from "../app/components/ImageWithFallback";
 import { PURPLE, YELLOW } from "../config/theme";
 import { Role } from "../types/declaration";
 
