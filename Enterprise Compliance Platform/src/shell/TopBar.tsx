@@ -1,5 +1,4 @@
 import { Bell, LogOut } from "lucide-react";
-import { ImageWithFallback } from "../app/components/ImageWithFallback";
 import { PURPLE, YELLOW } from "../config/theme";
 import { Role } from "../types/declaration";
 
@@ -18,20 +17,33 @@ export function TopBar({
     .join("")
     .slice(0, 2)
     .toUpperCase();
+  const headerText = "Gift, Hospitality and Entertainment Declaration System";
 
   return (
-    <header className="min-h-16 bg-white/60 backdrop-blur-xl border-b border-white/60 flex items-center justify-between gap-3 px-4 sm:px-6 flex-shrink-0 relative z-20 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-      <div className="flex items-center gap-4 flex-1 min-w-0 sm:mr-3 lg:mr-6">
-        <div className="flex flex-1 min-w-0 items-center justify-center gap-3 bg-gradient-to-r from-[#0f0225] via-[#2f0b63] to-[#4f1d95] border border-[#6d28d9]/50 px-4 lg:px-8 py-2 rounded-full shadow-[0_10px_24px_rgba(79,29,149,0.18)] backdrop-blur-md hover:shadow-[0_14px_30px_rgba(79,29,149,0.25)] transition-all overflow-hidden">
+    <header className="relative z-20 flex min-h-16 items-center justify-between gap-2 border-b border-white/60 bg-white/60 px-3 shadow-[0_2px_10px_rgba(0,0,0,0.02)] backdrop-blur-xl sm:gap-3 sm:px-6">
+      <div className="flex min-w-0 flex-1 items-center gap-3 sm:mr-3 lg:mr-6">
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden rounded-full border border-[#6d28d9]/50 bg-gradient-to-r from-[#0f0225] via-[#2f0b63] to-[#4f1d95] px-3 py-2 shadow-[0_10px_24px_rgba(79,29,149,0.18)] transition-all hover:shadow-[0_14px_30px_rgba(79,29,149,0.25)] lg:px-8">
           <span className="hidden sm:block w-2.5 h-2.5 rounded-full bg-purple-600 animate-pulse shadow-[0_0_8px_rgba(147,51,234,0.6)] flex-shrink-0" />
-          <span className="text-xs lg:text-sm font-black uppercase tracking-widest bg-gradient-to-r from-purple-200 via-violet-300 to-purple-500 bg-clip-text text-transparent drop-shadow-sm animate-gradient-marquee whitespace-nowrap sm:truncate">
-            Gift, Hospitality and Entertainment Declaration System
-          </span>
+          <div className="hidden min-w-0 flex-1 xl:flex xl:justify-center">
+            <span className="text-[11px] font-black uppercase tracking-wide text-transparent bg-gradient-to-r from-purple-200 via-violet-300 to-purple-500 bg-clip-text drop-shadow-sm whitespace-nowrap sm:text-xs lg:text-sm lg:tracking-widest">
+              {headerText}
+            </span>
+          </div>
+          <div className="header-carousel-mask flex min-w-0 flex-1 xl:hidden">
+            <div className="header-carousel-track">
+              <span className="header-carousel-copy text-[11px] font-black uppercase tracking-wide text-transparent bg-gradient-to-r from-purple-200 via-violet-300 to-purple-500 bg-clip-text drop-shadow-sm sm:text-xs lg:text-sm lg:tracking-widest">
+                {headerText}
+              </span>
+              <span aria-hidden className="header-carousel-copy text-[11px] font-black uppercase tracking-wide text-transparent bg-gradient-to-r from-purple-200 via-violet-300 to-purple-500 bg-clip-text drop-shadow-sm sm:text-xs lg:text-sm lg:tracking-widest">
+                {headerText}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-        <button className="relative w-11 h-11 flex items-center justify-center rounded-full bg-gradient-to-br from-yellow-100 via-yellow-200 to-yellow-300 border-2 border-yellow-400 shadow-[0_10px_24px_rgba(248,215,74,0.35)] hover:shadow-[0_14px_30px_rgba(248,215,74,0.5)] hover:scale-105 transition-all text-purple-700 hover:text-purple-900">
+      <div className="flex flex-shrink-0 items-center gap-2 sm:gap-4">
+        <button className="relative flex h-10 w-10 items-center justify-center rounded-full border-2 border-yellow-400 bg-gradient-to-br from-yellow-100 via-yellow-200 to-yellow-300 text-purple-700 shadow-[0_10px_24px_rgba(248,215,74,0.35)] transition-all hover:scale-105 hover:text-purple-900 hover:shadow-[0_14px_30px_rgba(248,215,74,0.5)] sm:h-11 sm:w-11">
           <Bell size={19} strokeWidth={2.2} />
           <span
             className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full ring-2 ring-white shadow-[0_0_0_4px_rgba(248,215,74,0.18)]"
@@ -39,7 +51,7 @@ export function TopBar({
           />
         </button>
         <div className="hidden sm:block h-6 w-px bg-slate-200/80" />
-        <div className="flex items-center gap-3 bg-white/60 border border-white/80 rounded-full pl-1.5 pr-1.5 md:pr-4 py-1.5 shadow-sm hover:bg-white transition-colors cursor-pointer group">
+        <div className="group flex items-center gap-2 rounded-full border border-white/80 bg-white/60 py-1.5 pl-1.5 pr-1.5 shadow-sm transition-colors hover:bg-white md:gap-3 md:pr-4">
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md group-hover:scale-105 transition-transform"
             style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
@@ -49,7 +61,7 @@ export function TopBar({
           <div className="hidden md:block">
             <p className="text-sm font-bold text-slate-800 leading-none">{userName}</p>
             <p className="text-[10px] font-semibold text-purple-600 mt-0.5 uppercase tracking-wider">
-              {role === "teamMember" ? "Team Member" : "Approver"}
+              {role === "teamMember" ? "Team Member" : role === "admin" ? "Administrator" : "Approver"}
             </p>
           </div>
         </div>

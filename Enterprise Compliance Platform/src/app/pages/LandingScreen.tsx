@@ -14,7 +14,7 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
     e.preventDefault();
     setLoading(true);
     setTimeout(
-      () => onEnter(role, role === "approver" ? "Sipho Nkosi" : "Nomvula Dlamini"),
+      () => onEnter(role, role === "admin" ? "System Admin" : role === "approver" ? "Sipho Nkosi" : "Nomvula Dlamini"),
       800
     );
   };
@@ -93,6 +93,7 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
               <Sel value={role} onChange={(v) => setRole(v as Role)}>
                 <option value="teamMember">Team Member</option>
                 <option value="approver">Approver</option>
+                <option value="admin">Administrator</option>
               </Sel>
             </div>
             <div className="pt-1">
@@ -107,10 +108,10 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
             </div>
           </form>
           <div className="flex flex-col sm:flex-row gap-2.5 mt-3">
-            <button className="flex-1 h-9 rounded-xl text-xs font-semibold text-muted-foreground border border-border hover:bg-muted transition-colors">
+            <button className="flex-1 h-11 rounded-xl text-sm font-semibold text-muted-foreground border border-border hover:bg-muted transition-colors">
               Forgot Password
             </button>
-            <button className="flex-1 h-9 rounded-xl text-xs font-semibold text-muted-foreground border border-border hover:bg-muted transition-colors">
+            <button className="flex-1 h-11 rounded-xl text-sm font-semibold text-muted-foreground border border-border hover:bg-muted transition-colors">
               Support
             </button>
           </div>

@@ -1,7 +1,6 @@
-// Note: import moved to top — fixes the mid-file import that existed in App.tsx
 import * as XLSX from "xlsx";
 import { useState } from "react";
-import { Download, FileText, Clock, Check, X, DollarSign, Eye } from "lucide-react";
+import { Download, FileText, Clock, Check, X, Coins, Eye } from "lucide-react";
 import { declarations } from "../../data/declarations";
 import { Declaration } from "../../types/declaration";
 import { formatRand } from "../../config/theme";
@@ -21,10 +20,9 @@ export function MyDeclarationsScreen() {
   const [sortKey, setSortKey] = useState<keyof Declaration | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 5;
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
+  const pageSize = 5;
 
-  // Filtering
   const filtered = declarations.filter(
     (d) =>
       (!search ||
@@ -37,14 +35,15 @@ export function MyDeclarationsScreen() {
       (!dateFilter || d.submitted === dateFilter)
   );
 
-  // Sorting
   const sorted = [...filtered].sort((a, b) => {
     if (!sortKey) return 0;
     const aVal = a[sortKey] ?? "";
     const bVal = b[sortKey] ?? "";
+
     if (typeof aVal === "number" && typeof bVal === "number") {
       return sortDir === "asc" ? aVal - bVal : bVal - aVal;
     }
+
     const aStr = String(aVal).toLowerCase();
     const bStr = String(bVal).toLowerCase();
     if (aStr < bStr) return sortDir === "asc" ? -1 : 1;
@@ -52,19 +51,16 @@ export function MyDeclarationsScreen() {
     return 0;
   });
 
-  // Pagination
   const totalPages = Math.ceil(sorted.length / pageSize);
   const paginated = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const totalValue = declarations.reduce((sum, d) => sum + d.value, 0);
 
-  // KPI
-  const totalValue = declarations.reduce((s, d) => s + d.value, 0);
   const handleKpiClick = (type: string) => {
     setActiveKpi(type);
     setCurrentPage(1);
     setStatusFilter(type === "All" ? "All" : type);
   };
 
-  // Excel export
   const exportExcel = () => {
     const data = filtered.map((d) => ({
       ID: d.id,
@@ -82,7 +78,17 @@ export function MyDeclarationsScreen() {
     XLSX.writeFile(wb, "Declarations.xlsx");
   };
 
-  if (viewDecl) return <DeclarationDetailView data={viewDecl} onBack={() => setViewDecl(null)} />;
+  const exportRow = (d: Declaration) => {
+    const csv = Object.entries(d).map(([k, v]) => `${k},${v}`).join("\n");
+    const a = document.createElement("a");
+    a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
+    a.download = `${d.id}.csv`;
+    a.click();
+  };
+
+  if (viewDecl) {
+    return <DeclarationDetailView data={viewDecl} onBack={() => setViewDecl(null)} />;
+  }
 
   return (
     <div>
@@ -90,50 +96,105 @@ export function MyDeclarationsScreen() {
         title="My Declarations"
         subtitle="Manage and review your declarations"
         actions={
-          <button onClick={exportExcel} className="h-9 px-4 rounded-xl border bg-white hover:bg-muted flex gap-2 items-center">
+          <button onClick={exportExcel} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border bg-white px-4 text-sm font-semibold hover:bg-muted sm:w-auto">
             <Download size={13} /> Export Excel
           </button>
         }
       />
 
-      {/* KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-7">
-        <KpiCard label="Total"    value={String(declarations.length)}                                         icon={FileText}   color="#7c3aed" active={activeKpi === "All"}      onClick={() => handleKpiClick("All")} />
-        <KpiCard label="Pending"  value={String(declarations.filter((d) => d.status === "Pending").length)}  icon={Clock}      color="#f59e0b" active={activeKpi === "Pending"}  onClick={() => handleKpiClick("Pending")} />
-        <KpiCard label="Approved" value={String(declarations.filter((d) => d.status === "Approved").length)} icon={Check}      color="#10b981" active={activeKpi === "Approved"} onClick={() => handleKpiClick("Approved")} />
-        <KpiCard label="Declined" value={String(declarations.filter((d) => d.status === "Declined").length)} icon={X}          color="#ef4444" active={activeKpi === "Declined"} onClick={() => handleKpiClick("Declined")} />
-        <KpiCard label="Total Value" value={`R ${Math.round(totalValue / 1000)}K`}                           icon={DollarSign} color="#6366f1" />
+      <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <KpiCard label="Total" value={String(declarations.length)} icon={FileText} color="#7c3aed" active={activeKpi === "All"} onClick={() => handleKpiClick("All")} />
+        <KpiCard label="Pending" value={String(declarations.filter((d) => d.status === "Pending").length)} icon={Clock} color="#f59e0b" active={activeKpi === "Pending"} onClick={() => handleKpiClick("Pending")} />
+        <KpiCard label="Approved" value={String(declarations.filter((d) => d.status === "Approved").length)} icon={Check} color="#10b981" active={activeKpi === "Approved"} onClick={() => handleKpiClick("Approved")} />
+        <KpiCard label="Declined" value={String(declarations.filter((d) => d.status === "Declined").length)} icon={X} color="#ef4444" active={activeKpi === "Declined"} onClick={() => handleKpiClick("Declined")} />
+        <KpiCard label="Total Value" value={`R ${Math.round(totalValue / 1000)}K`} icon={Coins} color="#6366f1" />
       </div>
 
-      {/* Filters */}
-      <Card className="p-3 mb-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="h-9 px-3 border rounded-lg w-full" />
-        <select onChange={(e) => setTypeFilter(e.target.value)} className="h-9 border rounded-lg px-2 w-full">
-          <option>All</option><option>Gift</option><option>Hospitality</option><option>Entertainment</option>
-        </select>
-        <select onChange={(e) => setStatusFilter(e.target.value)} className="h-9 border rounded-lg px-2 w-full">
-          <option>All</option><option>Pending</option><option>Approved</option><option>Declined</option>
-        </select>
-        <select onChange={(e) => setApproverFilter(e.target.value)} className="h-9 border rounded-lg px-2 w-full">
+      <Card className="mb-4 grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 xl:grid-cols-5">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="h-10 w-full rounded-lg border px-3" />
+        <select onChange={(e) => setTypeFilter(e.target.value)} className="h-10 w-full rounded-lg border px-2">
           <option>All</option>
-          {[...new Set(declarations.map((d) => d.approver))].map((a) => <option key={a}>{a}</option>)}
+          <option>Gift</option>
+          <option>Hospitality</option>
+          <option>Entertainment</option>
         </select>
-        <input type="date" onChange={(e) => setDateFilter(e.target.value)} className="h-9 border rounded-lg px-2 w-full" />
+        <select onChange={(e) => setStatusFilter(e.target.value)} className="h-10 w-full rounded-lg border px-2">
+          <option>All</option>
+          <option>Pending</option>
+          <option>Approved</option>
+          <option>Declined</option>
+        </select>
+        <select onChange={(e) => setApproverFilter(e.target.value)} className="h-10 w-full rounded-lg border px-2">
+          <option>All</option>
+          {[...new Set(declarations.map((d) => d.approver))].map((a) => (
+            <option key={a}>{a}</option>
+          ))}
+        </select>
+        <input type="date" onChange={(e) => setDateFilter(e.target.value)} className="h-10 w-full rounded-lg border px-2" />
       </Card>
 
-      {/* Table */}
-      <Card className="overflow-x-auto">
-        <table className="w-full min-w-[860px] text-sm">
-          <thead className="sticky top-0 bg-white z-10">
+      <Card className="space-y-3 p-3.5 md:hidden">
+        {paginated.length === 0 ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">No declarations found</div>
+        ) : (
+          paginated.map((d) => (
+            <div key={d.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-xs font-bold text-primary">{d.id}</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{d.Counterparty}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{d.approver}</p>
+                </div>
+                <StatusBadge status={d.status} />
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Type</p>
+                  <p className="mt-1 font-medium text-foreground">{d.type}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Value</p>
+                  <p className="mt-1 font-medium text-foreground">{formatRand(d.value)}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Submitted</p>
+                  <p className="mt-1 font-medium text-foreground">{d.submitted}</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Employee</p>
+                  <p className="mt-1 font-medium text-foreground">{d.employee}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-col gap-2">
+                <button onClick={() => setViewDecl(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
+                  <Eye size={12} /> View
+                </button>
+                <button onClick={() => exportRow(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl border text-xs font-semibold hover:border-primary">
+                  <Download size={12} /> Export
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </Card>
+
+      <Card className="hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[920px] text-sm">
+          <thead className="sticky top-0 z-10 bg-white">
             <tr>
-              {["id", "type", "vendor", "value", "submitted", "approver"].map((key) => (
+              {["id", "type", "vendor", "value", "submitted", "approver", "status"].map((key) => (
                 <th
                   key={key}
                   onClick={() => {
                     if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
-                    else { setSortKey(key as keyof Declaration); setSortDir("asc"); }
+                    else {
+                      setSortKey(key as keyof Declaration);
+                      setSortDir("asc");
+                    }
                   }}
-                  className="px-5 py-3 text-left cursor-pointer text-xs font-bold hover:text-primary"
+                  className="cursor-pointer px-5 py-3 text-left text-xs font-bold hover:text-primary"
                 >
                   {key.toUpperCase()}
                 </th>
@@ -143,32 +204,25 @@ export function MyDeclarationsScreen() {
           </thead>
           <tbody>
             {paginated.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-10 text-muted-foreground">No declarations found</td></tr>
+              <tr>
+                <td colSpan={8} className="py-10 text-center text-muted-foreground">No declarations found</td>
+              </tr>
             ) : (
               paginated.map((d) => (
-                <tr key={d.id} className="hover:bg-muted/20 transition">
+                <tr key={d.id} className="transition hover:bg-muted/20">
                   <td className="px-5 py-3">{d.id}</td>
-                  <td>{d.type}</td>
-                  <td>{d.Counterparty}</td>
-                  <td>{formatRand(d.value)}</td>
-                  <td>{d.submitted}</td>
-                  <td>{d.approver}</td>
-                  <td><StatusBadge status={d.status} /></td>
+                  <td className="px-5 py-3">{d.type}</td>
+                  <td className="px-5 py-3">{d.Counterparty}</td>
+                  <td className="px-5 py-3">{formatRand(d.value)}</td>
+                  <td className="px-5 py-3">{d.submitted}</td>
+                  <td className="px-5 py-3">{d.approver}</td>
+                  <td className="px-5 py-3"><StatusBadge status={d.status} /></td>
                   <td className="px-5 py-3">
                     <div className="flex gap-2">
-                      <button onClick={() => setViewDecl(d)} className="h-8 px-3 rounded-lg text-xs font-semibold bg-secondary hover:bg-secondary/70 flex items-center gap-1">
+                      <button onClick={() => setViewDecl(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
                         <Eye size={12} /> View
                       </button>
-                      <button
-                        onClick={() => {
-                          const csv = Object.entries(d).map(([k, v]) => `${k},${v}`).join("\n");
-                          const a = document.createElement("a");
-                          a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
-                          a.download = `${d.id}.csv`;
-                          a.click();
-                        }}
-                        className="h-8 px-3 rounded-lg text-xs border hover:border-primary flex items-center gap-1"
-                      >
+                      <button onClick={() => exportRow(d)} className="flex h-8 items-center gap-1 rounded-lg border px-3 text-xs font-semibold hover:border-primary">
                         <Download size={12} /> Export
                       </button>
                     </div>
@@ -179,15 +233,14 @@ export function MyDeclarationsScreen() {
           </tbody>
         </table>
 
-        {/* Pagination footer */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-t">
+        <div className="flex flex-col gap-3 border-t p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs">
-            Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
+            Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
           </p>
           <div className="flex flex-wrap gap-2">
             <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>Prev</button>
             {[...Array(totalPages)].map((_, i) => (
-              <button key={i} onClick={() => setCurrentPage(i + 1)} className={currentPage === i + 1 ? "bg-purple-600 text-white px-2" : "px-2"}>
+              <button key={i} onClick={() => setCurrentPage(i + 1)} className={currentPage === i + 1 ? "bg-purple-600 px-2 text-white" : "px-2"}>
                 {i + 1}
               </button>
             ))}
