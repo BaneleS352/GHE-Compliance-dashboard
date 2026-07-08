@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Mbali.Dube\\source\\repos\\GHE-Compliance-dashboard\\GHEBackend\\GHEBackend.csproj": {}
+    "C:\\Users\\Banele\\Documents\\GitHub\\GHE-Compliance-dashboard\\GHEBackend\\GHEBackend.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Mbali.Dube\\source\\repos\\GHE-Compliance-dashboard\\GHEBackend\\GHEBackend.csproj": {
+    "C:\\Users\\Banele\\Documents\\GitHub\\GHE-Compliance-dashboard\\GHEBackend\\GHEBackend.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Mbali.Dube\\source\\repos\\GHE-Compliance-dashboard\\GHEBackend\\GHEBackend.csproj",
+        "projectUniqueName": "C:\\Users\\Banele\\Documents\\GitHub\\GHE-Compliance-dashboard\\GHEBackend\\GHEBackend.csproj",
         "projectName": "GHEBackend",
-        "projectPath": "C:\\Users\\Mbali.Dube\\source\\repos\\GHE-Compliance-dashboard\\GHEBackend\\GHEBackend.csproj",
-        "packagesPath": "C:\\Users\\Mbali.Dube\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Mbali.Dube\\source\\repos\\GHE-Compliance-dashboard\\GHEBackend\\obj\\",
+        "projectPath": "C:\\Users\\Banele\\Documents\\GitHub\\GHE-Compliance-dashboard\\GHEBackend\\GHEBackend.csproj",
+        "packagesPath": "C:\\Users\\Banele\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Banele\\Documents\\GitHub\\GHE-Compliance-dashboard\\GHEBackend\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\Mbali.Dube\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\Banele\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -31,6 +31,7 @@
         },
         "frameworks": {
           "net10.0": {
+            "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {}
           }
@@ -45,10 +46,11 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "10.0.200"
       },
       "frameworks": {
         "net10.0": {
+          "framework": "net10.0",
           "targetAlias": "net10.0",
           "dependencies": {
             "Microsoft.AspNetCore.OpenApi": {
@@ -75,7 +77,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.202/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.AspNetCore": "(,10.0.32767]",
             "Microsoft.AspNetCore.Antiforgery": "(,10.0.32767]",

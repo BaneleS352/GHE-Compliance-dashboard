@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, ArrowLeft } from "lucide-react";
 import { Card } from "../components/ui/card";
 import { StatusBadge } from "../components/StatusBadge";
 import { formatRand } from "../../config/theme";
@@ -102,7 +102,14 @@ export function DeclarationDetailView({
   ];
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+    <div className="space-y-5">
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="h-9 px-3.5 border rounded-xl flex items-center gap-1.5 text-sm bg-card hover:bg-muted/50 transition-colors">
+          <ArrowLeft size={14} /> Back
+        </button>
+        <h1 className="text-xl font-bold">Declaration Details</h1>
+      </div>
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
       {/* ROW 1 */}
       <div className="xl:col-span-5 flex flex-col xl:flex-row gap-5">
         {/* Declaration fields */}
@@ -187,6 +194,7 @@ export function DeclarationDetailView({
               ))}
           </div>
         </Card>
+      </div>
       </div>
     </div>
   );
