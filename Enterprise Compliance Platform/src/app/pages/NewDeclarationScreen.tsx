@@ -242,7 +242,7 @@ export function NewDeclarationScreen({
       {/* Sticky section nav */}
       <aside className="w-48 flex-shrink-0 hidden lg:flex flex-col gap-3 sticky top-4 self-start">
         <Card className="p-3.5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2.5 px-1">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2.5 px-1">
             Sections
           </p>
           <nav className="space-y-0.5">
@@ -259,7 +259,7 @@ export function NewDeclarationScreen({
                   }`}
                 >
                   <span
-                    className="w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0 shadow-sm transition-colors duration-200"
+                    className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-sm transition-colors duration-200"
                     style={
                       active
                         ? { background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, color: "#fff" }
@@ -277,7 +277,7 @@ export function NewDeclarationScreen({
 
         {/* Definitions */}
         <div className="rounded-2xl border border-white p-3.5 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: PURPLE }}>
+          <p className="text-xs font-bold uppercase tracking-widest mb-2.5" style={{ color: PURPLE }}>
             Definitions
           </p>
           {[
@@ -286,21 +286,21 @@ export function NewDeclarationScreen({
             { t: "Entertainment", d: "Meals, events, sporting, cultural or recreational activities." },
           ].map((d) => (
             <div key={d.t} className="mb-2.5 last:mb-0">
-              <p className="text-[11px] font-bold text-foreground">{d.t}</p>
-              <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">{d.d}</p>
+              <p className="text-sm font-bold text-foreground">{d.t}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{d.d}</p>
             </div>
           ))}
         </div>
 
         {/* Related policies */}
         <div className="rounded-2xl border border-white/60 p-3.5 bg-white/70 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.03)]">
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: PURPLE }}>
+          <p className="text-xs font-bold uppercase tracking-widest mb-2.5" style={{ color: PURPLE }}>
             Related Policies
           </p>
           {["Gifts, Hospitality & Entertainment Policy", "Anti-Bribery and Corruption Policy"].map((policy) => (
             <div key={policy} className="flex items-start gap-2 rounded-xl border border-primary/5 bg-secondary/20 p-2.5 mb-2 last:mb-0">
               <FileText size={13} className="mt-0.5 flex-shrink-0" style={{ color: PURPLE }} />
-              <p className="text-[11px] font-semibold text-foreground leading-snug">{policy}</p>
+              <p className="text-xs font-semibold text-foreground leading-snug">{policy}</p>
             </div>
           ))}
         </div>

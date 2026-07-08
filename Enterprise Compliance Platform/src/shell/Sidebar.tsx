@@ -53,8 +53,8 @@ export function Sidebar({
       <nav className="flex-1 py-5 px-2">
         {!collapsed && (
           <p
-            className="text-[10px] font-bold uppercase tracking-widest px-3 pb-3"
-            style={{ color: "rgb(237 232 255 / 0.45)" }}
+            className="text-xs font-bold uppercase tracking-widest px-3 pb-3"
+            style={{ color: "rgb(237 232 255 / 0.8)" }}
           >
             {role === "teamMember" ? "Team Member" : "Approver"}
           </p>
@@ -69,9 +69,9 @@ export function Sidebar({
                 key={link.screen}
                 onClick={() => onNavigate(link.screen)}
                 title={collapsed ? link.label : undefined}
-                className={`w-full flex items-center gap-3 rounded-xl text-sm transition-all ${
+                className={`w-full flex items-center gap-3 rounded-xl text-base transition-all ${
                   collapsed ? "justify-center p-2.5" : "px-3 py-2.5"
-                } ${active ? "font-semibold" : "text-[#c4b5fd] hover:bg-white/10 font-medium"}`}
+                } ${active ? "font-semibold" : "text-gray-100 hover:bg-white/10 font-medium"}`}
                 style={active ? { background: YELLOW, color: "#1E1E2D" } : {}}
               >
                 <link.icon size={16} className={active ? "" : "opacity-80"} />
@@ -85,7 +85,7 @@ export function Sidebar({
       <div className="px-2 pb-5 border-t pt-4" style={{ borderColor: "rgb(255 255 255 / 0.1)" }}>
         <button
           title={collapsed ? "Settings" : undefined}
-          className={`w-full flex items-center gap-3 rounded-xl text-sm text-[#c4b5fd] hover:bg-white/10 transition-colors font-medium ${
+          className={`w-full flex items-center gap-3 rounded-xl text-base text-gray-100 hover:bg-white/10 transition-colors font-medium ${
             collapsed ? "justify-center p-2.5" : "px-3 py-2.5"
           }`}
         >
@@ -104,8 +104,8 @@ export function Sidebar({
             <button
               key={link.screen}
               onClick={() => onNavigate(link.screen)}
-              className={`min-w-0 flex-1 rounded-xl px-2 py-2 text-[11px] font-semibold transition-all ${
-                active ? "text-[#1E1E2D]" : "text-[#c4b5fd] hover:bg-white/10"
+              className={`min-w-0 flex-1 rounded-xl px-2 py-2 text-sm font-semibold transition-all ${
+                active ? "text-[#1E1E2D]" : "text-gray-100 hover:bg-white/10"
               }`}
               style={active ? { background: YELLOW } : {}}
             >

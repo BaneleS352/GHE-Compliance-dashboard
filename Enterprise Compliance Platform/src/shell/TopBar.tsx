@@ -22,9 +22,9 @@ export function TopBar({
   return (
     <header className="min-h-16 bg-white/60 backdrop-blur-xl border-b border-white/60 flex items-center justify-between gap-3 px-4 sm:px-6 flex-shrink-0 relative z-20 shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
       <div className="flex items-center gap-4 flex-1 min-w-0 sm:mr-3 lg:mr-6">
-        <div className="hidden sm:flex flex-1 min-w-0 items-center justify-center gap-3 bg-gradient-to-r from-[#0f0225] via-[#2f0b63] to-[#4f1d95] border border-[#6d28d9]/50 px-4 lg:px-8 py-2 rounded-full shadow-[0_10px_24px_rgba(79,29,149,0.18)] backdrop-blur-md hover:shadow-[0_14px_30px_rgba(79,29,149,0.25)] transition-all">
-          <span className="w-2.5 h-2.5 rounded-full bg-purple-600 animate-pulse shadow-[0_0_8px_rgba(147,51,234,0.6)] flex-shrink-0" />
-          <span className="text-xs lg:text-sm font-black uppercase tracking-widest bg-gradient-to-r from-purple-200 via-violet-300 to-purple-500 bg-clip-text text-transparent drop-shadow-sm animate-gradient-text truncate">
+        <div className="flex flex-1 min-w-0 items-center justify-center gap-3 bg-gradient-to-r from-[#0f0225] via-[#2f0b63] to-[#4f1d95] border border-[#6d28d9]/50 px-4 lg:px-8 py-2 rounded-full shadow-[0_10px_24px_rgba(79,29,149,0.18)] backdrop-blur-md hover:shadow-[0_14px_30px_rgba(79,29,149,0.25)] transition-all overflow-hidden">
+          <span className="hidden sm:block w-2.5 h-2.5 rounded-full bg-purple-600 animate-pulse shadow-[0_0_8px_rgba(147,51,234,0.6)] flex-shrink-0" />
+          <span className="text-xs lg:text-sm font-black uppercase tracking-widest bg-gradient-to-r from-purple-200 via-violet-300 to-purple-500 bg-clip-text text-transparent drop-shadow-sm animate-gradient-marquee whitespace-nowrap sm:truncate">
             Gift, Hospitality and Entertainment Declaration System
           </span>
         </div>
