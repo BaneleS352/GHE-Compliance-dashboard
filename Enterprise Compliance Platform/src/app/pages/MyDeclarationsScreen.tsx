@@ -141,19 +141,19 @@ export function MyDeclarationsScreen() {
       <Card className="mb-4 grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 xl:grid-cols-5">
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="h-10 w-full rounded-lg border px-3" />
         <select onChange={(e) => setTypeFilter(e.target.value)} className="h-10 w-full rounded-lg border px-2">
-          <option>All</option>
+          <option value="All">All GHE</option>
           <option>Gift</option>
           <option>Hospitality</option>
           <option>Entertainment</option>
         </select>
         <select onChange={(e) => setStatusFilter(e.target.value)} className="h-10 w-full rounded-lg border px-2">
-          <option>All</option>
+          <option value="All">All Status</option>
           <option>Pending</option>
           <option>Approved</option>
           <option>Declined</option>
         </select>
         <select onChange={(e) => setApproverFilter(e.target.value)} className="h-10 w-full rounded-lg border px-2">
-          <option>All</option>
+          <option value="All">All Approvers</option>
           {[...new Set(declarations.map((d) => d.approver))].map((a) => (
             <option key={a}>{a}</option>
           ))}
