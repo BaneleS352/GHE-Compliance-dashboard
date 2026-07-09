@@ -36,11 +36,14 @@ export function Sidebar({
       style={{ background: "linear-gradient(180deg, #0f0225 0%, #39156F 100%)" }}
     >
       <div
-        className={`h-14 flex items-center border-b ${collapsed ? "justify-center px-0" : "justify-between px-4"}`}
-        style={{ borderColor: "rgb(255 255 255 / 0.1)" }}
+        className={`h-14 flex items-center ${collapsed ? "justify-center px-0" : "justify-between px-4"}`}
       >
         {!collapsed && (
-          <ImageWithFallback src={logoImg} alt="Hollywoodbets" className="h-8 w-auto object-contain" />
+          <ImageWithFallback
+            src={logoImg}
+            alt="Hollywoodbets"
+            className="h-11 w-auto object-contain -ml-1"
+          />
         )}
         <button
           onClick={onToggle}
@@ -82,7 +85,7 @@ export function Sidebar({
         </div>
       </nav>
 
-      <div className="px-2 pb-5 border-t pt-4" style={{ borderColor: "rgb(255 255 255 / 0.1)" }}>
+      <div className="px-2 pb-5 pt-4">
         <button
           title={collapsed ? "Settings" : undefined}
           className={`w-full flex items-center gap-3 rounded-xl text-sm text-[#c4b5fd] hover:bg-white/10 transition-colors font-medium ${
