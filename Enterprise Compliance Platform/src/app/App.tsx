@@ -23,7 +23,7 @@ export default function App() {
   const [role, setRole]                 = useState<Role>("teamMember");
   const [userName, setUserName]         = useState("");
   const [selectedDecl, setSelectedDecl] = useState<Declaration | null>(null);
-  const [submittedData, setSubmittedData] = useState<Record<string, string> | null>(null);
+  const [submittedData, setSubmittedData] = useState<Declaration | null>(null);
   const [showSuccess, setShowSuccess]     = useState(false);
   const [showSubmittedView, setShowSubmittedView] = useState(false);
   const [showDraftBanner, setShowDraftBanner]     = useState(false);
@@ -43,7 +43,7 @@ export default function App() {
     setShowSubmittedView(false);
   };
 
-  const handleSubmitSuccess = (data: Record<string, string>) => {
+  const handleSubmitSuccess = (data: Declaration) => {
     setSubmittedData(data);
     setShowSuccess(true);
     setShowSubmittedView(false);

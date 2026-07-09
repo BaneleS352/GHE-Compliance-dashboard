@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GHEBackend")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+331b979f9e738613a8820302d42c9a384422c87a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e14672d569f7408d6ceb17c055d51cf4d70cf082")]
 [assembly: System.Reflection.AssemblyProductAttribute("GHEBackend")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GHEBackend")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

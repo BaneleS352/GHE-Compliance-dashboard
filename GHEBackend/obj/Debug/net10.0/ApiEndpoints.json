@@ -1,5 +1,115 @@
 [
   {
+    "ContainingType": "GHEBackend.Controllers.DeclarationsController",
+    "Method": "GetAll",
+    "RelativePath": "api/Declarations",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "GHEBackend.Controllers.DeclarationsController",
+    "Method": "Create",
+    "RelativePath": "api/Declarations",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "declaration",
+        "Type": "GHEBackend.Models.Declaration",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "GHEBackend.Controllers.DeclarationsController",
+    "Method": "GetById",
+    "RelativePath": "api/Declarations/{id}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "GHEBackend.Controllers.DeclarationsController",
+    "Method": "Update",
+    "RelativePath": "api/Declarations/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "declaration",
+        "Type": "GHEBackend.Models.Declaration",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "GHEBackend.Controllers.DeclarationsController",
+    "Method": "Delete",
+    "RelativePath": "api/Declarations/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.String",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "GHEBackend.Controllers.DeclarationsController",
+    "Method": "UpdateStatus",
+    "RelativePath": "api/Declarations/{id}/status",
+    "HttpMethod": "PATCH",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.String",
+        "IsRequired": true
+      },
+      {
+        "Name": "request",
+        "Type": "GHEBackend.Controllers.StatusUpdateRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "GHEBackend.Controllers.DeclarationsController",
+    "Method": "GetStats",
+    "RelativePath": "api/Declarations/stats",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "GHEBackend.Controllers.WeatherForecastController",
     "Method": "Get",
     "RelativePath": "WeatherForecast",
