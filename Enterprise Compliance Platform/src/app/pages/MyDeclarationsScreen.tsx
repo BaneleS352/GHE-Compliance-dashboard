@@ -184,7 +184,7 @@ export function MyDeclarationsScreen() {
         <table className="w-full min-w-[920px] text-sm">
           <thead className="sticky top-0 z-10 bg-white">
             <tr>
-              {["id", "type", "vendor", "value", "submitted", "approver", "status"].map((key) => (
+              {["id", "type", "counterparty", "value", "submitted", "approver", "status"].map((key) => (
                 <th
                   key={key}
                   onClick={() => {
