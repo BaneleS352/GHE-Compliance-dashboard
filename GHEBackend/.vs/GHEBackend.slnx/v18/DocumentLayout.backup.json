@@ -1,9 +1,9 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\Users\\BaneleS\\Downloads\\GHE-Compliance-dashboard\\GHEBackend\\",
+  "WorkspaceRootPath": "C:\\Users\\Banele\\Documents\\GitHub\\GHE-Compliance-dashboard\\GHEBackend\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{13388780-9A7B-A346-2CBE-869CA459CAE9}|GHEBackend.csproj|c:\\users\\baneles\\downloads\\ghe-compliance-dashboard\\ghebackend\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "AbsoluteMoniker": "D:0:0:{13388780-9A7B-A346-2CBE-869CA459CAE9}|GHEBackend.csproj|c:\\users\\banele\\documents\\github\\ghe-compliance-dashboard\\ghebackend\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
       "RelativeMoniker": "D:0:0:{13388780-9A7B-A346-2CBE-869CA459CAE9}|GHEBackend.csproj|solutionrelative:appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
     }
   ],
@@ -20,11 +20,11 @@
               "$type": "Document",
               "DocumentIndex": 0,
               "Title": "appsettings.json",
-              "DocumentMoniker": "C:\\Users\\BaneleS\\Downloads\\GHE-Compliance-dashboard\\GHEBackend\\appsettings.json",
+              "DocumentMoniker": "C:\\Users\\Banele\\Documents\\GitHub\\GHE-Compliance-dashboard\\GHEBackend\\appsettings.json",
               "RelativeDocumentMoniker": "appsettings.json",
-              "ToolTip": "C:\\Users\\BaneleS\\Downloads\\GHE-Compliance-dashboard\\GHEBackend\\appsettings.json",
+              "ToolTip": "C:\\Users\\Banele\\Documents\\GitHub\\GHE-Compliance-dashboard\\GHEBackend\\appsettings.json",
               "RelativeToolTip": "appsettings.json",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAA3AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
               "WhenOpened": "2026-07-08T19:06:25.99Z",
               "EditorCaption": ""

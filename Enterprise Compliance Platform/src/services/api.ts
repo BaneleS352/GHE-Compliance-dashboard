@@ -1,79 +1,37 @@
 import { Declaration } from "../types/declaration";
-import {
-  complianceTrend as fallbackComplianceTrend,
-  declarations as seedDeclarations,
-  typeBreakdown as fallbackTypeBreakdown,
-} from "../data/declarations";
 
 // Base URL for the backend API — port matches launchSettings.json http profile
 const API_BASE = "http://localhost:5202/api";
-const LOCAL_DECLARATIONS_KEY = "ghe.localDeclarations";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Declarations
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function fetchDeclarations(): Promise<Declaration[]> {
-  try {
-    const res = await fetch(`${API_BASE}/declarations`);
-    if (!res.ok) throw new Error(`Failed to fetch declarations: ${res.statusText}`);
-    const data: unknown[] = await res.json();
-    // Map camelCase API response to our Declaration shape
-    return data.map(mapDeclaration);
-  } catch {
-    return getLocalDeclarations();
-  }
+  const res = await fetch(`${API_BASE}/declarations`);
+  if (!res.ok) throw new Error(`Failed to fetch declarations: ${res.statusText}`);
+  const data: unknown[] = await res.json();
+  // Map camelCase API response to our Declaration shape
+  return data.map(mapDeclaration);
 }
 
 export async function fetchDeclarationById(id: string): Promise<Declaration> {
-  try {
-    const res = await fetch(`${API_BASE}/declarations/${encodeURIComponent(id)}`);
-    if (!res.ok) throw new Error(`Failed to fetch declaration ${id}: ${res.statusText}`);
-    return mapDeclaration(await res.json());
-  } catch {
-    const declaration = getLocalDeclarations().find((d) => d.id === id);
-    if (!declaration) throw new Error(`Declaration ${id} was not found.`);
-    return declaration;
-  }
-}
-
-export async function createDeclaration(
-  declaration: Declaration
-): Promise<Declaration> {
-  try {
-    const res = await fetch(`${API_BASE}/declarations`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(toApiDeclaration(declaration)),
-    });
-    if (!res.ok) throw new Error(`Failed to submit declaration: ${res.statusText}`);
-    return mapDeclaration(await res.json());
-  } catch {
-    saveLocalDeclaration(declaration);
-    return declaration;
-  }
+  const res = await fetch(`${API_BASE}/declarations/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error(`Failed to fetch declaration ${id}: ${res.statusText}`);
+  return mapDeclaration(await res.json());
 }
 
 export async function updateDeclarationStatus(
   id: string,
   status: string
 ): Promise<Declaration> {
-  try {
-    const res = await fetch(`${API_BASE}/declarations/${encodeURIComponent(id)}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    if (!res.ok) throw new Error(`Failed to update status: ${res.statusText}`);
-    return mapDeclaration(await res.json());
-  } catch {
-    const declarations = getLocalDeclarations();
-    const declaration = declarations.find((d) => d.id === id);
-    if (!declaration) throw new Error(`Declaration ${id} was not found.`);
-    declaration.status = status as Declaration["status"];
-    setStoredDeclarations(declarations);
-    return declaration;
-  }
+  const res = await fetch(`${API_BASE}/declarations/${encodeURIComponent(id)}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  if (!res.ok) throw new Error(`Failed to update status: ${res.statusText}`);
+  return mapDeclaration(await res.json());
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -106,25 +64,9 @@ export interface DashboardStats {
 }
 
 export async function fetchDashboardStats(): Promise<DashboardStats> {
-  try {
-    const res = await fetch(`${API_BASE}/declarations/stats`);
-    if (!res.ok) throw new Error(`Failed to fetch dashboard stats: ${res.statusText}`);
-    return res.json() as Promise<DashboardStats>;
-  } catch {
-    const declarations = getLocalDeclarations();
-    return {
-      kpis: {
-        total: declarations.length,
-        pending: declarations.filter((d) => d.status === "Pending").length,
-        approved: declarations.filter((d) => d.status === "Approved").length,
-        declined: declarations.filter((d) => d.status === "Declined").length,
-        escalated: declarations.filter((d) => d.status === "Escalated").length,
-        totalValue: declarations.reduce((sum, d) => sum + d.value, 0),
-      },
-      complianceTrend: fallbackComplianceTrend,
-      typeBreakdown: fallbackTypeBreakdown,
-    };
-  }
+  const res = await fetch(`${API_BASE}/declarations/stats`);
+  if (!res.ok) throw new Error(`Failed to fetch dashboard stats: ${res.statusText}`);
+  return res.json() as Promise<DashboardStats>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -162,65 +104,4 @@ function mapDeclaration(raw: any): Declaration {
     publicOfficial:      raw.publicOfficial,
     substantiation:      raw.substantiation,
   };
-}
-
-function toApiDeclaration(declaration: Declaration) {
-  return {
-    id:                  declaration.id,
-    employee:            declaration.employee,
-    teamMemberNumber:    declaration.teamMemberNumber,
-    lineManager:         declaration.lineManager,
-    position:            declaration.position,
-    department:          declaration.department,
-    company:             declaration.company,
-    team:                declaration.team,
-    type:                declaration.type,
-    counterparty:        declaration.Counterparty,
-    value:               declaration.value,
-    submitted:           declaration.submitted,
-    approver:            declaration.approver,
-    status:              declaration.status,
-    priority:            declaration.priority,
-    description:         declaration.description,
-    relationship:        declaration.relationship,
-    receivedGiven:       declaration.receivedGiven,
-    from:                declaration.from,
-    contactPerson:       declaration.contactPerson,
-    biddingProcess:      declaration.biddingProcess,
-    contractNegotiation: declaration.contractNegotiation,
-    occasion:            declaration.occasion,
-    date:                declaration.date,
-    instances:           declaration.instances,
-    publicOfficial:      declaration.publicOfficial,
-    substantiation:      declaration.substantiation,
-  };
-}
-
-function getLocalDeclarations(): Declaration[] {
-  const stored = getStoredDeclarations();
-  const storedIds = new Set(stored.map((d) => d.id));
-  return [
-    ...stored,
-    ...seedDeclarations.filter((d) => !storedIds.has(d.id)),
-  ].sort((a, b) => b.submitted.localeCompare(a.submitted));
-}
-
-function saveLocalDeclaration(declaration: Declaration) {
-  const declarations = getStoredDeclarations().filter((d) => d.id !== declaration.id);
-  setStoredDeclarations([declaration, ...declarations]);
-}
-
-function getStoredDeclarations(): Declaration[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(LOCAL_DECLARATIONS_KEY);
-    return raw ? JSON.parse(raw) as Declaration[] : [];
-  } catch {
-    return [];
-  }
-}
-
-function setStoredDeclarations(declarations: Declaration[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(LOCAL_DECLARATIONS_KEY, JSON.stringify(declarations));
 }

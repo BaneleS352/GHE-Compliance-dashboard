@@ -1,185 +1,18 @@
 {
-  "openapi": "3.0.1",
+  "openapi": "3.1.1",
   "info": {
-    "title": "GHE Compliance API",
-    "version": "v1"
+    "title": "GHEBackend | v1",
+    "version": "1.0.0"
   },
+  "servers": [
+    {
+      "url": "https://localhost:7126"
+    },
+    {
+      "url": "http://localhost:5202"
+    }
+  ],
   "paths": {
-    "/api/Declarations": {
-      "get": {
-        "tags": [
-          "Declarations"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Declarations"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Declaration"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Declaration"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/Declaration"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/Declarations/{id}": {
-      "get": {
-        "tags": [
-          "Declarations"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "Declarations"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Declaration"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Declaration"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/Declaration"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Declarations"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/Declarations/{id}/status": {
-      "patch": {
-        "tags": [
-          "Declarations"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StatusUpdateRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StatusUpdateRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/StatusUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/Declarations/stats": {
-      "get": {
-        "tags": [
-          "Declarations"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
     "/WeatherForecast": {
       "get": {
         "tags": [
@@ -222,156 +55,6 @@
   },
   "components": {
     "schemas": {
-      "Declaration": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "maxLength": 30,
-            "type": "string",
-            "nullable": true
-          },
-          "employee": {
-            "maxLength": 150,
-            "type": "string",
-            "nullable": true
-          },
-          "teamMemberNumber": {
-            "maxLength": 30,
-            "type": "string",
-            "nullable": true
-          },
-          "lineManager": {
-            "maxLength": 100,
-            "type": "string",
-            "nullable": true
-          },
-          "position": {
-            "maxLength": 100,
-            "type": "string",
-            "nullable": true
-          },
-          "department": {
-            "maxLength": 100,
-            "type": "string",
-            "nullable": true
-          },
-          "company": {
-            "maxLength": 100,
-            "type": "string",
-            "nullable": true
-          },
-          "team": {
-            "maxLength": 100,
-            "type": "string",
-            "nullable": true
-          },
-          "type": {
-            "maxLength": 50,
-            "type": "string",
-            "nullable": true
-          },
-          "counterparty": {
-            "maxLength": 150,
-            "type": "string",
-            "nullable": true
-          },
-          "value": {
-            "type": "number",
-            "format": "double"
-          },
-          "submitted": {
-            "maxLength": 20,
-            "type": "string",
-            "nullable": true
-          },
-          "approver": {
-            "maxLength": 100,
-            "type": "string",
-            "nullable": true
-          },
-          "status": {
-            "maxLength": 30,
-            "type": "string",
-            "nullable": true
-          },
-          "priority": {
-            "maxLength": 10,
-            "type": "string",
-            "nullable": true
-          },
-          "description": {
-            "maxLength": 500,
-            "type": "string",
-            "nullable": true
-          },
-          "relationship": {
-            "maxLength": 150,
-            "type": "string",
-            "nullable": true
-          },
-          "receivedGiven": {
-            "maxLength": 20,
-            "type": "string",
-            "nullable": true
-          },
-          "from": {
-            "maxLength": 100,
-            "type": "string",
-            "nullable": true
-          },
-          "contactPerson": {
-            "maxLength": 100,
-            "type": "string",
-            "nullable": true
-          },
-          "biddingProcess": {
-            "maxLength": 20,
-            "type": "string",
-            "nullable": true
-          },
-          "contractNegotiation": {
-            "maxLength": 100,
-            "type": "string",
-            "nullable": true
-          },
-          "occasion": {
-            "maxLength": 100,
-            "type": "string",
-            "nullable": true
-          },
-          "date": {
-            "maxLength": 20,
-            "type": "string",
-            "nullable": true
-          },
-          "instances": {
-            "maxLength": 10,
-            "type": "string",
-            "nullable": true
-          },
-          "publicOfficial": {
-            "maxLength": 10,
-            "type": "string",
-            "nullable": true
-          },
-          "substantiation": {
-            "maxLength": 500,
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "StatusUpdateRequest": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
       "WeatherForecast": {
         "type": "object",
         "properties": {
@@ -380,21 +63,34 @@
             "format": "date"
           },
           "temperatureC": {
-            "type": "integer",
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
             "format": "int32"
           },
           "temperatureF": {
-            "type": "integer",
-            "format": "int32",
-            "readOnly": true
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
           },
           "summary": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
-        },
-        "additionalProperties": false
+        }
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "WeatherForecast"
+    }
+  ]
 }
