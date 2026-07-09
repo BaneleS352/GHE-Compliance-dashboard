@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Filter, Download, Search, ChevronDown } from "lucide-react";
-import { declarations, approvalOptions } from "../../data/declarations";
+import { approvalOptions } from "../../data/declarations";
+import { fetchDeclarations } from "../../services/api";
 import { Declaration, ApprovalDecision } from "../../types/declaration";
 import { PURPLE, formatRand } from "../../config/theme";
 import { Card } from "../components/Card";
@@ -74,12 +75,39 @@ export function ApproverDecisionBlock({
 }
 
 export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void }) {
-  const queue = declarations.filter((d) => ["Pending", "Escalated", "Info Requested"].includes(d.status));
+  const [allDeclarations, setAllDeclarations] = useState<Declaration[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchDeclarations()
+      .then(setAllDeclarations)
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const queue = allDeclarations.filter((d) => ["Pending", "Escalated", "Info Requested"].includes(d.status));
   const priorityStyle: Record<string, string> = {
     High: "bg-red-50 text-red-700",
     Medium: "bg-amber-50 text-amber-700",
     Low: "bg-emerald-50 text-emerald-700",
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-sm text-muted-foreground animate-pulse">Loading queue…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+        <strong>Failed to load queue:</strong> {error}
+      </div>
+    );
+  }
 
   return (
     <div>

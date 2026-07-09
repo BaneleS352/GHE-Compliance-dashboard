@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Check, X, Clock, Coins, ArrowUp, CheckSquare, AlertTriangle, ChevronRight } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
-import { declarations, complianceTrend, typeBreakdown } from "../../data/declarations";
+import { fetchDeclarations, fetchDashboardStats, DashboardStats } from "../../services/api";
 import { Screen, Declaration } from "../../types/declaration";
 import { PURPLE, YELLOW, formatRand } from "../../config/theme";
 import { Card } from "../components/Card";
@@ -17,10 +17,43 @@ type DashboardFilter = "All" | "Pending" | "Approved" | "Declined" | "Escalated"
 
 export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   const [activeFilter, setActiveFilter] = useState<DashboardFilter>("All");
+  const [declarations, setDeclarations]   = useState<Declaration[]>([]);
+  const [stats, setStats]                 = useState<DashboardStats | null>(null);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState<string | null>(null);
 
-  const pending = declarations.filter((d) => d.status === "Pending");
-  const approved = declarations.filter((d) => d.status === "Approved");
-  const declined = declarations.filter((d) => d.status === "Declined");
+  useEffect(() => {
+    Promise.all([fetchDeclarations(), fetchDashboardStats()])
+      .then(([decls, s]) => {
+        setDeclarations(decls);
+        setStats(s);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-sm text-muted-foreground animate-pulse">Loading dashboard…</div>
+      </div>
+    );
+  }
+
+  if (error || !stats) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+        <strong>Failed to load dashboard:</strong> {error}
+      </div>
+    );
+  }
+
+  const complianceTrend = stats.complianceTrend;
+  const typeBreakdown   = stats.typeBreakdown;
+
+  const pending   = declarations.filter((d) => d.status === "Pending");
+  const approved  = declarations.filter((d) => d.status === "Approved");
+  const declined  = declarations.filter((d) => d.status === "Declined");
   const escalated = declarations.filter((d) => d.status === "Escalated");
   const totalValue = declarations.reduce((sum, d) => sum + d.value, 0);
 
@@ -41,7 +74,7 @@ export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => v
   const filteredCount = filteredDeclarations.length;
   const overdueCount = filteredDeclarations.filter((d) => d.priority === "High").length;
   const desktopRows = filteredDeclarations.slice(0, 6);
-  const mobileRows = filteredDeclarations.slice(0, 4);
+  const mobileRows  = filteredDeclarations.slice(0, 4);
 
   const summaryTitle =
     activeFilter === "All"

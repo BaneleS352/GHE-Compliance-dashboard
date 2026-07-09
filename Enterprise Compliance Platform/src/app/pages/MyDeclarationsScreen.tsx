@@ -1,8 +1,8 @@
 import * as XLSX from "xlsx";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Download, FileText, Clock, Check, X, Coins, Eye } from "lucide-react";
-import { declarations } from "../../data/declarations";
 import { Declaration } from "../../types/declaration";
+import { fetchDeclarations } from "../../services/api";
 import { formatRand } from "../../config/theme";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
@@ -11,6 +11,17 @@ import { StatusBadge } from "../components/StatusBadge";
 import { DeclarationDetailView } from "../pages/DeclarationDetailView";
 
 export function MyDeclarationsScreen() {
+  const [declarations, setDeclarations] = useState<Declaration[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchDeclarations()
+      .then(setDeclarations)
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -22,6 +33,23 @@ export function MyDeclarationsScreen() {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
   const pageSize = 5;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-sm text-muted-foreground animate-pulse">Loading declarations…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+        <strong>Failed to load data:</strong> {error}
+      </div>
+    );
+  }
+
 
   const filtered = declarations.filter(
     (d) =>
