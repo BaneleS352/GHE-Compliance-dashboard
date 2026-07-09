@@ -3,6 +3,7 @@ import { Card } from "../components/ui/card";
 import { StatusBadge } from "../components/StatusBadge";
 import { formatRand } from "../../config/theme";
 import { Declaration, StatusType } from "../../types/declaration";
+import { motion } from "framer-motion";
 
 export function DeclarationDetailView({
   data,
@@ -27,6 +28,7 @@ export function DeclarationDetailView({
         ["Position",               safe(d.position)],
         ["Received / Given",       safe(d.receivedGiven)],
         ["Category",               safe(d.type)],
+        ["Counter Party",     safe(d.Counterparty)],
         ["Counter Party Name",     safe(d.Counterparty)],
         ["Name Of Counter Person", safe(d.contactPerson)],
         ["Date",                   safe(d.date)],
@@ -50,6 +52,7 @@ export function DeclarationDetailView({
         ["Position",               safe(record?.position)],
         ["Received / Given",       safe(record?.receivedGiven)],
         ["Category",               safe(record?.type)],
+        ["Counter Party",     safe(record?.Counterparty)],
         ["Counter Party Name",     safe(record?.Counterparty)],
         ["Name Of Counter Person", safe(record?.contactPerson)],
         ["Date",                   safe(record?.date)],
@@ -114,84 +117,288 @@ export function DeclarationDetailView({
       <div className="xl:col-span-5 flex flex-col xl:flex-row gap-5">
         {/* Declaration fields */}
         <div className="flex-[3]">
-          <Card className="p-6 h-full">
-            <h2 className="text-sm font-bold uppercase mb-4">Declaration Details</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Card
+            className="
+            p-6 h-full rounded-2xl
+            bg-gradient-to-br from-[#f8fafc] via-[#eef2ff] to-[#e0e7ff]
+            border border-white/40
+            shadow-[0_10px_30px_rgba(0,0,0,0.08)]
+            backdrop-blur-sm
+            relative overflow-hidden
+          "
+        >
+          {/* Glow */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.15),transparent_60%)] pointer-events-none" />
+          <div className="absolute bottom-0 right-0 opacity-20 pointer-events-none">
+            <div className="w-32 h-32 bg-indigo-300 rounded-full blur-2xl" />
+          </div>
+
+          <div className="relative z-10">
+            <h2 className="text-xs font-semibold tracking-wide text-slate-500 uppercase mb-6">
+              Declaration Details
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {fields.map(([k, v]) => (
-                <div
+                <motion.div
                   key={k}
-                  className={`rounded-xl p-3 bg-muted/30 border ${
-                    ["Description", "Substantiation (> R2 000)"].includes(k) ? "sm:col-span-2" : ""
-                  }`}
+                  whileHover={{ scale: 1.015, y: -2 }}
+                  transition={{ duration: 0.2 }}
+                  className={`
+                    rounded-xl p-4
+                    bg-white/70 backdrop-blur-sm
+                    border border-white/60
+                    shadow-sm
+                    transition-all
+                    hover:shadow-md
+                    ${
+                      ["Description", "Substantiation (> R2 000)"].includes(k)
+                        ? "sm:col-span-2"
+                        : ""
+                    }
+                  `}
                 >
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase">{k}</p>
-                  <p className="text-sm font-medium mt-1">{v}</p>
-                </div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    {k}
+                  </p>
+
+                  <p className="mt-2 text-sm font-medium text-slate-800 break-words">
+                    {v}
+                  </p>
+                </motion.div>
               ))}
             </div>
-          </Card>
+          </div>
+        </Card>
         </div>
 
         {/* Approval workflow */}
         <div className="flex-[2]">
-          <Card className="p-6 h-full flex flex-col">
-            <h3 className="text-sm font-bold uppercase mb-4">Approval Workflow</h3>
-            <div className="relative flex flex-col justify-between flex-1">
-              <div className="absolute left-[14px] top-7 bottom-7 w-[2px] bg-border" />
-              <div
-                className="absolute left-[14px] top-7 w-[2px] bg-emerald-600"
-                style={{
-                  height: `${
-                    ((workflowSteps.filter((s) => s.done).length - 1) /
-                      (workflowSteps.length - 1 || 1)) *
-                    100
-                  }%`,
-                }}
-              />
-              {workflowSteps.map((step, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                      step.done ? "bg-emerald-600 text-white" : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {step.done ? <Check size={12} /> : i + 1}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold">{step.label}</p>
-                    <p className="text-xs text-muted-foreground mb-2">{step.actor}</p>
-                    {step.updates.map((u, idx) => (
-                      <div key={idx} className="text-[11px] px-3 py-2 rounded-md bg-muted/40 border space-y-1">
-                        <div className="flex gap-2"><span className="w-14 text-muted-foreground">Status:</span><span>{u.status}</span></div>
-                        <div className="flex gap-2"><span className="w-14 text-muted-foreground">Date:</span><span>{u.date}</span></div>
-                        <div className="flex gap-2"><span className="w-14 text-muted-foreground">Time:</span><span>{u.time}</span></div>
+          <Card
+            className="
+              p-6 h-full flex flex-col rounded-2xl
+              bg-gradient-to-br from-[#f8fafc] via-[#eef2ff] to-[#e0e7ff]
+              shadow-[0_10px_30px_rgba(0,0,0,0.08)]
+              border border-white/40
+              backdrop-blur-sm
+              relative overflow-hidden
+            "
+          >
+            {/* Decorative glow */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.15),transparent_60%)] pointer-events-none" />
+
+            {/* Bottom decoration */}
+            <div className="absolute bottom-0 right-0 opacity-20 pointer-events-none">
+              <div className="w-32 h-32 bg-indigo-300 rounded-full blur-2xl" />
+            </div>
+
+            <div className="relative z-10 flex flex-col h-full">
+              <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase mb-6">
+                Approval Workflow
+              </h3>
+
+              <div className="relative flex flex-col gap-6 flex-1">
+                {/* Background line */}
+                <div className="absolute left-4 top-2 bottom-2 w-[2px] bg-gray-300/60" />
+
+                {/* Animated Progress line */}
+                <motion.div
+                  className="absolute left-4 top-2 w-[2px] bg-gradient-to-b from-emerald-500 to-emerald-400"
+                  initial={{ height: 0 }}
+                  animate={{
+                    height: `${
+                      ((workflowSteps.filter((s) => s.done).length - 1) /
+                        (workflowSteps.length - 1 || 1)) *
+                      100
+                    }%`,
+                  }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                />
+
+                {workflowSteps.map((step, i) => {
+                  const isActive =
+                    !step.done &&
+                    workflowSteps.findIndex((s) => !s.done) === i;
+
+                  return (
+                    <motion.div
+                      key={i}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: i * 0.05 }}
+                      whileHover={{ scale: 1.01 }}
+                      className="flex items-start gap-4 relative"
+                    >
+                      {/* Step Indicator */}
+                      <div className="relative z-10">
+                        <motion.div
+                          whileHover={{ scale: 1.1 }}
+                          className={`
+                            w-8 h-8 flex items-center justify-center rounded-full text-xs font-semibold
+                            transition-all
+                            ${
+                              step.done
+                                ? "bg-emerald-500 text-white shadow"
+                                : isActive
+                                ? "bg-white border-2 border-emerald-500 text-emerald-600 shadow-[0_4px_20px_rgba(99,102,241,0.25)]"
+                                : "bg-white/40 border border-white/50 text-gray-400"
+                            }
+                          `}
+                        >
+                          {step.done ? <Check size={14} /> : i + 1}
+                        </motion.div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+
+                      {/* Step Content */}
+                      <motion.div
+                        layout
+                        className={`
+                          flex-1 rounded-xl p-4 transition-all
+                          ${
+                            isActive
+                              ? "bg-white/70 backdrop-blur-sm border border-white/60 shadow-sm"
+                              : ""
+                          }
+                        `}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p
+                            className={`text-sm font-semibold ${
+                              step.done
+                                ? "text-gray-800"
+                                : isActive
+                                ? "text-indigo-700"
+                                : "text-gray-400"
+                            }`}
+                          >
+                            {step.label}
+                          </p>
+
+                          {step.done && (
+                            <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-600">
+                              Completed
+                            </span>
+                          )}
+
+                          {isActive && (
+                            <span className="text-[10px] px-2 py-1 rounded-full bg-indigo-100 text-indigo-600">
+                              In Progress
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-xs text-gray-500 mb-3">
+                          {step.actor}
+                        </p>
+
+                        {/* 👉 Current Action Panel */}
+                        {isActive && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mb-3 p-3 rounded-lg bg-indigo-50 border border-indigo-100 text-xs"
+                          >
+                            Waiting for approval from{" "}
+                            <b>{step.actor}</b>
+                          </motion.div>
+                        )}
+
+                        {/* Updates */}
+                        <div className="space-y-2">
+                          {step.updates.map((u, idx) => (
+                            <div
+                              key={idx}
+                              className="text-[11px] rounded-lg border border-white/60 bg-white/60 backdrop-blur-sm px-3 py-2"
+                            >
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Status</span>
+                                <span className="font-medium">{u.status}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Date</span>
+                                <span>{u.date}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-500">Time</span>
+                                <span>{u.time}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  );
+                })}
+              </div>
             </div>
           </Card>
         </div>
-      </div>
+        </div>
 
       {/* ROW 2 — Supporting Documents */}
       <div className="xl:col-span-3">
-        <Card className="p-6">
-          <h3 className="text-sm font-bold uppercase mb-3">Supporting Documents</h3>
-          <div className="space-y-2">
-            {(record?.files ?? "")
-              .split(",")
-              .filter(Boolean)
-              .map((file, i) => (
-                <button
-                  key={i}
-                  className="w-full text-left text-sm px-3 py-2 rounded-lg border bg-muted/40 hover:bg-muted"
-                  onClick={() => window.open(file.trim(), "_blank")}
-                >
-                  📄 {file.trim()}
-                </button>
-              ))}
+        <Card
+          className="
+            p-6 rounded-2xl
+            bg-gradient-to-br from-[#f8fafc] via-[#eef2ff] to-[#e0e7ff]
+            border border-white/40
+            shadow-[0_10px_30px_rgba(0,0,0,0.08)]
+            backdrop-blur-sm
+            relative overflow-hidden
+          "
+        >
+          {/* Glow */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.15),transparent_60%)] pointer-events-none" />
+          <div className="absolute bottom-0 right-0 opacity-20 pointer-events-none">
+            <div className="w-32 h-32 bg-indigo-300 rounded-full blur-2xl" />
+          </div>
+
+          <div className="relative z-10">
+            <h3 className="text-xs font-semibold tracking-wide text-slate-500 uppercase mb-6">
+              Supporting Documents
+            </h3>
+
+            <div className="space-y-3">
+              {(record?.files ?? "")
+                .split(",")
+                .filter(Boolean)
+                .map((file, i) => (
+                  <motion.button
+                    key={i}
+                    whileHover={{ scale: 1.02, y: -2 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => window.open(file.trim(), "_blank")}
+                    className="
+                      w-full
+                      rounded-xl
+                      border border-white/60
+                      bg-white/70
+                      backdrop-blur-sm
+                      px-4 py-3
+                      flex items-center justify-between
+                      transition-all
+                      hover:shadow-md
+                    "
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-lg">
+                        📄
+                      </div>
+
+                      <div className="text-left">
+                        <p className="font-medium text-sm text-slate-800">
+                          {file.trim()}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Click to open document
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="text-slate-400 text-sm">↗</span>
+                  </motion.button>
+                ))}
+            </div>
           </div>
         </Card>
       </div>
