@@ -30,9 +30,7 @@ export function MyDeclarationsScreen() {
   const [activeKpi, setActiveKpi] = useState("All");
   const [sortKey, setSortKey] = useState<keyof Declaration | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-  const [currentPage, setCurrentPage] = useState(1);
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
-  const pageSize = 5;
 
   if (loading) {
     return (
@@ -79,13 +77,10 @@ export function MyDeclarationsScreen() {
     return 0;
   });
 
-  const totalPages = Math.ceil(sorted.length / pageSize);
-  const paginated = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const totalValue = declarations.reduce((sum, d) => sum + d.value, 0);
 
   const handleKpiClick = (type: string) => {
     setActiveKpi(type);
-    setCurrentPage(1);
     setStatusFilter(type === "All" ? "All" : type);
   };
 
@@ -94,7 +89,7 @@ export function MyDeclarationsScreen() {
       ID: d.id,
       Employee: d.employee,
       Type: d.type,
-      Vendor: d.Counterparty,
+      Counterparty: d.Counterparty,
       Value: d.value,
       Submitted: d.submitted,
       Status: d.status,
@@ -162,10 +157,10 @@ export function MyDeclarationsScreen() {
       </Card>
 
       <Card className="space-y-3 p-3.5 md:hidden">
-        {paginated.length === 0 ? (
+        {sorted.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">No declarations found</div>
         ) : (
-          paginated.map((d) => (
+          sorted.map((d) => (
             <div key={d.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -224,19 +219,19 @@ export function MyDeclarationsScreen() {
                   }}
                   className="cursor-pointer px-5 py-3 text-left text-xs font-bold hover:text-primary"
                 >
-                  {key.toUpperCase()}
+                  {key === "counterparty" ? "COUNTERPARTY" : key === "approver" ? "FINAL APPROVER" : key.toUpperCase()}
                 </th>
               ))}
               <th className="px-5 py-3 text-xs font-bold">ACTIONS</th>
             </tr>
           </thead>
           <tbody>
-            {paginated.length === 0 ? (
+            {sorted.length === 0 ? (
               <tr>
                 <td colSpan={8} className="py-10 text-center text-muted-foreground">No declarations found</td>
               </tr>
             ) : (
-              paginated.map((d) => (
+              sorted.map((d) => (
                 <tr key={d.id} className="transition hover:bg-muted/20">
                   <td className="px-5 py-3">{d.id}</td>
                   <td className="px-5 py-3">{d.type}</td>
@@ -261,20 +256,6 @@ export function MyDeclarationsScreen() {
           </tbody>
         </table>
 
-        <div className="flex flex-col gap-3 border-t p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs">
-            Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>Prev</button>
-            {[...Array(totalPages)].map((_, i) => (
-              <button key={i} onClick={() => setCurrentPage(i + 1)} className={currentPage === i + 1 ? "bg-purple-600 px-2 text-white" : "px-2"}>
-                {i + 1}
-              </button>
-            ))}
-            <button disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)}>Next</button>
-          </div>
-        </div>
       </Card>
     </div>
   );

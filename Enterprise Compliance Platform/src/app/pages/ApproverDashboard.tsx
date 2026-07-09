@@ -55,6 +55,7 @@ export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => v
   const approved  = declarations.filter((d) => d.status === "Approved");
   const declined  = declarations.filter((d) => d.status === "Declined");
   const escalated = declarations.filter((d) => d.status === "Escalated");
+  const queueCount = declarations.filter((d) => ["Pending", "Escalated", "Info Requested"].includes(d.status)).length;
   const totalValue = declarations.reduce((sum, d) => sum + d.value, 0);
 
   const kpis = [
@@ -128,7 +129,7 @@ export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => v
           >
             <CheckSquare size={15} /> Approval Queue
             <span className="ml-0.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold" style={{ background: YELLOW, color: "#1E1E2D" }}>
-              14
+              {queueCount}
             </span>
           </button>
         }

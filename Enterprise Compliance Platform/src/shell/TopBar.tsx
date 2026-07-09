@@ -1,5 +1,5 @@
-import { Bell, LogOut } from "lucide-react";
-import { PURPLE, YELLOW } from "../config/theme";
+import { LogOut } from "lucide-react";
+import { PURPLE } from "../config/theme";
 import { Role } from "../types/declaration";
 
 export function TopBar({
@@ -43,13 +43,6 @@ export function TopBar({
       </div>
 
       <div className="flex flex-shrink-0 items-center gap-2 sm:gap-4">
-        <button className="relative flex h-10 w-10 items-center justify-center rounded-full border-2 border-yellow-400 bg-gradient-to-br from-yellow-100 via-yellow-200 to-yellow-300 text-purple-700 shadow-[0_10px_24px_rgba(248,215,74,0.35)] transition-all hover:scale-105 hover:text-purple-900 hover:shadow-[0_14px_30px_rgba(248,215,74,0.5)] sm:h-11 sm:w-11">
-          <Bell size={19} strokeWidth={2.2} />
-          <span
-            className="absolute top-1.5 right-1.5 w-3 h-3 rounded-full ring-2 ring-white shadow-[0_0_0_4px_rgba(248,215,74,0.18)]"
-            style={{ background: YELLOW }}
-          />
-        </button>
         <div className="hidden sm:block h-6 w-px bg-slate-200/80" />
         <div className="group flex items-center gap-2 rounded-full border border-white/80 bg-white/60 py-1.5 pl-1.5 pr-1.5 shadow-sm transition-colors hover:bg-white md:gap-3 md:pr-4">
           <div

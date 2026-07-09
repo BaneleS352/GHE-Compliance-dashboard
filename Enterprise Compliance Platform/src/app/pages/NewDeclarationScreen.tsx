@@ -8,15 +8,47 @@ import { FL } from "../components/FL";
 import { FS, FORM_SECTIONS } from "../components/FS";
 import { Card } from "../components/Card";
 import { PURPLE, F, inp } from "../../config/theme";
-import { UploadedFile } from "../../types/declaration";
+import { Declaration, UploadedFile } from "../../types/declaration";
+import { createDeclaration } from "../../services/api";
 
 export function NewDeclarationScreen({
   onSubmitSuccess,
   onDraftSaved,
 }: {
-  onSubmitSuccess: (data: Record<string, string>) => void;
+  onSubmitSuccess: (data: Declaration) => void;
   onDraftSaved: () => void;
 }) {
+  const formatRandValue = (value: string, fixedDecimals = false) => {
+    if (!value) return "";
+
+    const [integerPartRaw, decimalPartRaw = ""] = value.split(".");
+    const integerPart = (integerPartRaw || "0").replace(/^0+(?=\d)/, "") || "0";
+    const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+    if (fixedDecimals) {
+      return `${groupedInteger}.${(decimalPartRaw + "00").slice(0, 2)}`;
+    }
+
+    return decimalPartRaw ? `${groupedInteger}.${decimalPartRaw.slice(0, 2)}` : groupedInteger;
+  };
+
+  const parseRandInput = (raw: string) => {
+    const cleaned = raw.replace(/[Rr\s]/g, "").replace(/[^\d.,]/g, "");
+    if (!cleaned) return "";
+
+    const separatorIndex = Math.max(cleaned.lastIndexOf("."), cleaned.lastIndexOf(","));
+    if (separatorIndex === -1) {
+      const integerOnly = cleaned.replace(/[^\d]/g, "");
+      return integerOnly.replace(/^0+(?=\d)/, "") || "0";
+    }
+
+    const integerPart = cleaned.slice(0, separatorIndex).replace(/[^\d]/g, "");
+    const decimalPart = cleaned.slice(separatorIndex + 1).replace(/[^\d]/g, "").slice(0, 2);
+    const normalizedInteger = integerPart.replace(/^0+(?=\d)/, "") || "0";
+
+    return decimalPart ? `${normalizedInteger}.${decimalPart}` : normalizedInteger;
+  };
+
   const [receivedGiven, setReceivedGiven] = useState("Received");
   const [category, setCategory] = useState("");
   const [activeSection, setActiveSection] = useState("sec-team");
@@ -24,6 +56,9 @@ export function NewDeclarationScreen({
   const [dragging, setDragging] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploadError, setUploadError] = useState<{ title: string; message: string } | null>(null);
+  const [submitError, setSubmitError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [isValueFocused, setIsValueFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -54,6 +89,7 @@ export function NewDeclarationScreen({
   const setF = (k: string, v: string) => {
     setFormState((f) => ({ ...f, [k]: v }));
     setErrors((e) => ({ ...e, [k]: "" }));
+    setSubmitError("");
   };
 
   // Active section tracker
@@ -177,34 +213,50 @@ export function NewDeclarationScreen({
     return true;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validate()) return;
-    const id = `GHE-2024-${String(Math.floor(Math.random() * 900) + 48).padStart(4, "0")}`;
-    onSubmitSuccess({
-      id,
+    setSubmitting(true);
+    setSubmitError("");
+
+    const value = Number(form.value || 0);
+    const declaration: Declaration = {
+      id: `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
       employee: form.employeeName,
-      employeeCode: form.employeeCode,
+      teamMemberNumber: form.employeeCode,
       lineManager: form.lineManager,
       company: form.company,
       department: form.department,
       team: form.team,
       position: form.position,
       receivedGiven,
-      partyType: form.partyType,
+      from: form.partyType,
       Counterparty: form.Counterparty,
       contactPerson: form.contactPerson,
-      existingRelationship: form.existingRelationship,
+      relationship: form.existingRelationship,
       contractNegotiation: form.contractNegotiation,
       biddingProcess: form.biddingProcess,
       type: category,
       date: form.date,
-      value: form.value ? `R ${form.value}` : "Not specified",
+      submitted: new Date().toISOString().slice(0, 10),
+      value: Number.isFinite(value) ? value : 0,
       occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
-      occasionOther: requiresOccasionOther ? form.occasionOther : "",
       description: form.description,
+      instances: form.instances,
+      publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
       substantiation: requiresSubstantiation ? form.substantiation : "",
-      files: files.length ? files.map((f) => f.name).join(", ") : "",
-    });
+      approver: form.lineManager,
+      status: "Pending",
+      priority: value > 5000 ? "High" : value > 2000 ? "Medium" : "Low",
+    };
+
+    try {
+      const savedDeclaration = await createDeclaration(declaration);
+      onSubmitSuccess(savedDeclaration);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to submit declaration.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const partyOptions = ["Supplier", "Customer", "Team Member", "Public Official"];
@@ -215,7 +267,7 @@ export function NewDeclarationScreen({
     Entertainment: "Meals, events, sporting or cultural activities or recreational activities.",
   };
   const occasionOptions = [
-    "Festive Season", "Year End", "Milestone", "Business Meeting", "Relationship Maintenance", "Other",
+    "Business Meeting", "Festive Season", "Milestone", "Other", "Relationship Maintenance", "Year End",
   ];
 
   const ErrInp = ({ field, ...props }: { field: string } & React.InputHTMLAttributes<HTMLInputElement>) => (
@@ -429,7 +481,7 @@ export function NewDeclarationScreen({
                 </Sel>
               </div>
               <div>
-                <FL required error={errors.biddingProcess}>Is the Supplier or Team Member involved in a Bidding Process?</FL>
+                <FL required error={errors.biddingProcess}>Is the Supplier or potential Supplier involved in a bidding process with us?</FL>
                 <Sel value={form.biddingProcess} onChange={(v) => setF("biddingProcess", v)} className={errors.biddingProcess ? "border-red-400" : ""}>
                   <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
@@ -475,7 +527,7 @@ export function NewDeclarationScreen({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
               <div>
-                <FL error={errors.occasionOther}>Reason/Occassion for Gift</FL>
+                <FL error={errors.occasionOther}>Reason/Occasion for the gift</FL>
                 <Sel value={form.occasion} onChange={(v) => setF("occasion", v)}>
                   <option value="">Select reason…</option>
                   {occasionOptions.map((o) => <option key={o}>{o}</option>)}
@@ -512,20 +564,28 @@ export function NewDeclarationScreen({
               <FL hint="Enter the Rand value including VAT. Convert foreign currency to ZAR equivalent.">
                 Rand Value or Equivalent Rand Value (including VAT)
               </FL>
-              <input
-                type="number"
-                className={inp}
-                value={form.value}
-                onChange={(e) => setF("value", e.target.value)}
-                placeholder="0.00"
-              />
+              <div className="relative">
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">
+                  R
+                </span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className={`${inp} pl-10`}
+                  value={form.value ? formatRandValue(form.value, !isValueFocused) : ""}
+                  onFocus={() => setIsValueFocused(true)}
+                  onBlur={() => setIsValueFocused(false)}
+                  onChange={(e) => setF("value", parseRandInput(e.target.value))}
+                  placeholder="0.00"
+                />
+              </div>
             </div>
             {requiresSubstantiation && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
               <div className="flex items-start gap-2.5 mb-3">
                 <AlertCircle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-800 leading-relaxed">
-                  The Rand Value including VAT exceeds <strong>R2,000.00</strong>. Please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.
+                  If the Rand Value including VAT exceeds <strong>R2,000.00</strong>, please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.
                 </p>
               </div>
               <textarea
@@ -621,6 +681,11 @@ export function NewDeclarationScreen({
             ))}
           </div>
           <div className="pt-6 mt-2 border-t border-slate-100">
+            {submitError && (
+              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {submitError}
+              </div>
+            )}
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
               <button
                 onClick={onDraftSaved}
@@ -630,10 +695,11 @@ export function NewDeclarationScreen({
               </button>
               <button
                 onClick={handleSubmit}
+                disabled={submitting}
                 className="h-12 px-8 rounded-xl text-sm font-semibold text-white transition-all duration-300 ease-out flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(79,29,149,0.39)] hover:-translate-y-0.5 hover:border-yellow-400 hover:bg-yellow-400 hover:text-white hover:shadow-[0_8px_24px_rgba(250,204,21,0.35)] active:translate-y-0 active:scale-[0.98]"
-                style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent" }}
+                style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent", opacity: submitting ? 0.7 : 1 }}
               >
-                <Send size={14} /> Submit Declaration
+                <Send size={14} /> {submitting ? "Submitting..." : "Submit Declaration"}
               </button>
             </div>
           </div>
