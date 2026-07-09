@@ -61,7 +61,7 @@ export default function App() {
         {screen === "new-declaration" && showSubmittedView && submittedData && (
           <DeclarationDetailView data={submittedData} onBack={() => setShowSubmittedView(false)} />
         )}
-        {screen === "my-declarations"    && <MyDeclarationsScreen />}
+        {screen === "my-declarations"    && <MyDeclarationsScreen isApprover={role === "approver"} onNavigate={setScreen} />}
         {screen === "approver-dashboard" && <ApproverDashboard onNavigate={setScreen} />}
         {screen === "approval-queue"     && (
           <ApprovalQueue onReview={(d) => { setSelectedDecl(d); setScreen("approval-detail"); }} />

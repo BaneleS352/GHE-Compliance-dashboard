@@ -1,17 +1,23 @@
 // Note: import moved to top — fixes the mid-file import that existed in App.tsx
-import * as XLSX from "xlsx";
 import { useState } from "react";
 import { Download, FileText, Clock, Check, X, DollarSign, Eye } from "lucide-react";
 import { declarations } from "../../data/declarations";
-import { Declaration } from "../../types/declaration";
+import { Declaration, Screen } from "../../types/declaration";
 import { formatRand } from "../../config/theme";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { DeclarationDetailView } from "../pages/DeclarationDetailView";
+import { ApproverViewToggle } from "../components/ApproverViewToggle";
 
-export function MyDeclarationsScreen() {
+export function MyDeclarationsScreen({
+  isApprover = false,
+  onNavigate,
+}: {
+  isApprover?: boolean;
+  onNavigate?: (screen: Screen) => void;
+}) {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -64,22 +70,14 @@ export function MyDeclarationsScreen() {
     setStatusFilter(type === "All" ? "All" : type);
   };
 
-  // Excel export
   const exportExcel = () => {
-    const data = filtered.map((d) => ({
-      ID: d.id,
-      Employee: d.employee,
-      Type: d.type,
-      Vendor: d.Counterparty,
-      Value: d.value,
-      Submitted: d.submitted,
-      Status: d.status,
-      Approver: d.approver,
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Declarations");
-    XLSX.writeFile(wb, "Declarations.xlsx");
+    const headers = ["Declaration ID", "Employee", "Type", "Counterparty", "Value", "Submitted", "Status", "Approver"];
+    const rows = filtered.map((d) => [d.id, d.employee, d.type, d.Counterparty, formatRand(d.value), d.submitted, d.status, d.approver]);
+    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const link = document.createElement("a");
+    link.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
+    link.download = "Declarations.csv";
+    link.click();
   };
 
   if (viewDecl) return <DeclarationDetailView data={viewDecl} onBack={() => setViewDecl(null)} />;
@@ -90,9 +88,14 @@ export function MyDeclarationsScreen() {
         title="My Declarations"
         subtitle="Manage and review your declarations"
         actions={
-          <button onClick={exportExcel} className="h-9 px-4 rounded-xl border bg-white hover:bg-muted flex gap-2 items-center">
-            <Download size={13} /> Export Excel
-          </button>
+          <>
+            {isApprover && onNavigate && (
+              <ApproverViewToggle active="declarations" onNavigate={onNavigate} />
+            )}
+            <button onClick={exportExcel} className="h-9 px-4 rounded-xl border bg-white hover:bg-muted flex gap-2 items-center">
+              <Download size={13} /> Export CSV
+            </button>
+          </>
         }
       />
 
@@ -182,7 +185,7 @@ export function MyDeclarationsScreen() {
         {/* Pagination footer */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-t">
           <p className="text-xs">
-            Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
+            Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
           </p>
           <div className="flex flex-wrap gap-2">
             <button disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>Prev</button>
