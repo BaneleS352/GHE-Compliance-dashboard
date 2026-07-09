@@ -8,14 +8,13 @@ import { FL } from "../components/FL";
 import { FS, FORM_SECTIONS } from "../components/FS";
 import { Card } from "../components/Card";
 import { PURPLE, F, inp } from "../../config/theme";
-import { Declaration, UploadedFile } from "../../types/declaration";
-import { createDeclaration } from "../../services/api";
+import { UploadedFile } from "../../types/declaration";
 
 export function NewDeclarationScreen({
   onSubmitSuccess,
   onDraftSaved,
 }: {
-  onSubmitSuccess: (data: Declaration) => void;
+  onSubmitSuccess: (data: Record<string, string>) => void;
   onDraftSaved: () => void;
 }) {
   const [receivedGiven, setReceivedGiven] = useState("Received");
@@ -25,8 +24,6 @@ export function NewDeclarationScreen({
   const [dragging, setDragging] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploadError, setUploadError] = useState<{ title: string; message: string } | null>(null);
-  const [submitError, setSubmitError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -57,7 +54,6 @@ export function NewDeclarationScreen({
   const setF = (k: string, v: string) => {
     setFormState((f) => ({ ...f, [k]: v }));
     setErrors((e) => ({ ...e, [k]: "" }));
-    setSubmitError("");
   };
 
   // Active section tracker
@@ -181,50 +177,34 @@ export function NewDeclarationScreen({
     return true;
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!validate()) return;
-    setSubmitting(true);
-    setSubmitError("");
-
-    const value = Number(form.value || 0);
-    const declaration: Declaration = {
-      id: `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
+    const id = `GHE-2024-${String(Math.floor(Math.random() * 900) + 48).padStart(4, "0")}`;
+    onSubmitSuccess({
+      id,
       employee: form.employeeName,
-      teamMemberNumber: form.employeeCode,
+      employeeCode: form.employeeCode,
       lineManager: form.lineManager,
       company: form.company,
       department: form.department,
       team: form.team,
       position: form.position,
       receivedGiven,
-      from: form.partyType,
+      partyType: form.partyType,
       Counterparty: form.Counterparty,
       contactPerson: form.contactPerson,
-      relationship: form.existingRelationship,
+      existingRelationship: form.existingRelationship,
       contractNegotiation: form.contractNegotiation,
       biddingProcess: form.biddingProcess,
       type: category,
       date: form.date,
-      submitted: new Date().toISOString().slice(0, 10),
-      value: Number.isFinite(value) ? value : 0,
+      value: form.value ? `R ${form.value}` : "Not specified",
       occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
+      occasionOther: requiresOccasionOther ? form.occasionOther : "",
       description: form.description,
-      instances: form.instances,
-      publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
       substantiation: requiresSubstantiation ? form.substantiation : "",
-      approver: form.lineManager,
-      status: "Pending",
-      priority: value > 5000 ? "High" : value > 2000 ? "Medium" : "Low",
-    };
-
-    try {
-      const savedDeclaration = await createDeclaration(declaration);
-      onSubmitSuccess(savedDeclaration);
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to submit declaration.");
-    } finally {
-      setSubmitting(false);
-    }
+      files: files.length ? files.map((f) => f.name).join(", ") : "",
+    });
   };
 
   const partyOptions = ["Supplier", "Customer", "Team Member", "Public Official"];
@@ -641,11 +621,6 @@ export function NewDeclarationScreen({
             ))}
           </div>
           <div className="pt-6 mt-2 border-t border-slate-100">
-            {submitError && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                {submitError}
-              </div>
-            )}
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
               <button
                 onClick={onDraftSaved}
@@ -655,11 +630,10 @@ export function NewDeclarationScreen({
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={submitting}
                 className="h-12 px-8 rounded-xl text-sm font-semibold text-white transition-all duration-300 ease-out flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(79,29,149,0.39)] hover:-translate-y-0.5 hover:border-yellow-400 hover:bg-yellow-400 hover:text-white hover:shadow-[0_8px_24px_rgba(250,204,21,0.35)] active:translate-y-0 active:scale-[0.98]"
-                style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent", opacity: submitting ? 0.7 : 1 }}
+                style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent" }}
               >
-                <Send size={14} /> {submitting ? "Submitting..." : "Submit Declaration"}
+                <Send size={14} /> Submit Declaration
               </button>
             </div>
           </div>

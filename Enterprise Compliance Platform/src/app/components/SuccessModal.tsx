@@ -1,13 +1,12 @@
 import { Check, Sparkles, X } from "lucide-react";
 import { PURPLE, YELLOW, F } from "../../config/theme";
-import { Declaration } from "../../types/declaration";
 
 export function SuccessModal({
   data,
   onClose,
   onView,
 }: {
-  data: Declaration;
+  data: Record<string, string>;
   onClose: () => void;
   onView: () => void;
 }) {
