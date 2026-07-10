@@ -699,7 +699,7 @@ export function NewDeclarationScreen({
               <div className="flex items-start gap-2.5 mb-3">
                 <AlertCircle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-800 leading-relaxed">
-                  If the Rand Value including VAT exceeds <strong>R2,500.00</strong>, please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.
+                  If the Rand Value including VAT exceeds <strong>R2,000.00</strong>, please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.
                 </p>
               </div>
               <textarea
@@ -708,7 +708,7 @@ export function NewDeclarationScreen({
                 }`}
                 value={form.substantiation}
                 onChange={(e) => setF("substantiation", e.target.value)}
-                placeholder="Substantiation for value exceeding R2,500.00 (if applicable)…"
+                placeholder="Substantiation for value exceeding R2,000.00 (if applicable)…"
               />
             </div>
             )}
