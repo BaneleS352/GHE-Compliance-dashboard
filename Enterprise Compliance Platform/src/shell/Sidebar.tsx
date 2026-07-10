@@ -1,4 +1,4 @@
-import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, Activity, List } from "lucide-react";
+import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, Activity, List, BarChart3 } from "lucide-react";
 import { ImageWithFallback } from "../app/components/ImageWithFallback";
 import logoImg from "../assets/HB-Logo-NO-BG.png";
 import { YELLOW } from "../config/theme";
