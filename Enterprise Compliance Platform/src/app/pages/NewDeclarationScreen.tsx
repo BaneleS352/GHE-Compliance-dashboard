@@ -10,37 +10,6 @@ import { Card } from "../components/Card";
 import { PURPLE, F, inp } from "../../config/theme";
 import { Declaration, UploadedFile } from "../../types/declaration";
 import { createDeclaration } from "../../services/api";
-import { useUser } from "../auth/UserContext";
-import {
-  getConfig, getUserById, getWorkflowRules,
-  setWorkflowForDeclaration, updateDeclaration,
-  determineWorkflowSteps,
-} from "../../data/db";
-import { WorkflowInstance, WorkflowStep } from "../../types/declaration";
-
-const getFinalApproverName = (value: number, lineManagerName: string): string => {
-    const rules = getWorkflowRules();
-    const ruleId = determineWorkflowSteps({ value } as Declaration);
-    const rule = rules.find((r) => r.id === ruleId);
-    if (!rule || rule.steps.length === 0) return "Unassigned";
-    const lastStep = rule.steps[rule.steps.length - 1];
-    if (lastStep.role === "ceo") {
-      const ceo = getUserById("user-5");
-      return ceo?.name || "Sandile Shabalala";
-    }
-    if (lastStep.role === "hr") {
-      const hr = getUserById("user-4");
-      return hr?.name || "Lindiwe Zulu";
-    }
-    return lineManagerName || "Line Manager";
-  };
-
-  const getPriority = (value: number): "High" | "Medium" | "Low" => {
-    const config = getConfig();
-    if (value > config.highValueThreshold) return "High";
-    if (value > config.mediumValueThreshold) return "Medium";
-    return "Low";
-  };
 
 export function NewDeclarationScreen({
   onSubmitSuccess,
@@ -49,34 +18,36 @@ export function NewDeclarationScreen({
   onSubmitSuccess: (data: Declaration) => void;
   onDraftSaved: () => void;
 }) {
-  const { user } = useUser();
-
   const formatRandValue = (value: string, fixedDecimals = false) => {
     if (!value) return "";
+
     const [integerPartRaw, decimalPartRaw = ""] = value.split(".");
     const integerPart = (integerPartRaw || "0").replace(/^0+(?=\d)/, "") || "0";
     const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
     if (fixedDecimals) {
       return `${groupedInteger}.${(decimalPartRaw + "00").slice(0, 2)}`;
     }
+
     return decimalPartRaw ? `${groupedInteger}.${decimalPartRaw.slice(0, 2)}` : groupedInteger;
   };
 
   const parseRandInput = (raw: string) => {
     const cleaned = raw.replace(/[Rr\s]/g, "").replace(/[^\d.,]/g, "");
     if (!cleaned) return "";
+
     const separatorIndex = Math.max(cleaned.lastIndexOf("."), cleaned.lastIndexOf(","));
     if (separatorIndex === -1) {
       const integerOnly = cleaned.replace(/[^\d]/g, "");
       return integerOnly.replace(/^0+(?=\d)/, "") || "0";
     }
+
     const integerPart = cleaned.slice(0, separatorIndex).replace(/[^\d]/g, "");
     const decimalPart = cleaned.slice(separatorIndex + 1).replace(/[^\d]/g, "").slice(0, 2);
     const normalizedInteger = integerPart.replace(/^0+(?=\d)/, "") || "0";
+
     return decimalPart ? `${normalizedInteger}.${decimalPart}` : normalizedInteger;
   };
-
-  const lineManagerName = user?.lineManager ? getUserById(user.lineManager)?.name || "" : "";
 
   const [receivedGiven, setReceivedGiven] = useState("Received");
   const [category, setCategory] = useState("");
@@ -92,13 +63,13 @@ export function NewDeclarationScreen({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [form, setFormState] = useState({
-    employeeName: user?.name || "",
-    employeeCode: user?.teamMemberNumber || "",
-    lineManager: lineManagerName,
+    employeeName: "Nomvula Dlamini",
+    employeeCode: "HB-204478",
+    lineManager: "Sipho Nkosi",
     company: "Hollywoodbets Group",
-    department: user?.department || "",
-    team: "",
-    position: user?.position || "",
+    department: "Marketing",
+    team: "Brand & Communications",
+    position: "Senior Brand Manager",
     partyType: "",
     Counterparty: "",
     contactPerson: "",
@@ -121,10 +92,12 @@ export function NewDeclarationScreen({
     setSubmitError("");
   };
 
+  // Active section tracker
   useEffect(() => {
     const el = scrollRef.current;
     const scrollRoot = el?.closest("main") as HTMLElement | null;
     if (!el || !scrollRoot) return;
+
     const onScroll = () => {
       const rootTop = scrollRoot.getBoundingClientRect().top;
       for (const s of [...FORM_SECTIONS].reverse()) {
@@ -135,6 +108,7 @@ export function NewDeclarationScreen({
         }
       }
     };
+
     onScroll();
     scrollRoot.addEventListener("scroll", onScroll, { passive: true });
     return () => scrollRoot.removeEventListener("scroll", onScroll);
@@ -169,30 +143,22 @@ export function NewDeclarationScreen({
   ];
   const MAX_SIZE = 20 * 1_048_576;
 
-  const readFileAsBase64 = (file: File): Promise<{ name: string; size: number; type: string; data: string }> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve({ name: file.name, size: file.size, type: file.type, data: reader.result as string });
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-
-  const processFiles = useCallback(async (rawFiles: FileList | null) => {
+  const processFiles = useCallback((rawFiles: FileList | null) => {
     if (!rawFiles) return;
-    for (const file of Array.from(rawFiles)) {
+    Array.from(rawFiles).forEach((file) => {
       if (!ALLOWED.includes(file.type)) {
         setUploadError({
           title: "Unsupported file type",
           message: `${file.name} cannot be uploaded. Use PDF, PNG, JPG, DOC, or DOCX files.`,
         });
-        continue;
+        return;
       }
       if (file.size > MAX_SIZE) {
         setUploadError({
           title: "File is too large",
-          message: `${file.name} exceeds the 20 MB limit.`,
+          message: `${file.name} exceeds the 20 MB limit. Please upload a smaller supporting document.`,
         });
-        continue;
+        return;
       }
       setUploadError(null);
       const reader = new FileReader();
@@ -209,9 +175,6 @@ export function NewDeclarationScreen({
       };
       reader.readAsDataURL(file);
     });
-      const fileData = await readFileAsBase64(file);
-      setFiles((f) => [...f, { name: fileData.name, size: fileData.size, type: fileData.type, url: URL.createObjectURL(file), data: fileData.data }]);
-    }
   }, []);
 
   const handleDrop = (e: React.DragEvent) => {
@@ -220,10 +183,9 @@ export function NewDeclarationScreen({
     processFiles(e.dataTransfer.files);
   };
 
-const value = Number(form.value || 0);
-      const requiresSubstantiation = Number.isFinite(value) && value > getConfig().highValueThreshold;
-      const requiresOccasionOther = form.occasion === "Other";
-      const priority = getPriority(value);
+  const randValue = Number(form.value);
+  const requiresSubstantiation = Number.isFinite(randValue) && randValue > 2000;
+  const requiresOccasionOther = form.occasion === "Other";
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -263,86 +225,8 @@ const value = Number(form.value || 0);
     return true;
   };
 
-  const handleSaveDraft = () => {
-    if (!user) return;
-    const value = Number(form.value || 0);
-    const declaration: Declaration = {
-      id: `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
-      employee: form.employeeName,
-      employeeId: user.id,
-      teamMemberNumber: form.employeeCode,
-      lineManager: form.lineManager,
-      company: form.company,
-      department: form.department,
-      team: form.team,
-      position: form.position,
-      receivedGiven,
-      from: form.partyType,
-      Counterparty: form.Counterparty,
-      contactPerson: form.contactPerson,
-      relationship: form.existingRelationship,
-      contractNegotiation: form.contractNegotiation,
-      biddingProcess: form.biddingProcess,
-      type: category,
-      date: form.date,
-      submitted: new Date().toISOString().slice(0, 10),
-value: Number.isFinite(value) ? value : 0,
-        occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
-        description: form.description,
-        instances: form.instances,
-        publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
-        substantiation: requiresSubstantiation ? form.substantiation : "",
-        approver: getFinalApproverName(value, form.lineManager),
-        status: "Draft",
-        priority,
-      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, data: f.data || "" })),
-    };
-    createDeclaration(declaration);
-    onDraftSaved();
-  };
-
-  const createWorkflow = (declaration: Declaration) => {
-    if (!user) return;
-    const ruleId = determineWorkflowSteps(declaration);
-    const rule = getWorkflowRules().find((r) => r.id === ruleId);
-    if (!rule) return;
-
-    const steps: WorkflowStep[] = rule.steps.map((s) => {
-      let assigneeId = "";
-      let assigneeName = "";
-      if (s.role === "lineManager" && user.lineManager) {
-        assigneeId = user.lineManager;
-        const lm = getUserById(user.lineManager);
-        assigneeName = lm?.name || "";
-      } else if (s.role === "hr") {
-        const hr = getUserById("user-4");
-        assigneeId = "user-4";
-        assigneeName = hr?.name || "Lindiwe Zulu";
-      } else if (s.role === "ceo") {
-        const ceo = getUserById("user-5");
-        assigneeId = "user-5";
-        assigneeName = ceo?.name || "Sandile Shabalala";
-      }
-      return {
-        order: s.order,
-        role: s.role,
-        assignee: assigneeId,
-        assigneeName,
-        label: s.label,
-        status: "pending" as const,
-        decision: null,
-        notes: "",
-        decidedAt: null,
-      };
-    });
-
-    const instance: WorkflowInstance = { declarationId: declaration.id, steps };
-    setWorkflowForDeclaration(instance);
-  };
-
   const handleSubmit = async () => {
     if (!validate()) return;
-    if (!user) return;
     setSubmitting(true);
     setSubmitError("");
 
@@ -350,7 +234,6 @@ value: Number.isFinite(value) ? value : 0,
     const declaration: Declaration = {
       id: `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
       employee: form.employeeName,
-      employeeId: user.id,
       teamMemberNumber: form.employeeCode,
       lineManager: form.lineManager,
       company: form.company,
@@ -377,22 +260,11 @@ value: Number.isFinite(value) ? value : 0,
       status: "Pending",
       priority: value > 5000 ? "High" : value > 2000 ? "Medium" : "Low",
       files,
-value: Number.isFinite(value) ? value : 0,
-        occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
-        description: form.description,
-        instances: form.instances,
-        publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
-        substantiation: requiresSubstantiation ? form.substantiation : "",
-        approver: getFinalApproverName(value, form.lineManager),
-        status: "Pending",
-        priority,
-      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, data: f.data || "" })),
     };
 
     try {
-      const saved = await createDeclaration(declaration);
-      createWorkflow(saved);
-      onSubmitSuccess(saved);
+      const savedDeclaration = await createDeclaration(declaration);
+      onSubmitSuccess(savedDeclaration);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to submit declaration.");
     } finally {
@@ -481,9 +353,9 @@ value: Number.isFinite(value) ? value : 0,
             Definitions
           </p>
           {[
-            { t: "Gift",          d: "Anything of value including cash, vouchers, goods, services, preferential discount or favours." },
+            { t: "Gift",          d: "Anything of value including cash, vouchers, goods, services, preferential discounts or favours." },
             { t: "Hospitality",   d: "Accommodation, travel, conferences, tickets or formal business functions." },
-            { t: "Entertainment", d: "Meals, events, sporting or cultural or recreational activities." },
+            { t: "Entertainment", d: "Meals, events, sporting, cultural or recreational activities." },
           ].map((d) => (
             <div key={d.t} className="mb-2.5 last:mb-0">
               <p className="text-sm font-bold text-foreground">{d.t}</p>
@@ -512,6 +384,11 @@ value: Number.isFinite(value) ? value : 0,
             <p className="text-sm text-muted-foreground mt-0.5">
               Fields marked <span className="text-red-400 font-bold">*</span> are mandatory.
             </p>
+          </div>
+          <div className="flex items-center gap-2.5 self-start sm:self-auto">
+            <span className="h-7 px-3 rounded-full text-xs font-bold bg-amber-100 text-amber-700 flex items-center">
+              Draft
+            </span>
           </div>
         </div>
 
@@ -596,13 +473,6 @@ value: Number.isFinite(value) ? value : 0,
             </div>
             <div className="space-y-5">
               <div>
-                <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the supplier/customer?</FL>
-                <Sel value={form.existingRelationship} onChange={(v) => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
-                  <option value="">Select…</option>
-                  {ynu.map((o) => <option key={o}>{o}</option>)}
-                </Sel>
-              </div>
-              <div>
                 <FL required error={errors.contractNegotiation}>Are we currently negotiating a contract with the Supplier or Customer?</FL>
                 <Sel value={form.contractNegotiation} onChange={(v) => setF("contractNegotiation", v)} className={errors.contractNegotiation ? "border-red-400" : ""}>
                   <option value="">Select…</option>
@@ -612,6 +482,13 @@ value: Number.isFinite(value) ? value : 0,
               <div>
                 <FL required error={errors.biddingProcess}>Is the Supplier or potential Supplier involved in a bidding process with us?</FL>
                 <Sel value={form.biddingProcess} onChange={(v) => setF("biddingProcess", v)} className={errors.biddingProcess ? "border-red-400" : ""}>
+                  <option value="">Select…</option>
+                  {ynu.map((o) => <option key={o}>{o}</option>)}
+                </Sel>
+              </div>
+              <div>
+                <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the Supplier/Customer?</FL>
+                <Sel value={form.existingRelationship} onChange={(v) => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
                   <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
@@ -711,7 +588,7 @@ value: Number.isFinite(value) ? value : 0,
               <div className="flex items-start gap-2.5 mb-3">
                 <AlertCircle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-800 leading-relaxed">
-                  If the Rand Value including VAT exceeds <strong>R2,500.00</strong>, please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.
+                  If the Rand Value including VAT exceeds <strong>R2,000.00</strong>, please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.
                 </p>
               </div>
               <textarea
@@ -720,7 +597,7 @@ value: Number.isFinite(value) ? value : 0,
                 }`}
                 value={form.substantiation}
                 onChange={(e) => setF("substantiation", e.target.value)}
-                placeholder="Substantiation for value exceeding R2,500.00 (if applicable)…"
+                placeholder="Substantiation for value exceeding R2,000.00 (if applicable)…"
               />
             </div>
             )}
@@ -812,7 +689,7 @@ value: Number.isFinite(value) ? value : 0,
             )}
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
               <button
-                onClick={handleSaveDraft}
+                onClick={onDraftSaved}
                 className="h-12 px-6 rounded-xl text-sm font-semibold border border-slate-200 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:border-purple-200 hover:bg-purple-50 hover:shadow-sm active:translate-y-0 active:scale-[0.98]"
               >
                 Save Draft

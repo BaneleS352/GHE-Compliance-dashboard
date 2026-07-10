@@ -132,17 +132,5 @@ function toApiDeclaration(declaration: Declaration) {
     publicOfficial:      declaration.publicOfficial,
     substantiation:      declaration.substantiation,
     files:               declaration.files,
-  const declarations = getDeclarations();
-  return {
-    kpis: {
-      total: declarations.length,
-      pending: declarations.filter((item) => item.status === "Pending").length,
-      approved: declarations.filter((item) => item.status === "Approved").length,
-      declined: declarations.filter((item) => item.status === "Declined").length,
-      escalated: declarations.filter((item) => item.status === "Escalated").length,
-      totalValue: declarations.reduce((sum, item) => sum + item.value, 0),
-    },
-    complianceTrend: getComplianceTrend(),
-    typeBreakdown: getTypeBreakdown(),
   };
 }
