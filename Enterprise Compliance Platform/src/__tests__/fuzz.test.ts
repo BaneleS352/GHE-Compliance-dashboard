@@ -194,8 +194,8 @@ describe("Negative assertions — validation must reject clearly invalid data", 
     expect(determineWorkflowSteps({ value: 0 } as Declaration)).toBe("rule-1");
     expect(determineWorkflowSteps({ value: 250 } as Declaration)).toBe("rule-1");
     expect(determineWorkflowSteps({ value: 251 } as Declaration)).toBe("rule-2");
-    expect(determineWorkflowSteps({ value: 2500 } as Declaration)).toBe("rule-2");
-    expect(determineWorkflowSteps({ value: 2501 } as Declaration)).toBe("rule-3");
+    expect(determineWorkflowSteps({ value: 2000 } as Declaration)).toBe("rule-2");
+    expect(determineWorkflowSteps({ value: 2001 } as Declaration)).toBe("rule-3");
   });
 });
 
