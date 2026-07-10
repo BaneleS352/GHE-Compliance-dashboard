@@ -2,7 +2,8 @@ import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, 
 import { ImageWithFallback } from "../app/components/ImageWithFallback";
 import logoImg from "../assets/HB-Logo-NO-BG.png";
 import { YELLOW } from "../config/theme";
-import { Role, Screen } from "../types/declaration";
+import { Role, Screen, User } from "../types/declaration";
+import { canAccessScreen } from "../app/auth/authService";
 
 export function Sidebar({
   role,
@@ -10,12 +11,14 @@ export function Sidebar({
   onNavigate,
   collapsed,
   onToggle,
+  user,
 }: {
   role: Role;
   screen: Screen;
   onNavigate: (s: Screen) => void;
   collapsed: boolean;
   onToggle: () => void;
+  user?: User | null;
 }) {
   const links =
     role === "admin"
@@ -32,13 +35,18 @@ export function Sidebar({
           { screen: "new-declaration" as Screen, icon: Gift,        label: "New Declaration" },
           { screen: "my-declarations"  as Screen, icon: FileText,   label: "My Declarations" },
         ]
-      : [
-          { screen: "approver-dashboard" as Screen, icon: Home,        label: "Dashboard" },
-          { screen: "new-declaration"    as Screen, icon: Gift,        label: "New Declaration" },
-          { screen: "approval-queue"     as Screen, icon: CheckSquare, label: "Approval Queue" },
-          { screen: "my-declarations"    as Screen, icon: FileText,    label: "All Declarations" },
-          { screen: "admin-reports"      as Screen, icon: BarChart3,   label: "Reports" },
-        ];
+      : (() => {
+          const base: { screen: Screen; icon: any; label: string }[] = [
+            { screen: "approver-dashboard" as Screen, icon: Home,        label: "Dashboard" },
+            { screen: "new-declaration"    as Screen, icon: Gift,        label: "New Declaration" },
+            { screen: "approval-queue"     as Screen, icon: CheckSquare, label: "Approval Queue" },
+            { screen: "my-declarations"    as Screen, icon: FileText,    label: "All Declarations" },
+          ];
+          if (user && canAccessScreen(user, "admin-reports")) {
+            base.push({ screen: "admin-reports" as Screen, icon: BarChart3, label: "Reports" });
+          }
+          return base;
+        })();
 
   return (
     <>

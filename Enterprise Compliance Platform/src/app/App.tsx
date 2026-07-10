@@ -73,7 +73,7 @@ function AppInner() {
     <>
       {showDraftBanner && <DraftBanner onDismiss={() => setShowDraftBanner(false)} />}
 
-      <AppShell role={user?.role || getRoleForScreen(screen)} screen={screen} userName={user?.name || ""} onNavigate={guardedNavigate} onSignOut={handleSignOut}>
+      <AppShell role={user?.role || getRoleForScreen(screen)} screen={screen} userName={user?.name || ""} onNavigate={guardedNavigate} onSignOut={handleSignOut} user={user}>
         {screen === "new-declaration" && !showSubmittedView && (
           <NewDeclarationScreen
             onSubmitSuccess={handleSubmitSuccess}
