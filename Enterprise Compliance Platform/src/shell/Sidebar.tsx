@@ -55,12 +55,12 @@ export function Sidebar({
       style={{ background: "linear-gradient(180deg, #0f0225 0%, #39156F 100%)" }}
     >
       <div
-        className={`h-14 flex items-center border-b ${collapsed ? "justify-center px-0" : "justify-between px-4"}`}
+        className={`h-16 flex items-center border-b ${collapsed ? "justify-center px-0" : "justify-between px-4"}`}
         style={{ borderColor: "rgb(255 255 255 / 0.1)" }}
       >
         {!collapsed && (
           <div className="flex-1 pr-3">
-            <ImageWithFallback src={logoImg} alt="Hollywoodbets" className="h-10 w-full object-contain object-left" />
+            <ImageWithFallback src={logoImg} alt="Hollywoodbets" className="h-12 w-full object-contain object-left" />
           </div>
         )}
         <button

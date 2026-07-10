@@ -73,6 +73,7 @@ export interface Declaration {
   company?: string;
   team?: string;
   substantiation?: string;
+  files?: UploadedFile[];
   files?: { name: string; size: number; type: string; data: string }[];
 }
 

@@ -18,7 +18,7 @@ export function KpiCard({
   return (
     <div
       onClick={onClick}
-      className={`min-h-32 rounded-2xl border p-4 transition-all duration-300 sm:min-h-36 sm:p-5
+      className={`min-h-32 select-none rounded-2xl border p-4 transition-all duration-300 sm:min-h-36 sm:p-5
         ${onClick ? "cursor-pointer" : "cursor-default"}
         ${active ? "shadow-xl sm:scale-[1.03]" : "hover:shadow-md sm:hover:scale-[1.02]"}
       `}

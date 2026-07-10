@@ -84,6 +84,23 @@ export function AdminUsers() {
       <Card className="flex flex-col gap-3 border-white/70 bg-white/80 p-3.5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl md:flex-row">
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input
+            placeholder="Search by name, email, or ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="table-filter-input table-filter-with-icon"
+          />
+        </div>
+        <select className="table-filter-select md:w-auto">
+          <option>All Roles</option>
+          <option>Team Member</option>
+          <option>Approver</option>
+          <option>Administrator</option>
+        </select>
+        <select className="table-filter-select md:w-auto">
+          <option>All Statuses</option>
+          <option>Active</option>
+          <option>Inactive</option>
           <input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="h-10 w-full rounded-xl border border-border bg-white/90 pl-9 pr-4 text-sm transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
         </div>
         <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="h-10 w-full rounded-xl border border-border bg-white/90 px-3.5 text-sm md:w-auto">

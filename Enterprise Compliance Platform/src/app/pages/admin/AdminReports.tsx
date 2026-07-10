@@ -213,6 +213,7 @@ export function AdminReports() {
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">Start Date</label>
                 <div className="relative">
                   <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input type="date" className="table-filter-input table-filter-with-icon" />
                   <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-white/90 pl-9 pr-3 text-sm transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
                 </div>
               </div>
@@ -220,11 +221,13 @@ export function AdminReports() {
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">End Date</label>
                 <div className="relative">
                   <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input type="date" className="table-filter-input table-filter-with-icon" />
                   <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-white/90 pl-9 pr-3 text-sm transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
                 </div>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">Department</label>
+                <select className="table-filter-select">
                 <select value={department} onChange={(e) => setDepartment(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-white/90 px-3 text-sm transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10">
                   <option>All Departments</option>
                   {Array.from(new Set(getDeclarations().map((d) => d.department))).map((d) => <option key={d}>{d}</option>)}
@@ -232,6 +235,7 @@ export function AdminReports() {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">Status</label>
+                <select className="table-filter-select">
                 <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-11 w-full rounded-xl border border-border bg-white/90 px-3 text-sm transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10">
                   <option>All Statuses</option>
                   <option>Approved</option>

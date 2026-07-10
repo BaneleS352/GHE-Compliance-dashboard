@@ -80,6 +80,24 @@ export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => v
           <div className="mb-4 flex items-center gap-2">
             <h3 className="text-sm font-bold text-foreground">Compliance Trend</h3>
           </div>
+          <div className="mb-4 flex-1 space-y-2">
+            {desktopRows.slice(0, 2).map((item) => (
+              <div key={item.id} className="flex items-center justify-between rounded-xl bg-muted/30 p-2.5">
+                <div>
+                  <p className="text-xs font-mono font-bold" style={{ color: PURPLE }}>{item.id}</p>
+                  <p className="text-xs text-muted-foreground">{item.employee}</p>
+                </div>
+                <StatusBadge status={item.status} />
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => onNavigate("my-declarations")}
+            className="flex h-9 w-full items-center justify-center gap-1.5 rounded-xl text-xs font-semibold text-white hover:opacity-90"
+            style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
+          >
+            Show All Declarations <ChevronRight size={13} />
+          </button>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />

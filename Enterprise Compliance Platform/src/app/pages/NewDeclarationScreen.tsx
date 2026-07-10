@@ -195,6 +195,20 @@ export function NewDeclarationScreen({
         continue;
       }
       setUploadError(null);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFiles((f) => [
+          ...f,
+          {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            url: typeof reader.result === "string" ? reader.result : URL.createObjectURL(file),
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    });
       const fileData = await readFileAsBase64(file);
       setFiles((f) => [...f, { name: fileData.name, size: fileData.size, type: fileData.type, url: URL.createObjectURL(file), data: fileData.data }]);
     }
@@ -353,6 +367,16 @@ value: Number.isFinite(value) ? value : 0,
       type: category,
       date: form.date,
       submitted: new Date().toISOString().slice(0, 10),
+      value: Number.isFinite(value) ? value : 0,
+      occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
+      description: form.description,
+      instances: form.instances,
+      publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
+      substantiation: requiresSubstantiation ? form.substantiation : "",
+      approver: form.lineManager,
+      status: "Pending",
+      priority: value > 5000 ? "High" : value > 2000 ? "Medium" : "Low",
+      files,
 value: Number.isFinite(value) ? value : 0,
         occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
         description: form.description,
@@ -744,7 +768,7 @@ value: Number.isFinite(value) ? value : 0,
                     <Download size={13} />
                   </a>
                   <button
-                    onClick={(e) => { e.stopPropagation(); URL.revokeObjectURL(f.url); setFiles((fs) => fs.filter((_, j) => j !== i)); }}
+                    onClick={(e) => { e.stopPropagation(); setFiles((fs) => fs.filter((_, j) => j !== i)); }}
                     className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500"
                   >
                     <Trash2 size={13} />

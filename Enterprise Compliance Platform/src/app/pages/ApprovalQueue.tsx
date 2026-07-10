@@ -1,3 +1,6 @@
+import { useState, useEffect } from "react";
+import { Filter, Download, Search } from "lucide-react";
+import { approvalOptions } from "../../data/declarations";
 import { useState, useEffect, useMemo } from "react";
 import { Filter, Download, Search, ChevronDown } from "lucide-react";
 import { fetchDeclarations } from "../../services/api";
@@ -8,6 +11,7 @@ import { PageHeader } from "../components/PageHeader";
 import { THead } from "../components/THead";
 import { StatusBadge } from "../components/StatusBadge";
 import { TypeBadge } from "../components/TypeBadge";
+import { exportRowsToXls } from "../../utils/excel";
 import { useUser } from "../auth/UserContext";
 import { getPendingWorkflowStepsForUser, getApprovalOptions } from "../../data/db";
 
@@ -88,6 +92,10 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [department, setDepartment] = useState("All");
+  const [showFilters, setShowFilters] = useState(false);
+  const [status, setStatus] = useState("All");
+  const [priority, setPriority] = useState("All");
   const [typeFilter, setTypeFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [priorityFilter, setPriorityFilter] = useState("All");
@@ -100,6 +108,20 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       .finally(() => setLoading(false));
   }, []);
 
+  const queue = allDeclarations.filter((d) => ["Pending", "Escalated", "Info Requested"].includes(d.status));
+  const departments = Array.from(new Set(queue.map((d) => d.department))).sort();
+  const filteredQueue = queue.filter((d) => {
+    const query = search.trim().toLowerCase();
+    return (
+      (!query ||
+        d.id.toLowerCase().includes(query) ||
+        d.employee.toLowerCase().includes(query) ||
+        d.Counterparty.toLowerCase().includes(query)) &&
+      (department === "All" || d.department === department) &&
+      (status === "All" || d.status === status) &&
+      (priority === "All" || d.priority === priority)
+    );
+  });
   const pendingSteps = useMemo(
     () => (user ? getPendingWorkflowStepsForUser(user.id) : []),
     [user]
@@ -132,6 +154,23 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
     Medium: "bg-amber-50 text-amber-700",
     Low: "bg-emerald-50 text-emerald-700",
   };
+  const exportQueue = () => {
+    exportRowsToXls(
+      "ApprovalQueue",
+      "Queue",
+      filteredQueue.map((d) => ({
+        ID: d.id,
+        Employee: d.employee,
+        Department: d.department,
+        Type: d.type,
+        Counterparty: d.Counterparty,
+        Value: d.value,
+        Submitted: d.submitted,
+        Priority: d.priority,
+        Status: d.status,
+      }))
+    );
+  };
 
   if (loading) {
     return (
@@ -156,10 +195,17 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         subtitle={`${filtered.length} declarations awaiting your review`}
         actions={
           <>
-            <button className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto">
+            <button
+              onClick={() => setShowFilters((v) => !v)}
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto"
+              aria-pressed={showFilters}
+            >
               <Filter size={13} /> Filters
             </button>
-            <button className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto">
+            <button
+              onClick={exportQueue}
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto"
+            >
               <Download size={13} /> Export
             </button>
           </>
@@ -173,8 +219,20 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search declarations..."
-            className="h-10 w-full rounded-lg border border-border bg-white pl-9 pr-4 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="table-filter-input table-filter-with-icon"
           />
+        </div>
+        <div className="relative w-full md:w-auto">
+          <select
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+            className="table-filter-select md:w-auto"
+          >
+            <option value="All">All Departments</option>
+            {departments.map((dept) => (
+              <option key={dept}>{dept}</option>
+            ))}
+          </select>
         </div>
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-white px-2 text-sm md:max-w-[140px]">
           <option value="All">All Types</option>
@@ -193,8 +251,37 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
           {[...new Set(queue.map((d) => d.department))].map((dept) => <option key={dept}>{dept}</option>)}
         </select>
       </Card>
+      {showFilters && (
+        <Card className="mb-4 grid grid-cols-1 gap-3 p-3.5 sm:grid-cols-2">
+          <div className="relative">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="table-filter-select"
+            >
+              <option value="All">All Statuses</option>
+              <option>Pending</option>
+              <option>Escalated</option>
+              <option>Info Requested</option>
+            </select>
+          </div>
+          <div className="relative">
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className="table-filter-select"
+            >
+              <option value="All">All Priorities</option>
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
+            </select>
+          </div>
+        </Card>
+      )}
 
       <Card className="space-y-3 p-3.5 md:hidden">
+        {filteredQueue.map((d) => (
         {filtered.map((d) => (
           <div key={d.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
@@ -242,6 +329,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         <table className="w-full text-sm">
           <THead cols={["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status", "Actions"]} compact />
           <tbody className="divide-y divide-border">
+            {filteredQueue.map((d) => (
             {filtered.map((d) => (
               <tr key={d.id} className="transition-colors hover:bg-muted/20">
                 <td className="px-2 py-3"><span className="font-mono text-xs font-bold" style={{ color: PURPLE }}>{d.id}</span></td>
@@ -268,9 +356,9 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             ))}
           </tbody>
         </table>
-        <div className="flex flex-col gap-3 border-t border-border bg-[#F7F8FC] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="border-t border-border bg-[#F7F8FC] px-5 py-3.5">
           <p className="text-xs text-muted-foreground">
-            Showing <span className="font-semibold text-foreground">{filtered.length}</span> declarations
+            Showing <span className="font-semibold text-foreground">{filteredQueue.length}</span> declarations
           </p>
         </div>
       </Card>

@@ -1,3 +1,7 @@
+import { useState, useEffect } from "react";
+import { Download, FileText, Clock, Check, X, Coins, Eye } from "lucide-react";
+import { Declaration } from "../../types/declaration";
+import { fetchDeclarations } from "../../services/api";
 import { useState, useEffect, useMemo } from "react";
 import { Download, FileText, Clock, Check, X, Coins, Eye, List } from "lucide-react";
 import { Declaration, Role } from "../../types/declaration";
@@ -7,6 +11,7 @@ import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { DeclarationDetailView } from "../pages/DeclarationDetailView";
+import { exportRowsToXls } from "../../utils/excel";
 import { useUser } from "../auth/UserContext";
 import { getDeclarationsByEmployee, getDeclarations } from "../../data/db";
 import { exportToExcel, ColumnDef } from "../utils/excelExport";
@@ -107,6 +112,34 @@ export function MyDeclarationsScreen() {
   };
 
   const exportExcel = () => {
+    const data = filtered.map((d) => ({
+      ID: d.id,
+      Employee: d.employee,
+      Type: d.type,
+      Counterparty: d.Counterparty,
+      Value: d.value,
+      Submitted: d.submitted,
+      Status: d.status,
+      Approver: d.approver,
+    }));
+    exportRowsToXls("Declarations", "Declarations", data);
+  };
+
+  const exportRow = (d: Declaration) => {
+    exportRowsToXls(d.id, "Declaration", [
+      {
+        ID: d.id,
+        Employee: d.employee,
+        Department: d.department,
+        Type: d.type,
+        Counterparty: d.Counterparty,
+        Value: d.value,
+        Submitted: d.submitted,
+        Status: d.status,
+        Approver: d.approver,
+        Priority: d.priority,
+      },
+    ]);
     exportToExcel({
       fileName: "Declarations.xlsx",
       sheetName: "Declarations",
@@ -167,6 +200,27 @@ export function MyDeclarationsScreen() {
         <KpiCard label="Total Value" value={`R ${Math.round(totalValue / 1000)}K`} icon={Coins} color="#6366f1" />
       </div>
 
+      <Card className="mb-4 grid grid-cols-1 gap-3 border-white/70 bg-white/85 p-3 sm:grid-cols-2 xl:grid-cols-5">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="table-filter-input" />
+        <select onChange={(e) => setTypeFilter(e.target.value)} className="table-filter-select">
+          <option value="All">All GHE</option>
+          <option>Gift</option>
+          <option>Hospitality</option>
+          <option>Entertainment</option>
+        </select>
+        <select onChange={(e) => setStatusFilter(e.target.value)} className="table-filter-select">
+          <option value="All">All Status</option>
+          <option>Pending</option>
+          <option>Approved</option>
+          <option>Declined</option>
+        </select>
+        <select onChange={(e) => setApproverFilter(e.target.value)} className="table-filter-select">
+          <option value="All">All Approvers</option>
+          {[...new Set(declarations.map((d) => d.approver))].map((a) => (
+            <option key={a}>{a}</option>
+          ))}
+        </select>
+        <input type="date" onChange={(e) => setDateFilter(e.target.value)} className="table-filter-input" />
       <Card className="mb-4 flex flex-col gap-3 p-3.5 md:flex-row md:flex-wrap">
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="h-10 min-w-0 flex-[2] rounded-lg border border-border bg-white px-3 text-sm" />
         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-white px-2 text-sm md:max-w-[140px]">
@@ -231,11 +285,22 @@ export function MyDeclarationsScreen() {
           <thead className="sticky top-0 z-10 bg-white">
             <tr>
               {["id", "type", "counterparty", "value", "submitted", "approver", "status"].map((key) => (
+                <th
+                  key={key}
+                  onClick={() => {
+                    if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
+                    else {
+                      setSortKey(key as keyof Declaration);
+                      setSortDir("asc");
+                    }
+                  }}
+                  className="cursor-pointer px-5 py-3 text-left text-xs font-bold transition-all duration-200 hover:bg-purple-50/45 hover:text-purple-700"
+                >
                 <th key={key} onClick={() => { if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc"); else { setSortKey(key as keyof Declaration); setSortDir("asc"); } }} className="cursor-pointer px-5 py-3 text-left text-xs font-bold hover:text-primary">
                   {key === "counterparty" ? "COUNTERPARTY" : key === "approver" ? "FINAL APPROVER" : key.toUpperCase()}
                 </th>
               ))}
-              <th className="px-5 py-3 text-xs font-bold">ACTIONS</th>
+              <th className="px-5 py-3 text-xs font-bold transition-all duration-200 hover:bg-purple-50/45">ACTIONS</th>
             </tr>
           </thead>
           <tbody>
@@ -243,14 +308,14 @@ export function MyDeclarationsScreen() {
               <tr><td colSpan={8} className="py-10 text-center text-muted-foreground">No declarations found</td></tr>
             ) : (
               sorted.map((d) => (
-                <tr key={d.id} className="transition hover:bg-muted/20">
-                  <td className="px-5 py-3">{d.id}</td>
-                  <td className="px-5 py-3">{d.type}</td>
-                  <td className="px-5 py-3">{d.Counterparty}</td>
-                  <td className="px-5 py-3">{formatRand(d.value)}</td>
-                  <td className="px-5 py-3">{d.submitted}</td>
-                  <td className="px-5 py-3">{d.approver}</td>
-                  <td className="px-5 py-3"><StatusBadge status={d.status} /></td>
+                <tr key={d.id} className="group border-b border-border/70 transition-all duration-300 hover:bg-purple-50/35 hover:shadow-[inset_0_1px_0_rgba(196,181,253,0.12)]">
+                  <td className="px-5 py-3 font-medium text-slate-700 transition-colors duration-200 group-hover:text-purple-900">{d.id}</td>
+                  <td className="px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.type}</td>
+                  <td className="px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.Counterparty}</td>
+                  <td className="px-5 py-3 font-medium text-slate-700 transition-colors duration-200 group-hover:text-purple-900">{formatRand(d.value)}</td>
+                  <td className="px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.submitted}</td>
+                  <td className="px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.approver}</td>
+                  <td className="px-5 py-3 transition-transform duration-200 group-hover:translate-x-0.5"><StatusBadge status={d.status} /></td>
                   <td className="px-5 py-3">
                     <div className="flex gap-2">
                       <button onClick={() => setViewDecl(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70"><Eye size={12} /> View</button>
