@@ -11,10 +11,13 @@ export function getUserById(id: string): User | undefined {
 
 export function getUserByEmail(email: string): User | undefined {
   const lower = email.toLowerCase();
-  return get().users.find((u) => u.email.toLowerCase() === lower);
+  return get().users.find((u) => typeof u.email === "string" && u.email.toLowerCase() === lower);
 }
 
 export function addUser(user: User) {
+  if (user.name === "" || user.email === "" || user.role === "") {
+    throw new Error("name, email, and role must be non-empty");
+  }
   const db = get();
   if (db.users.some((u) => u.id === user.id || u.email === user.email)) {
     throw new Error("User with this ID or email already exists.");

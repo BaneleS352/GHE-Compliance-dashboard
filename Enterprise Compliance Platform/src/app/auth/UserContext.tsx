@@ -34,7 +34,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const login = (u: User) => {
+  const login = (u: User | null) => {
+    if (!u) {
+      setUser(null);
+      setIsAuthenticated(false);
+      localStorage.removeItem("ghe.auth.user");
+      return;
+    }
     setUser(u);
     setIsAuthenticated(true);
     localStorage.setItem("ghe.auth.user", JSON.stringify({ id: u.id }));

@@ -25,10 +25,11 @@ function verifyPassword(password: string, user: User): boolean {
 
 export async function authenticate(email: string, password: string): Promise<User | null> {
   if (typeof email !== "string" || typeof password !== "string") return null;
-  const user = getUserByEmail(email.toLowerCase());
+  const normalizedEmail = email.toLowerCase();
+  const user = getUserByEmail(normalizedEmail);
   if (!user) return null;
   if (!verifyPassword(password, user)) return null;
-  return user;
+  return getUserByEmail(normalizedEmail);
 }
 
 export function getUserRole(user: User): "teamMember" | "approver" | "admin" {

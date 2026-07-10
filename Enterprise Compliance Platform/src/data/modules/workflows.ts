@@ -45,6 +45,9 @@ export function getWorkflowForDeclaration(declarationId: string): WorkflowInstan
 }
 
 export function setWorkflowForDeclaration(instance: WorkflowInstance) {
+  if (instance.declarationId === "") {
+    throw new Error("declarationId must be non-empty");
+  }
   const db = get();
   const idx = db.workflowInstances.findIndex((w) => w.declarationId === instance.declarationId);
   if (idx !== -1) {
