@@ -93,17 +93,6 @@ export function Sidebar({
         </div>
       </nav>
 
-      <div className="px-2 pb-5 border-t pt-4" style={{ borderColor: "rgb(255 255 255 / 0.1)" }}>
-        <button
-          title={collapsed ? "Settings" : undefined}
-          className={`w-full flex items-center gap-3 rounded-xl text-base text-[#efe9ff] hover:bg-white/10 transition-colors font-medium ${
-            collapsed ? "justify-center p-2.5" : "px-3 py-3 text-[16px]"
-          }`}
-        >
-          <Settings size={18} className="opacity-90" />
-          {!collapsed && "Settings"}
-        </button>
-      </div>
     </aside>
     <nav className="md:hidden fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-white/15 bg-[#16062f]/95 p-2 shadow-[0_18px_50px_rgba(15,2,37,0.35)] backdrop-blur-xl">
       <div className="flex items-center justify-around gap-1">

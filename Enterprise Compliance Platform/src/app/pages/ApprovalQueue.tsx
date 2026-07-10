@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Filter, Download, Search, ChevronDown } from "lucide-react";
-import { approvalOptions } from "../../data/declarations";
 import { fetchDeclarations } from "../../services/api";
 import { Declaration, ApprovalDecision } from "../../types/declaration";
 import { PURPLE, formatRand } from "../../config/theme";
@@ -9,6 +8,10 @@ import { PageHeader } from "../components/PageHeader";
 import { THead } from "../components/THead";
 import { StatusBadge } from "../components/StatusBadge";
 import { TypeBadge } from "../components/TypeBadge";
+import { useUser } from "../auth/UserContext";
+import { getPendingWorkflowStepsForUser, getApprovalOptions } from "../../data/db";
+
+const approvalOptions = getApprovalOptions();
 
 export function ApproverDecisionBlock({
   title,
@@ -17,6 +20,7 @@ export function ApproverDecisionBlock({
   onSelect,
   notes,
   onNotesChange,
+  disabled,
 }: {
   title: string;
   role: string;
@@ -24,6 +28,7 @@ export function ApproverDecisionBlock({
   onSelect: (v: ApprovalDecision) => void;
   notes: string;
   onNotesChange: (v: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <Card className="p-5">
@@ -39,7 +44,9 @@ export function ApproverDecisionBlock({
         {approvalOptions.map((opt) => (
           <label
             key={opt.value}
-            className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-colors ${
+            className={`flex items-center gap-3 rounded-xl border-2 p-3 transition-colors ${
+              disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
+            } ${
               decision === opt.value ? "border-primary bg-[#F5F2FF]" : "border-transparent hover:border-border hover:bg-muted/20"
             }`}
           >
@@ -53,7 +60,7 @@ export function ApproverDecisionBlock({
               type="radio"
               name={title}
               checked={decision === opt.value}
-              onChange={() => onSelect(opt.value as ApprovalDecision)}
+              onChange={() => { if (!disabled) onSelect(opt.value as ApprovalDecision); }}
               className="sr-only"
             />
           </label>
@@ -64,10 +71,11 @@ export function ApproverDecisionBlock({
         <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Notes / Comments</label>
         <textarea
           value={notes}
-          onChange={(e) => onNotesChange(e.target.value)}
+          onChange={(e) => { if (!disabled) onNotesChange(e.target.value); }}
           rows={2}
-          className="w-full rounded-xl border bg-muted/20 px-3.5 py-2.5 text-sm"
+          className={`w-full rounded-xl border px-3.5 py-2.5 text-sm ${disabled ? "bg-gray-100 cursor-not-allowed" : "bg-muted/20"}`}
           placeholder="Add notes or reasoning..."
+          readOnly={disabled}
         />
       </div>
     </Card>
@@ -75,9 +83,15 @@ export function ApproverDecisionBlock({
 }
 
 export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void }) {
+  const { user } = useUser();
   const [allDeclarations, setAllDeclarations] = useState<Declaration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [priorityFilter, setPriorityFilter] = useState("All");
+  const [deptFilter, setDeptFilter] = useState("All");
 
   useEffect(() => {
     fetchDeclarations()
@@ -86,7 +100,33 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       .finally(() => setLoading(false));
   }, []);
 
-  const queue = allDeclarations.filter((d) => ["Pending", "Escalated", "Info Requested"].includes(d.status));
+  const pendingSteps = useMemo(
+    () => (user ? getPendingWorkflowStepsForUser(user.id) : []),
+    [user]
+  );
+
+  const queueDeclIds = useMemo(
+    () => new Set(pendingSteps.map((p) => p.declaration.id)),
+    [pendingSteps]
+  );
+
+  const queue = useMemo(
+    () => allDeclarations.filter((d) => queueDeclIds.has(d.id)),
+    [allDeclarations, queueDeclIds]
+  );
+
+  const filtered = useMemo(
+    () =>
+      queue.filter((d) =>
+        (!search || d.id.toLowerCase().includes(search.toLowerCase()) || d.employee.toLowerCase().includes(search.toLowerCase())) &&
+        (typeFilter === "All" || d.type === typeFilter) &&
+        (statusFilter === "All" || d.status === statusFilter) &&
+        (priorityFilter === "All" || d.priority === priorityFilter) &&
+        (deptFilter === "All" || d.department === deptFilter)
+      ),
+    [queue, search, typeFilter, statusFilter, priorityFilter, deptFilter]
+  );
+
   const priorityStyle: Record<string, string> = {
     High: "bg-red-50 text-red-700",
     Medium: "bg-amber-50 text-amber-700",
@@ -113,7 +153,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
     <div>
       <PageHeader
         title="Approval Queue"
-        subtitle={`${queue.length} declarations awaiting your review`}
+        subtitle={`${filtered.length} declarations awaiting your review`}
         actions={
           <>
             <button className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto">
@@ -126,27 +166,36 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         }
       />
 
-      <Card className="mb-4 flex flex-col gap-3 p-3.5 md:flex-row">
-        <div className="relative flex-1">
+      <Card className="mb-4 flex flex-col gap-3 p-3.5 md:flex-row md:flex-wrap">
+        <div className="relative min-w-0 flex-[2]">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search declarations..."
             className="h-10 w-full rounded-lg border border-border bg-white pl-9 pr-4 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
-        <div className="relative w-full md:w-auto">
-          <select className="h-10 w-full appearance-none rounded-lg border border-border bg-white pl-3.5 pr-9 text-sm md:w-auto">
-            <option>All Departments</option>
-            <option>Marketing</option>
-            <option>Sales</option>
-            <option>IT</option>
-          </select>
-          <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        </div>
+        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-white px-2 text-sm md:max-w-[140px]">
+          <option value="All">All Types</option>
+          <option>Gift</option><option>Hospitality</option><option>Entertainment</option>
+        </select>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-white px-2 text-sm md:max-w-[140px]">
+          <option value="All">All Status</option>
+          <option>Pending</option><option>Approved</option><option>Declined</option>
+        </select>
+        <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-white px-2 text-sm md:max-w-[120px]">
+          <option value="All">All Priority</option>
+          <option>High</option><option>Medium</option><option>Low</option>
+        </select>
+        <select value={deptFilter} onChange={(e) => setDeptFilter(e.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-white px-2 text-sm md:max-w-[150px]">
+          <option value="All">All Depts</option>
+          {[...new Set(queue.map((d) => d.department))].map((dept) => <option key={dept}>{dept}</option>)}
+        </select>
       </Card>
 
       <Card className="space-y-3 p-3.5 md:hidden">
-        {queue.map((d) => (
+        {filtered.map((d) => (
           <div key={d.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -190,23 +239,23 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       </Card>
 
       <Card className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[1050px] text-sm">
-          <THead cols={["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status", "Actions"]} />
+        <table className="w-full text-sm">
+          <THead cols={["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status", "Actions"]} compact />
           <tbody className="divide-y divide-border">
-            {queue.map((d) => (
+            {filtered.map((d) => (
               <tr key={d.id} className="transition-colors hover:bg-muted/20">
-                <td className="px-5 py-3.5"><span className="font-mono text-xs font-bold" style={{ color: PURPLE }}>{d.id}</span></td>
-                <td className="whitespace-nowrap px-5 py-3.5 text-sm font-medium text-foreground">{d.employee}</td>
-                <td className="px-5 py-3.5 text-xs text-muted-foreground">{d.department}</td>
-                <td className="px-5 py-3.5"><TypeBadge type={d.type} /></td>
-                <td className="px-5 py-3.5 text-sm font-medium text-foreground">{d.Counterparty}</td>
-                <td className="whitespace-nowrap px-5 py-3.5 text-sm font-semibold tabular-nums">{formatRand(d.value)}</td>
-                <td className="whitespace-nowrap px-5 py-3.5 text-xs tabular-nums text-muted-foreground">{d.submitted}</td>
-                <td className="px-5 py-3.5">
+                <td className="px-2 py-3"><span className="font-mono text-xs font-bold" style={{ color: PURPLE }}>{d.id}</span></td>
+                <td className="whitespace-nowrap px-2 py-3 text-sm font-medium text-foreground">{d.employee}</td>
+                <td className="px-2 py-3 text-xs text-muted-foreground">{d.department}</td>
+                <td className="px-2 py-3"><TypeBadge type={d.type} /></td>
+                <td className="px-2 py-3 text-sm font-medium text-foreground">{d.Counterparty}</td>
+                <td className="whitespace-nowrap px-2 py-3 text-sm font-semibold tabular-nums">{formatRand(d.value)}</td>
+                <td className="whitespace-nowrap px-2 py-3 text-xs tabular-nums text-muted-foreground">{d.submitted}</td>
+                <td className="px-2 py-3">
                   <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${priorityStyle[d.priority]}`}>{d.priority}</span>
                 </td>
-                <td className="px-5 py-3.5"><StatusBadge status={d.status} /></td>
-                <td className="px-5 py-3.5">
+                <td className="px-2 py-3"><StatusBadge status={d.status} /></td>
+                <td className="px-2 py-3">
                   <button
                     onClick={() => onReview(d)}
                     className="h-8 rounded-lg px-3 text-xs font-semibold text-white hover:opacity-90"
@@ -221,19 +270,8 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         </table>
         <div className="flex flex-col gap-3 border-t border-border bg-[#F7F8FC] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
-            Showing <span className="font-semibold text-foreground">{queue.length}</span> declarations
+            Showing <span className="font-semibold text-foreground">{filtered.length}</span> declarations
           </p>
-          <div className="flex gap-1.5">
-            {[1, 2].map((p) => (
-              <button
-                key={p}
-                className="h-8 w-8 rounded-lg text-xs font-semibold"
-                style={p === 1 ? { background: PURPLE, color: "#fff" } : { background: "#F0EEF8", color: "#6B6B80" }}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
         </div>
       </Card>
     </div>
