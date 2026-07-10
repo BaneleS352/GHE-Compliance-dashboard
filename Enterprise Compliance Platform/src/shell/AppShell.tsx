@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Sidebar } from "../shell/Sidebar";
 import { TopBar } from "../shell/TopBar";
 import { F } from "../config/theme";
-import { Role, Screen } from "../types/declaration";
+import { Role, Screen, User } from "../types/declaration";
 
 export function AppShell({
   role,
@@ -11,6 +11,7 @@ export function AppShell({
   onNavigate,
   onSignOut,
   children,
+  user,
 }: {
   role: Role;
   screen: Screen;
@@ -18,6 +19,7 @@ export function AppShell({
   onNavigate: (s: Screen) => void;
   onSignOut: () => void;
   children: React.ReactNode;
+  user?: User | null;
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -36,6 +38,7 @@ export function AppShell({
         onNavigate={onNavigate}
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}
+        user={user}
       />
 
       <div className="flex flex-col flex-1 min-w-0 min-h-0 relative z-10">

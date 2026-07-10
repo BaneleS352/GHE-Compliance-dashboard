@@ -28,12 +28,6 @@ export function formatRand(v: number) {
   return `R ${v.toLocaleString("en-ZA")}`;
 }
 
-export function formatBytes(b: number) {
-  return b < 1_048_576
-    ? `${(b / 1024).toFixed(0)} KB`
-    : `${(b / 1_048_576).toFixed(1)} MB`;
-}
-
 // ─── Shared input class strings ─────────────────────────────────────────────────
 export const inp =
   "w-full h-11 rounded-xl px-4 text-sm border border-slate-200 bg-slate-50 text-foreground focus:outline-none focus:ring-4 focus:ring-purple-500/20 focus:border-purple-600 focus:bg-white hover:border-purple-300 transition-all duration-200 ease-out placeholder:text-muted-foreground/50";

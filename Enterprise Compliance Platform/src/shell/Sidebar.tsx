@@ -1,8 +1,9 @@
-import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, Activity, List } from "lucide-react";
+import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, Activity, List, BarChart3 } from "lucide-react";
 import { ImageWithFallback } from "../app/components/ImageWithFallback";
 import logoImg from "../assets/HB-Logo-NO-BG.png";
 import { YELLOW } from "../config/theme";
-import { Role, Screen } from "../types/declaration";
+import { Role, Screen, User } from "../types/declaration";
+import { canAccessScreen } from "../app/auth/authService";
 
 export function Sidebar({
   role,
@@ -10,12 +11,14 @@ export function Sidebar({
   onNavigate,
   collapsed,
   onToggle,
+  user,
 }: {
   role: Role;
   screen: Screen;
   onNavigate: (s: Screen) => void;
   collapsed: boolean;
   onToggle: () => void;
+  user?: User | null;
 }) {
   const links =
     role === "admin"
@@ -32,11 +35,18 @@ export function Sidebar({
           { screen: "new-declaration" as Screen, icon: Gift,        label: "New Declaration" },
           { screen: "my-declarations"  as Screen, icon: FileText,   label: "My Declarations" },
         ]
-      : [
-          { screen: "approver-dashboard" as Screen, icon: Home,        label: "Dashboard" },
-          { screen: "approval-queue"     as Screen, icon: CheckSquare, label: "Approval Queue" },
-          { screen: "my-declarations"    as Screen, icon: FileText,    label: "All Declarations" },
-        ];
+      : (() => {
+          const base: { screen: Screen; icon: any; label: string }[] = [
+            { screen: "approver-dashboard" as Screen, icon: Home,        label: "Dashboard" },
+            { screen: "new-declaration"    as Screen, icon: Gift,        label: "New Declaration" },
+            { screen: "approval-queue"     as Screen, icon: CheckSquare, label: "Approval Queue" },
+            { screen: "my-declarations"    as Screen, icon: FileText,    label: "All Declarations" },
+          ];
+          if (user && canAccessScreen(user, "admin-reports")) {
+            base.push({ screen: "admin-reports" as Screen, icon: BarChart3, label: "Reports" });
+          }
+          return base;
+        })();
 
   return (
     <>
@@ -93,17 +103,6 @@ export function Sidebar({
         </div>
       </nav>
 
-      <div className="px-2 pb-5 border-t pt-4" style={{ borderColor: "rgb(255 255 255 / 0.1)" }}>
-        <button
-          title={collapsed ? "Settings" : undefined}
-          className={`w-full flex items-center gap-3 rounded-xl text-base text-[#efe9ff] hover:bg-white/10 transition-colors font-medium ${
-            collapsed ? "justify-center p-2.5" : "px-3 py-3 text-[16px]"
-          }`}
-        >
-          <Settings size={18} className="opacity-90" />
-          {!collapsed && "Settings"}
-        </button>
-      </div>
     </aside>
     <nav className="md:hidden fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-white/15 bg-[#16062f]/95 p-2 shadow-[0_18px_50px_rgba(15,2,37,0.35)] backdrop-blur-xl">
       <div className="flex items-center justify-around gap-1">

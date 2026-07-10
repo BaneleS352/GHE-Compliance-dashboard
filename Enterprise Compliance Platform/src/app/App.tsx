@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { UserProvider, useUser } from "./auth/UserContext";
+import { canAccessScreen } from "./auth/authService";
 import { AppShell } from "../shell/AppShell";
 import { LandingScreen } from "./pages/LandingScreen";
 import { NewDeclarationScreen } from "./pages/NewDeclarationScreen";
@@ -15,28 +17,30 @@ import { AdminConfig } from "./pages/admin/AdminConfig";
 import { AdminReports } from "./pages/admin/AdminReports";
 import { SuccessModal } from "./components/SuccessModal";
 import { DraftBanner } from "./components/DraftBanner";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Screen, Role, Declaration } from "../types/declaration";
 
-
-export default function App() {
+function AppInner() {
+  const { user, setUser } = useUser();
   const [screen, setScreen]             = useState<Screen>("landing");
-  const [role, setRole]                 = useState<Role>("teamMember");
-  const [userName, setUserName]         = useState("");
   const [selectedDecl, setSelectedDecl] = useState<Declaration | null>(null);
   const [submittedData, setSubmittedData] = useState<Declaration | null>(null);
   const [showSuccess, setShowSuccess]     = useState(false);
   const [showSubmittedView, setShowSubmittedView] = useState(false);
   const [showDraftBanner, setShowDraftBanner]     = useState(false);
 
-  const handleLogin = (r: Role, name: string) => {
-    setRole(r);
-    setUserName(name);
+  const getRoleForScreen = (s: Screen): Role =>
+    s === "admin-dashboard" || s === "admin-users" || s === "admin-workflows" || s === "admin-dropdowns" || s === "admin-config" || s === "admin-reports" ? "admin"
+    : s === "approver-dashboard" || s === "approval-queue" || s === "approval-detail" ? "approver"
+    : "teamMember";
+
+  const handleLogin = (r: Role, _name: string) => {
     setScreen(r === "admin" ? "admin-dashboard" : r === "approver" ? "approver-dashboard" : "new-declaration");
   };
 
   const handleSignOut = () => {
+    setUser(null);
     setScreen("landing");
-    setUserName("");
     setSelectedDecl(null);
     setSubmittedData(null);
     setShowSuccess(false);
@@ -49,7 +53,19 @@ export default function App() {
     setShowSubmittedView(false);
   };
 
+  const guardedNavigate = (s: Screen) => {
+    if (!canAccessScreen(user, s)) {
+      setScreen("landing");
+      return;
+    }
+    setScreen(s);
+  };
+
   if (screen === "landing" || screen === "login") {
+    return <LandingScreen onEnter={handleLogin} />;
+  }
+
+  if (!canAccessScreen(user, screen)) {
     return <LandingScreen onEnter={handleLogin} />;
   }
 
@@ -57,7 +73,7 @@ export default function App() {
     <>
       {showDraftBanner && <DraftBanner onDismiss={() => setShowDraftBanner(false)} />}
 
-      <AppShell role={role} screen={screen} userName={userName} onNavigate={setScreen} onSignOut={handleSignOut}>
+      <AppShell role={user?.role || getRoleForScreen(screen)} screen={screen} userName={user?.name || ""} onNavigate={guardedNavigate} onSignOut={handleSignOut} user={user}>
         {screen === "new-declaration" && !showSubmittedView && (
           <NewDeclarationScreen
             onSubmitSuccess={handleSubmitSuccess}
@@ -68,14 +84,14 @@ export default function App() {
           <DeclarationDetailView data={submittedData} onBack={() => setShowSubmittedView(false)} />
         )}
         {screen === "my-declarations"    && <MyDeclarationsScreen />}
-        {screen === "approver-dashboard" && <ApproverDashboard onNavigate={setScreen} />}
+        {screen === "approver-dashboard" && <ApproverDashboard onNavigate={guardedNavigate} />}
         {screen === "approval-queue"     && (
-          <ApprovalQueue onReview={(d) => { setSelectedDecl(d); setScreen("approval-detail"); }} />
+          <ApprovalQueue onReview={(d) => { setSelectedDecl(d); guardedNavigate("approval-detail"); }} />
         )}
         {screen === "approval-detail" && selectedDecl && (
-          <ApprovalDetail declaration={selectedDecl} onBack={() => setScreen("approval-queue")} />
+          <ApprovalDetail declaration={selectedDecl} onBack={() => guardedNavigate("approval-queue")} />
         )}
-        {screen === "admin-dashboard" && <AdminDashboard onNavigate={setScreen} />}
+        {screen === "admin-dashboard" && <AdminDashboard onNavigate={guardedNavigate} />}
         {screen === "admin-users"     && <AdminUsers />}
         {screen === "admin-workflows" && <AdminWorkflows />}
         {screen === "admin-dropdowns" && <AdminDropdowns />}
@@ -91,5 +107,15 @@ export default function App() {
         />
       )}
     </>
+  );
+}
+
+export default function App() {
+  return (
+    <UserProvider>
+      <ErrorBoundary>
+        <AppInner />
+      </ErrorBoundary>
+    </UserProvider>
   );
 }
