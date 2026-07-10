@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx";
 import { useState, useEffect, useMemo } from "react";
 import { Download, FileText, Clock, Check, X, Coins, Eye, List } from "lucide-react";
 import { Declaration, Role } from "../../types/declaration";
@@ -10,6 +9,35 @@ import { StatusBadge } from "../components/StatusBadge";
 import { DeclarationDetailView } from "../pages/DeclarationDetailView";
 import { useUser } from "../auth/UserContext";
 import { getDeclarationsByEmployee, getDeclarations } from "../../data/db";
+import { exportToExcel, ColumnDef } from "../utils/excelExport";
+
+const DECLARATION_COLUMNS: ColumnDef[] = [
+  { header: "ID", key: "id", width: 16 },
+  { header: "Employee", key: "employee", width: 22 },
+  { header: "Team Member No", key: "teamMemberNumber", width: 16 },
+  { header: "Department", key: "department", width: 16 },
+  { header: "Type", key: "type", width: 14 },
+  { header: "Counterparty", key: "Counterparty", width: 22 },
+  { header: "Value (R)", key: "value", width: 14 },
+  { header: "Submitted", key: "submitted", width: 14 },
+  { header: "Final Approver", key: "approver", width: 20 },
+  { header: "Status", key: "status", width: 14 },
+  { header: "Priority", key: "priority", width: 12 },
+];
+
+const toRow = (d: Declaration) => ({
+  id: d.id,
+  employee: d.employee,
+  teamMemberNumber: d.teamMemberNumber,
+  department: d.department,
+  type: d.type,
+  Counterparty: d.Counterparty,
+  value: d.value,
+  submitted: d.submitted,
+  approver: d.approver,
+  status: d.status,
+  priority: d.priority,
+});
 
 export function MyDeclarationsScreen() {
   const { user } = useUser();
@@ -79,22 +107,27 @@ export function MyDeclarationsScreen() {
   };
 
   const exportExcel = () => {
-    const data = filtered.map((d) => ({
-      ID: d.id, Employee: d.employee, Type: d.type, Counterparty: d.Counterparty,
-      Value: d.value, Submitted: d.submitted, Status: d.status, Approver: d.approver,
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Declarations");
-    XLSX.writeFile(wb, "Declarations.xlsx");
+    exportToExcel({
+      fileName: "Declarations.xlsx",
+      sheetName: "Declarations",
+      title: showAll ? "All Declarations" : "My Declarations",
+      meta: [
+        ["Generated", new Date().toISOString().slice(0, 10)],
+        ["Total Records", String(filtered.length)],
+      ],
+      columns: DECLARATION_COLUMNS,
+      rows: filtered.map(toRow),
+    });
   };
 
   const exportRow = (d: Declaration) => {
-    const csv = Object.entries(d).map(([k, v]) => `${k},${v}`).join("\n");
-    const a = document.createElement("a");
-    a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
-    a.download = `${d.id}.csv`;
-    a.click();
+    exportToExcel({
+      fileName: `${d.id}.xlsx`,
+      sheetName: "Declaration",
+      title: `Declaration ${d.id}`,
+      columns: DECLARATION_COLUMNS,
+      rows: [toRow(d)],
+    });
   };
 
   if (viewDecl) {

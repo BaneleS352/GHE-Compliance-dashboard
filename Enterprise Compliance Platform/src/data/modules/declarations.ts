@@ -39,7 +39,7 @@ export function updateDeclaration(id: string, updates: Partial<Declaration>) {
     throw new Error(`Declaration with id "${id}" not found.`);
   }
   const current = db.declarations[idx];
-  if (updates.status && !["Draft", "Pending", "Approved", "Declined", "Escalated", "Info Requested"].includes(updates.status)) {
+  if (updates.status !== undefined && !["Draft", "Pending", "Approved", "Declined", "Escalated", "Info Requested"].includes(updates.status)) {
     throw new Error(`Invalid status: "${updates.status}". Must be one of: Draft, Pending, Approved, Declined, Escalated, Info Requested.`);
   }
   if (updates.value !== undefined) {

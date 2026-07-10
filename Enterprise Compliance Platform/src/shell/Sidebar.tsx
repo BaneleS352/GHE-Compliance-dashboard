@@ -34,8 +34,10 @@ export function Sidebar({
         ]
       : [
           { screen: "approver-dashboard" as Screen, icon: Home,        label: "Dashboard" },
+          { screen: "new-declaration"    as Screen, icon: Gift,        label: "New Declaration" },
           { screen: "approval-queue"     as Screen, icon: CheckSquare, label: "Approval Queue" },
           { screen: "my-declarations"    as Screen, icon: FileText,    label: "All Declarations" },
+          { screen: "admin-reports"      as Screen, icon: BarChart3,   label: "Reports" },
         ];
 
   return (

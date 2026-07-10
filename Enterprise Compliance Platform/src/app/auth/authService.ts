@@ -24,6 +24,7 @@ function verifyPassword(password: string, user: User): boolean {
 }
 
 export async function authenticate(email: string, password: string): Promise<User | null> {
+  if (typeof email !== "string" || typeof password !== "string") return null;
   const user = getUserByEmail(email.toLowerCase());
   if (!user) return null;
   if (!verifyPassword(password, user)) return null;
@@ -38,6 +39,7 @@ export function canAccessScreen(user: User | null, screen: string): boolean {
   if (!user) return screen === "landing" || screen === "login";
 
   const role = user.role;
+  if (screen === "admin-reports") return role === "admin" || role === "approver";
   if (screen.startsWith("admin-")) return role === "admin";
   if (screen === "approver-dashboard" || screen === "approval-queue" || screen === "approval-detail") {
     return role === "approver" || role === "admin";
