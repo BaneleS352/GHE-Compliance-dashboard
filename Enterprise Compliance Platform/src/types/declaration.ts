@@ -1,5 +1,3 @@
-// ─── Domain types ──────────────────────────────────────────────────────────────
-
 export type Screen =
   | "landing"
   | "login"
@@ -34,9 +32,22 @@ export type ApprovalDecision =
   | "decline"
   | null;
 
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  passwordHash: string;
+  role: Role;
+  teamMemberNumber: string;
+  department: string;
+  position: string;
+  lineManager: string | null;
+}
+
 export interface Declaration {
   id: string;
   employee: string;
+  employeeId?: string;
   department: string;
   type: string;
   Counterparty: string;
@@ -63,6 +74,51 @@ export interface Declaration {
   team?: string;
   substantiation?: string;
   files?: UploadedFile[];
+  files?: { name: string; size: number; type: string; data: string }[];
+}
+
+export interface WorkflowStep {
+  order: number;
+  role: "lineManager" | "hr" | "ceo";
+  assignee: string;
+  assigneeName: string;
+  label: string;
+  status: "pending" | "approved" | "declined" | "returned";
+  decision: ApprovalDecision;
+  notes: string;
+  decidedAt: string | null;
+}
+
+export interface WorkflowInstance {
+  declarationId: string;
+  steps: WorkflowStep[];
+}
+
+export interface WorkflowRule {
+  id: string;
+  name: string;
+  condition: string;
+  priority: number;
+  steps: { order: number; role: "lineManager" | "hr" | "ceo"; label: string }[];
+}
+
+export interface SystemConfig {
+  highValueThreshold: number;
+  mediumValueThreshold: number;
+  slaEscalationDays: number;
+  maxDeclarationsPerCounterparty: number;
+  emailTemplate: string;
+}
+
+export interface Dropdowns {
+  departments: string[];
+  categories: string[];
+  occasions: string[];
+  receivedGiven: string[];
+  biddingProcess: string[];
+  publicOfficial: string[];
+  relationships: string[];
+  partyTypes: string[];
 }
 
 export interface UploadedFile {
@@ -70,4 +126,17 @@ export interface UploadedFile {
   size: number;
   type: string;
   url: string;
+  data?: string;
+}
+
+export interface ComplianceTrendPoint {
+  month: string;
+  approved: number;
+  declined: number;
+}
+
+export interface TypeBreakdownItem {
+  name: string;
+  value: number;
+  color: string;
 }
