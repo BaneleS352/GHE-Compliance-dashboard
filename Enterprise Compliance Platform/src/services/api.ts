@@ -160,6 +160,7 @@ function mapDeclaration(raw: any): Declaration {
     instances:           raw.instances,
     publicOfficial:      raw.publicOfficial,
     substantiation:      raw.substantiation,
+    files:               raw.files,
   };
 }
 
@@ -192,6 +193,7 @@ function toApiDeclaration(declaration: Declaration) {
     instances:           declaration.instances,
     publicOfficial:      declaration.publicOfficial,
     substantiation:      declaration.substantiation,
+    files:               declaration.files,
   };
 }
 

@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx";
 import { useState, useEffect } from "react";
 import { Download, FileText, Clock, Check, X, Coins, Eye } from "lucide-react";
 import { Declaration } from "../../types/declaration";
@@ -9,6 +8,7 @@ import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { DeclarationDetailView } from "../pages/DeclarationDetailView";
+import { exportRowsToXls } from "../../utils/excel";
 
 export function MyDeclarationsScreen() {
   const [declarations, setDeclarations] = useState<Declaration[]>([]);
@@ -95,18 +95,24 @@ export function MyDeclarationsScreen() {
       Status: d.status,
       Approver: d.approver,
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Declarations");
-    XLSX.writeFile(wb, "Declarations.xlsx");
+    exportRowsToXls("Declarations", "Declarations", data);
   };
 
   const exportRow = (d: Declaration) => {
-    const csv = Object.entries(d).map(([k, v]) => `${k},${v}`).join("\n");
-    const a = document.createElement("a");
-    a.href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
-    a.download = `${d.id}.csv`;
-    a.click();
+    exportRowsToXls(d.id, "Declaration", [
+      {
+        ID: d.id,
+        Employee: d.employee,
+        Department: d.department,
+        Type: d.type,
+        Counterparty: d.Counterparty,
+        Value: d.value,
+        Submitted: d.submitted,
+        Status: d.status,
+        Approver: d.approver,
+        Priority: d.priority,
+      },
+    ]);
   };
 
   if (viewDecl) {
@@ -217,12 +223,12 @@ export function MyDeclarationsScreen() {
                       setSortDir("asc");
                     }
                   }}
-                  className="cursor-pointer px-5 py-3 text-left text-xs font-bold hover:text-primary"
+                  className="cursor-pointer px-5 py-3 text-left text-xs font-bold transition-all duration-200 hover:bg-purple-50/45 hover:text-purple-700"
                 >
                   {key === "counterparty" ? "COUNTERPARTY" : key === "approver" ? "FINAL APPROVER" : key.toUpperCase()}
                 </th>
               ))}
-              <th className="px-5 py-3 text-xs font-bold">ACTIONS</th>
+              <th className="px-5 py-3 text-xs font-bold transition-all duration-200 hover:bg-purple-50/45">ACTIONS</th>
             </tr>
           </thead>
           <tbody>
@@ -232,14 +238,14 @@ export function MyDeclarationsScreen() {
               </tr>
             ) : (
               sorted.map((d) => (
-                <tr key={d.id} className="transition hover:bg-muted/20">
-                  <td className="px-5 py-3">{d.id}</td>
-                  <td className="px-5 py-3">{d.type}</td>
-                  <td className="px-5 py-3">{d.Counterparty}</td>
-                  <td className="px-5 py-3">{formatRand(d.value)}</td>
-                  <td className="px-5 py-3">{d.submitted}</td>
-                  <td className="px-5 py-3">{d.approver}</td>
-                  <td className="px-5 py-3"><StatusBadge status={d.status} /></td>
+                <tr key={d.id} className="group border-b border-border/70 transition-all duration-300 hover:bg-purple-50/35 hover:shadow-[inset_0_1px_0_rgba(196,181,253,0.12)]">
+                  <td className="px-5 py-3 font-medium text-slate-700 transition-colors duration-200 group-hover:text-purple-900">{d.id}</td>
+                  <td className="px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.type}</td>
+                  <td className="px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.Counterparty}</td>
+                  <td className="px-5 py-3 font-medium text-slate-700 transition-colors duration-200 group-hover:text-purple-900">{formatRand(d.value)}</td>
+                  <td className="px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.submitted}</td>
+                  <td className="px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.approver}</td>
+                  <td className="px-5 py-3 transition-transform duration-200 group-hover:translate-x-0.5"><StatusBadge status={d.status} /></td>
                   <td className="px-5 py-3">
                     <div className="flex gap-2">
                       <button onClick={() => setViewDecl(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">

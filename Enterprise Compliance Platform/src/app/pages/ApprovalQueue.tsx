@@ -9,6 +9,7 @@ import { PageHeader } from "../components/PageHeader";
 import { THead } from "../components/THead";
 import { StatusBadge } from "../components/StatusBadge";
 import { TypeBadge } from "../components/TypeBadge";
+import { exportRowsToXls } from "../../utils/excel";
 
 export function ApproverDecisionBlock({
   title,
@@ -78,6 +79,11 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const [allDeclarations, setAllDeclarations] = useState<Declaration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [department, setDepartment] = useState("All");
+  const [showFilters, setShowFilters] = useState(false);
+  const [status, setStatus] = useState("All");
+  const [priority, setPriority] = useState("All");
 
   useEffect(() => {
     fetchDeclarations()
@@ -87,10 +93,40 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   }, []);
 
   const queue = allDeclarations.filter((d) => ["Pending", "Escalated", "Info Requested"].includes(d.status));
+  const departments = Array.from(new Set(queue.map((d) => d.department))).sort();
+  const filteredQueue = queue.filter((d) => {
+    const query = search.trim().toLowerCase();
+    return (
+      (!query ||
+        d.id.toLowerCase().includes(query) ||
+        d.employee.toLowerCase().includes(query) ||
+        d.Counterparty.toLowerCase().includes(query)) &&
+      (department === "All" || d.department === department) &&
+      (status === "All" || d.status === status) &&
+      (priority === "All" || d.priority === priority)
+    );
+  });
   const priorityStyle: Record<string, string> = {
     High: "bg-red-50 text-red-700",
     Medium: "bg-amber-50 text-amber-700",
     Low: "bg-emerald-50 text-emerald-700",
+  };
+  const exportQueue = () => {
+    exportRowsToXls(
+      "ApprovalQueue",
+      "Queue",
+      filteredQueue.map((d) => ({
+        ID: d.id,
+        Employee: d.employee,
+        Department: d.department,
+        Type: d.type,
+        Counterparty: d.Counterparty,
+        Value: d.value,
+        Submitted: d.submitted,
+        Priority: d.priority,
+        Status: d.status,
+      }))
+    );
   };
 
   if (loading) {
@@ -113,13 +149,20 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
     <div>
       <PageHeader
         title="Approval Queue"
-        subtitle={`${queue.length} declarations awaiting your review`}
+        subtitle={`${filteredQueue.length} declarations awaiting your review`}
         actions={
           <>
-            <button className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto">
+            <button
+              onClick={() => setShowFilters((v) => !v)}
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto"
+              aria-pressed={showFilters}
+            >
               <Filter size={13} /> Filters
             </button>
-            <button className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto">
+            <button
+              onClick={exportQueue}
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto"
+            >
               <Download size={13} /> Export
             </button>
           </>
@@ -130,23 +173,59 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search declarations..."
             className="h-10 w-full rounded-lg border border-border bg-white pl-9 pr-4 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
         <div className="relative w-full md:w-auto">
-          <select className="h-10 w-full appearance-none rounded-lg border border-border bg-white pl-3.5 pr-9 text-sm md:w-auto">
-            <option>All Departments</option>
-            <option>Marketing</option>
-            <option>Sales</option>
-            <option>IT</option>
+          <select
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+            className="h-10 w-full appearance-none rounded-lg border border-border bg-white pl-3.5 pr-9 text-sm md:w-auto"
+          >
+            <option value="All">All Departments</option>
+            {departments.map((dept) => (
+              <option key={dept}>{dept}</option>
+            ))}
           </select>
           <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         </div>
       </Card>
+      {showFilters && (
+        <Card className="mb-4 grid grid-cols-1 gap-3 p-3.5 sm:grid-cols-2">
+          <div className="relative">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="h-10 w-full appearance-none rounded-lg border border-border bg-white pl-3.5 pr-9 text-sm"
+            >
+              <option value="All">All Statuses</option>
+              <option>Pending</option>
+              <option>Escalated</option>
+              <option>Info Requested</option>
+            </select>
+            <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          </div>
+          <div className="relative">
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className="h-10 w-full appearance-none rounded-lg border border-border bg-white pl-3.5 pr-9 text-sm"
+            >
+              <option value="All">All Priorities</option>
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
+            </select>
+            <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          </div>
+        </Card>
+      )}
 
       <Card className="space-y-3 p-3.5 md:hidden">
-        {queue.map((d) => (
+        {filteredQueue.map((d) => (
           <div key={d.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -193,7 +272,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         <table className="w-full min-w-[1050px] text-sm">
           <THead cols={["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status", "Actions"]} />
           <tbody className="divide-y divide-border">
-            {queue.map((d) => (
+            {filteredQueue.map((d) => (
               <tr key={d.id} className="transition-colors hover:bg-muted/20">
                 <td className="px-5 py-3.5"><span className="font-mono text-xs font-bold" style={{ color: PURPLE }}>{d.id}</span></td>
                 <td className="whitespace-nowrap px-5 py-3.5 text-sm font-medium text-foreground">{d.employee}</td>
@@ -219,21 +298,10 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             ))}
           </tbody>
         </table>
-        <div className="flex flex-col gap-3 border-t border-border bg-[#F7F8FC] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="border-t border-border bg-[#F7F8FC] px-5 py-3.5">
           <p className="text-xs text-muted-foreground">
-            Showing <span className="font-semibold text-foreground">{queue.length}</span> declarations
+            Showing <span className="font-semibold text-foreground">{filteredQueue.length}</span> declarations
           </p>
-          <div className="flex gap-1.5">
-            {[1, 2].map((p) => (
-              <button
-                key={p}
-                className="h-8 w-8 rounded-lg text-xs font-semibold"
-                style={p === 1 ? { background: PURPLE, color: "#fff" } : { background: "#F0EEF8", color: "#6B6B80" }}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
         </div>
       </Card>
     </div>

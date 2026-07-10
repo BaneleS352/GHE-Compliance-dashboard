@@ -107,14 +107,6 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
               </button>
             </div>
           </form>
-          <div className="flex flex-col sm:flex-row gap-2.5 mt-3">
-            <button className="flex-1 h-11 rounded-xl text-sm font-semibold text-muted-foreground border border-border hover:bg-muted transition-colors">
-              Forgot Password
-            </button>
-            <button className="flex-1 h-11 rounded-xl text-sm font-semibold text-muted-foreground border border-border hover:bg-muted transition-colors">
-              Support
-            </button>
-          </div>
           <div className="mt-8 pt-6 border-t border-border">
             <p className="text-xs text-center text-muted-foreground">
               For access issues, contact your IT Helpdesk or HR representative.

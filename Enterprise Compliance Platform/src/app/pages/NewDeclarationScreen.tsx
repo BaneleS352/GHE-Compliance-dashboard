@@ -161,7 +161,19 @@ export function NewDeclarationScreen({
         return;
       }
       setUploadError(null);
-      setFiles((f) => [...f, { name: file.name, size: file.size, type: file.type, url: URL.createObjectURL(file) }]);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFiles((f) => [
+          ...f,
+          {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            url: typeof reader.result === "string" ? reader.result : URL.createObjectURL(file),
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
     });
   }, []);
 
@@ -247,6 +259,7 @@ export function NewDeclarationScreen({
       approver: form.lineManager,
       status: "Pending",
       priority: value > 5000 ? "High" : value > 2000 ? "Medium" : "Low",
+      files,
     };
 
     try {
@@ -643,7 +656,7 @@ export function NewDeclarationScreen({
                     <Download size={13} />
                   </a>
                   <button
-                    onClick={(e) => { e.stopPropagation(); URL.revokeObjectURL(f.url); setFiles((fs) => fs.filter((_, j) => j !== i)); }}
+                    onClick={(e) => { e.stopPropagation(); setFiles((fs) => fs.filter((_, j) => j !== i)); }}
                     className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500"
                   >
                     <Trash2 size={13} />

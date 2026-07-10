@@ -183,7 +183,7 @@ export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => v
             ))}
           </div>
           <button
-            onClick={() => setActiveFilter("All")}
+            onClick={() => onNavigate("my-declarations")}
             className="flex h-9 w-full items-center justify-center gap-1.5 rounded-xl text-xs font-semibold text-white hover:opacity-90"
             style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
           >

@@ -9,6 +9,16 @@ html, body, #root {
   padding: 0;
 }
 
+body {
+  cursor: default;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  cursor: text;
+}
+
 @keyframes gradient {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
@@ -48,6 +58,48 @@ html, body, #root {
 @keyframes header-carousel {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
+}
+
+.detail-panel-shell {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.55rem;
+  padding: 1px;
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.18), 0 0 24px rgba(139, 92, 246, 0.2), 0 10px 30px rgba(79, 29, 149, 0.12);
+}
+
+.detail-panel-shell::after {
+  content: "";
+  position: absolute;
+  inset: -35%;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #6d28d9 0deg, #8b5cf6 110deg, #c026d3 220deg, #e879f9 300deg, #6d28d9 360deg);
+  animation: detail-panel-rotate 7s linear infinite;
+  filter: blur(14px);
+  opacity: 0.95;
+  pointer-events: none;
+}
+
+.detail-panel-shell::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.12));
+  pointer-events: none;
+  z-index: 1;
+}
+
+.detail-panel-card {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  border-radius: calc(1.55rem - 1px);
+}
+
+@keyframes detail-panel-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 @media (min-width: 640px) {
