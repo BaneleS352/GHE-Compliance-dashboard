@@ -3,6 +3,7 @@ import { Download, FileText, Clock, Check, X, Coins, Eye } from "lucide-react";
 import { Declaration } from "../../types/declaration";
 import { fetchDeclarations } from "../../services/api";
 import { formatRand } from "../../config/theme";
+import { useUser } from "../auth/UserContext";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
@@ -11,6 +12,7 @@ import { DeclarationDetailView } from "../pages/DeclarationDetailView";
 import { exportRowsToXls } from "../../utils/excel";
 
 export function MyDeclarationsScreen() {
+  const { user } = useUser();
   const [declarations, setDeclarations] = useState<Declaration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +24,7 @@ export function MyDeclarationsScreen() {
       .finally(() => setLoading(false));
   }, []);
 
+  const [viewMode, setViewMode] = useState<"my" | "all">("my");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -31,6 +34,11 @@ export function MyDeclarationsScreen() {
   const [sortKey, setSortKey] = useState<keyof Declaration | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
+
+  const userDeclarations = user
+    ? declarations.filter((d) => d.employeeId === user.id || d.employee === user.name)
+    : declarations;
+  const visibleDeclarations = viewMode === "my" ? userDeclarations : declarations;
 
   if (loading) {
     return (
@@ -49,7 +57,7 @@ export function MyDeclarationsScreen() {
   }
 
 
-  const filtered = declarations.filter(
+  const filtered = visibleDeclarations.filter(
     (d) =>
       (!search ||
         d.id.toLowerCase().includes(search.toLowerCase()) ||
@@ -77,7 +85,7 @@ export function MyDeclarationsScreen() {
     return 0;
   });
 
-  const totalValue = declarations.reduce((sum, d) => sum + d.value, 0);
+  const totalValue = visibleDeclarations.reduce((sum, d) => sum + d.value, 0);
 
   const handleKpiClick = (type: string) => {
     setActiveKpi(type);
@@ -122,20 +130,36 @@ export function MyDeclarationsScreen() {
   return (
     <div>
       <PageHeader
-        title="My Declarations"
-        subtitle="Manage and review your declarations"
+        title={viewMode === "my" ? "My Declarations" : "All Declarations"}
+        subtitle={`${visibleDeclarations.length} ${viewMode === "my" ? "of your" : "total"} declarations`}
         actions={
-          <button onClick={exportExcel} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border bg-white px-4 text-sm font-semibold hover:bg-muted sm:w-auto">
-            <Download size={13} /> Export Excel
-          </button>
+          <div className="flex gap-2">
+            <div className="flex overflow-hidden rounded-xl border border-border bg-white text-sm font-semibold">
+              <button
+                onClick={() => setViewMode("my")}
+                className={`px-4 py-2 transition-colors ${viewMode === "my" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
+              >
+                My
+              </button>
+              <button
+                onClick={() => setViewMode("all")}
+                className={`px-4 py-2 transition-colors ${viewMode === "all" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
+              >
+                All
+              </button>
+            </div>
+            <button onClick={exportExcel} className="flex h-10 items-center justify-center gap-2 rounded-xl border bg-white px-4 text-sm font-semibold hover:bg-muted sm:w-auto">
+              <Download size={13} /> Export Excel
+            </button>
+          </div>
         }
       />
 
       <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <KpiCard label="Total" value={String(declarations.length)} icon={FileText} color="#7c3aed" active={activeKpi === "All"} onClick={() => handleKpiClick("All")} />
-        <KpiCard label="Pending" value={String(declarations.filter((d) => d.status === "Pending").length)} icon={Clock} color="#f59e0b" active={activeKpi === "Pending"} onClick={() => handleKpiClick("Pending")} />
-        <KpiCard label="Approved" value={String(declarations.filter((d) => d.status === "Approved").length)} icon={Check} color="#10b981" active={activeKpi === "Approved"} onClick={() => handleKpiClick("Approved")} />
-        <KpiCard label="Declined" value={String(declarations.filter((d) => d.status === "Declined").length)} icon={X} color="#ef4444" active={activeKpi === "Declined"} onClick={() => handleKpiClick("Declined")} />
+        <KpiCard label="Total" value={String(visibleDeclarations.length)} icon={FileText} color="#7c3aed" active={activeKpi === "All"} onClick={() => handleKpiClick("All")} />
+        <KpiCard label="Pending" value={String(visibleDeclarations.filter((d) => d.status === "Pending").length)} icon={Clock} color="#f59e0b" active={activeKpi === "Pending"} onClick={() => handleKpiClick("Pending")} />
+        <KpiCard label="Approved" value={String(visibleDeclarations.filter((d) => d.status === "Approved").length)} icon={Check} color="#10b981" active={activeKpi === "Approved"} onClick={() => handleKpiClick("Approved")} />
+        <KpiCard label="Declined" value={String(visibleDeclarations.filter((d) => d.status === "Declined").length)} icon={X} color="#ef4444" active={activeKpi === "Declined"} onClick={() => handleKpiClick("Declined")} />
         <KpiCard label="Total Value" value={`R ${Math.round(totalValue / 1000)}K`} icon={Coins} color="#6366f1" />
       </div>
 
