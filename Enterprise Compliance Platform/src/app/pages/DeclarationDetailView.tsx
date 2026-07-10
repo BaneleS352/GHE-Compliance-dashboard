@@ -3,6 +3,7 @@ import { Card } from "../components/ui/card";
 import { StatusBadge } from "../components/StatusBadge";
 import { formatRand } from "../../config/theme";
 import { Declaration, StatusType, UploadedFile } from "../../types/declaration";
+import { getConfig } from "../../data/modules/config";
 import { motion } from "framer-motion";
 
 export function DeclarationDetailView({
@@ -38,8 +39,8 @@ export function DeclarationDetailView({
         ["Contract In Progress",   safe(d.contractNegotiation)],
         ["No. of GHE past 12 months", safe(d.instances)],
         ["Description",            safe(d.description)],
-        ...(d.value > 2000
-          ? ([["Substantiation (> R2 000)", safe(d.substantiation || "Required")]] as [string, string][])
+        ...(d.value > getConfig().highValueThreshold
+          ? ([[`Substantiation (> R${getConfig().highValueThreshold})`, safe(d.substantiation || "Required")]] as [string, string][])
           : []),
       ]
     : [
@@ -62,8 +63,8 @@ export function DeclarationDetailView({
         ["Contract In Progress",   safe(record?.contractNegotiation)],
         ["No. of GHE past 12 months", safe(record?.instances)],
         ["Description",            safe(record?.description)],
-        ...(Number(record?.value) > 2000
-          ? ([["Substantiation (> R2 000)", safe(record?.substantiation || "Required")]] as [string, string][])
+        ...(Number(record?.value) > getConfig().highValueThreshold
+          ? ([[`Substantiation (> R${getConfig().highValueThreshold})`, safe(record?.substantiation || "Required")]] as [string, string][])
           : []),
       ];
 
