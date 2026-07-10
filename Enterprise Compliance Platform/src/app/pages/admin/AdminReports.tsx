@@ -76,19 +76,19 @@ export function AdminReports() {
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">Start Date</label>
                 <div className="relative">
                   <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input type="date" className="h-11 w-full rounded-xl border border-border bg-white/90 pl-9 pr-3 text-sm transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
+                  <input type="date" className="table-filter-input table-filter-with-icon" />
                 </div>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">End Date</label>
                 <div className="relative">
                   <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input type="date" className="h-11 w-full rounded-xl border border-border bg-white/90 pl-9 pr-3 text-sm transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
+                  <input type="date" className="table-filter-input table-filter-with-icon" />
                 </div>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">Department</label>
-                <select className="h-11 w-full rounded-xl border border-border bg-white/90 px-3 text-sm transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10">
+                <select className="table-filter-select">
                   <option>All Departments</option>
                   <option>Marketing</option>
                   <option>Sales</option>
@@ -96,7 +96,7 @@ export function AdminReports() {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">Status</label>
-                <select className="h-11 w-full rounded-xl border border-border bg-white/90 px-3 text-sm transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10">
+                <select className="table-filter-select">
                   <option>All Statuses</option>
                   <option>Approved</option>
                   <option>Pending</option>

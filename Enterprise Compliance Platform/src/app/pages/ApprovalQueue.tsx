@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Filter, Download, Search, ChevronDown } from "lucide-react";
+import { Filter, Download, Search } from "lucide-react";
 import { approvalOptions } from "../../data/declarations";
 import { fetchDeclarations } from "../../services/api";
 import { Declaration, ApprovalDecision } from "../../types/declaration";
@@ -176,21 +176,20 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search declarations..."
-            className="h-10 w-full rounded-lg border border-border bg-white pl-9 pr-4 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="table-filter-input table-filter-with-icon"
           />
         </div>
         <div className="relative w-full md:w-auto">
           <select
             value={department}
             onChange={(e) => setDepartment(e.target.value)}
-            className="h-10 w-full appearance-none rounded-lg border border-border bg-white pl-3.5 pr-9 text-sm md:w-auto"
+            className="table-filter-select md:w-auto"
           >
             <option value="All">All Departments</option>
             {departments.map((dept) => (
               <option key={dept}>{dept}</option>
             ))}
           </select>
-          <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         </div>
       </Card>
       {showFilters && (
@@ -199,27 +198,25 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="h-10 w-full appearance-none rounded-lg border border-border bg-white pl-3.5 pr-9 text-sm"
+              className="table-filter-select"
             >
               <option value="All">All Statuses</option>
               <option>Pending</option>
               <option>Escalated</option>
               <option>Info Requested</option>
             </select>
-            <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           </div>
           <div className="relative">
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value)}
-              className="h-10 w-full appearance-none rounded-lg border border-border bg-white pl-3.5 pr-9 text-sm"
+              className="table-filter-select"
             >
               <option value="All">All Priorities</option>
               <option>High</option>
               <option>Medium</option>
               <option>Low</option>
             </select>
-            <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           </div>
         </Card>
       )}
