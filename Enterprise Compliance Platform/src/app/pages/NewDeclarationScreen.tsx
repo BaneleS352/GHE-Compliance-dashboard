@@ -395,6 +395,10 @@ export function NewDeclarationScreen({
     "Business Meeting", "Festive Season", "Milestone", "Other", "Relationship Maintenance", "Year End",
   ];
 
+  const valueNum = Number(form.value || 0);
+  const requiresSubstantiation = Number.isFinite(valueNum) && valueNum > getConfig().highValueThreshold;
+  const requiresOccasionOther = form.occasion === "Other";
+
   const ErrInp = ({ field, ...props }: { field: string } & React.InputHTMLAttributes<HTMLInputElement>) => (
     <input
       {...props}
@@ -690,11 +694,7 @@ export function NewDeclarationScreen({
                 />
               </div>
             </div>
-            {(() => {
-              const val = Number(form.value || 0);
-              const threshold = getConfig().highValueThreshold;
-              return Number.isFinite(val) && val > threshold;
-            })() && (
+            {requiresSubstantiation && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
               <div className="flex items-start gap-2.5 mb-3">
                 <AlertCircle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
