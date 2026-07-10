@@ -29,7 +29,7 @@ export async function authenticate(email: string, password: string): Promise<Use
   const user = getUserByEmail(normalizedEmail);
   if (!user) return null;
   if (!verifyPassword(password, user)) return null;
-  return getUserByEmail(normalizedEmail);
+  return getUserByEmail(normalizedEmail) ?? null;
 }
 
 export function getUserRole(user: User): "teamMember" | "approver" | "admin" {

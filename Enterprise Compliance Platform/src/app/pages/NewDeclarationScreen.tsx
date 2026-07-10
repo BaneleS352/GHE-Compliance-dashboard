@@ -286,7 +286,7 @@ export function NewDeclarationScreen({
       approver: getFinalApproverName(value, form.lineManager),
       status: "Draft",
       priority,
-      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, data: f.data || "" })),
+      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
     };
     createDeclaration(declaration);
     onDraftSaved();
@@ -370,7 +370,7 @@ export function NewDeclarationScreen({
       approver: getFinalApproverName(value, form.lineManager),
       status: "Pending",
       priority,
-      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, data: f.data || "" })),
+      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
     };
 
     try {
