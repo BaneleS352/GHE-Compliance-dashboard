@@ -1,4 +1,4 @@
-import { FC, ReactElement, ReactNode } from "react";
+import React, { FC, ReactElement, ReactNode } from "react";
 import {
   Select,
   SelectTrigger,
@@ -6,7 +6,7 @@ import {
   SelectContent,
   SelectItem,
 } from "./ui/select";
-import { inp } from "../../config/theme";
+import { inp } from "@/config/theme";
 
 export interface SelProps {
   value: string;
@@ -17,17 +17,41 @@ export interface SelProps {
   disabled?: boolean;
 }
 
-export const Sel: FC<SelProps> = ({ value, onChange, className = "", children, placeholder, disabled }) => {
+type OptionProps = {
+  value?: string;
+  children?: ReactNode;
+};
+
+export const Sel: FC<SelProps> = ({
+  value,
+  onChange,
+  className = "",
+  children,
+  placeholder,
+  disabled,
+}) => {
   const options = extractOptions(children);
 
+  const placeholderText =
+    placeholder ??
+    options.find((o) => o.value === "")?.label ??
+    "Select...";
+
+  const items = options.filter((o) => o.value !== "");
+
   return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
+    <Select
+      value={value}
+      onValueChange={onChange}
+      disabled={disabled}
+    >
       <SelectTrigger className={`${inp} ${className}`}>
-        <SelectValue placeholder={placeholder} />
+        <SelectValue placeholder={placeholderText} />
       </SelectTrigger>
+
       <SelectContent>
-        {options.map((opt, i) => (
-          <SelectItem key={i} value={opt.value ?? opt.label}>
+        {items.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
             {opt.label}
           </SelectItem>
         ))}
@@ -36,27 +60,48 @@ export const Sel: FC<SelProps> = ({ value, onChange, className = "", children, p
   );
 };
 
-function extractOptions(children: ReactNode): { value: string; label: string }[] {
+function extractOptions(
+  children: ReactNode
+): { value: string; label: string }[] {
   const opts: { value: string; label: string }[] = [];
-  if (!children) return opts;
-  const arr = Array.isArray(children) ? children : [children];
-  for (const child of arr) {
-    if (!child || typeof child !== "object") continue;
-    const el = child as ReactElement<{ value?: string; children?: ReactNode }>;
-    if (el.props?.value !== undefined) {
-      opts.push({ value: el.props.value ?? "", label: extractText(el.props.children) });
-    } else {
-      opts.push({ value: extractText(el.props?.children), label: extractText(el.props?.children) });
-    }
-  }
+
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return;
+
+    const element = child as ReactElement<OptionProps>;
+
+    const value =
+      element.props.value !== undefined
+        ? String(element.props.value)
+        : extractText(element.props.children);
+
+    const label = extractText(element.props.children);
+
+    opts.push({
+      value,
+      label,
+    });
+  });
+
   return opts;
 }
 
 function extractText(node: ReactNode): string {
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (!node || typeof node !== "object") return "";
-  const el = node as ReactElement<{ children?: ReactNode }>;
-  if (Array.isArray(node)) return node.map(extractText).join("");
-  if (el.props?.children) return extractText(el.props.children);
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node);
+  }
+
+  if (Array.isArray(node)) {
+    return node.map(extractText).join("");
+  }
+
+  if (React.isValidElement(node)) {
+    const element = node as ReactElement<{
+      children?: ReactNode;
+    }>;
+
+    return extractText(element.props.children);
+  }
+
   return "";
 }
