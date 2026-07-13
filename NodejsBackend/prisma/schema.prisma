@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Change to "postgresql" for production.
+  //   docker compose up -d
+  //   npx prisma migrate dev --name init
+  //   npm run db:seed
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id
+  name             String
+  email            String   @unique
+  passwordHash     String
+  role             String
+  teamMemberNumber String
+  department       String
+  position         String
+  lineManager      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Declaration {
+  id                  String   @id
+  employee            String
+  employeeId          String
+  teamMemberNumber    String
+  lineManager         String
+  position            String
+  department          String
+  company             String?
+  team                String?
+  type                String
+  counterparty        String
+  value               Float
+  submitted           String
+  approver            String
+  status              String
+  priority            String
+  description         String
+  relationship        String
+  receivedGiven       String
+  fromField           String   @map("from_field")
+  contactPerson       String
+  biddingProcess      String
+  contractNegotiation String?
+  occasion            String
+  date                String
+  instances           String
+  publicOfficial      String
+  substantiation      String?
+  files               String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkflowRule {
+  id        String   @id
+  name      String
+  condition String
+  priority  Int
+  steps     String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkflowInstance {
+  declarationId String   @id
+  steps         String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SystemConfig {
+  id                      String @id
+  highValueThreshold      Float
+  mediumValueThreshold    Float
+  slaEscalationDays       Int
+  maxDeclarationsPerCounterparty Int
+  emailTemplate           String
+}
+
+model Dropdowns {
+  id   String @id
+  data String
+}
+
+model ComplianceTrendPoint {
+  id       String @id
+  month    String
+  approved Int
+  declined Int
+}
+
+model TypeBreakdownItem {
+  id    String @id
+  name  String
+  value Float
+  color String
+}
+
+model ApprovalOption {
+  id    String @id
+  value String
+  label String
+}
+
+model UploadedFile {
+  id            String   @id @default(cuid())
+  originalName  String
+  mimeType      String
+  size          Int
+  path          String
+  declarationId String?
+  uploadedAt    DateTime @default(now())
+}
