@@ -33,7 +33,7 @@ const configSchema = z.object({
 router.put("/", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = configSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+    res.status(400).json({ error: "Invalid request" });
     return;
   }
 

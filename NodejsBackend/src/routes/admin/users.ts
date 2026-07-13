@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
@@ -11,7 +12,7 @@ const SALT_ROUNDS = 10;
 router.get("/", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
   const { search, role } = req.query;
 
-  let users = await prisma.user.findMany({ orderBy: { name: "asc" } });
+  const where: any = {};
 
   if (role && role !== "All Roles") {
     const roleMap: Record<string, string> = {
@@ -19,19 +20,19 @@ router.get("/", authenticate, authorize("admin"), async (req: AuthRequest, res: 
       "Approver": "approver",
       "Team Member": "teamMember",
     };
-    const internalRole = roleMap[String(role)] || String(role);
-    users = users.filter((u) => u.role === internalRole);
+    where.role = roleMap[String(role)] || String(role);
   }
 
   if (search) {
-    const q = String(search).toLowerCase();
-    users = users.filter(
-      (u) =>
-        u.name.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.id.toLowerCase().includes(q)
-    );
+    const q = String(search);
+    where.OR = [
+      { name: { contains: q } },
+      { email: { contains: q } },
+      { id: { contains: q } },
+    ];
   }
+
+  const users = await prisma.user.findMany({ where, orderBy: { name: "asc" } });
 
   res.json(
     users.map((u) => ({
@@ -71,6 +72,7 @@ const createUserSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   role: z.enum(["teamMember", "approver", "admin"]),
+  password: z.string().min(8).optional(),
   department: z.string().optional().default(""),
   teamMemberNumber: z.string().optional().default(""),
   position: z.string().optional().default(""),
@@ -81,7 +83,7 @@ const createUserSchema = z.object({
 router.post("/", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = createUserSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+    res.status(400).json({ error: "Invalid request" });
     return;
   }
 
@@ -92,14 +94,16 @@ router.post("/", authenticate, authorize("admin"), async (req: AuthRequest, res:
     return;
   }
 
-  const id = `USR-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const id = `USR-${Date.now()}-${crypto.randomInt(1000, 9999)}`;
+
+  const password = data.password || "password";
 
   const user = await prisma.user.create({
     data: {
       id,
       name: data.name,
       email: data.email.toLowerCase(),
-      passwordHash: bcrypt.hashSync("password", SALT_ROUNDS),
+      passwordHash: bcrypt.hashSync(password, SALT_ROUNDS),
       role: data.role,
       teamMemberNumber: data.teamMemberNumber,
       department: data.department,
@@ -141,7 +145,7 @@ router.put("/:id", authenticate, authorize("admin"), async (req: AuthRequest, re
 
   const parsed = updateUserSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+    res.status(400).json({ error: "Invalid request" });
     return;
   }
 

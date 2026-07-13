@@ -1,19 +1,33 @@
 import { Router, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { generateExcelBuffer, ColumnDef } from "../services/excelService";
 
 const router = Router();
 
+function buildDateFilter(startDate?: string, endDate?: string): Prisma.StringFilter | undefined {
+  if (!startDate && !endDate) return undefined;
+  const f: Prisma.StringFilter = {};
+  if (startDate) f.gte = startDate;
+  if (endDate) f.lte = endDate;
+  return f;
+}
+
+function buildWhere(req: AuthRequest): Prisma.DeclarationWhereInput {
+  const { startDate, endDate, department, status } = req.query;
+  const where: Prisma.DeclarationWhereInput = {};
+  const dateFilter = buildDateFilter(startDate as string, endDate as string);
+  if (dateFilter) where.date = dateFilter;
+  if (department && department !== "All Departments") where.department = String(department);
+  if (status && status !== "All Statuses") where.status = String(status);
+  return where;
+}
+
 // GET /api/reports/status-breakdown
 router.get("/status-breakdown", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { startDate, endDate, department, status } = req.query;
-  let declarations = await prisma.declaration.findMany();
-
-  if (startDate) declarations = declarations.filter((d) => d.date >= String(startDate));
-  if (endDate) declarations = declarations.filter((d) => d.date <= String(endDate));
-  if (department && department !== "All Departments") declarations = declarations.filter((d) => d.department === String(department));
-  if (status && status !== "All Statuses") declarations = declarations.filter((d) => d.status === String(status));
+  const where = buildWhere(req);
+  const declarations = await prisma.declaration.findMany({ where, select: { status: true } });
 
   const counts: Record<string, number> = {};
   for (const d of declarations) {
@@ -25,13 +39,8 @@ router.get("/status-breakdown", authenticate, async (req: AuthRequest, res: Resp
 
 // GET /api/reports/sla
 router.get("/sla", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { startDate, endDate, department, status } = req.query;
-  let declarations = await prisma.declaration.findMany();
-
-  if (startDate) declarations = declarations.filter((d) => d.date >= String(startDate));
-  if (endDate) declarations = declarations.filter((d) => d.date <= String(endDate));
-  if (department && department !== "All Departments") declarations = declarations.filter((d) => d.department === String(department));
-  if (status && status !== "All Statuses") declarations = declarations.filter((d) => d.status === String(status));
+  const where = buildWhere(req);
+  const declarations = await prisma.declaration.findMany({ where, select: { id: true, date: true } });
 
   const roleMap: Record<string, string> = {
     lineManager: "Line Manager",
@@ -72,13 +81,8 @@ router.get("/sla", authenticate, async (req: AuthRequest, res: Response): Promis
 
 // GET /api/reports/counterparty-concentration
 router.get("/counterparty-concentration", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { startDate, endDate, department, status } = req.query;
-  let declarations = await prisma.declaration.findMany();
-
-  if (startDate) declarations = declarations.filter((d) => d.date >= String(startDate));
-  if (endDate) declarations = declarations.filter((d) => d.date <= String(endDate));
-  if (department && department !== "All Departments") declarations = declarations.filter((d) => d.department === String(department));
-  if (status && status !== "All Statuses") declarations = declarations.filter((d) => d.status === String(status));
+  const where = buildWhere(req);
+  const declarations = await prisma.declaration.findMany({ where, select: { counterparty: true, value: true } });
 
   const groups: Record<string, { count: number; totalValue: number }> = {};
   for (const d of declarations) {
@@ -100,67 +104,59 @@ router.get("/counterparty-concentration", authenticate, async (req: AuthRequest,
   res.json(result);
 });
 
-// GET /api/reports/high-value — declarations above threshold
-router.get("/high-value", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+// GET /api/reports/high-value
+router.get("/high-value", authenticate, async (_req: AuthRequest, res: Response): Promise<void> => {
   const config = await prisma.systemConfig.findFirst();
   const threshold = config?.highValueThreshold || 2000;
 
   const declarations = await prisma.declaration.findMany({
     where: { value: { gt: threshold } },
     orderBy: { value: "desc" },
+    select: {
+      id: true, employee: true, department: true, type: true,
+      counterparty: true, value: true, submitted: true, status: true,
+    },
   });
 
-  res.json(
-    declarations.map((d) => ({
-      id: d.id,
-      employee: d.employee,
-      department: d.department,
-      type: d.type,
-      counterparty: d.counterparty,
-      value: d.value,
-      submitted: d.submitted,
-      status: d.status,
-    }))
-  );
+  res.json(declarations);
 });
 
-// GET /api/reports/list — filtered declaration list for results table
+// GET /api/reports/list
 router.get("/list", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { startDate, endDate, department, status, search } = req.query;
-  let declarations = await prisma.declaration.findMany({ orderBy: { submitted: "desc" } });
+  const where = buildWhere(req);
+  const search = req.query.search as string | undefined;
 
-  if (startDate) declarations = declarations.filter((d) => d.date >= String(startDate));
-  if (endDate) declarations = declarations.filter((d) => d.date <= String(endDate));
-  if (department && department !== "All Departments") declarations = declarations.filter((d) => d.department === String(department));
-  if (status && status !== "All Statuses") declarations = declarations.filter((d) => d.status === String(status));
+  const declarations = await prisma.declaration.findMany({
+    where,
+    orderBy: { submitted: "desc" },
+    select: {
+      id: true, employee: true, department: true, type: true,
+      counterparty: true, value: true, submitted: true, status: true,
+    },
+  });
+
+  let result = declarations;
   if (search) {
     const q = String(search).toLowerCase();
-    declarations = declarations.filter((d) => d.employee.toLowerCase().includes(q) || d.id.toLowerCase().includes(q));
+    result = result.filter((d) => d.employee.toLowerCase().includes(q) || d.id.toLowerCase().includes(q));
   }
 
-  res.json(
-    declarations.map((d) => ({
-      id: d.id,
-      employee: d.employee,
-      department: d.department,
-      type: d.type,
-      counterparty: d.counterparty,
-      value: d.value,
-      submitted: d.submitted,
-      status: d.status,
-    }))
-  );
+  res.json(result);
 });
 
 // GET /api/reports/export — Excel download
 router.get("/export", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
-  const { startDate, endDate, department, status, reportType } = req.query;
-  let declarations = await prisma.declaration.findMany({ orderBy: { submitted: "desc" } });
+  const where = buildWhere(req);
+  const { reportType } = req.query;
 
-  if (startDate) declarations = declarations.filter((d) => d.date >= String(startDate));
-  if (endDate) declarations = declarations.filter((d) => d.date <= String(endDate));
-  if (department && department !== "All Departments") declarations = declarations.filter((d) => d.department === String(department));
-  if (status && status !== "All Statuses") declarations = declarations.filter((d) => d.status === String(status));
+  const declarations = await prisma.declaration.findMany({
+    where,
+    orderBy: { submitted: "desc" },
+    select: {
+      id: true, employee: true, department: true, type: true,
+      counterparty: true, value: true, submitted: true, status: true,
+    },
+  });
 
   const title = String(reportType || "Declaration Report");
   const sanitized = title.replace(/[^a-zA-Z0-9]/g, "_");
@@ -178,16 +174,8 @@ router.get("/export", authenticate, async (req: AuthRequest, res: Response): Pro
     { header: "Date", key: "submitted", width: 14 },
   ];
 
-  const rows = declarations.map((d) => ({
-    id: d.id,
-    employee: d.employee,
-    department: d.department,
-    type: d.type,
-    counterparty: d.counterparty,
-    value: d.value,
-    status: d.status,
-    submitted: d.submitted,
-  }));
+  const rows = declarations.map((d) => ({ ...d }));
+  const { department, status } = req.query;
 
   const meta: [string, string][] = [
     ["Generated", new Date().toISOString()],

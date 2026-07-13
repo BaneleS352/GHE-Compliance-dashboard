@@ -42,7 +42,7 @@ const ruleSchema = z.object({
 router.post("/rules", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = ruleSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+    res.status(400).json({ error: "Invalid request" });
     return;
   }
 
@@ -79,7 +79,7 @@ router.put("/rules/:id", authenticate, authorize("admin"), async (req: AuthReque
 
   const parsed = ruleSchema.partial().safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+    res.status(400).json({ error: "Invalid request" });
     return;
   }
 

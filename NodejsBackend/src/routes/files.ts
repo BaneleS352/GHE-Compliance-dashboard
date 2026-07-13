@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
 
@@ -12,10 +13,18 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
+const ALLOWED_MIMES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/jpeg", "image/png", "image/gif", "image/webp",
+  "text/plain",
+];
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
-    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    const unique = crypto.randomBytes(16).toString("hex");
     const ext = path.extname(file.originalname);
     cb(null, `${unique}${ext}`);
   },
@@ -24,6 +33,13 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIMES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`File type ${file.mimetype} is not allowed`));
+    }
+  },
 });
 
 // POST /api/files/upload
@@ -61,7 +77,7 @@ router.post(
 );
 
 // GET /api/files/:id
-router.get("/:id", async (req, res: Response): Promise<void> => {
+router.get("/:id", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const file = await prisma.uploadedFile.findUnique({ where: { id } });
   if (!file) {

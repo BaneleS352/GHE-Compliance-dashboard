@@ -1,19 +1,30 @@
 import { Router, Response } from "express";
 import { z } from "zod";
+import xss from "xss";
+import crypto from "crypto";
 import { prisma } from "../config/prisma";
-import { authenticate, authorize, AuthRequest } from "../middleware/auth";
-import { createWorkflowSteps, getCurrentStep, isApprovalDecision } from "../services/workflowService";
+import { authenticate, AuthRequest } from "../middleware/auth";
+import { createWorkflowSteps } from "../services/workflowService";
 
 const router = Router();
 
 function generateDeclarationId(): string {
   const year = new Date().getFullYear();
-  const rand = Math.floor(Math.random() * 9000) + 1000;
+  const rand = crypto.randomInt(100000, 999999);
   return `GHE-${year}-${rand}`;
 }
 
+function safeJsonParse(val: string | null | undefined): any {
+  if (!val) return null;
+  try { return JSON.parse(val); } catch { return val; }
+}
+
+function sanitize(val: string): string {
+  return xss(val, { whiteList: {}, stripIgnoreTag: true });
+}
+
 function declarationResponse(d: any) {
-  const parsed = typeof d.files === "string" ? JSON.parse(d.files) : d.files;
+  const parsed = safeJsonParse(d.files);
   return {
     id: d.id,
     employee: d.employee,
@@ -130,7 +141,7 @@ router.post("/", authenticate, async (req: AuthRequest, res: Response): Promise<
 
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+    res.status(400).json({ error: "Invalid request" });
     return;
   }
 
@@ -155,7 +166,7 @@ router.post("/", authenticate, async (req: AuthRequest, res: Response): Promise<
       approver: data.approver,
       status: data.status,
       priority: data.priority,
-      description: data.description,
+      description: sanitize(data.description),
       relationship: data.relationship,
       receivedGiven: data.receivedGiven,
       fromField: data.from,
@@ -206,12 +217,12 @@ router.put("/:id", authenticate, async (req: AuthRequest, res: Response): Promis
 
   const parsed = createSchema.partial().safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
+    res.status(400).json({ error: "Invalid request" });
     return;
   }
 
   const data = parsed.data;
-  const updateData: any = {};
+  const updateData: Record<string, unknown> = {};
 
   const fieldMap: Record<string, string> = {
     employee: "employee", employeeId: "employeeId", teamMemberNumber: "teamMemberNumber",
@@ -226,8 +237,9 @@ router.put("/:id", authenticate, async (req: AuthRequest, res: Response): Promis
   };
 
   for (const [key, dbField] of Object.entries(fieldMap)) {
-    if ((data as any)[key] !== undefined) {
-      updateData[dbField] = (data as any)[key];
+    const val = (data as Record<string, unknown>)[key];
+    if (val !== undefined) {
+      updateData[dbField] = key === "description" ? sanitize(val as string) : val;
     }
   }
   if (data.files !== undefined) {

@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import path from "path";
+import helmet from "helmet";
+import morgan from "morgan";
 import swaggerUi from "swagger-ui-express";
 import { config } from "./config/env";
 import { swaggerSpec } from "./config/swagger";
@@ -13,12 +15,15 @@ import adminDashboardRoutes from "./routes/admin/dashboard";
 import adminUserRoutes from "./routes/admin/users";
 import adminConfigRoutes from "./routes/admin/config";
 import adminWorkflowRoutes from "./routes/admin/workflows";
+import { prisma } from "./config/prisma";
 
 const app = express();
 
+app.use(helmet());
+app.use(morgan("dev"));
 app.use(cors({ origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"] }));
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 
@@ -48,8 +53,17 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: "Internal server error" });
 });
 
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   console.log(`GHE Backend running on http://localhost:${config.port}`);
 });
+
+const shutdown = async () => {
+  console.log("Shutting down gracefully...");
+  server.close();
+  await prisma.$disconnect();
+  process.exit(0);
+};
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
 
 export default app;

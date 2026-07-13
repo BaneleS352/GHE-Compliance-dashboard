@@ -112,8 +112,9 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
         instances: "1", publicOfficial: "No",
       });
     expect(res.status).toBe(201);
-    // Note: backend stores raw input without sanitization — frontend should escape on render
-    expect(res.body.description).toBe("<script>document.body.innerHTML='hacked'</script>");
+    // XSS tags are stripped by server-side sanitization
+    expect(res.body.description).not.toContain("<script>");
+    expect(res.body.description).toBe("document.body.innerHTML='hacked'");
   });
 
   it("POST /api/declarations — extremely long description (exceeds 10k max)", async () => {

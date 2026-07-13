@@ -1,9 +1,17 @@
 import { Router, Response } from "express";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
-import { getCurrentStep, isApprovalDecision, WorkflowStep } from "../services/workflowService";
+import { getCurrentStep, WorkflowStep } from "../services/workflowService";
 
 const router = Router();
+
+type StepStatus = "pending" | "approved" | "declined" | "returned";
+
+function toStepStatus(decision: string): StepStatus {
+  if (decision === "decline") return "declined";
+  if (decision === "return") return "returned";
+  return "approved";
+}
 
 // GET /api/workflows/pending — pending approvals for current user
 router.get("/pending", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
@@ -93,10 +101,10 @@ router.post("/approve", authenticate, async (req: AuthRequest, res: Response): P
     return;
   }
 
-  const newStepStatus: string = decision === "decline" ? "declined" : decision === "return" ? "returned" : "approved";
+  const newStepStatus = toStepStatus(decision);
   steps[currentStepIndex] = {
     ...steps[currentStepIndex],
-    status: newStepStatus as any,
+    status: newStepStatus,
     decision,
     notes: notes || "",
     decidedAt: new Date().toISOString(),
