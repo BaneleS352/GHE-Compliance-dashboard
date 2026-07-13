@@ -32,4 +32,5 @@ export function formatRand(v: number) {
 export const inp =
   "w-full h-11 rounded-xl px-4 text-sm border border-slate-200 bg-slate-50 text-foreground focus:outline-none focus:ring-4 focus:ring-purple-500/20 focus:border-purple-600 focus:bg-white hover:border-purple-300 transition-all duration-200 ease-out placeholder:text-muted-foreground/50";
 
-export const sel = `${inp} appearance-none pr-10 cursor-pointer bg-white border-slate-200 hover:bg-amber-50 hover:border-amber-400 hover:text-[15.5px] hover:font-semibold hover:text-amber-900 focus:bg-white focus:border-amber-600 focus:ring-amber-500/20 shadow-[0_2px_10px_rgba(0,0,0,0.02)] hover:shadow-[0_4px_14px_rgba(217,119,6,0.12)] transition-all duration-300`;
+export const sel =
+  "w-full h-11 rounded-xl px-4 text-sm border border-slate-200 bg-white text-foreground appearance-none pr-10 cursor-pointer focus:outline-none focus:ring-4 focus:ring-amber-500/20 focus:border-amber-600 focus:bg-white hover:bg-amber-50 hover:border-amber-400 hover:text-[15.5px] hover:font-semibold hover:text-amber-900 hover:shadow-[0_4px_14px_rgba(217,119,6,0.12)] shadow-[0_2px_10px_rgba(0,0,0,0.02)] transition-all duration-300 placeholder:text-muted-foreground/50";

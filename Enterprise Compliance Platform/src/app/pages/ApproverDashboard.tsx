@@ -264,7 +264,7 @@ export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => v
                 <Tooltip contentStyle={{ background: "#fff", border: "1px solid rgb(79 29 149 / 0.12)", borderRadius: 12, fontSize: 12, fontFamily: "'Plus Jakarta Sans',sans-serif" }} cursor={{ fill: "rgb(79 29 149 / 0.04)" }} />
                 <Legend wrapperStyle={{ fontSize: 12, fontFamily: "'Plus Jakarta Sans',sans-serif" }} />
                 <Bar dataKey="approved" name="Approved" fill="#059669" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Declined" name="Declined" fill="#dc2626" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="declined" name="Declined" fill="#dc2626" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

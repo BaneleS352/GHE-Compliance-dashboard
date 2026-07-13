@@ -251,7 +251,7 @@ export function NewDeclarationScreen({
     return true;
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (!user) return;
     const value = Number(form.value || 0);
     const requiresSubstantiation = Number.isFinite(value) && value > getConfig().highValueThreshold;
@@ -288,8 +288,12 @@ export function NewDeclarationScreen({
       priority,
       files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
     };
-    createDeclaration(declaration);
-    onDraftSaved();
+    try {
+      await createDeclaration(declaration);
+      onDraftSaved();
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to save draft.");
+    }
   };
 
   const createWorkflow = (declaration: Declaration) => {
@@ -373,11 +377,13 @@ export function NewDeclarationScreen({
       files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
     };
 
+    let saved: Declaration | undefined;
     try {
-      const saved = await createDeclaration(declaration);
+      saved = await createDeclaration(declaration);
       createWorkflow(saved);
       onSubmitSuccess(saved);
     } catch (err) {
+      if (saved) updateDeclaration(saved.id, { status: "Draft" });
       setSubmitError(err instanceof Error ? err.message : "Failed to submit declaration.");
     } finally {
       setSubmitting(false);

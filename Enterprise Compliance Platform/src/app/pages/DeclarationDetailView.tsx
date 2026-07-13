@@ -4,6 +4,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { formatRand } from "../../config/theme";
 import { Declaration, StatusType, UploadedFile } from "../../types/declaration";
 import { getConfig } from "../../data/modules/config";
+import { getWorkflowForDeclaration } from "../../data/db";
 import { motion } from "framer-motion";
 
 export function DeclarationDetailView({
@@ -85,40 +86,65 @@ export function DeclarationDetailView({
     link.click();
   };
 
-  const workflowSteps = [
-    {
-      label: "Submission",
-      actor: "Team Member",
-      done: true,
-      updates: [{ status: "Submitted", date: d ? d.submitted : new Date().toLocaleDateString("en-ZA"), time: "08:45" }],
-    },
-    {
-      label: "Line Manager Review",
-      actor: d ? d.lineManager : safe(record?.lineManager),
-      done: status === "Approved" || status === "Declined",
-      updates:
-        status === "Approved"
-          ? [{ status: "Approved", date: "2026-07-01", time: "10:15" }]
-          : status === "Declined"
-          ? [{ status: "Declined", date: "2026-07-01", time: "10:15" }]
-          : [{ status: "Pending", date: "-", time: "-" }],
-    },
-    {
-      label: "HR Review",
-      actor: "Head of HR",
-      done: status === "Approved",
-      updates:
-        status === "Approved"
-          ? [{ status: "Approved", date: "2026-07-02", time: "12:30" }]
-          : [{ status: "Pending", date: "-", time: "-" }],
-    },
-    {
-      label: "CEO Approval",
-      actor: "Group CEO",
-      done: false,
-      updates: [{ status: "Pending", date: "-", time: "-" }],
-    },
-  ];
+  const workflowInstance = d ? getWorkflowForDeclaration(d.id) : undefined;
+  const workflowSteps = (() => {
+    if (d && workflowInstance && workflowInstance.steps.length > 0) {
+      const steps = [
+        {
+          label: "Submission",
+          actor: d.employee,
+          done: true,
+          updates: [{ status: "Submitted", date: d.submitted, time: "08:45" }],
+        },
+      ];
+      for (const step of workflowInstance.steps) {
+        const stepDone = step.status !== "pending";
+        steps.push({
+          label: step.label,
+          actor: step.assigneeName,
+          done: stepDone,
+          updates: stepDone && step.decidedAt
+            ? [{ status: step.status === "approved" ? "Approved" : step.status === "declined" ? "Declined" : "Returned", date: step.decidedAt.slice(0, 10), time: step.decidedAt.slice(11, 16) }]
+            : [{ status: "Pending", date: "-", time: "-" }],
+        });
+      }
+      return steps;
+    }
+    return [
+      {
+        label: "Submission",
+        actor: "Team Member",
+        done: true,
+        updates: [{ status: "Submitted", date: d ? d.submitted : new Date().toLocaleDateString("en-ZA"), time: "08:45" }],
+      },
+      {
+        label: "Line Manager Review",
+        actor: d ? d.lineManager : safe(record?.lineManager),
+        done: status === "Approved" || status === "Declined",
+        updates:
+          status === "Approved"
+            ? [{ status: "Approved", date: new Date().toISOString().slice(0, 10), time: "10:15" }]
+            : status === "Declined"
+            ? [{ status: "Declined", date: new Date().toISOString().slice(0, 10), time: "10:15" }]
+            : [{ status: "Pending", date: "-", time: "-" }],
+      },
+      {
+        label: "HR Review",
+        actor: "Head of HR",
+        done: status === "Approved",
+        updates:
+          status === "Approved"
+            ? [{ status: "Approved", date: new Date().toISOString().slice(0, 10), time: "12:30" }]
+            : [{ status: "Pending", date: "-", time: "-" }],
+      },
+      {
+        label: "CEO Approval",
+        actor: "Group CEO",
+        done: false,
+        updates: [{ status: "Pending", date: "-", time: "-" }],
+      },
+    ];
+  })();
 
   return (
     <div className="space-y-5">

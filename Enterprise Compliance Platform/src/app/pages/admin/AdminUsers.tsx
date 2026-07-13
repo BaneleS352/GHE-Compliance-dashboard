@@ -14,14 +14,12 @@ const ROLE_MAP: Record<string, string> = {
 };
 
 const ROLE_OPTIONS = ["All Roles", "Team Member", "Approver", "Administrator"];
-const STATUS_OPTIONS = ["All Statuses", "Active", "Inactive"];
 
 let _nextId = Date.now();
 
 export function AdminUsers() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All Roles");
-  const [statusFilter, setStatusFilter] = useState("All Statuses");
   const [users, setUsers] = useState<User[]>([]);
 
   useEffect(() => {
@@ -49,11 +47,8 @@ export function AdminUsers() {
       };
       list = list.filter((u) => ROLE_MAP[u.role] === roleFilter);
     }
-    if (statusFilter !== "All Statuses") {
-      list = list.filter((u) => (u as any).status === statusFilter);
-    }
     return list;
-  }, [users, search, roleFilter, statusFilter]);
+  }, [users, search, roleFilter]);
 
   const handleAdd = () => {
     const name = prompt("User name:");
@@ -69,7 +64,7 @@ export function AdminUsers() {
         id: `USR-${String(_nextId++).slice(-6)}`,
         name,
         email,
-        passwordHash: "default",
+        passwordHash: "",
         role: roleLabel as "teamMember" | "approver" | "admin",
         department,
         teamMemberNumber: "",
@@ -124,14 +119,9 @@ export function AdminUsers() {
     );
   };
 
-  const statusBadge = (user: User) => {
-    const active = (user as any).status !== "Inactive";
-    return (
-      <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${active ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>
-        {active ? "Active" : "Inactive"}
-      </span>
-    );
-  };
+  const statusBadge = () => (
+    <span className="rounded-full px-2 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-800">Active</span>
+  );
 
   return (
     <div className="space-y-6">
@@ -162,9 +152,6 @@ export function AdminUsers() {
         <select className="table-filter-select md:w-auto" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
           {ROLE_OPTIONS.map((o) => <option key={o}>{o}</option>)}
         </select>
-        <select className="table-filter-select md:w-auto" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          {STATUS_OPTIONS.map((o) => <option key={o}>{o}</option>)}
-        </select>
       </Card>
 
       <Card className="space-y-3 border-white/70 bg-white/80 p-3.5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl md:hidden">
@@ -181,7 +168,7 @@ export function AdminUsers() {
                   <p className="mt-1 break-all text-xs text-muted-foreground">{u.email}</p>
                 </div>
               </div>
-              {statusBadge(u)}
+              {statusBadge()}
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -217,7 +204,7 @@ export function AdminUsers() {
                 <td className="px-5 py-3.5 text-muted-foreground">{u.email}</td>
                 <td className="px-5 py-3.5">{roleBadge(u.role)}</td>
                 <td className="px-5 py-3.5 text-muted-foreground">{u.department}</td>
-                <td className="px-5 py-3.5">{statusBadge(u)}</td>
+                <td className="px-5 py-3.5">{statusBadge()}</td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2">
                     <button onClick={() => handleEdit(u)} className="rounded-xl p-1.5 text-muted-foreground transition-all duration-300 hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
