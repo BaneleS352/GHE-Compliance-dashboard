@@ -17,15 +17,19 @@ export function AdminWorkflows() {
   useEffect(refresh, []);
 
   const handleAdd = () => {
-    const newRule: WorkflowRule = {
-      id: `rule-${Date.now()}`,
-      name: "New Rule",
-      condition: "gift",
-      priority: rules.length + 1,
-      steps: [{ order: 1, role: "lineManager", label: "Line Manager Review" }],
-    };
-    addWorkflowRule(newRule);
-    refresh();
+    try {
+      const newRule: WorkflowRule = {
+        id: `rule-${Date.now()}`,
+        name: "New Rule",
+        condition: "gift",
+        priority: rules.length + 1,
+        steps: [{ order: 1, role: "lineManager", label: "Line Manager Review" }],
+      };
+      addWorkflowRule(newRule);
+      refresh();
+    } catch (e: any) {
+      alert(e.message);
+    }
   };
 
   const handleEditClick = (rule: WorkflowRule) => {
@@ -34,13 +38,23 @@ export function AdminWorkflows() {
   };
 
   const handleSaveEdit = (id: string) => {
-    updateWorkflowRule(id, { name: editName });
-    setEditingId(null);
-    refresh();
+    try {
+      updateWorkflowRule(id, { name: editName });
+      setEditingId(null);
+      refresh();
+    } catch (e: any) {
+      alert(e.message);
+    }
   };
 
   const handleDelete = (id: string) => {
-    if (confirm("Delete this workflow rule?")) { deleteWorkflowRule(id); refresh(); }
+    if (!confirm("Delete this workflow rule?")) return;
+    try {
+      deleteWorkflowRule(id);
+      refresh();
+    } catch (e: any) {
+      alert(e.message);
+    }
   };
 
   return (

@@ -3,9 +3,8 @@ import { Download, FileText, Calendar, BarChart3 } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { PURPLE } from "../../../config/theme";
-import { getDeclarations, getConfig} from "../../../data/db";
+import { getDeclarations, getConfig, getWorkflowForDeclaration } from "../../../data/db";
 import { exportToExcel, ColumnDef } from "../../utils/excelExport";
-
 
 type ReportMeta = { title: string; desc: string };
 
@@ -22,6 +21,7 @@ export function AdminReports() {
   const [endDate, setEndDate] = useState("");
   const [department, setDepartment] = useState("All Departments");
   const [status, setStatus] = useState("All Statuses");
+  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
 
   const allDeclarations = useMemo(() => getDeclarations(), []);
   const config = useMemo(() => getConfig(), []);
@@ -40,19 +40,69 @@ export function AdminReports() {
     if (status !== "All Statuses") list = list.filter((d) => d.status === status);
 
     switch (reportType) {
-      case "Compliance Status Report":
-        break;
-      case "SLA & Turnaround Time Report":
-        break;
       case "High-Value Gifts Report":
         list = list.filter((d) => d.value > config.highValueThreshold);
-        break;
-      case "Counterparty Concentration Report":
         break;
     }
 
     return list;
   }, [allDeclarations, startDate, endDate, department, status, reportType, config.highValueThreshold]);
+
+  const statusBreakdown = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const d of filtered) {
+      counts[d.status] = (counts[d.status] || 0) + 1;
+    }
+    return counts;
+  }, [filtered]);
+
+  const slaData = useMemo(() => {
+    const byRole: Record<string, number[]> = {};
+    for (const d of filtered) {
+      const wf = getWorkflowForDeclaration(d.id);
+      if (!wf) continue;
+      for (const step of wf.steps) {
+        if (!step.decidedAt || !d.date) continue;
+        const decided = new Date(step.decidedAt).getTime();
+        const submitted = new Date(d.date).getTime();
+        if (!isNaN(decided) && !isNaN(submitted)) {
+          const days = (decided - submitted) / (1000 * 60 * 60 * 24);
+          if (!byRole[step.role]) byRole[step.role] = [];
+          byRole[step.role].push(days);
+        }
+      }
+    }
+    const result: { role: string; avg: string; min: string; max: string; count: number }[] = [];
+    for (const [role, times] of Object.entries(byRole)) {
+      const avg = times.reduce((a, b) => a + b, 0) / times.length;
+      result.push({
+        role: role === "lineManager" ? "Line Manager" : role === "hr" ? "HR" : "CEO",
+        avg: avg.toFixed(1),
+        min: Math.min(...times).toFixed(1),
+        max: Math.max(...times).toFixed(1),
+        count: times.length,
+      });
+    }
+    return result;
+  }, [filtered]);
+
+  const counterpartyData = useMemo(() => {
+    const groups: Record<string, { count: number; totalValue: number; items: typeof filtered }> = {};
+    for (const d of filtered) {
+      const key = d.Counterparty || "Unknown";
+      if (!groups[key]) groups[key] = { count: 0, totalValue: 0, items: [] };
+      groups[key].count++;
+      groups[key].totalValue += d.value;
+      groups[key].items.push(d);
+    }
+    return Object.entries(groups)
+      .map(([counterparty, data]) => ({ counterparty, ...data }))
+      .sort((a, b) => b.totalValue - a.totalValue);
+  }, [filtered]);
+
+  const handleGenerate = () => {
+    setGeneratedAt(new Date().toLocaleString());
+  };
 
   const handleExportExcel = () => {
     const columns: ColumnDef[] = [
@@ -84,6 +134,17 @@ export function AdminReports() {
   const handleExportPdf = () => {
     window.print();
   };
+
+  const statusColor = (s: string) =>
+    s === "Approved"
+      ? "bg-emerald-100 text-emerald-700"
+      : s === "Declined"
+        ? "bg-red-100 text-red-700"
+        : s === "Pending"
+          ? "bg-amber-100 text-amber-700"
+          : s === "Draft"
+            ? "bg-slate-100 text-slate-600"
+            : "bg-blue-100 text-blue-700";
 
   return (
     <div className="space-y-6">
@@ -191,6 +252,7 @@ export function AdminReports() {
 
             <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:flex-wrap sm:items-center">
               <button
+                onClick={handleGenerate}
                 className="flex h-10 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(79,29,149,0.28)] sm:flex-1"
                 style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent" }}
               >
@@ -210,6 +272,81 @@ export function AdminReports() {
               </button>
             </div>
           </Card>
+
+          {generatedAt && reportType === "Compliance Status Report" && filtered.length > 0 && (
+            <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
+              <h3 className="mb-3 text-sm font-bold">Status Breakdown</h3>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                {Object.entries(statusBreakdown).map(([s, count]) => (
+                  <div key={s} className="rounded-xl border border-border bg-white/60 p-3 text-center">
+                    <p className="text-lg font-bold">{count}</p>
+                    <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColor(s)}`}>{s}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-right text-[11px] text-muted-foreground">Generated {generatedAt}</p>
+            </Card>
+          )}
+
+          {generatedAt && reportType === "SLA & Turnaround Time Report" && slaData.length > 0 && (
+            <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
+              <h3 className="mb-3 text-sm font-bold">Average Turnaround Time (days)</h3>
+              <div className="overflow-x-auto rounded-xl border border-border">
+                <table className="min-w-full text-left text-sm">
+                  <thead>
+                    <tr className="bg-slate-100 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <th className="px-4 py-3">Role</th>
+                      <th className="px-4 py-3">Avg Days</th>
+                      <th className="px-4 py-3">Min</th>
+                      <th className="px-4 py-3">Max</th>
+                      <th className="px-4 py-3">Decisions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {slaData.map((r) => (
+                      <tr key={r.role} className="hover:bg-slate-50">
+                        <td className="px-4 py-2.5 font-semibold">{r.role}</td>
+                        <td className="px-4 py-2.5">{r.avg}</td>
+                        <td className="px-4 py-2.5">{r.min}</td>
+                        <td className="px-4 py-2.5">{r.max}</td>
+                        <td className="px-4 py-2.5">{r.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-right text-[11px] text-muted-foreground">Generated {generatedAt}</p>
+            </Card>
+          )}
+
+          {generatedAt && reportType === "Counterparty Concentration Report" && counterpartyData.length > 0 && (
+            <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
+              <h3 className="mb-3 text-sm font-bold">Counterparty Concentration</h3>
+              <div className="overflow-x-auto rounded-xl border border-border">
+                <table className="min-w-full text-left text-sm">
+                  <thead>
+                    <tr className="bg-slate-100 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      <th className="px-4 py-3">Counterparty</th>
+                      <th className="px-4 py-3">Declarations</th>
+                      <th className="px-4 py-3">Total Value</th>
+                      <th className="px-4 py-3">Avg Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {counterpartyData.map((c) => (
+                      <tr key={c.counterparty} className="hover:bg-slate-50">
+                        <td className="px-4 py-2.5 font-semibold">{c.counterparty}</td>
+                        <td className="px-4 py-2.5">{c.count}</td>
+                        <td className="px-4 py-2.5">R{c.totalValue}</td>
+                        <td className="px-4 py-2.5">R{(c.totalValue / c.count).toFixed(0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-right text-[11px] text-muted-foreground">Generated {generatedAt}</p>
+            </Card>
+          )}
 
           <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
             <div className="mb-3 flex items-center justify-between">
@@ -254,19 +391,7 @@ export function AdminReports() {
                         <td className="px-4 py-2.5">{d.Counterparty}</td>
                         <td className="px-4 py-2.5">R{d.value}</td>
                         <td className="px-4 py-2.5">
-                          <span
-                            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                              d.status === "Approved"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : d.status === "Declined"
-                                  ? "bg-red-100 text-red-700"
-                                  : d.status === "Pending"
-                                    ? "bg-amber-100 text-amber-700"
-                                    : d.status === "Draft"
-                                      ? "bg-slate-100 text-slate-600"
-                                      : "bg-blue-100 text-blue-700"
-                            }`}
-                          >
+                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColor(d.status)}`}>
                             {d.status}
                           </span>
                         </td>
