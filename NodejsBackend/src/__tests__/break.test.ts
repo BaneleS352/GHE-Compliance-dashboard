@@ -389,4 +389,365 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
+
+  // ── NEW: JWT / Token Attacks ──────────────────────
+  it("GET /api/auth/me — JWT with alg: none", async () => {
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", "Bearer eyJhbGciOiJub25lIn0.eyJpZCI6InVzZXItYWRtaW4iLCJyb2xlIjoiYWRtaW4ifQ.");
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /api/auth/me — JWT signed with different secret", async () => {
+    const jwt = require("jsonwebtoken");
+    const fake = jwt.sign({ id: "user-admin", role: "admin" }, "wrong-secret");
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${fake}`);
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /api/auth/me — JWT with manipulated role in payload", async () => {
+    const jwt = require("jsonwebtoken");
+    const tampered = jwt.sign({ id: "user-team", role: "admin" }, "wrong-secret");
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${tampered}`);
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /api/auth/me — Bearer token with trailing whitespace (accepted, trimmed)", async () => {
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${getAdminToken()}   `);
+    // Server trims whitespace; 200 means token is still valid
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /api/auth/me — multiple Authorization headers", async () => {
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .set("Authorization", "Bearer invalidtoken");
+    expect(res.status).toBe(401);
+  });
+
+  // ── NEW: Content-Type / Body Attacks ──────────────
+  it("POST /api/auth/login — URL-encoded body (accepted by Express urlencoded middleware)", async () => {
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("Content-Type", "application/x-www-form-urlencoded")
+      .send("email=admin@test.com&password=password");
+    // Express urlencoded middleware parses it — Zod validates it — login succeeds
+    expect(res.status).toBe(200);
+  });
+
+  it("POST /api/auth/login — null body", async () => {
+    const res = await request(app)
+      .post("/api/auth/login")
+      .send(null);
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/declarations — empty JSON object (IDOR check runs first, returns 403)", async () => {
+    const res = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({});
+    // IDOR check (employeeId mismatch) fires before Zod validation
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /api/declarations — array instead of object (IDOR check runs first)", async () => {
+    const res = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send([{ employee: "Test" }]);
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /api/declarations — null values for required fields (IDOR check first)", async () => {
+    const res = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({
+        employee: null, employeeId: null, department: null, type: null,
+        counterparty: null, value: null, description: null,
+      });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /api/declarations — value is zero", async () => {
+    const res = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({
+        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+        type: "Gift", counterparty: "ZeroVal", value: 0,
+        submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
+        description: "Zero value test", relationship: "Test",
+        receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+        biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+        instances: "1", publicOfficial: "No",
+      });
+    // Zero is allowed per schema (nonnegative)
+    expect(res.status).toBe(201);
+    expect(res.body.value).toBe(0);
+  });
+
+  // ── NEW: Prisma Operator Injection ─────────────────
+  it("GET /api/admin/users — Prisma operator injection in search", async () => {
+    // Prisma's contains with special regex characters
+    const res = await request(app)
+      .get("/api/admin/users?search=.+")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it("GET /api/declarations — filter with special characters in status", async () => {
+    const res = await request(app)
+      .get("/api/declarations?status=Pending%00")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(res.status).toBe(200);
+  });
+
+  // ── NEW: Deeply Nested / DoS Attempts ─────────────
+  it("POST /api/declarations — deeply nested JSON (500 levels, IDOR check first)", async () => {
+    let deep: any = {};
+    let ptr = deep;
+    for (let i = 0; i < 500; i++) { ptr[i] = {}; ptr = ptr[i]; }
+    const res = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send(deep);
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /api/declarations — extremely large array in files field", async () => {
+    const res = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({
+        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+        type: "Gift", counterparty: "BigArr", value: 100,
+        submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
+        description: "Large array", relationship: "Test",
+        receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+        biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+        instances: "1", publicOfficial: "No",
+        files: new Array(10000).fill("x"),
+      });
+    expect(res.status).toBe(201); // Should still accept despite large array
+  });
+
+  // ── NEW: Unicode / Encoding Attacks ───────────────
+  it("POST /api/declarations — unicode right-to-left override in description", async () => {
+    const res = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({
+        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+        type: "Gift", counterparty: "Unicode", value: 100,
+        submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
+        description: "Access granted \u202E[pay-roll-elift] veroD", relationship: "Test",
+        receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+        biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+        instances: "1", publicOfficial: "No",
+      });
+    expect(res.status).toBe(201);
+  });
+
+  it("POST /api/declarations — null byte injection", async () => {
+    const res = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({
+        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+        type: "Gift", counterparty: "NullByte\u0000test", value: 100,
+        submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
+        description: "Null byte test", relationship: "Test",
+        receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+        biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+        instances: "1", publicOfficial: "No",
+      });
+    expect(res.status).toBe(201);
+  });
+
+  // ── NEW: Workflow Edge Cases ──────────────────────
+  it("POST /api/workflows/approve — invalid decision value", async () => {
+    const res = await request(app)
+      .post("/api/workflows/approve")
+      .set("Authorization", `Bearer ${getApproverToken()}`)
+      .send({ declarationId: "GHE-TEST-001", decision: "nuclear-launch" });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/workflows/approve — teamMember tries to approve", async () => {
+    const res = await request(app)
+      .post("/api/workflows/approve")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({ declarationId: "GHE-TEST-001", decision: "accept" });
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /api/workflows/approve — approve non-existent declaration", async () => {
+    const res = await request(app)
+      .post("/api/workflows/approve")
+      .set("Authorization", `Bearer ${getApproverToken()}`)
+      .send({ declarationId: "GHE-NONEXIST", decision: "accept" });
+    expect(res.status).toBe(404);
+  });
+
+  // ── NEW: Declaration Status Edge Cases ─────────────
+  it("PATCH /api/declarations/:id/status — invalid status string", async () => {
+    const res = await request(app)
+      .patch("/api/declarations/GHE-TEST-001/status")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ status: "FlyingPig" });
+    expect(res.status).toBe(400);
+  });
+
+  it("PATCH /api/declarations/:id/status — empty status", async () => {
+    const res = await request(app)
+      .patch("/api/declarations/GHE-TEST-001/status")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ status: "" });
+    expect(res.status).toBe(400);
+  });
+
+  // ── NEW: HTTP Method Abuse ─────────────────────────
+  it("POST /api/declarations/:id — POST on specific resource (should be 404)", async () => {
+    const res = await request(app)
+      .post("/api/declarations/GHE-TEST-001")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(res.status).toBe(404);
+  });
+
+  it("PATCH /api/declarations — PATCH on collection (no ID)", async () => {
+    const res = await request(app)
+      .patch("/api/declarations")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(res.status).toBe(404);
+  });
+
+  it("PUT /api/declarations — PUT on collection (no ID)", async () => {
+    const res = await request(app)
+      .put("/api/declarations")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({});
+    expect(res.status).toBe(404);
+  });
+
+  // ── NEW: IDOR / Permission Escalation ─────────────
+  it("PUT /api/declarations/:id — teamMember edits non-owned declaration (already approved)", async () => {
+    // GHE-TEST-003 is "Approved" — status check returns 400 before IDOR check
+    const res = await request(app)
+      .put("/api/declarations/GHE-TEST-003")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({ description: "tampered" });
+    expect(res.status).toBe(400);
+  });
+
+  it("DELETE /api/declarations/:id — teamMember deletes non-owned declaration (already approved)", async () => {
+    // GHE-TEST-003 is "Approved" — status check returns 400 before IDOR check
+    const res = await request(app)
+      .delete("/api/declarations/GHE-TEST-003")
+      .set("Authorization", `Bearer ${getTeamToken()}`);
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/declarations — teamMember sees only their own declarations", async () => {
+    const res = await request(app)
+      .get("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    // Team member should only see their own declarations
+    for (const d of res.body) {
+      expect(d.employeeId).toBe("user-team");
+    }
+  });
+
+  // ── NEW: Admin Edge Cases ──────────────────────────
+  it("POST /api/admin/users — missing required fields", async () => {
+    const res = await request(app)
+      .post("/api/admin/users")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ role: "teamMember" });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/admin/users — very long name (10k chars)", async () => {
+    const res = await request(app)
+      .post("/api/admin/users")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({
+        name: "x".repeat(10000), email: "longname@test.com", role: "teamMember",
+        department: "IT", position: "Tester",
+      });
+    expect(res.status).toBe(201);
+    // Cleanup to avoid leaking into other tests
+    await request(app)
+      .delete("/api/admin/users/" + res.body.id)
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+  });
+
+  it("DELETE /api/admin/users/:id — non-existent user", async () => {
+    const res = await request(app)
+      .delete("/api/admin/users/user-nonexistent")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(res.status).toBe(404);
+  });
+
+  // ── NEW: Report Edge Cases ─────────────────────────
+  it("GET /api/reports/status-breakdown — invalid date range", async () => {
+    const res = await request(app)
+      .get("/api/reports/status-breakdown?startDate=9999-99-99&endDate=invalid")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    // Should still return 200 with empty/valid data (dates are strings, no crash)
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /api/reports/list — combined filters", async () => {
+    const res = await request(app)
+      .get("/api/reports/list?department=Marketing&status=Pending")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    for (const d of res.body) {
+      expect(d.department).toBe("Marketing");
+      expect(d.status).toBe("Pending");
+    }
+  });
+
+  it("GET /api/reports/list — non-existent department", async () => {
+    const res = await request(app)
+      .get("/api/reports/list?department=DepartmentOfImaginaryFriends")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(0);
+  });
+
+  // ── NEW: File Route Edge Cases ─────────────────────
+  it("GET /api/files/:id — non-existent file returns 404", async () => {
+    const res = await request(app)
+      .get("/api/files/nonexistent-file-id")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(res.status).toBe(404);
+  });
+
+  // ── NEW: CORS / Header Edge Cases ──────────────────
+  it("OPTIONS /api/health — CORS preflight (Express returns 204 by default)", async () => {
+    const res = await request(app)
+      .options("/api/health")
+      .set("Origin", "http://evil.com")
+      .set("Access-Control-Request-Method", "GET");
+    // Express returns 204 No Content for OPTIONS when no handler matches
+    expect(res.status).toBe(204);
+  });
 });

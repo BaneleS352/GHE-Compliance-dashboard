@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { Declaration, ApprovalDecision } from "../../types/declaration";
@@ -8,11 +8,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { DeclarationDetailView } from "../pages/DeclarationDetailView";
 import { ApproverDecisionBlock } from "../pages/ApprovalQueue";
 import { useUser } from "../auth/UserContext";
-import {
-  getWorkflowForDeclaration, setWorkflowForDeclaration,
-  updateDeclaration,
-  canUserApprove,
-} from "../../data/db";
+import { fetchWorkflowInstance, approveWorkflowStep, updateDeclaration } from "../../services/api";
 
 export function ApprovalDetail({
   declaration,
@@ -22,9 +18,32 @@ export function ApprovalDetail({
   onBack: () => void;
 }) {
   const { user } = useUser();
-  const workflow = getWorkflowForDeclaration(declaration.id);
+  const [workflow, setWorkflow] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [notAssignable, setNotAssignable] = useState(false);
 
-  if (!user || !workflow) {
+  useEffect(() => {
+    if (!user) { setLoading(false); return; }
+    fetchWorkflowInstance(declaration.id)
+      .then((wf) => {
+        setWorkflow(wf);
+        if (!wf || !wf.steps.some((s: any) => s.status === "pending" && s.assignee === user.id)) {
+          setNotAssignable(true);
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [declaration.id, user]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-sm text-muted-foreground animate-pulse">Loading workflow…</div>
+      </div>
+    );
+  }
+
+  if (!workflow) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center text-muted-foreground">
@@ -35,7 +54,7 @@ export function ApprovalDetail({
     );
   }
 
-  if (!canUserApprove(declaration.id, user.id)) {
+  if (notAssignable) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center text-muted-foreground">
@@ -107,7 +126,7 @@ export function ApprovalDetail({
 
   const completedSteps = steps.filter((s) => s.completed || s.decision).length;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!user || !workflow) return;
 
     const stepsToUpdate = [...workflow.steps];
@@ -117,7 +136,8 @@ export function ApprovalDetail({
     let hasReturn = false;
     let hasDecline = false;
 
-    stepsToUpdate.forEach((step, i) => {
+    for (let i = 0; i < stepsToUpdate.length; i++) {
+      const step = stepsToUpdate[i];
       const decision = decisions[i];
       if (decision && step.assignee === user.id && step.status === "pending") {
         step.decision = decision;
@@ -134,17 +154,16 @@ export function ApprovalDetail({
         } else {
           step.status = "approved";
         }
+        await approveWorkflowStep({ declarationId: declaration.id, decision, notes: notesArr[i] });
       }
-    });
-
-    setWorkflowForDeclaration({ declarationId: declaration.id, steps: stepsToUpdate });
+    }
 
     if (hasDecline) {
-      updateDeclaration(declaration.id, { status: "Declined" });
+      await updateDeclaration(declaration.id, { status: "Declined" });
     } else if (hasReturn) {
-      updateDeclaration(declaration.id, { status: "Info Requested" });
+      await updateDeclaration(declaration.id, { status: "Info Requested" });
     } else if (allApproved && stepsToUpdate.every((s) => s.status === "approved")) {
-      updateDeclaration(declaration.id, { status: "Approved" });
+      await updateDeclaration(declaration.id, { status: "Approved" });
     }
 
     setMessage("Decision submitted successfully.");

@@ -1,10 +1,10 @@
+import { useState, useEffect } from "react";
 import { Check, ArrowLeft, Download, Eye, FileText } from "lucide-react";
 import { Card } from "../components/ui/card";
 import { StatusBadge } from "../components/StatusBadge";
 import { formatRand } from "../../config/theme";
 import { Declaration, StatusType, UploadedFile } from "../../types/declaration";
-import { getConfig } from "../../data/modules/config";
-import { getWorkflowForDeclaration } from "../../data/db";
+import { fetchConfig, fetchWorkflowInstance } from "../../services/api";
 import { motion } from "framer-motion";
 
 export function DeclarationDetailView({
@@ -17,6 +17,16 @@ export function DeclarationDetailView({
   const isRecord = typeof (data as Declaration).value === "number";
   const d = isRecord ? (data as Declaration) : null;
   const record = !d ? (data as Record<string, string>) : null;
+  const [config, setConfig] = useState({ highValueThreshold: 2000, mediumValueThreshold: 500, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
+  const [workflowInstance, setWorkflowInstance] = useState<any>(undefined);
+
+  useEffect(() => {
+    fetchConfig().then(setConfig);
+  }, []);
+
+  useEffect(() => {
+    if (d) fetchWorkflowInstance(d.id).then(setWorkflowInstance);
+  }, [d]);
 
   const safe = (v: unknown) => (v != null ? String(v) : "—");
 
@@ -40,8 +50,8 @@ export function DeclarationDetailView({
         ["Contract In Progress",   safe(d.contractNegotiation)],
         ["No. of GHE past 12 months", safe(d.instances)],
         ["Description",            safe(d.description)],
-        ...(d.value > getConfig().highValueThreshold
-          ? ([[`Substantiation (> R${getConfig().highValueThreshold})`, safe(d.substantiation || "Required")]] as [string, string][])
+        ...(d.value > config.highValueThreshold
+          ? ([[`Substantiation (> R${config.highValueThreshold})`, safe(d.substantiation || "Required")]] as [string, string][])
           : []),
       ]
     : [
@@ -64,8 +74,8 @@ export function DeclarationDetailView({
         ["Contract In Progress",   safe(record?.contractNegotiation)],
         ["No. of GHE past 12 months", safe(record?.instances)],
         ["Description",            safe(record?.description)],
-        ...(Number(record?.value) > getConfig().highValueThreshold
-          ? ([[`Substantiation (> R${getConfig().highValueThreshold})`, safe(record?.substantiation || "Required")]] as [string, string][])
+        ...(Number(record?.value) > config.highValueThreshold
+          ? ([[`Substantiation (> R${config.highValueThreshold})`, safe(record?.substantiation || "Required")]] as [string, string][])
           : []),
       ];
 
@@ -86,7 +96,7 @@ export function DeclarationDetailView({
     link.click();
   };
 
-  const workflowInstance = d ? getWorkflowForDeclaration(d.id) : undefined;
+  // workflowInstance is now fetched in useEffect above
   const workflowSteps = (() => {
     if (d && workflowInstance && workflowInstance.steps.length > 0) {
       const steps = [

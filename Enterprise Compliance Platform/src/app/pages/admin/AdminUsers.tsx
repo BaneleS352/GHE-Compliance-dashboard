@@ -4,7 +4,7 @@ import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { THead } from "../../components/THead";
 import { PURPLE } from "../../../config/theme";
-import { getUsers, addUser, updateUser, deleteUser } from "../../../data/db";
+import { fetchUsers, createUser, updateUser, deleteUser } from "../../../services/api";
 import { User } from "../../../types/declaration";
 
 const ROLE_MAP: Record<string, string> = {
@@ -23,10 +23,10 @@ export function AdminUsers() {
   const [users, setUsers] = useState<User[]>([]);
 
   useEffect(() => {
-    setUsers(getUsers());
+    fetchUsers().then(setUsers);
   }, []);
 
-  const refresh = () => setUsers([...getUsers()]);
+  const refresh = () => fetchUsers().then(setUsers);
 
   const filtered = useMemo(() => {
     let list = users;
@@ -50,7 +50,7 @@ export function AdminUsers() {
     return list;
   }, [users, search, roleFilter]);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const name = prompt("User name:");
     if (!name) return;
     const email = prompt("Email:");
@@ -60,7 +60,7 @@ export function AdminUsers() {
     if (!roleLabel || !roleLabels.includes(roleLabel)) return;
     const department = prompt("Department:") || "";
     try {
-      addUser({
+      await createUser({
         id: `USR-${String(_nextId++).slice(-6)}`,
         name,
         email,
@@ -77,7 +77,7 @@ export function AdminUsers() {
     }
   };
 
-  const handleEdit = (user: User) => {
+  const handleEdit = async (user: User) => {
     const name = prompt("Name:", user.name);
     if (!name) return;
     const email = prompt("Email:", user.email);
@@ -87,17 +87,17 @@ export function AdminUsers() {
     if (!roleLabel || !roleLabels.includes(roleLabel)) return;
     const department = prompt("Department:", user.department) || "";
     try {
-      updateUser(user.id, { name, email, role: roleLabel as User["role"], department });
+      await updateUser(user.id, { name, email, role: roleLabel as User["role"], department });
       refresh();
     } catch (e: any) {
       alert(e.message);
     }
   };
 
-  const handleDelete = (user: User) => {
+  const handleDelete = async (user: User) => {
     if (!confirm(`Delete user "${user.name}" (${user.id})?`)) return;
     try {
-      deleteUser(user.id);
+      await deleteUser(user.id);
       refresh();
     } catch (e: any) {
       alert(e.message);

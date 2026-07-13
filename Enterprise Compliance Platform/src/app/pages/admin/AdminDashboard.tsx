@@ -5,17 +5,24 @@ import { PageHeader } from "../../components/PageHeader";
 import { KpiCard } from "../../components/KpiCard";
 import { PURPLE, YELLOW } from "../../../config/theme";
 import { Screen } from "../../../types/declaration";
-import { getUsers, getDeclarations, getWorkflowRules, getConfig } from "../../../data/db";
+import { fetchUsers, fetchDeclarations, fetchWorkflowRules, fetchConfig } from "../../../services/api";
 
 export function AdminDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   const [stats, setStats] = useState({ users: 0, declarations: 0, workflows: 0, threshold: 2000 });
 
   useEffect(() => {
-    setStats({
-      users: getUsers().length,
-      declarations: getDeclarations().length,
-      workflows: getWorkflowRules().length,
-      threshold: getConfig().highValueThreshold,
+    Promise.all([
+      fetchUsers(),
+      fetchDeclarations(),
+      fetchWorkflowRules(),
+      fetchConfig(),
+    ]).then(([users, declarations, workflows, config]) => {
+      setStats({
+        users: users.length,
+        declarations: declarations.length,
+        workflows: workflows.length,
+        threshold: config.highValueThreshold,
+      });
     });
   }, []);
 

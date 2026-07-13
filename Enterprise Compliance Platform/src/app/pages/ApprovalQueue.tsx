@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import { Filter, Download, Search } from "lucide-react";
 import { fetchDeclarations } from "../../services/api";
-import { getApprovalOptions } from "../../data/db";
-
-const approvalOptions = getApprovalOptions();
+import { fetchApprovalOptions } from "../../services/api";
 import { Declaration, ApprovalDecision } from "../../types/declaration";
 import { PURPLE, formatRand } from "../../config/theme";
 import { Card } from "../components/Card";
@@ -28,6 +26,8 @@ export function ApproverDecisionBlock({
   notes: string;
   onNotesChange: (v: string) => void;
 }) {
+  const [approvalOptions, setApprovalOptions] = useState<{ value: string; label: string }[]>([]);
+  useEffect(() => { fetchApprovalOptions().then(setApprovalOptions); }, []);
   return (
     <Card className="p-5">
       <div className="mb-4 flex items-center gap-2.5 border-b border-border pb-3.5">

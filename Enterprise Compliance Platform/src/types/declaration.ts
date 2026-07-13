@@ -36,7 +36,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  passwordHash: string;
+  passwordHash?: string;
   role: Role;
   teamMemberNumber: string;
   department: string;

@@ -1,9 +1,10 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Download, FileText, Calendar, BarChart3 } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { PURPLE } from "../../../config/theme";
-import { getDeclarations, getConfig, getWorkflowForDeclaration } from "../../../data/db";
+import { Declaration } from "../../../types/declaration";
+import { fetchDeclarations, fetchConfig, fetchWorkflowInstance } from "../../../services/api";
 import { exportToExcel, ColumnDef } from "../../utils/excelExport";
 
 type ReportMeta = { title: string; desc: string };
@@ -22,9 +23,25 @@ export function AdminReports() {
   const [department, setDepartment] = useState("All Departments");
   const [status, setStatus] = useState("All Statuses");
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
+  const [allDeclarations, setAllDeclarations] = useState<Declaration[]>([]);
+  const [config, setConfig] = useState({ highValueThreshold: 2000, mediumValueThreshold: 500, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
+  const [workflowInstances, setWorkflowInstances] = useState<Record<string, any>>({});
 
-  const allDeclarations = useMemo(() => getDeclarations(), []);
-  const config = useMemo(() => getConfig(), []);
+  useEffect(() => {
+    fetchDeclarations().then(setAllDeclarations);
+    fetchConfig().then(setConfig);
+  }, []);
+
+  useEffect(() => {
+    const ids = allDeclarations.map((d) => d.id);
+    if (ids.length === 0) return;
+    Promise.all(ids.map((id) => fetchWorkflowInstance(id).then((wfi) => ({ id, wfi }))))
+      .then((results) => {
+        const map: Record<string, any> = {};
+        results.forEach(({ id, wfi }) => { if (wfi) map[id] = wfi; });
+        setWorkflowInstances(map);
+      });
+  }, [allDeclarations]);
 
   const departments = useMemo(() => {
     const deps = new Set(allDeclarations.map((d) => d.department).filter(Boolean));
@@ -59,7 +76,7 @@ export function AdminReports() {
   const slaData = useMemo(() => {
     const byRole: Record<string, number[]> = {};
     for (const d of filtered) {
-      const wf = getWorkflowForDeclaration(d.id);
+      const wf = workflowInstances[d.id];
       if (!wf) continue;
       for (const step of wf.steps) {
         if (!step.decidedAt || !d.date) continue;

@@ -1,6 +1,0 @@
-@GHEBackend_HostAddress = http://localhost:5202
-
-GET {{GHEBackend_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
