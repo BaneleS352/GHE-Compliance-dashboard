@@ -67,7 +67,7 @@ All endpoints are documented in Swagger at `/api/docs`. Summary:
 ## Testing
 
 ```bash
-npm run test          # 96 tests across 9 suites
+npm run test          # 132 tests across 9 suites
 npm run test:watch    # Watch mode
 ```
 
@@ -85,7 +85,20 @@ Tests use a separate SQLite database (`test.db`) that's reset before each run vi
 | `admin/config.test.ts` | 8 | Config, dropdowns, approval options |
 | `admin/workflows.test.ts` | 5 | Workflow rule CRUD |
 | `admin/dashboard.test.ts` | 2 | Dashboard KPIs, auth enforcement |
-| `break.test.ts` | 36 | **Negative/injection/stress tests** |
+| `break.test.ts` | 72 | **Negative/injection/stress/fuzz tests** |
+
+### Breaking Tests (`break.test.ts` — 72 tests)
+
+Covers scenarios that try to break the API:
+- **Auth bypass**: expired token, wrong signature, missing/invalid/whitespace token, no auth header, wrong role
+- **Injection**: SQLi (`' OR 1=1--`), NoSQL (`$gt`), XSS payloads in fields
+- **Oversized payloads**: 10MB body, 10k-char strings, deeply nested 500-level JSON
+- **Unicode/BOM**: UTF-8 BOM prefix in JSON body, emoji in declaration fields
+- **Protocol violations**: URL-encoded body where JSON expected, array instead of object, null required fields
+- **HTTP edge cases**: CORS preflight, method override headers (X-HTTP-Method-Override), duplicate query params
+- **Rapid fire**: 20 sequential requests to test concurrency/connection reuse
+- **CRUD integrity**: edit/delete non-owned declaration, tamper with admin-only endpoints
+- **Special paths**: `../` traversal, routes with special URL characters
 
 ## Project Structure
 
@@ -110,6 +123,14 @@ src/
     *.test.ts           # Test suites
 prisma/
   schema.prisma         # Database schema (10 models)
+```
+
+## Frontend Integration
+
+The frontend (`../Enterprise Compliance Platform`) communicates with this backend via HTTP. The Vite dev server proxies `/api` requests to `http://localhost:3001`. The shared `dev.bat` script at the repository root starts both servers:
+
+```bat
+dev.bat
 ```
 
 ## Database
