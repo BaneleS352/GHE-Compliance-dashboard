@@ -28,7 +28,7 @@ function load(): Database {
         ...seed,
         ...stored,
         config: { ...seed.config, ...stored.config },
-        users: mergeSeedPriority(seed.users, stored.users, "id", ["role"]),
+        users: mergeArray(seed.users, stored.users, "id"),
         declarations: mergeArray(seed.declarations, stored.declarations, "id"),
         workflowInstances: mergeArray(
           seed.workflowInstances as WorkflowInstance[],

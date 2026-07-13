@@ -1,5 +1,10 @@
 import * as XLSX from "xlsx";
 
+interface CellFill {
+  patternType: string;
+  fgColor: { rgb: string };
+}
+
 export interface ColumnDef {
   header: string;
   key: string;
@@ -15,8 +20,8 @@ export interface ExportOptions {
   meta?: [string, string][];
 }
 
-const HEADER_FILL: XLSX.Fill = { patternType: "solid", fgColor: { rgb: "4C1D95" } };
-const TITLE_FILL: XLSX.Fill = { patternType: "solid", fgColor: { rgb: "EDE9FE" } };
+const HEADER_FILL: CellFill = { patternType: "solid", fgColor: { rgb: "4C1D95" } };
+const TITLE_FILL: CellFill = { patternType: "solid", fgColor: { rgb: "EDE9FE" } };
 
 export function exportToExcel(opts: ExportOptions) {
   const aoa: unknown[][] = [];

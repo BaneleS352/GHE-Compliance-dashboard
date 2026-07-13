@@ -17,7 +17,7 @@ export function TopBar({
     .join("")
     .slice(0, 2)
     .toUpperCase();
-  const headerText = "Gift, Hospitality and Entertainment Declaration System";
+  const headerText = 'Gift, Hospitality or Entertainment ("GHE") Declaration System';
 
   return (
     <header className="relative z-20 flex min-h-16 items-center justify-between gap-2 border-b border-white/60 bg-white/60 px-3 shadow-[0_2px_10px_rgba(0,0,0,0.02)] backdrop-blur-xl sm:gap-3 sm:px-6">

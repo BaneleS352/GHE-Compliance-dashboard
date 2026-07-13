@@ -175,7 +175,7 @@ export function ApprovalDetail({
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
         <div className="xl:col-span-3">
-          <DeclarationDetailView data={declaration} onBack={() => {}} hideBack />
+          <DeclarationDetailView data={declaration} onBack={() => {}} />
         </div>
 
         <div className="xl:col-span-2 space-y-5 xl:sticky xl:top-4 self-start">

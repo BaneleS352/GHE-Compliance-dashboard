@@ -1,6 +1,6 @@
 {
   "config": {
-    "highValueThreshold": 2500,
+    "highValueThreshold": 2000,
     "mediumValueThreshold": 250,
     "slaEscalationDays": 3,
     "maxDeclarationsPerCounterparty": 5,
@@ -41,8 +41,8 @@
   ],
   "workflowRules": [
     { "id": "rule-1", "name": "Low Value (R0–R250)", "condition": "low", "priority": 1, "steps": [{ "order": 1, "role": "lineManager", "label": "Line Manager Review" }] },
-    { "id": "rule-2", "name": "Medium Value (R251–R2500)", "condition": "medium", "priority": 2, "steps": [{ "order": 1, "role": "lineManager", "label": "Line Manager Review" }, { "order": 2, "role": "hr", "label": "HR Review" }] },
-    { "id": "rule-3", "name": "High Value (above R2500)", "condition": "high", "priority": 3, "steps": [{ "order": 1, "role": "lineManager", "label": "Line Manager Review" }, { "order": 2, "role": "hr", "label": "HR Review" }, { "order": 3, "role": "ceo", "label": "CEO Approval" }] }
+    { "id": "rule-2", "name": "Medium Value (R251–R2000)", "condition": "medium", "priority": 2, "steps": [{ "order": 1, "role": "lineManager", "label": "Line Manager Review" }, { "order": 2, "role": "hr", "label": "HR Review" }] },
+    { "id": "rule-3", "name": "High Value (above R2000)", "condition": "high", "priority": 3, "steps": [{ "order": 1, "role": "lineManager", "label": "Line Manager Review" }, { "order": 2, "role": "hr", "label": "HR Review" }, { "order": 3, "role": "ceo", "label": "CEO Approval" }] }
   ],
   "workflowInstances": [
     {

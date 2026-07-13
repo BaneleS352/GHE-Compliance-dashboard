@@ -169,6 +169,14 @@ export function NewDeclarationScreen({
   ];
   const MAX_SIZE = 20 * 1_048_576;
 
+  const readFileAsBase64 = (file: File): Promise<{ name: string; size: number; type: string; data: string }> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: file.name, size: file.size, type: file.type, data: reader.result as string });
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   const processFiles = useCallback(async (rawFiles: FileList | null) => {
     if (!rawFiles) return;
     for (const file of Array.from(rawFiles)) {
@@ -200,6 +208,9 @@ export function NewDeclarationScreen({
         ]);
       };
       reader.readAsDataURL(file);
+    });
+      const fileData = await readFileAsBase64(file);
+      setFiles((f) => [...f, { name: fileData.name, size: fileData.size, type: fileData.type, url: URL.createObjectURL(file), data: fileData.data }]);
     }
   }, []);
 
@@ -209,11 +220,12 @@ export function NewDeclarationScreen({
     processFiles(e.dataTransfer.files);
   };
 
-  const validate = () => {
-    const value = Number(form.value || 0);
-    const requiresSubstantiation = Number.isFinite(value) && value > getConfig().highValueThreshold;
-    const requiresOccasionOther = form.occasion === "Other";
+const value = Number(form.value || 0);
+      const requiresSubstantiation = Number.isFinite(value) && value > getConfig().highValueThreshold;
+      const requiresOccasionOther = form.occasion === "Other";
+      const priority = getPriority(value);
 
+  const validate = () => {
     const errs: Record<string, string> = {};
     if (!form.employeeName.trim())       errs.employeeName = "Required";
     if (!form.employeeCode.trim())       errs.employeeCode = "Required";
@@ -251,12 +263,9 @@ export function NewDeclarationScreen({
     return true;
   };
 
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = () => {
     if (!user) return;
     const value = Number(form.value || 0);
-    const requiresSubstantiation = Number.isFinite(value) && value > getConfig().highValueThreshold;
-    const requiresOccasionOther = form.occasion === "Other";
-    const priority = getPriority(value);
     const declaration: Declaration = {
       id: `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
       employee: form.employeeName,
@@ -277,23 +286,19 @@ export function NewDeclarationScreen({
       type: category,
       date: form.date,
       submitted: new Date().toISOString().slice(0, 10),
-      value: Number.isFinite(value) ? value : 0,
-      occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
-      description: form.description,
-      instances: form.instances,
-      publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
-      substantiation: requiresSubstantiation ? form.substantiation : "",
-      approver: getFinalApproverName(value, form.lineManager),
-      status: "Draft",
-      priority,
-      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
+value: Number.isFinite(value) ? value : 0,
+        occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
+        description: form.description,
+        instances: form.instances,
+        publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
+        substantiation: requiresSubstantiation ? form.substantiation : "",
+        approver: getFinalApproverName(value, form.lineManager),
+        status: "Draft",
+        priority,
+      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, data: f.data || "" })),
     };
-    try {
-      await createDeclaration(declaration);
-      onDraftSaved();
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save draft.");
-    }
+    createDeclaration(declaration);
+    onDraftSaved();
   };
 
   const createWorkflow = (declaration: Declaration) => {
@@ -342,9 +347,6 @@ export function NewDeclarationScreen({
     setSubmitError("");
 
     const value = Number(form.value || 0);
-    const requiresSubstantiation = Number.isFinite(value) && value > getConfig().highValueThreshold;
-    const requiresOccasionOther = form.occasion === "Other";
-    const priority = getPriority(value);
     const declaration: Declaration = {
       id: `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
       employee: form.employeeName,
@@ -371,19 +373,27 @@ export function NewDeclarationScreen({
       instances: form.instances,
       publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
       substantiation: requiresSubstantiation ? form.substantiation : "",
-      approver: getFinalApproverName(value, form.lineManager),
+      approver: form.lineManager,
       status: "Pending",
-      priority,
-      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
+      priority: value > 5000 ? "High" : value > 2000 ? "Medium" : "Low",
+      files,
+value: Number.isFinite(value) ? value : 0,
+        occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
+        description: form.description,
+        instances: form.instances,
+        publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
+        substantiation: requiresSubstantiation ? form.substantiation : "",
+        approver: getFinalApproverName(value, form.lineManager),
+        status: "Pending",
+        priority,
+      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, data: f.data || "" })),
     };
 
-    let saved: Declaration | undefined;
     try {
-      saved = await createDeclaration(declaration);
+      const saved = await createDeclaration(declaration);
       createWorkflow(saved);
       onSubmitSuccess(saved);
     } catch (err) {
-      if (saved) updateDeclaration(saved.id, { status: "Draft" });
       setSubmitError(err instanceof Error ? err.message : "Failed to submit declaration.");
     } finally {
       setSubmitting(false);
@@ -400,10 +410,6 @@ export function NewDeclarationScreen({
   const occasionOptions = [
     "Business Meeting", "Festive Season", "Milestone", "Other", "Relationship Maintenance", "Year End",
   ];
-
-  const valueNum = Number(form.value || 0);
-  const requiresSubstantiation = Number.isFinite(valueNum) && valueNum > getConfig().highValueThreshold;
-  const requiresOccasionOther = form.occasion === "Other";
 
   const ErrInp = ({ field, ...props }: { field: string } & React.InputHTMLAttributes<HTMLInputElement>) => (
     <input
@@ -475,9 +481,9 @@ export function NewDeclarationScreen({
             Definitions
           </p>
           {[
-            { t: "Gift",          d: "Anything of value including cash, vouchers, goods, services, preferential discounts or favours." },
+            { t: "Gift",          d: "Anything of value including cash, vouchers, goods, services, preferential discount or favours." },
             { t: "Hospitality",   d: "Accommodation, travel, conferences, tickets or formal business functions." },
-            { t: "Entertainment", d: "Meals, events, sporting, cultural or recreational activities." },
+            { t: "Entertainment", d: "Meals, events, sporting or cultural or recreational activities." },
           ].map((d) => (
             <div key={d.t} className="mb-2.5 last:mb-0">
               <p className="text-sm font-bold text-foreground">{d.t}</p>
@@ -590,6 +596,13 @@ export function NewDeclarationScreen({
             </div>
             <div className="space-y-5">
               <div>
+                <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the supplier/customer?</FL>
+                <Sel value={form.existingRelationship} onChange={(v) => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
+                  <option value="">Select…</option>
+                  {ynu.map((o) => <option key={o}>{o}</option>)}
+                </Sel>
+              </div>
+              <div>
                 <FL required error={errors.contractNegotiation}>Are we currently negotiating a contract with the Supplier or Customer?</FL>
                 <Sel value={form.contractNegotiation} onChange={(v) => setF("contractNegotiation", v)} className={errors.contractNegotiation ? "border-red-400" : ""}>
                   <option value="">Select…</option>
@@ -599,13 +612,6 @@ export function NewDeclarationScreen({
               <div>
                 <FL required error={errors.biddingProcess}>Is the Supplier or potential Supplier involved in a bidding process with us?</FL>
                 <Sel value={form.biddingProcess} onChange={(v) => setF("biddingProcess", v)} className={errors.biddingProcess ? "border-red-400" : ""}>
-                  <option value="">Select…</option>
-                  {ynu.map((o) => <option key={o}>{o}</option>)}
-                </Sel>
-              </div>
-              <div>
-                <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the Supplier/Customer?</FL>
-                <Sel value={form.existingRelationship} onChange={(v) => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
                   <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
@@ -705,7 +711,7 @@ export function NewDeclarationScreen({
               <div className="flex items-start gap-2.5 mb-3">
                 <AlertCircle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-800 leading-relaxed">
-                  If the Rand Value including VAT exceeds <strong>R2,000.00</strong>, please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.
+                  If the Rand Value including VAT exceeds <strong>R2,500.00</strong>, please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.
                 </p>
               </div>
               <textarea
@@ -714,7 +720,7 @@ export function NewDeclarationScreen({
                 }`}
                 value={form.substantiation}
                 onChange={(e) => setF("substantiation", e.target.value)}
-                placeholder="Substantiation for value exceeding R2,000.00 (if applicable)…"
+                placeholder="Substantiation for value exceeding R2,500.00 (if applicable)…"
               />
             </div>
             )}

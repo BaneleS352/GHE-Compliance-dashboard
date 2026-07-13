@@ -6,6 +6,7 @@ interface UserContextValue {
   user: User | null;
   setUser: (u: User | null) => void;
   isAuthenticated: boolean;
+  logout: () => void;
 }
 
 const UserContext = createContext<UserContextValue>({

@@ -74,7 +74,6 @@ export interface Declaration {
   team?: string;
   substantiation?: string;
   files?: UploadedFile[];
-  files?: { name: string; size: number; type: string; data: string }[];
 }
 
 export interface WorkflowStep {

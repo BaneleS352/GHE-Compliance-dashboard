@@ -77,11 +77,11 @@ describe("Data layer edge cases — designed to break", () => {
     it("value = 251 returns rule-2 (LM + HR)", () => {
       expect(determineWorkflowSteps(makeDecl({ value: 251 }))).toBe("rule-2");
     });
-    it("value = 2500 returns rule-2 (boundary, LM + HR)", () => {
-      expect(determineWorkflowSteps(makeDecl({ value: 2500 }))).toBe("rule-2");
+    it("value = highValueThreshold returns rule-2 (boundary, LM + HR)", () => {
+      expect(determineWorkflowSteps(makeDecl({ value: getConfig().highValueThreshold }))).toBe("rule-2");
     });
-    it("value = 2501 returns rule-3 (LM + HR + CEO)", () => {
-      expect(determineWorkflowSteps(makeDecl({ value: 2501 }))).toBe("rule-3");
+    it("value = highValueThreshold + 1 returns rule-3 (LM + HR + CEO)", () => {
+      expect(determineWorkflowSteps(makeDecl({ value: getConfig().highValueThreshold + 1 }))).toBe("rule-3");
     });
     it("value = -1 returns rule-1 (negative value silently treated as low)", () => {
       expect(determineWorkflowSteps(makeDecl({ value: -1 }))).toBe("rule-1");

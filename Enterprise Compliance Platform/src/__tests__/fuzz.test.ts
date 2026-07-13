@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   addDeclaration, updateDeclaration, deleteUser, getDeclarations, getUsers,
   setWorkflowForDeclaration, getPendingWorkflowStepsForUser, canUserApprove,
-  determineWorkflowSteps, invalidateCache,
+  determineWorkflowSteps, invalidateCache, getConfig,
 } from "../data/db";
 import { authenticate } from "../app/auth/authService";
 import { Declaration, StatusType, WorkflowInstance } from "../types/declaration";
@@ -194,8 +194,8 @@ describe("Negative assertions — validation must reject clearly invalid data", 
     expect(determineWorkflowSteps({ value: 0 } as Declaration)).toBe("rule-1");
     expect(determineWorkflowSteps({ value: 250 } as Declaration)).toBe("rule-1");
     expect(determineWorkflowSteps({ value: 251 } as Declaration)).toBe("rule-2");
-    expect(determineWorkflowSteps({ value: 2500 } as Declaration)).toBe("rule-2");
-    expect(determineWorkflowSteps({ value: 2501 } as Declaration)).toBe("rule-3");
+    expect(determineWorkflowSteps({ value: getConfig().highValueThreshold } as Declaration)).toBe("rule-2");
+    expect(determineWorkflowSteps({ value: getConfig().highValueThreshold + 1 } as Declaration)).toBe("rule-3");
   });
 });
 
