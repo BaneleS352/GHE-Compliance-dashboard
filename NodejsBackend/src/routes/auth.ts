@@ -65,6 +65,18 @@ router.post("/login", loginLimiter, async (req: Request, res: Response): Promise
   });
 });
 
+const PRESET_USERS = [
+  { label: "Team Member — Nomvula Dlamini", email: "nomvula@hb.co.za", role: "teamMember" },
+  { label: "Line Manager — Sipho Nkosi", email: "sipho@hb.co.za", role: "approver" },
+  { label: "HR — Lindiwe Zulu", email: "lindiwe@hb.co.za", role: "approver" },
+  { label: "CEO — Sandile Shabalala", email: "sandile@hb.co.za", role: "approver" },
+  { label: "Admin — System Admin", email: "admin@hb.co.za", role: "admin" },
+];
+
+router.get("/preset-users", (_req: Request, res: Response): void => {
+  res.json(PRESET_USERS);
+});
+
 router.get("/me", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) {
