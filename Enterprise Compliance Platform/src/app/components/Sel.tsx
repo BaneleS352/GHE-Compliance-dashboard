@@ -1,5 +1,5 @@
 import { FC, SelectHTMLAttributes } from "react";
-import { sel } from "../../config/theme";
+import { inp } from "../../config/theme";
 
 export interface SelProps extends SelectHTMLAttributes<HTMLSelectElement> {
   value: string;
@@ -10,7 +10,7 @@ export const Sel: FC<SelProps> = ({ value, onChange, className = "", ...props })
   <select
     value={value}
     onChange={(e) => onChange(e.target.value)}
-    className={`${sel} ${className}`}
+    className={`${inp} ${className}`}
     {...props}
   />
 );
