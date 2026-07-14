@@ -559,5 +559,189 @@ describe("Edge-Case Tests", () => {
         .set("Authorization", `Bearer ${getAdminToken()}`);
       expect(res.status).toBe(404);
     });
+
+    it("GET /api/workflows/instances/:declarationId — any user can view non-owned workflow instances (BUG: no ownership check)", async () => {
+      // Create a declaration + workflow owned by admin
+      const createRes = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({
+          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+          lineManager: "None", position: "Admin", department: "IT",
+          type: "Gift", counterparty: "WfLeakTest", value: 100,
+          submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
+          description: "workflow data leak test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      expect(createRes.status).toBe(201);
+      cleanupDeclIds.push(createRes.body.id);
+
+      // Create workflow on it
+      const { prisma } = await import("../config/prisma");
+      await prisma.workflowInstance.create({
+        data: {
+          declarationId: createRes.body.id,
+          steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-admin", assigneeName: "Admin", label: "Admin Review", status: "pending", decision: null, notes: "", decidedAt: null }]),
+        },
+      });
+
+      // Team member reads admin's workflow instance
+      const res = await request(app)
+        .get(`/api/workflows/instances/${createRes.body.id}`)
+        .set("Authorization", `Bearer ${getTeamToken()}`);
+      // BUG: Should be 403 but there's no ownership check
+      expect(res.status).toBe(200);
+      expect(res.body.declarationId).toBe(createRes.body.id);
+      expect(Array.isArray(res.body.steps)).toBe(true);
+    });
+  });
+
+  // ── STATUS ESCALATION VIA PATCH ──
+  describe("Status escalation via PATCH", () => {
+    it("PATCH /api/declarations/:id/status — team member can escalate own declaration to Approved (BUG: no role guard)", async () => {
+      const createRes = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({
+          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "BM", department: "Marketing",
+          type: "Gift", counterparty: "PatchEscalate", value: 100,
+          submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
+          description: "patch escalation test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      expect(createRes.status).toBe(201);
+      cleanupDeclIds.push(createRes.body.id);
+
+      const patchRes = await request(app)
+        .patch(`/api/declarations/${createRes.body.id}/status`)
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({ status: "Approved" });
+      // BUG: Should be 403 but no role guard — team member bypasses workflow
+      expect(patchRes.status).toBe(200);
+      expect(patchRes.body.status).toBe("Approved");
+
+      // Verify persistence
+      const getRes = await request(app)
+        .get(`/api/declarations/${createRes.body.id}`)
+        .set("Authorization", `Bearer ${getTeamToken()}`);
+      expect(getRes.body.status).toBe("Approved");
+    });
+  });
+
+  // ── SINGLE-DECLARATION DATA LEAK ──
+  describe("Single-declaration data leak", () => {
+    it("GET /api/declarations/:id — team member can read non-owned declaration by ID (BUG: no ownership check on single-resource endpoint)", async () => {
+      // Create a declaration owned by admin
+      const createRes = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({
+          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+          lineManager: "None", position: "Admin", department: "IT",
+          type: "Gift", counterparty: "DeclLeakTest", value: 500,
+          submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
+          description: "declaration data leak test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      expect(createRes.status).toBe(201);
+      cleanupDeclIds.push(createRes.body.id);
+
+      // Team member reads admin's declaration by ID
+      const res = await request(app)
+        .get(`/api/declarations/${createRes.body.id}`)
+        .set("Authorization", `Bearer ${getTeamToken()}`);
+      // BUG: Should be 403 but no ownership check on single-resource GET
+      expect(res.status).toBe(200);
+      expect(res.body.employeeId).toBe("user-admin");
+      expect(res.body.counterparty).toBe("DeclLeakTest");
+    });
+  });
+
+  // ── CREATE DECLARATION WITH STATUS APPROVED ──
+  describe("Create declaration with pre-approved status", () => {
+    it("POST /api/declarations — team member can create declaration with status Approved (BUG: no status restriction on create)", async () => {
+      const res = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({
+          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "BM", department: "Marketing",
+          type: "Gift", counterparty: "PreApproved", value: 100,
+          submitted: "2026-07-01", approver: "Sipho Approver", status: "Approved", priority: "Low",
+          description: "pre-approved bypass test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      // BUG: Should enforce status === "Draft" on create
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe("Approved");
+      cleanupDeclIds.push(res.body.id);
+    });
+  });
+
+  // ── FILE SIZE LIMIT ──
+  describe("File upload size limit", () => {
+    it("POST /api/files/upload — file exceeding 10MB returns 500 instead of 413 (BUG: no multer error handler)", async () => {
+      const bigFile = Buffer.alloc(10 * 1024 * 1024 + 1, "x");
+      const res = await request(app)
+        .post("/api/files/upload")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .attach("file", bigFile, "oversized.txt");
+      // BUG: Should be 413 Payload Too Large
+      expect(res.status).toBe(500);
+      expect(res.body.error).toMatch(/File too large/i);
+    });
+  });
+
+  // ── ORPHAN FILE UPLOAD ──
+  describe("Orphan file upload", () => {
+    it("POST /api/files/upload — file linked to non-existent declarationId still succeeds (BUG: no FK validation)", async () => {
+      const res = await request(app)
+        .post("/api/files/upload")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .field("declarationId", "GHE-NONEXIST-DECLARATION")
+        .attach("file", Buffer.from("orphan data"), "orphan.txt");
+      expect(res.status).toBe(201);
+      expect(res.body.declarationId).toBeUndefined();
+    });
+  });
+
+  // ── DOUBLE DELETE ──
+  describe("Double-delete declaration", () => {
+    it("DELETE /api/declarations/:id — second delete on same draft returns 404", async () => {
+      const createRes = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({
+          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "BM", department: "Marketing",
+          type: "Gift", counterparty: "DoubleDel", value: 100,
+          submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
+          description: "double delete test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      expect(createRes.status).toBe(201);
+      const declId = createRes.body.id;
+
+      const first = await request(app)
+        .delete(`/api/declarations/${declId}`)
+        .set("Authorization", `Bearer ${getTeamToken()}`);
+      expect(first.status).toBe(200);
+
+      const second = await request(app)
+        .delete(`/api/declarations/${declId}`)
+        .set("Authorization", `Bearer ${getTeamToken()}`);
+      expect(second.status).toBe(404);
+    });
   });
 });
