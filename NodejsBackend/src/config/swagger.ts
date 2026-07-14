@@ -130,6 +130,13 @@ const options: swaggerJsdoc.Options = {
     },
     paths: {
       // ── Auth ──────────────────────────────────────────────
+      "/api/auth/preset-users": {
+        get: {
+          tags: ["Auth"],
+          summary: "Get preset user list for login screen (no auth required)",
+          responses: { 200: { description: "Array of { label, email, role } preset users" } },
+        },
+      },
       "/api/auth/login": {
         post: {
           tags: ["Auth"],
