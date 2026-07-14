@@ -1,17 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, waitFor } from "@testing-library/react";
 import { UserProvider, useUser } from "../app/auth/UserContext";
 
-vi.mock("../data/db", () => ({
-  getUserById: vi.fn((id: string) => {
-    if (id === "user-3") return {
-      id: "user-3", name: "Sipho Nkosi", email: "sipho@hb.co.za",
-      passwordHash: "", role: "approver", teamMemberNumber: "HB-10001",
-      department: "Marketing", position: "Line Manager", lineManager: null,
-    };
-    return undefined;
-  }),
-}));
+function mockFetch(status: number, body: unknown) {
+  return vi.spyOn(globalThis, "fetch").mockResolvedValue({
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers({ "content-type": "application/json" }),
+    json: () => Promise.resolve(body),
+  } as Response);
+}
 
 function TestConsumer() {
   const { user, isAuthenticated, setUser } = useUser();
@@ -33,6 +31,7 @@ function TestConsumer() {
 describe("UserContext", () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   it("starts unauthenticated with no stored session", () => {
@@ -88,7 +87,13 @@ describe("UserContext", () => {
     expect(localStorage.getItem("ghe.auth.user")).toBeNull();
   });
 
-  it("restores session from localStorage on mount", () => {
+  it("restores session from localStorage on mount", async () => {
+    mockFetch(200, {
+      id: "user-3", name: "Sipho Nkosi", email: "sipho@hb.co.za",
+      passwordHash: "", role: "approver", teamMemberNumber: "HB-10001",
+      department: "Marketing", position: "Line Manager", lineManager: null,
+    });
+    localStorage.setItem("ghe.auth.token", "valid-token");
     localStorage.setItem("ghe.auth.user", JSON.stringify({ id: "user-3" }));
 
     render(
@@ -97,12 +102,16 @@ describe("UserContext", () => {
       </UserProvider>
     );
 
-    expect(screen.getByTestId("auth").textContent).toBe("yes");
+    await waitFor(() => {
+      expect(screen.getByTestId("auth").textContent).toBe("yes");
+    });
     expect(screen.getByTestId("user").textContent).toBe("Sipho Nkosi");
   });
 
-  it("handles corrupted localStorage gracefully", () => {
+  it("handles corrupted localStorage gracefully", async () => {
+    localStorage.setItem("ghe.auth.token", "stale-token");
     localStorage.setItem("ghe.auth.user", "not-json-at-all");
+    mockFetch(401, { error: "Unauthorized" });
 
     render(
       <UserProvider>
@@ -110,12 +119,16 @@ describe("UserContext", () => {
       </UserProvider>
     );
 
-    expect(screen.getByTestId("auth").textContent).toBe("no");
+    await waitFor(() => {
+      expect(screen.getByTestId("auth").textContent).toBe("no");
+    });
     expect(localStorage.getItem("ghe.auth.user")).toBeNull();
   });
 
-  it("handles stale localStorage (deleted user) gracefully", () => {
+  it("handles stale localStorage (deleted user) gracefully", async () => {
+    localStorage.setItem("ghe.auth.token", "stale-token");
     localStorage.setItem("ghe.auth.user", JSON.stringify({ id: "user-99999" }));
+    mockFetch(401, { error: "Unauthorized" });
 
     render(
       <UserProvider>
@@ -123,6 +136,8 @@ describe("UserContext", () => {
       </UserProvider>
     );
 
-    expect(screen.getByTestId("auth").textContent).toBe("no");
+    await waitFor(() => {
+      expect(screen.getByTestId("auth").textContent).toBe("no");
+    });
   });
 });

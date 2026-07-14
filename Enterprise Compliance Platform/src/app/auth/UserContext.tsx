@@ -24,14 +24,22 @@ export function UserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem("ghe.auth.token");
     if (!token) {
+      localStorage.removeItem("ghe.auth.user");
       setLoading(false);
       return;
+    }
+    const cached = localStorage.getItem("ghe.auth.user");
+    if (cached) {
+      try { setUser(JSON.parse(cached)); } catch { /* ignore */ }
     }
     fetchCurrentUser().then((u) => {
       if (u) {
         setUser(u);
+        localStorage.setItem("ghe.auth.user", JSON.stringify(u));
       } else {
+        setUser(null);
         clearToken();
+        localStorage.removeItem("ghe.auth.user");
       }
       setLoading(false);
     });
@@ -39,11 +47,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback((u: User | null) => {
     setUser(u);
+    if (u) {
+      localStorage.setItem("ghe.auth.user", JSON.stringify(u));
+    } else {
+      localStorage.removeItem("ghe.auth.user");
+    }
   }, []);
 
   const logout = useCallback(() => {
     setUser(null);
     clearToken();
+    localStorage.removeItem("ghe.auth.user");
   }, []);
 
   if (loading) {
