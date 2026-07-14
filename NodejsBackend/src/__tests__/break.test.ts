@@ -445,7 +445,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
   it("POST /api/auth/login — null body", async () => {
     const res = await request(app)
       .post("/api/auth/login")
-      .send(null);
+      .send("");
     expect(res.status).toBe(400);
   });
 
