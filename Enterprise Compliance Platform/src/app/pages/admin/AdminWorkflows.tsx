@@ -13,8 +13,7 @@ export function AdminWorkflows() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
 
-  const refresh = () => fetchWorkflowRules().then(setRules);
-  useEffect(refresh, []);
+  useEffect(() => { fetchWorkflowRules().then(setRules); }, []);
 
   const handleAdd = async () => {
     try {
@@ -26,7 +25,7 @@ export function AdminWorkflows() {
         steps: [{ order: 1, role: "lineManager", label: "Line Manager Review" }],
       };
       await createWorkflowRule(newRule);
-      refresh();
+      fetchWorkflowRules().then(setRules);
     } catch (e: any) {
       alert(e.message);
     }
@@ -41,7 +40,7 @@ export function AdminWorkflows() {
     try {
       await updateWorkflowRule(id, { name: editName });
       setEditingId(null);
-      refresh();
+      fetchWorkflowRules().then(setRules);
     } catch (e: any) {
       alert(e.message);
     }
@@ -51,7 +50,7 @@ export function AdminWorkflows() {
     if (!confirm("Delete this workflow rule?")) return;
     try {
       await deleteWorkflowRule(id);
-      refresh();
+      fetchWorkflowRules().then(setRules);
     } catch (e: any) {
       alert(e.message);
     }

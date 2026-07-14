@@ -21,12 +21,29 @@ export function ApprovalDetail({
   const [workflow, setWorkflow] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notAssignable, setNotAssignable] = useState(false);
+  const [lmDecision, setLmDecision] = useState<ApprovalDecision>(null);
+  const [hrDecision, setHrDecision] = useState<ApprovalDecision>(null);
+  const [ceoDecision, setCeoDecision] = useState<ApprovalDecision>(null);
+  const [lmNotes, setLmNotes] = useState("");
+  const [hrNotes, setHrNotes] = useState("");
+  const [ceoNotes, setCeoNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
     fetchWorkflowInstance(declaration.id)
       .then((wf) => {
         setWorkflow(wf);
+        if (wf) {
+          const getStep = (role: string) => wf.steps.find((s: any) => s.role === role);
+          setLmDecision(getStep("lineManager")?.decision ?? null);
+          setHrDecision(getStep("hr")?.decision ?? null);
+          setCeoDecision(getStep("ceo")?.decision ?? null);
+          setLmNotes(getStep("lineManager")?.notes ?? "");
+          setHrNotes(getStep("hr")?.notes ?? "");
+          setCeoNotes(getStep("ceo")?.notes ?? "");
+        }
         if (!wf || !wf.steps.some((s: any) => s.status === "pending" && s.assignee === user.id)) {
           setNotAssignable(true);
         }
@@ -70,15 +87,6 @@ export function ApprovalDetail({
   const lmStep = getStepByRole("lineManager");
   const hrStep = getStepByRole("hr");
   const ceoStep = getStepByRole("ceo");
-
-  const [lmDecision, setLmDecision] = useState<ApprovalDecision>(lmStep?.decision ?? null);
-  const [hrDecision, setHrDecision] = useState<ApprovalDecision>(hrStep?.decision ?? null);
-  const [ceoDecision, setCeoDecision] = useState<ApprovalDecision>(ceoStep?.decision ?? null);
-  const [lmNotes, setLmNotes] = useState(lmStep?.notes ?? "");
-  const [hrNotes, setHrNotes] = useState(hrStep?.notes ?? "");
-  const [ceoNotes, setCeoNotes] = useState(ceoStep?.notes ?? "");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
 
   const hasLm = !!lmStep;
   const hasHr = !!hrStep;
