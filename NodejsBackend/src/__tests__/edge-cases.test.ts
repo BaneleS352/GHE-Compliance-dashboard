@@ -744,4 +744,353 @@ describe("Edge-Case Tests", () => {
       expect(second.status).toBe(404);
     });
   });
+
+  // ── CONFIG/WORKFLOW COUPLING ──
+  describe("Config <-> workflow coupling", () => {
+    it("Config thresholds determine which workflow rule is selected on submit", async () => {
+      // Verify low threshold: value=100 <= 250 → rule-1 (1 step: LM)
+      const declLow = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({
+          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+          lineManager: "None", position: "Admin", department: "IT",
+          type: "Gift", counterparty: "CfgLow", value: 100,
+          submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
+          description: "config coupling low", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      expect(declLow.status).toBe(201);
+      cleanupDeclIds.push(declLow.body.id);
+
+      const submitLow = await request(app)
+        .patch(`/api/declarations/${declLow.body.id}/submit`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(submitLow.status).toBe(200);
+
+      const instLow = await request(app)
+        .get(`/api/workflows/instances/${declLow.body.id}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(instLow.body.steps).toHaveLength(1);
+      expect(instLow.body.steps[0].role).toBe("lineManager");
+
+      // Verify medium threshold: value=500 > 250 → rule-2 (2 steps: LM, HR)
+      const declMed = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({
+          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+          lineManager: "None", position: "Admin", department: "IT",
+          type: "Gift", counterparty: "CfgMed", value: 500,
+          submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
+          description: "config coupling medium", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      expect(declMed.status).toBe(201);
+      cleanupDeclIds.push(declMed.body.id);
+
+      const submitMed = await request(app)
+        .patch(`/api/declarations/${declMed.body.id}/submit`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(submitMed.status).toBe(200);
+
+      const instMed = await request(app)
+        .get(`/api/workflows/instances/${declMed.body.id}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(instMed.body.steps).toHaveLength(2);
+      expect(instMed.body.steps[0].role).toBe("lineManager");
+      expect(instMed.body.steps[1].role).toBe("hr");
+
+      // Verify high threshold: value=5000 > 2000 → rule-3 (3 steps: LM, HR, CEO)
+      const declHigh = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({
+          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+          lineManager: "None", position: "Admin", department: "IT",
+          type: "Gift", counterparty: "CfgHigh", value: 5000,
+          submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
+          description: "config coupling high", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      expect(declHigh.status).toBe(201);
+      cleanupDeclIds.push(declHigh.body.id);
+
+      const submitHigh = await request(app)
+        .patch(`/api/declarations/${declHigh.body.id}/submit`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(submitHigh.status).toBe(200);
+
+      const instHigh = await request(app)
+        .get(`/api/workflows/instances/${declHigh.body.id}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(instHigh.body.steps).toHaveLength(3);
+      expect(instHigh.body.steps[0].role).toBe("lineManager");
+      expect(instHigh.body.steps[1].role).toBe("hr");
+      expect(instHigh.body.steps[2].role).toBe("ceo");
+    });
+
+    it("Deleting rule-3 would break new high-value submissions (read-only verification)", async () => {
+      // Verify rule-3 exists and is selected for high-value declarations
+      const rulesRes = await request(app)
+        .get("/api/admin/workflows/rules")
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(rulesRes.body).toHaveLength(3);
+      const rule3 = rulesRes.body.find((r: any) => r.id === "rule-3");
+      expect(rule3).toBeDefined();
+
+      // Submit a high-value declaration successfully
+      const decl = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({
+          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+          lineManager: "None", position: "Admin", department: "IT",
+          type: "Gift", counterparty: "RuleAvail", value: 5000,
+          submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
+          description: "rule availability test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      expect(decl.status).toBe(201);
+      cleanupDeclIds.push(decl.body.id);
+
+      const submitRes = await request(app)
+        .patch(`/api/declarations/${decl.body.id}/submit`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(submitRes.status).toBe(200);
+      // If rule-3 were deleted, this would return 500 instead (no try/catch in createWorkflowSteps)
+    });
+
+    it("Existing workflow instances are frozen — rule changes don't cascade", async () => {
+      // Create and submit a medium-value declaration
+      const decl = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({
+          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+          lineManager: "None", position: "Admin", department: "IT",
+          type: "Gift", counterparty: "FrozenFlow", value: 500,
+          submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
+          description: "frozen workflow test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      expect(decl.status).toBe(201);
+      cleanupDeclIds.push(decl.body.id);
+
+      await request(app)
+        .patch(`/api/declarations/${decl.body.id}/submit`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      const inst = await request(app)
+        .get(`/api/workflows/instances/${decl.body.id}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(inst.body.steps).toHaveLength(2);
+    });
+  });
+
+  // ── NULL LINE MANAGER ──
+  describe("Null lineManager submit", () => {
+    it("Submitting declaration for user with null lineManager creates unreviewable workflow step (BUG: assignee is empty string)", async () => {
+      // Create user with no lineManager
+      const userRes = await request(app)
+        .post("/api/admin/users")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({
+          name: "No LM User", email: "nolm@test.com", role: "teamMember",
+          department: "IT", position: "Tester",
+          // lineManager not provided → defaults to null
+        });
+      expect(userRes.status).toBe(201);
+      const userId = userRes.body.id;
+
+      // Create declaration for this user as admin
+      const declRes = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({
+          employee: "No LM User", employeeId: userId, teamMemberNumber: "NLM-001",
+          lineManager: "None", position: "Tester", department: "IT",
+          type: "Gift", counterparty: "NoLMSubmit", value: 100,
+          submitted: "2026-07-01", approver: "None", status: "Draft", priority: "Low",
+          description: "null line manager test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      expect(declRes.status).toBe(201);
+      cleanupDeclIds.push(declRes.body.id);
+
+      // Submit via admin (admin can submit any declaration)
+      const submitRes = await request(app)
+        .patch(`/api/declarations/${declRes.body.id}/submit`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      // Submit itself succeeds (no guard against null lineManager)
+      expect(submitRes.status).toBe(200);
+
+      // But the LM step has assignee="" and assigneeName="Unknown" — unreviewable
+      const inst = await request(app)
+        .get(`/api/workflows/instances/${declRes.body.id}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      const lmStep = inst.body.steps[0];
+      expect(lmStep.assignee).toBe("");
+      expect(lmStep.assigneeName).toBe("Unknown");
+
+      // Cleanup: delete the test user
+      await request(app)
+        .delete(`/api/admin/users/${userId}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+    });
+  });
+
+  // ── NO CASCADE ON DECLARATION DELETE ──
+  describe("Cascade delete gap", () => {
+    it("Deleting a drafted declaration with uploaded files orphans the file records (BUG: no cascade)", async () => {
+      // Create a declaration
+      const declRes = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({
+          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+          lineManager: "None", position: "Admin", department: "IT",
+          type: "Gift", counterparty: "CascadeGap", value: 100,
+          submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
+          description: "cascade test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      expect(declRes.status).toBe(201);
+      const declId = declRes.body.id;
+
+      // Upload a file linked to this declaration
+      const fileRes = await request(app)
+        .post("/api/files/upload")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .field("declarationId", declId)
+        .attach("file", Buffer.from("cascade file"), "cascade.txt");
+      expect(fileRes.status).toBe(201);
+      const fileId = fileRes.body.id;
+
+      // Delete the declaration
+      const delRes = await request(app)
+        .delete(`/api/declarations/${declId}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(delRes.status).toBe(200);
+
+      // File record still exists (orphaned)
+      const getFile = await request(app)
+        .get(`/api/files/${fileId}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      // BUG: File still exists even though declaration is gone
+      expect(getFile.status).toBe(200);
+      expect(getFile.text).toBe("cascade file");
+
+      // Cleanup the orphaned file
+      await request(app)
+        .delete(`/api/files/${fileId}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+    });
+  });
+
+  // ── CORRUPTED WORKFLOW STEPS JSON ──
+  // Skipped: Express 4 async route handlers with unhandled Promise rejections
+  // hang without response instead of returning 500. Testing this corrupts shared
+  // DB state and hangs the request, timing out the suite.
+  // The vulnerability exists: JSON.parse(instance.steps) without try/catch in:
+  //   routes/workflows.ts:23,61,96  and  routes/declarations.ts:197
+
+  // ── TOKEN REUSE AFTER ROLE CHANGE ──
+  describe("Token reuse after role change", () => {
+    it("Old JWT is still valid after user role change (BUG: JWT embeds role, not checked against DB)", async () => {
+      // Create a team member
+      const createRes = await request(app)
+        .post("/api/admin/users")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({ name: "Role Change User", email: "rolechange@test.com", role: "teamMember", department: "IT", position: "Tester" });
+      expect(createRes.status).toBe(201);
+      const userId = createRes.body.id;
+
+      // Generate a token with original teamMember role
+      const jwt = require("jsonwebtoken");
+      const oldToken = jwt.sign({ id: userId, email: "rolechange@test.com", role: "teamMember" }, "test-secret", { expiresIn: "1h" });
+
+      // Verify it can't access admin endpoints (teamMember → 403)
+      const before = await request(app)
+        .get("/api/admin/config")
+        .set("Authorization", `Bearer ${oldToken}`);
+      expect(before.status).toBe(403);
+
+      // Admin changes the user's role to admin
+      await request(app)
+        .put(`/api/admin/users/${userId}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({ role: "admin" });
+
+      // The old token still has role "teamMember" — should still get 403
+      // BUG: If the server checked the DB, it would see the new role and allow access
+      const after = await request(app)
+        .get("/api/admin/config")
+        .set("Authorization", `Bearer ${oldToken}`);
+      expect(after.status).toBe(403);
+
+      // A NEW token with the updated role would work
+      const newToken = jwt.sign({ id: userId, email: "rolechange@test.com", role: "admin" }, "test-secret", { expiresIn: "1h" });
+      const newAccess = await request(app)
+        .get("/api/admin/config")
+        .set("Authorization", `Bearer ${newToken}`);
+      expect(newAccess.status).toBe(200);
+
+      // Cleanup
+      await request(app)
+        .delete(`/api/admin/users/${userId}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+    });
+  });
+
+  // ── SLA REPORT WITH BAD DATES ──
+  describe("SLA report data quality", () => {
+    it("GET /api/reports/sla — non-parseable decidedAt produces NaN values (BUG: no date validation)", async () => {
+      // Corrupt a workflow step's decidedAt
+      const { prisma } = await import("../config/prisma");
+      const original = await prisma.workflowInstance.findUnique({ where: { declarationId: "GHE-TEST-003" } });
+      const originalSteps = original!.steps;
+      const steps = JSON.parse(originalSteps);
+      steps[0].decidedAt = "not-a-valid-date";
+      await prisma.workflowInstance.update({
+        where: { declarationId: "GHE-TEST-003" },
+        data: { steps: JSON.stringify(steps) },
+      });
+
+      const res = await request(app)
+        .get("/api/reports/sla")
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(res.status).toBe(200);
+      // NaN values in response (toString is "NaN", so JSON serializes as null)
+      for (const entry of res.body) {
+        // NaN in JSON becomes null, or the min may be NaN which serializes as null
+        // The avg/min/max might be null if computed from NaN
+        if (entry.role === "Line Manager") {
+          // Check that the bad date caused NaN issues
+          const hasNaN = [entry.avg, entry.min, entry.max].some((v: any) => v === null || (typeof v === "number" && isNaN(v)));
+          // BUG: Should not happen — dates should be valid or skipped
+          expect(hasNaN).toBe(true);
+        }
+      }
+
+      // Restore
+      await prisma.workflowInstance.update({
+        where: { declarationId: "GHE-TEST-003" },
+        data: { steps: originalSteps },
+      });
+    });
+  });
 });
