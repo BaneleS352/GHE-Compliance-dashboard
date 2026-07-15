@@ -1,12 +1,9 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
-import { motion } from "framer-motion";
 import { Declaration, ApprovalDecision } from "../../types/declaration";
-import { PURPLE } from "../../config/theme";
-import { Card } from "../components/Card";
 import { StatusBadge } from "../components/StatusBadge";
 import { DeclarationDetailView } from "../pages/DeclarationDetailView";
-import { ApproverDecisionBlock } from "../pages/ApprovalQueue";
+import { WorkflowTimeline, StepView } from "../components/WorkflowTimeline";
 import { useUser } from "../auth/UserContext";
 import { fetchWorkflowInstance, approveWorkflowStep, updateDeclaration } from "../../services/api";
 
@@ -132,7 +129,19 @@ export function ApprovalDetail({
     }] : []),
   ];
 
-  const completedSteps = steps.filter((s) => s.completed || s.decision).length;
+  const wfSteps: StepView[] = steps.map((s) => ({
+    label: s.title,
+    actor: s.role,
+    state: s.decision ? "completed" : s.enabled ? "active" : "pending",
+    decision: s.decision ? { label: decisionLabel(s.decision) } : null,
+    decidedAt: s.decidedAt,
+    notes: s.notes,
+  }));
+
+  const hasPendingUserStep = workflow?.steps.some((s: any) => s.assignee === user?.id && s.status === "pending");
+  const activeStep = steps.find((s) => s.enabled && !s.decision);
+  const activeStepRole = activeStep?.roleKey;
+  const currentUserStepRole = workflow?.steps.find((s: any) => s.assignee === user?.id)?.role;
 
   const handleSubmit = async () => {
     if (!user || !workflow) return;
@@ -181,14 +190,7 @@ export function ApprovalDetail({
     setTimeout(() => { setMessage(""); onBack(); }, 1500);
   };
 
-  const getStepStyle = (isCurrent: boolean, decision: ApprovalDecision) => {
-    if (!isCurrent && !decision) return "opacity-50 pointer-events-none grayscale";
-    if (decision) return "bg-purple-50/70 border-purple-200 shadow-[0_10px_25px_rgba(124,58,237,0.15)]";
-    return "bg-white/70 border-white/60 shadow-sm hover:shadow-md";
-  };
 
-  const currentUserStepRole = workflow?.steps.find((s) => s.assignee === user?.id)?.role;
-  const currentUserIndex = steps.findIndex((s) => s.enabled);
 
   return (
     <div>
@@ -215,113 +217,15 @@ export function ApprovalDetail({
             </div>
           )}
 
-          <div className="relative">
-            <div className="absolute left-4 top-2 bottom-2 w-[2px] bg-gray-300/50" />
-
-            <motion.div
-              className="absolute left-4 top-2 w-[2px] bg-gradient-to-b from-purple-600 to-purple-500"
-              animate={{ height: `${(completedSteps / (steps.length || 1)) * 100}%` }}
-              transition={{ duration: 0.5 }}
-            />
-
-            <div className="space-y-6">
-              {steps.map((step, i) => {
-                const isActive = step.enabled && !step.decision &&
-                  steps.findIndex((s) => s.enabled && !s.decision) === i;
-                const isCurrentUserStep = isActive && step.roleKey === currentUserStepRole;
-
-                return (
-                  <div key={i} className="flex items-start gap-4 relative">
-                    <div className="relative z-10">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
-                        step.decision ? "bg-purple-600 text-white shadow" :
-                        isActive ? "bg-white border-2 border-purple-600 text-purple-700 shadow-[0_4px_20px_rgba(124,58,237,0.25)]" :
-                        "bg-white/40 border border-white/50 text-gray-400"
-                      }`}>
-                        {i + 1}
-                      </div>
-                    </div>
-
-                    <motion.div
-                      initial={{ opacity: 0.5, y: 10 }}
-                      animate={{ opacity: step.enabled || step.decision ? 1 : 0.5, y: 0 }}
-                      className="flex-1"
-                    >
-                      <div className="rounded-2xl p-[1px] bg-gradient-to-br from-white/40 to-white/10">
-                        <div className={`rounded-2xl p-4 backdrop-blur-sm border transition-all ${getStepStyle(isCurrentUserStep, step.decision)}`}>
-                          <div className="flex justify-between mb-2">
-                            <span className="text-xs text-slate-500">{step.role}</span>
-                            {!step.enabled && !step.decision && (
-                              <span className="text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500">Pending</span>
-                            )}
-                            {isActive && (
-                              <span className="text-[10px] px-2 py-1 rounded-full bg-purple-100 text-purple-700">In Progress</span>
-                            )}
-                            {step.decision && (
-                              <span className="text-[10px] px-2 py-1 rounded-full bg-green-100 text-green-600">✓ Completed</span>
-                            )}
-                          </div>
-
-                          {isCurrentUserStep ? (
-                            <ApproverDecisionBlock
-                              title={step.title}
-                              role={step.role}
-                              decision={step.decision}
-                              onSelect={step.setDecision}
-                              notes={step.notes}
-                              onNotesChange={step.setNotes}
-                            />
-                          ) : (
-                            <div className="rounded-xl bg-gray-50 p-4 text-sm">
-                              {step.decision ? (
-                                <>
-                                  <div className="flex justify-between">
-                                    <span className="text-gray-500">Decision</span>
-                                    <span className="font-semibold text-green-600">{decisionLabel(step.decision)}</span>
-                                  </div>
-                                  <div className="flex justify-between mt-1">
-                                    <span className="text-gray-500">Date</span>
-                                    <span className="font-semibold">{step.decidedAt ? step.decidedAt.slice(0, 10) : "—"}</span>
-                                  </div>
-                                  <div className="flex justify-between mt-1">
-                                    <span className="text-gray-500">Time</span>
-                                    <span className="font-semibold">{step.decidedAt ? step.decidedAt.slice(11, 16) : "—"}</span>
-                                  </div>
-                                  {step.notes && <p className="mt-2 text-xs italic border-t border-gray-200 pt-2 text-muted-foreground">"{step.notes}"</p>}
-                                </>
-                              ) : (
-                                <p className="text-muted-foreground">Awaiting <strong>{step.roleKey === "lineManager" ? "Line Manager" : step.roleKey === "hr" ? "HR" : "CEO"}</strong> review.</p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {workflow?.steps.find((s) => s.assignee === user?.id) && (
-            <Card className="p-5 rounded-2xl bg-purple-50 border border-purple-100 shadow-sm">
-              <div className="relative z-10">
-                <p className="text-xs text-purple-700 mb-4 text-center">
-                  {steps.some((s) => s.decision && !s.completed)
-                    ? "Decision submitted. Awaiting next approval."
-                    : "Complete the current step before proceeding."}
-                </p>
-                <button
-                  onClick={handleSubmit}
-                  disabled={!steps.some((s) => s.decision && !s.completed)}
-                  className="w-full h-11 text-white rounded-xl text-sm font-bold disabled:opacity-45 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
-                  style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
-                >
-                  {steps.some((s) => s.decision && !s.completed) ? "Submit Decision" : "Submit Decision"}
-                </button>
-              </div>
-            </Card>
-          )}
+          <WorkflowTimeline
+            steps={wfSteps}
+            decision={activeStep?.roleKey === currentUserStepRole ? activeStep.decision : undefined}
+            onDecision={hasPendingUserStep && activeStep?.setDecision ? activeStep.setDecision : undefined}
+            notes={hasPendingUserStep ? activeStep?.notes || "" : undefined}
+            onNotesChange={hasPendingUserStep && activeStep?.setNotes ? activeStep.setNotes : undefined}
+            onSubmit={hasPendingUserStep ? handleSubmit : undefined}
+            submitDisabled={!activeStep?.decision}
+          />
         </div>
       </div>
     </div>
