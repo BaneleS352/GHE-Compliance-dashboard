@@ -9,6 +9,7 @@ import { ApproverDashboard } from "./pages/ApproverDashboard";
 import { ApprovalQueue } from "./pages/ApprovalQueue";
 import { ApprovalDetail } from "./pages/ApprovalDetail";
 import { DeclarationDetailView } from "./pages/DeclarationDetailView";
+import { WorkflowTimeline } from "./components/WorkflowTimeline";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
 import { AdminUsers } from "./pages/admin/AdminUsers";
 import { AdminWorkflows } from "./pages/admin/AdminWorkflows";
@@ -81,7 +82,14 @@ function AppInner() {
           />
         )}
         {screen === "new-declaration" && showSubmittedView && submittedData && (
-          <DeclarationDetailView data={submittedData} onBack={() => setShowSubmittedView(false)} />
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+            <div className="xl:col-span-3">
+              <DeclarationDetailView data={submittedData} onBack={() => setShowSubmittedView(false)} />
+            </div>
+            <div className="xl:col-span-2">
+              <WorkflowTimeline declarationId={submittedData.id} employee={submittedData.employee} />
+            </div>
+          </div>
         )}
         {screen === "my-declarations"    && <MyDeclarationsScreen />}
         {screen === "approver-dashboard" && <ApproverDashboard onNavigate={guardedNavigate} />}

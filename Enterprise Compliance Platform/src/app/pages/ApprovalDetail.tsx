@@ -20,7 +20,7 @@ export function ApprovalDetail({
   const { user } = useUser();
   const [workflow, setWorkflow] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [notAssignable, setNotAssignable] = useState(false);
+
   const [lmDecision, setLmDecision] = useState<ApprovalDecision>(null);
   const [hrDecision, setHrDecision] = useState<ApprovalDecision>(null);
   const [ceoDecision, setCeoDecision] = useState<ApprovalDecision>(null);
@@ -44,9 +44,6 @@ export function ApprovalDetail({
           setHrNotes(getStep("hr")?.notes ?? "");
           setCeoNotes(getStep("ceo")?.notes ?? "");
         }
-        if (!wf || !wf.steps.some((s: any) => s.status === "pending" && s.assignee === user.id)) {
-          setNotAssignable(true);
-        }
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -65,17 +62,6 @@ export function ApprovalDetail({
       <div className="flex items-center justify-center py-20">
         <div className="text-center text-muted-foreground">
           <p className="font-medium">No workflow found for this declaration.</p>
-          <button onClick={onBack} className="mt-4 text-purple-600 hover:underline">Back to Queue</button>
-        </div>
-      </div>
-    );
-  }
-
-  if (notAssignable) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-center text-muted-foreground">
-          <p className="font-medium">You are not assigned to approve this declaration.</p>
           <button onClick={onBack} className="mt-4 text-purple-600 hover:underline">Back to Queue</button>
         </div>
       </div>

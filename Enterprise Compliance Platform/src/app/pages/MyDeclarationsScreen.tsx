@@ -9,6 +9,7 @@ import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { DeclarationDetailView } from "../pages/DeclarationDetailView";
+import { WorkflowTimeline } from "../components/WorkflowTimeline";
 import { exportRowsToXls } from "../../utils/excel";
 
 export function MyDeclarationsScreen() {
@@ -124,7 +125,16 @@ export function MyDeclarationsScreen() {
   };
 
   if (viewDecl) {
-    return <DeclarationDetailView data={viewDecl} onBack={() => setViewDecl(null)} />;
+    return (
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+        <div className="xl:col-span-3">
+          <DeclarationDetailView data={viewDecl} onBack={() => setViewDecl(null)} />
+        </div>
+        <div className="xl:col-span-2">
+          <WorkflowTimeline declarationId={viewDecl.id} employee={viewDecl.employee} />
+        </div>
+      </div>
+    );
   }
 
   return (
