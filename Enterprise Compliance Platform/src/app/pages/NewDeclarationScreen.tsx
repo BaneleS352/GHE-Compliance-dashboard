@@ -47,6 +47,12 @@ export function NewDeclarationScreen({
     }
   }, [user]);
 
+  useEffect(() => {
+    if (lineManagerName) {
+      setF("lineManager", lineManagerName);
+    }
+  }, [lineManagerName]);
+
   const formatRandValue = (value: string, fixedDecimals = false) => {
     if (!value) return "";
     const [integerPartRaw, decimalPartRaw = ""] = value.split(".");

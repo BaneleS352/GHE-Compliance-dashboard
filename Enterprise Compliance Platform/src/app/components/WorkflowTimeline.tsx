@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { fetchWorkflowInstance } from "../../services/api";
 import { ApprovalDecision } from "../../types/declaration";
 
-const DECISION_LABELS: Record<string, string> = {
+export const DECISION_LABELS: Record<string, string> = {
   accept: "Accept",
   reject: "Reject",
   decline: "Decline",
@@ -10,7 +10,7 @@ const DECISION_LABELS: Record<string, string> = {
   escalate: "Escalate",
 };
 
-const DECISION_BUTTONS = [
+export const DECISION_BUTTONS = [
   { value: "accept", label: "Accept", icon: "\u2713", cls: "accept", color: "text-green-600", border: "border-green-200", hover: "hover:bg-green-50 hover:border-green-300" },
   { value: "reject", label: "Reject", icon: "\u2715", cls: "reject", color: "text-red-500", border: "border-red-200", hover: "hover:bg-red-50 hover:border-red-300" },
   { value: "decline", label: "Decline", icon: "\u2630", cls: "decline", color: "text-amber-500", border: "border-amber-200", hover: "hover:bg-amber-50 hover:border-amber-300" },

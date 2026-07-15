@@ -8,6 +8,7 @@ import swaggerUi from "swagger-ui-express";
 import { config } from "./config/env";
 import { swaggerSpec } from "./config/swagger";
 import authRoutes from "./routes/auth";
+import userRoutes from "./routes/users";
 import declarationRoutes from "./routes/declarations";
 import workflowRoutes from "./routes/workflows";
 import reportRoutes from "./routes/reports";
@@ -33,6 +34,7 @@ app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 
 app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/declarations", declarationRoutes);
 app.use("/api/workflows", workflowRoutes);
 app.use("/api/reports", reportRoutes);

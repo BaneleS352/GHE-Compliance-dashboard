@@ -96,7 +96,7 @@ export async function fetchUsers(search?: string, role?: string): Promise<any[]>
 }
 
 export async function fetchUserById(id: string): Promise<any> {
-  return api.get<any>(`/api/admin/users/${id}`);
+  return api.get<any>(`/api/users/${id}`);
 }
 
 export async function createUser(data: any): Promise<any> {
