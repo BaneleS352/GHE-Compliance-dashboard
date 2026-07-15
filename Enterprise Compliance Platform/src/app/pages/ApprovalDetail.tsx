@@ -96,6 +96,17 @@ export function ApprovalDetail({
   const isHrEnabled = hasHr && isLmDecided;
   const isCeoEnabled = hasCeo && isLmDecided && (hasHr ? !!hrDecision : true);
 
+  const decisionLabel = (d: string) => {
+    const map: Record<string, string> = {
+      accept: "Accept",
+      reject: "Reject",
+      decline: "Decline",
+      info: "Return for More Info",
+      escalate: "Escalate",
+    };
+    return map[d] || d;
+  };
+
   const steps = [
     ...(hasLm ? [{
       title: "1. Line Manager Approval",
@@ -107,6 +118,7 @@ export function ApprovalDetail({
       setNotes: setLmNotes,
       enabled: lmStep?.status === "pending",
       completed: lmStep && lmStep.status !== "pending",
+      decidedAt: lmStep?.decidedAt || null,
     }] : []),
     ...(hasHr ? [{
       title: "2. Head of HR Approval",
@@ -118,6 +130,7 @@ export function ApprovalDetail({
       setNotes: setHrNotes,
       enabled: isHrEnabled && hrStep?.status === "pending",
       completed: hrStep && hrStep.status !== "pending",
+      decidedAt: hrStep?.decidedAt || null,
     }] : []),
     ...(hasCeo ? [{
       title: "3. Group CEO Approval",
@@ -129,6 +142,7 @@ export function ApprovalDetail({
       setNotes: setCeoNotes,
       enabled: isCeoEnabled && ceoStep?.status === "pending",
       completed: ceoStep && ceoStep.status !== "pending",
+      decidedAt: ceoStep?.decidedAt || null,
     }] : []),
   ];
 
@@ -151,13 +165,16 @@ export function ApprovalDetail({
         step.decision = decision;
         step.notes = notesArr[i];
         step.decidedAt = new Date().toISOString();
-        if (decision === "decline") {
+        if (decision === "decline" || decision === "reject") {
           step.status = "declined";
           hasDecline = true;
           allApproved = false;
-        } else if (decision === "return") {
+        } else if (decision === "info") {
           step.status = "returned";
           hasReturn = true;
+          allApproved = false;
+        } else if (decision === "escalate") {
+          step.status = "approved";
           allApproved = false;
         } else {
           step.status = "approved";
@@ -178,9 +195,9 @@ export function ApprovalDetail({
     setTimeout(() => { setMessage(""); onBack(); }, 1500);
   };
 
-  const getStepStyle = (enabled: boolean, decision: ApprovalDecision) => {
-    if (!enabled && !decision) return "opacity-50 pointer-events-none grayscale";
-    if (decision) return "bg-emerald-50/70 border-emerald-200 shadow-[0_10px_25px_rgba(16,185,129,0.15)]";
+  const getStepStyle = (isCurrent: boolean, decision: ApprovalDecision) => {
+    if (!isCurrent && !decision) return "opacity-50 pointer-events-none grayscale";
+    if (decision) return "bg-purple-50/70 border-purple-200 shadow-[0_10px_25px_rgba(124,58,237,0.15)]";
     return "bg-white/70 border-white/60 shadow-sm hover:shadow-md";
   };
 
@@ -216,7 +233,7 @@ export function ApprovalDetail({
             <div className="absolute left-4 top-2 bottom-2 w-[2px] bg-gray-300/50" />
 
             <motion.div
-              className="absolute left-4 top-2 w-[2px] bg-gradient-to-b from-emerald-500 to-emerald-400"
+              className="absolute left-4 top-2 w-[2px] bg-gradient-to-b from-purple-600 to-purple-500"
               animate={{ height: `${(completedSteps / (steps.length || 1)) * 100}%` }}
               transition={{ duration: 0.5 }}
             />
@@ -230,12 +247,12 @@ export function ApprovalDetail({
                 return (
                   <div key={i} className="flex items-start gap-4 relative">
                     <div className="relative z-10">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
-                        step.decision ? "bg-emerald-500 text-white" :
-                        isActive ? "bg-white border-2 border-emerald-500 text-emerald-600" :
-                        "bg-white/40 border text-gray-400"
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold transition-all ${
+                        step.decision ? "bg-purple-600 text-white shadow" :
+                        isActive ? "bg-white border-2 border-purple-600 text-purple-700 shadow-[0_4px_20px_rgba(124,58,237,0.25)]" :
+                        "bg-white/40 border border-white/50 text-gray-400"
                       }`}>
-                        {step.decision ? "✓" : i + 1}
+                        {i + 1}
                       </div>
                     </div>
 
@@ -249,13 +266,13 @@ export function ApprovalDetail({
                           <div className="flex justify-between mb-2">
                             <span className="text-xs text-slate-500">{step.role}</span>
                             {!step.enabled && !step.decision && (
-                              <span className="text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-400">Locked</span>
+                              <span className="text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500">Pending</span>
                             )}
                             {isActive && (
-                              <span className="text-[10px] px-2 py-1 rounded-full bg-indigo-100 text-indigo-600">In Progress</span>
+                              <span className="text-[10px] px-2 py-1 rounded-full bg-purple-100 text-purple-700">In Progress</span>
                             )}
                             {step.decision && (
-                              <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-600">Completed</span>
+                              <span className="text-[10px] px-2 py-1 rounded-full bg-green-100 text-green-600">✓ Completed</span>
                             )}
                           </div>
 
@@ -269,12 +286,26 @@ export function ApprovalDetail({
                               onNotesChange={step.setNotes}
                             />
                           ) : (
-                            <div className="rounded-xl bg-gray-50 p-4 text-sm text-muted-foreground">
-                              {step.decision
-                                ? <p>Decision recorded. <strong>{step.decision}</strong></p>
-                                : <p>Awaiting <strong>{step.roleKey === "lineManager" ? "Line Manager" : step.roleKey === "hr" ? "HR" : "CEO"}</strong> review.</p>
-                              }
-                              {step.notes && <p className="mt-2 text-xs italic">"{step.notes}"</p>}
+                            <div className="rounded-xl bg-gray-50 p-4 text-sm">
+                              {step.decision ? (
+                                <>
+                                  <div className="flex justify-between">
+                                    <span className="text-gray-500">Decision</span>
+                                    <span className="font-semibold text-green-600">{decisionLabel(step.decision)}</span>
+                                  </div>
+                                  <div className="flex justify-between mt-1">
+                                    <span className="text-gray-500">Date</span>
+                                    <span className="font-semibold">{step.decidedAt ? step.decidedAt.slice(0, 10) : "—"}</span>
+                                  </div>
+                                  <div className="flex justify-between mt-1">
+                                    <span className="text-gray-500">Time</span>
+                                    <span className="font-semibold">{step.decidedAt ? step.decidedAt.slice(11, 16) : "—"}</span>
+                                  </div>
+                                  {step.notes && <p className="mt-2 text-xs italic border-t border-gray-200 pt-2 text-muted-foreground">"{step.notes}"</p>}
+                                </>
+                              ) : (
+                                <p className="text-muted-foreground">Awaiting <strong>{step.roleKey === "lineManager" ? "Line Manager" : step.roleKey === "hr" ? "HR" : "CEO"}</strong> review.</p>
+                              )}
                             </div>
                           )}
                         </div>
@@ -287,22 +318,21 @@ export function ApprovalDetail({
           </div>
 
           {workflow?.steps.find((s) => s.assignee === user?.id) && (
-            <Card className="p-5 rounded-2xl bg-gradient-to-br from-[#f8fafc] via-[#eef2ff] to-[#e0e7ff] border border-white/40 shadow-[0_10px_30px_rgba(0,0,0,0.08)] backdrop-blur-sm relative overflow-hidden">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.15),transparent_60%)]" />
+            <Card className="p-5 rounded-2xl bg-purple-50 border border-purple-100 shadow-sm">
               <div className="relative z-10">
-                <p className="text-xs text-slate-500 mb-4">
-                  Complete the current step before proceeding.
+                <p className="text-xs text-purple-700 mb-4 text-center">
+                  {steps.some((s) => s.decision && !s.completed)
+                    ? "Decision submitted. Awaiting next approval."
+                    : "Complete the current step before proceeding."}
                 </p>
-                <div className="flex flex-col sm:flex-row gap-2.5">
-                  <button
-                    onClick={handleSubmit}
-                    disabled={!steps.some((s) => s.decision && !s.completed)}
-                    className="flex-1 h-10 text-white rounded-xl text-sm disabled:opacity-40 shadow-md hover:shadow-lg transition"
-                    style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
-                  >
-                    Submit Decision
-                  </button>
-                </div>
+                <button
+                  onClick={handleSubmit}
+                  disabled={!steps.some((s) => s.decision && !s.completed)}
+                  className="w-full h-11 text-white rounded-xl text-sm font-bold disabled:opacity-45 shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0"
+                  style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
+                >
+                  {steps.some((s) => s.decision && !s.completed) ? "Submit Decision" : "Submit Decision"}
+                </button>
               </div>
             </Card>
           )}

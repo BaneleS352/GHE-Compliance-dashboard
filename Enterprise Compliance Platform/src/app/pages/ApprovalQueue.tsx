@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Filter, Download, Search } from "lucide-react";
 import { fetchDeclarations } from "../../services/api";
-import { fetchApprovalOptions } from "../../services/api";
 import { Declaration, ApprovalDecision } from "../../types/declaration";
 import { PURPLE, formatRand } from "../../config/theme";
 import { Card } from "../components/Card";
@@ -10,6 +9,14 @@ import { THead } from "../components/THead";
 import { StatusBadge } from "../components/StatusBadge";
 import { TypeBadge } from "../components/TypeBadge";
 import { exportRowsToXls } from "../../utils/excel";
+
+const DECISION_BUTTONS = [
+  { value: "accept", label: "Accept", icon: "✓", textCls: "text-green-600", borderCls: "border-green-200", hoverCls: "hover:bg-green-50 hover:border-green-300" },
+  { value: "reject", label: "Reject", icon: "✕", textCls: "text-red-500", borderCls: "border-red-200", hoverCls: "hover:bg-red-50 hover:border-red-300" },
+  { value: "decline", label: "Decline", icon: "☰", textCls: "text-amber-500", borderCls: "border-amber-200", hoverCls: "hover:bg-amber-50 hover:border-amber-300" },
+  { value: "info", label: "Return for More Info", icon: "↺", textCls: "text-blue-500", borderCls: "border-blue-200", hoverCls: "hover:bg-blue-50 hover:border-blue-300" },
+  { value: "escalate", label: "Escalate", icon: "⦸", textCls: "text-gray-500", borderCls: "border-gray-200", hoverCls: "hover:bg-gray-50 hover:border-gray-300" },
+];
 
 export function ApproverDecisionBlock({
   title,
@@ -26,8 +33,6 @@ export function ApproverDecisionBlock({
   notes: string;
   onNotesChange: (v: string) => void;
 }) {
-  const [approvalOptions, setApprovalOptions] = useState<{ value: string; label: string }[]>([]);
-  useEffect(() => { fetchApprovalOptions().then(setApprovalOptions); }, []);
   return (
     <Card className="p-5">
       <div className="mb-4 flex items-center gap-2.5 border-b border-border pb-3.5">
@@ -38,28 +43,35 @@ export function ApproverDecisionBlock({
         </div>
       </div>
 
-      <div className="mb-4 space-y-2 min-h-[220px]">
-        {approvalOptions.map((opt) => (
-          <label
-            key={opt.value}
-            className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-colors ${
-              decision === opt.value ? "border-primary bg-[#F5F2FF]" : "border-transparent hover:border-border hover:bg-muted/20"
-            }`}
+      <div className="mb-4">
+        <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Decision *</label>
+        <select
+          className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm appearance-none cursor-pointer bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%236b7280%22%20stroke-width%3D%222%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
+          value={decision ?? ""}
+          onChange={(e) => onSelect(e.target.value as ApprovalDecision || null)}
+        >
+          <option value="">Please select a decision</option>
+          {DECISION_BUTTONS.map((d) => (
+            <option key={d.value} value={d.value}>{d.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {DECISION_BUTTONS.map((d) => (
+          <button
+            key={d.value}
+            onClick={() => onSelect(d.value as ApprovalDecision)}
+            className={`
+              inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border transition-all duration-200
+              ${decision === d.value ? "shadow-[0_0_0_2px_currentColor_inset]" : "shadow-sm"}
+              ${d.textCls} ${d.borderCls} ${d.hoverCls}
+              ${decision === d.value ? "bg-white" : "bg-white/70"}
+            `}
           >
-            <div className="flex-shrink-0">
-              <div className={`flex h-4 w-4 items-center justify-center rounded-full border-2 ${decision === opt.value ? "border-primary" : "border-muted-foreground/40"}`}>
-                {decision === opt.value && <div className="h-2 w-2 rounded-full" style={{ background: PURPLE }} />}
-              </div>
-            </div>
-            <p className="text-sm leading-snug text-foreground">{opt.label}</p>
-            <input
-              type="radio"
-              name={title}
-              checked={decision === opt.value}
-              onChange={() => onSelect(opt.value as ApprovalDecision)}
-              className="sr-only"
-            />
-          </label>
+            <span className="text-sm leading-none">{d.icon}</span>
+            <span>{d.label}</span>
+          </button>
         ))}
       </div>
 

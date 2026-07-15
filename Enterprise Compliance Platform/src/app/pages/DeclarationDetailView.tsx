@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, ArrowLeft, Download, Eye, FileText } from "lucide-react";
+import { ArrowLeft, Download, Eye, FileText } from "lucide-react";
 import { Card } from "../components/ui/card";
 import { StatusBadge } from "../components/StatusBadge";
 import { formatRand } from "../../config/theme";
@@ -252,7 +252,7 @@ export function DeclarationDetailView({
                 <div className="absolute left-4 top-2 bottom-2 w-[2px] bg-gray-300/60" />
 
                 <motion.div
-                  className="absolute left-4 top-2 w-[2px] bg-gradient-to-b from-emerald-500 to-emerald-400"
+                  className="absolute left-4 top-2 w-[2px] bg-gradient-to-b from-purple-600 to-purple-500"
                   initial={{ height: 0 }}
                   animate={{
                     height: `${
@@ -279,22 +279,22 @@ export function DeclarationDetailView({
                       className="flex items-start gap-4 relative"
                     >
                       <div className="relative z-10">
-                        <motion.div
-                          whileHover={{ scale: 1.1 }}
-                          className={`
-                            w-8 h-8 flex items-center justify-center rounded-full text-xs font-semibold
-                            transition-all
-                            ${
-                              step.done
-                                ? "bg-emerald-500 text-white shadow"
-                                : isActive
-                                ? "bg-white border-2 border-emerald-500 text-emerald-600 shadow-[0_4px_20px_rgba(99,102,241,0.25)]"
-                                : "bg-white/40 border border-white/50 text-gray-400"
-                            }
-                          `}
-                        >
-                          {step.done ? <Check size={14} /> : i + 1}
-                        </motion.div>
+                          <motion.div
+                            whileHover={{ scale: 1.1 }}
+                            className={`
+                              w-8 h-8 flex items-center justify-center rounded-full text-xs font-semibold
+                              transition-all
+                              ${
+                                step.done
+                                  ? "bg-purple-600 text-white shadow"
+                                  : isActive
+                                  ? "bg-white border-2 border-purple-600 text-purple-700 shadow-[0_4px_20px_rgba(124,58,237,0.25)]"
+                                  : "bg-white/40 border border-white/50 text-gray-400"
+                              }
+                            `}
+                          >
+                            {i + 1}
+                          </motion.div>
                       </div>
 
                       <motion.div
@@ -314,7 +314,7 @@ export function DeclarationDetailView({
                               step.done
                                 ? "text-gray-800"
                                 : isActive
-                                ? "text-indigo-700"
+                                ? "text-purple-700"
                                 : "text-gray-400"
                             }`}
                           >
@@ -322,14 +322,20 @@ export function DeclarationDetailView({
                           </p>
 
                           {step.done && (
-                            <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-600">
-                              Completed
+                            <span className="text-[10px] px-2 py-1 rounded-full bg-green-100 text-green-600">
+                              ✓ Completed
                             </span>
                           )}
 
                           {isActive && (
-                            <span className="text-[10px] px-2 py-1 rounded-full bg-indigo-100 text-indigo-600">
+                            <span className="text-[10px] px-2 py-1 rounded-full bg-purple-100 text-purple-700">
                               In Progress
+                            </span>
+                          )}
+
+                          {!step.done && !isActive && (
+                            <span className="text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500">
+                              Pending
                             </span>
                           )}
                         </div>
@@ -342,7 +348,7 @@ export function DeclarationDetailView({
                           <motion.div
                             initial={{ opacity: 0, y: 5 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="mb-3 rounded-lg border border-indigo-100 bg-indigo-50 p-3 text-xs transition-all duration-200 hover:border-purple-300 hover:shadow-sm"
+                            className="mb-3 rounded-lg border border-purple-100 bg-purple-50 p-3 text-xs transition-all duration-200 hover:border-purple-300 hover:shadow-sm"
                           >
                             Waiting for approval from{" "}
                             <b>{step.actor}</b>

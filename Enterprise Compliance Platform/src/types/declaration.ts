@@ -25,11 +25,11 @@ export type StatusType =
   | "Info Requested";
 
 export type ApprovalDecision =
-  | "return"
   | "accept"
-  | "org"
-  | "foundation"
+  | "reject"
   | "decline"
+  | "info"
+  | "escalate"
   | null;
 
 export interface User {
