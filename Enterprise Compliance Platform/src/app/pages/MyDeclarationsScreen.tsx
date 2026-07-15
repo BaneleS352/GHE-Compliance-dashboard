@@ -8,7 +8,7 @@ import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
 import { StatusBadge } from "../components/StatusBadge";
-import { DeclarationDetailView } from "../pages/DeclarationDetailView";
+import { DeclarationDetailView, SupportingDocuments } from "../pages/DeclarationDetailView";
 import { WorkflowTimeline } from "../components/WorkflowTimeline";
 import { exportRowsToXls } from "../../utils/excel";
 
@@ -128,10 +128,13 @@ export function MyDeclarationsScreen() {
     return (
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
         <div className="xl:col-span-3">
-          <DeclarationDetailView data={viewDecl} onBack={() => setViewDecl(null)} />
+          <DeclarationDetailView data={viewDecl} onBack={() => setViewDecl(null)} hideDocuments />
         </div>
         <div className="xl:col-span-2 h-full">
           <WorkflowTimeline declarationId={viewDecl.id} employee={viewDecl.employee} />
+        </div>
+        <div className="xl:col-span-3">
+          <SupportingDocuments data={viewDecl} />
         </div>
       </div>
     );

@@ -8,7 +8,7 @@ import { MyDeclarationsScreen } from "./pages/MyDeclarationsScreen";
 import { ApproverDashboard } from "./pages/ApproverDashboard";
 import { ApprovalQueue } from "./pages/ApprovalQueue";
 import { ApprovalDetail } from "./pages/ApprovalDetail";
-import { DeclarationDetailView } from "./pages/DeclarationDetailView";
+import { DeclarationDetailView, SupportingDocuments } from "./pages/DeclarationDetailView";
 import { WorkflowTimeline } from "./components/WorkflowTimeline";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
 import { AdminUsers } from "./pages/admin/AdminUsers";
@@ -84,10 +84,13 @@ function AppInner() {
         {screen === "new-declaration" && showSubmittedView && submittedData && (
           <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
             <div className="xl:col-span-3">
-              <DeclarationDetailView data={submittedData} onBack={() => setShowSubmittedView(false)} />
+              <DeclarationDetailView data={submittedData} onBack={() => setShowSubmittedView(false)} hideDocuments />
             </div>
             <div className="xl:col-span-2 h-full">
               <WorkflowTimeline declarationId={submittedData.id} employee={submittedData.employee} />
+            </div>
+            <div className="xl:col-span-3">
+              <SupportingDocuments data={submittedData} />
             </div>
           </div>
         )}
