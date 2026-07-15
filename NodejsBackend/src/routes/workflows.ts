@@ -8,8 +8,8 @@ const router = Router();
 type StepStatus = "pending" | "approved" | "declined" | "returned";
 
 function toStepStatus(decision: string): StepStatus {
-  if (decision === "decline") return "declined";
-  if (decision === "return") return "returned";
+  if (decision === "decline" || decision === "reject") return "declined";
+  if (decision === "return" || decision === "info") return "returned";
   return "approved";
 }
 
@@ -70,7 +70,7 @@ const approveSchema = {
 
 router.post("/approve", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const { declarationId, decision, notes } = req.body;
-  const validDecisions = ["return", "accept", "org", "foundation", "decline"];
+  const validDecisions = ["return", "accept", "org", "foundation", "decline", "reject", "info", "escalate"];
 
   if (!declarationId || !decision) {
     res.status(400).json({ error: "declarationId and decision are required" });
@@ -113,9 +113,9 @@ router.post("/approve", authenticate, async (req: AuthRequest, res: Response): P
   // Determine new declaration status
   let newStatus: string;
 
-  if (decision === "decline") {
+  if (decision === "decline" || decision === "reject") {
     newStatus = "Declined";
-  } else if (decision === "return") {
+  } else if (decision === "return" || decision === "info") {
     newStatus = "Info Requested";
   } else {
     // approved — check if there are more pending steps

@@ -59,3 +59,8 @@ export function getHrToken(): string {
   const jwt = require("jsonwebtoken");
   return jwt.sign({ id: "user-hr", email: "lindiwe@test.com", role: "approver" }, "test-secret", { expiresIn: "1h" });
 }
+
+export function getCeoToken(): string {
+  const jwt = require("jsonwebtoken");
+  return jwt.sign({ id: "user-ceo", email: "sandile@test.com", role: "approver" }, "test-secret", { expiresIn: "1h" });
+}

@@ -90,57 +90,48 @@ export function ApprovalDetail({
     return map[d] || d;
   };
 
-  const steps = [
-    ...(hasLm ? [{
-      title: "1. Line Manager Approval",
-      role: lmStep?.assigneeName || "Line Manager",
-      roleKey: "lineManager",
-      decision: lmDecision,
-      setDecision: setLmDecision,
-      notes: lmNotes,
-      setNotes: setLmNotes,
-      enabled: lmStep?.status === "pending",
-      completed: lmStep && lmStep.status !== "pending",
-      decidedAt: lmStep?.decidedAt || null,
-    }] : []),
-    ...(hasHr ? [{
-      title: "2. Head of HR Approval",
-      role: hrStep?.assigneeName || "Head of HR",
-      roleKey: "hr",
-      decision: hrDecision,
-      setDecision: setHrDecision,
-      notes: hrNotes,
-      setNotes: setHrNotes,
-      enabled: isHrEnabled && hrStep?.status === "pending",
-      completed: hrStep && hrStep.status !== "pending",
-      decidedAt: hrStep?.decidedAt || null,
-    }] : []),
-    ...(hasCeo ? [{
-      title: "3. Group CEO Approval",
-      role: ceoStep?.assigneeName || "Group CEO",
-      roleKey: "ceo",
-      decision: ceoDecision,
-      setDecision: setCeoDecision,
-      notes: ceoNotes,
-      setNotes: setCeoNotes,
-      enabled: isCeoEnabled && ceoStep?.status === "pending",
-      completed: ceoStep && ceoStep.status !== "pending",
-      decidedAt: ceoStep?.decidedAt || null,
-    }] : []),
+  const allRoles = [
+    { roleKey: "lineManager", title: "1. Line Manager Approval", defaultActor: "Line Manager",
+      get decision() { return lmDecision; }, setDecision: setLmDecision,
+      get notes() { return lmNotes; }, setNotes: setLmNotes,
+      get step() { return lmStep; }, get exists() { return hasLm; },
+      get enabled() { return lmStep?.status === "pending"; },
+      get completed() { return lmStep && lmStep.status !== "pending"; },
+      get decidedAt() { return lmStep?.decidedAt || null; },
+    },
+    { roleKey: "hr", title: "2. Head of HR Approval", defaultActor: "Head of HR",
+      get decision() { return hrDecision; }, setDecision: setHrDecision,
+      get notes() { return hrNotes; }, setNotes: setHrNotes,
+      get step() { return hrStep; }, get exists() { return hasHr; },
+      get enabled() { return isHrEnabled && hrStep?.status === "pending"; },
+      get completed() { return hrStep && hrStep.status !== "pending"; },
+      get decidedAt() { return hrStep?.decidedAt || null; },
+    },
+    { roleKey: "ceo", title: "3. Group CEO Approval", defaultActor: "Group CEO",
+      get decision() { return ceoDecision; }, setDecision: setCeoDecision,
+      get notes() { return ceoNotes; }, setNotes: setCeoNotes,
+      get step() { return ceoStep; }, get exists() { return hasCeo; },
+      get enabled() { return isCeoEnabled && ceoStep?.status === "pending"; },
+      get completed() { return ceoStep && ceoStep.status !== "pending"; },
+      get decidedAt() { return ceoStep?.decidedAt || null; },
+    },
   ];
 
-  const wfSteps: StepView[] = steps.map((s) => ({
-    label: s.title,
-    actor: s.role,
-    state: s.decision ? "completed" : s.enabled ? "active" : "pending",
-    decision: s.decision ? { label: decisionLabel(s.decision) } : null,
-    decidedAt: s.decidedAt,
-    notes: s.notes,
-  }));
+  const wfSteps: StepView[] = allRoles.map((r) => {
+    if (!r.exists) return { label: r.title, actor: r.defaultActor, state: "skipped" };
+    const decided = r.decision || r.completed;
+    return {
+      label: r.title,
+      actor: r.step?.assigneeName || r.defaultActor,
+      state: decided ? "completed" : r.enabled ? "active" : "pending",
+      decision: r.decision ? { label: decisionLabel(r.decision) } : null,
+      decidedAt: r.decidedAt,
+      notes: r.notes,
+    };
+  });
 
   const hasPendingUserStep = workflow?.steps.some((s: any) => s.assignee === user?.id && s.status === "pending");
-  const activeStep = steps.find((s) => s.enabled && !s.decision);
-  const activeStepRole = activeStep?.roleKey;
+  const activeRole = allRoles.find((r) => r.enabled && !r.decision);
   const currentUserStepRole = workflow?.steps.find((s: any) => s.assignee === user?.id)?.role;
 
   const handleSubmit = async () => {
@@ -207,7 +198,7 @@ export function ApprovalDetail({
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
         <div className="xl:col-span-3">
-          <DeclarationDetailView data={declaration} onBack={() => {}} />
+          <DeclarationDetailView data={declaration} onBack={() => {}} hideBackButton />
         </div>
 
         <div className="xl:col-span-2 space-y-5 xl:sticky xl:top-4 self-start">
@@ -219,12 +210,12 @@ export function ApprovalDetail({
 
           <WorkflowTimeline
             steps={wfSteps}
-            decision={activeStep?.roleKey === currentUserStepRole ? activeStep.decision : undefined}
-            onDecision={hasPendingUserStep && activeStep?.setDecision ? activeStep.setDecision : undefined}
-            notes={hasPendingUserStep ? activeStep?.notes || "" : undefined}
-            onNotesChange={hasPendingUserStep && activeStep?.setNotes ? activeStep.setNotes : undefined}
+            decision={activeRole?.roleKey === currentUserStepRole ? activeRole.decision : undefined}
+            onDecision={hasPendingUserStep && activeRole?.setDecision ? activeRole.setDecision : undefined}
+            notes={hasPendingUserStep ? activeRole?.notes || "" : undefined}
+            onNotesChange={hasPendingUserStep && activeRole?.setNotes ? activeRole.setNotes : undefined}
             onSubmit={hasPendingUserStep ? handleSubmit : undefined}
-            submitDisabled={!activeStep?.decision}
+            submitDisabled={!activeRole?.decision}
           />
         </div>
       </div>

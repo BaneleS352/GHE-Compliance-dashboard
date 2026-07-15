@@ -112,6 +112,23 @@ Valid roles: `lineManager`, `hr`, `ceo`
 - All 5 fields required: `highValueThreshold`, `mediumValueThreshold`, `slaEscalationDays`, `maxDeclarationsPerCounterparty`, `emailTemplate`
 - Affects new submissions only
 
+## Decision Values
+
+When an approver submits a decision via `POST /api/workflows/approve`, the `decision` field accepts one of the following values:
+
+| Value | Effect on Step Status | Effect on Declaration Status |
+|-------|----------------------|----------------------------|
+| `accept` | `approved` | "Pending" (if more steps) or "Approved" (if final step) |
+| `reject` | `declined` | "Declined" |
+| `decline` | `declined` | "Declined" |
+| `info` | `returned` | "Info Requested" |
+| `return` | `returned` | "Info Requested" |
+| `escalate` | `approved` | Preserves next pending step (does not advance to final) |
+| `org` | `approved` | Legacy — still accepted |
+| `foundation` | `approved` | Legacy — still accepted |
+
+The new UI (`WorkflowTimeline` component) sends `accept`, `reject`, `decline`, `info`, and `escalate`. Legacy values (`return`, `org`, `foundation`) remain accepted for backward compatibility with existing data.
+
 ## Known Bugs
 
 1. **Null lineManager** → unreviewable LM step (assignee: "")

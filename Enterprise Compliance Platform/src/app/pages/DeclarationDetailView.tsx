@@ -9,9 +9,11 @@ import { motion } from "framer-motion";
 export function DeclarationDetailView({
   data,
   onBack,
+  hideBackButton,
 }: {
   data: Record<string, string> | Declaration;
   onBack: () => void;
+  hideBackButton?: boolean;
 }) {
   const isRecord = typeof (data as Declaration).value === "number";
   const d = isRecord ? (data as Declaration) : null;
@@ -92,12 +94,14 @@ export function DeclarationDetailView({
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <button
-          onClick={onBack}
-          className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-purple-200 hover:bg-purple-50 hover:text-purple-700 hover:shadow-sm active:translate-y-0 active:scale-[0.98]"
-        >
-          <ArrowLeft size={14} /> Back
-        </button>
+        {!hideBackButton && (
+          <button
+            onClick={onBack}
+            className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-purple-200 hover:bg-purple-50 hover:text-purple-700 hover:shadow-sm active:translate-y-0 active:scale-[0.98]"
+          >
+            <ArrowLeft size={14} /> Back
+          </button>
+        )}
         <h1 className="text-xl font-bold">Declaration Details</h1>
       </div>
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">

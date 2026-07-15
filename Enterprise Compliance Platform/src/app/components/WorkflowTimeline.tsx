@@ -21,7 +21,7 @@ const DECISION_BUTTONS = [
 export interface StepView {
   label: string;
   actor: string;
-  state: "completed" | "active" | "pending";
+  state: "completed" | "active" | "pending" | "skipped";
   decision?: { label: string } | null;
   decidedAt?: string | null;
   notes?: string;
@@ -40,52 +40,66 @@ interface WorkflowTimelineProps {
   submitted?: boolean;
 }
 
+const ALL_ROLES = [
+  { role: "lineManager", label: "Line Manager Review", defaultActor: "Line Manager" },
+  { role: "hr",          label: "HR Review",           defaultActor: "Head of HR" },
+  { role: "ceo",         label: "CEO Approval",         defaultActor: "Group CEO" },
+];
+
 function buildStepsFromWorkflow(wf: any, employee?: string): StepView[] {
-  if (wf && wf.steps && wf.steps.length > 0) {
-    const result: StepView[] = [];
-    for (const step of wf.steps) {
-      if (step.status === "pending") {
-        result.push({ label: step.label, actor: step.assigneeName, state: result.some((s) => s.state === "active" || s.state === "pending") ? "pending" : "active" });
-      } else {
-        result.push({
-          label: step.label,
-          actor: step.assigneeName,
-          state: "completed",
-          decision: step.decision ? { label: DECISION_LABELS[step.decision] || step.decision } : null,
-          decidedAt: step.decidedAt || null,
-          notes: step.notes || "",
-        });
-      }
+  const hasData = wf && wf.steps && wf.steps.length > 0;
+  const existing = hasData ? new Map(wf.steps.map((s: any) => [s.role, s])) : new Map();
+  const result: StepView[] = [];
+  for (const r of ALL_ROLES) {
+    const step = existing.get(r.role);
+    if (!step) {
+      result.push({ label: r.label, actor: step?.assigneeName || r.defaultActor, state: "skipped" });
+    } else if (step.status === "pending") {
+      result.push({ label: step.label, actor: step.assigneeName, state: result.some((s) => s.state === "active" || s.state === "pending") ? "pending" : "active" });
+    } else {
+      result.push({
+        label: step.label,
+        actor: step.assigneeName,
+        state: "completed",
+        decision: step.decision ? { label: DECISION_LABELS[step.decision] || step.decision } : null,
+        decidedAt: step.decidedAt || null,
+        notes: step.notes || "",
+      });
     }
-    return result;
   }
-  return [
-    { label: "Line Manager Review", actor: "Loading...", state: "active" },
-    { label: "HR Review", actor: "Head of HR", state: "pending" },
-    { label: "CEO Approval", actor: "Group CEO", state: "pending" },
-  ];
+  if (!hasData && result.every((s) => s.state === "skipped")) {
+    result[0].state = "active";
+    result[0].actor = "Loading...";
+  }
+  return result;
 }
 
-function Dot({ state }: { state: "completed" | "active" | "pending" }) {
+function Dot({ state }: { state: "completed" | "active" | "pending" | "skipped" }) {
   return (
     <div
-      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0 ${
-        state === "completed" ? "bg-purple-600" :
-        state === "active" ? "bg-purple-600" :
-        "bg-gray-400"
+      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+        state === "completed" ? "bg-purple-600 text-white" :
+        state === "active" ? "bg-purple-600 text-white" :
+        state === "skipped" ? "bg-gray-100 text-gray-400 border border-gray-300" :
+        "bg-gray-400 text-white"
       }`}
-    />
+    >
+      {state === "skipped" ? "—" : ""}
+    </div>
   );
 }
 
-function Badge({ state }: { state: "completed" | "active" | "pending" }) {
+function Badge({ state }: { state: "completed" | "active" | "pending" | "skipped" }) {
   if (state === "completed") {
-    return <span className="wf-badge text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-600 inline-flex items-center gap-1 whitespace-nowrap">✓ Completed</span>;
+    return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-600 inline-flex items-center gap-1 whitespace-nowrap">✓ Completed</span>;
   }
   if (state === "active") {
-    return <span className="wf-badge text-[11px] font-bold px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 inline-flex items-center gap-1 whitespace-nowrap">In Progress</span>;
+    return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 inline-flex items-center gap-1 whitespace-nowrap">In Progress</span>;
   }
-  return <span className="wf-badge text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 inline-flex items-center gap-1 whitespace-nowrap">Pending</span>;
+  if (state === "skipped") {
+    return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-400 inline-flex items-center gap-1 whitespace-nowrap">Not Required</span>;
+  }
+  return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 inline-flex items-center gap-1 whitespace-nowrap">Pending</span>;
 }
 
 function RailLine({ steps }: { steps: StepView[] }) {
@@ -184,6 +198,7 @@ export function WorkflowTimeline({
       {steps.map((step, i) => {
         const isLast = i === steps.length - 1;
         const isActive = step.state === "active";
+        const isSkipped = step.state === "skipped";
 
         return (
           <div key={i} className="flex gap-4">
@@ -253,6 +268,10 @@ export function WorkflowTimeline({
                 )}
 
                 {step.state === "pending" && <PendingDetails />}
+
+                {step.state === "skipped" && (
+                  <div className="text-sm text-gray-400 italic">Not required for this declaration.</div>
+                )}
               </div>
             </div>
           </div>
