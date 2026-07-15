@@ -144,7 +144,7 @@ describe("Edge-Case Tests", () => {
 
   // ── MASS ASSIGNMENT ──
   describe("Mass assignment — restricted field updates", () => {
-    it("PUT /api/declarations/:id — team member CAN update status (vulnerability: no field whitelist)", async () => {
+    it("PUT /api/declarations/:id — team member cannot update status (field whitelist enforced)", async () => {
       // Create a draft as team member
       const createRes = await request(app)
         .post("/api/declarations")
@@ -163,17 +163,16 @@ describe("Edge-Case Tests", () => {
       const declId = createRes.body.id;
       cleanupDeclIds.push(declId);
 
-      // Team member can escalate status via PUT — no field-level whitelist exists
+      // status field is blocked by the PUT field whitelist
       const putRes = await request(app)
         .put(`/api/declarations/${declId}`)
         .set("Authorization", `Bearer ${getTeamToken()}`)
         .send({ status: "Approved" });
       expect(putRes.status).toBe(200);
-      // BUG: status changed even though team member should not be able to bypass workflow
-      expect(putRes.body.status).toBe("Approved");
+      expect(putRes.body.status).toBe("Draft");
     });
 
-    it("PUT /api/declarations/:id — team member CAN change employeeId (vulnerability: no field whitelist)", async () => {
+    it("PUT /api/declarations/:id — team member cannot change employeeId (field whitelist enforced)", async () => {
       const createRes = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -194,11 +193,11 @@ describe("Edge-Case Tests", () => {
         .set("Authorization", `Bearer ${getTeamToken()}`)
         .send({ employeeId: "user-admin" });
       expect(res.status).toBe(200);
-      // BUG: employeeId changed even though team member should not be able to transfer ownership
-      expect(res.body.employeeId).toBe("user-admin");
+      // employeeId is blocked by the PUT field whitelist — stays as original
+      expect(res.body.employeeId).toBe("user-team");
     });
 
-    it("PUT /api/declarations/:id — admin CAN update status", async () => {
+    it("PUT /api/declarations/:id — admin also cannot update status (field whitelist enforced)", async () => {
       const decls = await request(app)
         .get("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`);
@@ -208,8 +207,9 @@ describe("Edge-Case Tests", () => {
         .put(`/api/declarations/${draft.id}`)
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({ status: "Pending" });
+      // status is blocked by the field whitelist — use PATCH /:id/status instead
       expect(res.status).toBe(200);
-      expect(res.body.status).toBe("Pending");
+      expect(res.body.status).toBe("Draft");
     });
   });
 
@@ -600,7 +600,7 @@ describe("Edge-Case Tests", () => {
 
   // ── STATUS ESCALATION VIA PATCH ──
   describe("Status escalation via PATCH", () => {
-    it("PATCH /api/declarations/:id/status — team member can escalate own declaration to Approved (BUG: no role guard)", async () => {
+    it("PATCH /api/declarations/:id/status — team member is blocked by role guard", async () => {
       const createRes = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -608,7 +608,7 @@ describe("Edge-Case Tests", () => {
           employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "BM", department: "Marketing",
           type: "Gift", counterparty: "PatchEscalate", value: 100,
-          submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
+          submitted: "2026-07-01", approver: "", status: "Draft", priority: "Low",
           description: "patch escalation test", relationship: "Test",
           receivedGiven: "Received", from: "Supplier", contactPerson: "T",
           biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
@@ -621,15 +621,7 @@ describe("Edge-Case Tests", () => {
         .patch(`/api/declarations/${createRes.body.id}/status`)
         .set("Authorization", `Bearer ${getTeamToken()}`)
         .send({ status: "Approved" });
-      // BUG: Should be 403 but no role guard — team member bypasses workflow
-      expect(patchRes.status).toBe(200);
-      expect(patchRes.body.status).toBe("Approved");
-
-      // Verify persistence
-      const getRes = await request(app)
-        .get(`/api/declarations/${createRes.body.id}`)
-        .set("Authorization", `Bearer ${getTeamToken()}`);
-      expect(getRes.body.status).toBe("Approved");
+      expect(patchRes.status).toBe(403);
     });
   });
 
@@ -653,20 +645,17 @@ describe("Edge-Case Tests", () => {
       expect(createRes.status).toBe(201);
       cleanupDeclIds.push(createRes.body.id);
 
-      // Team member reads admin's declaration by ID
+      // Team member reads admin's declaration by ID — now blocked by ownership check
       const res = await request(app)
         .get(`/api/declarations/${createRes.body.id}`)
         .set("Authorization", `Bearer ${getTeamToken()}`);
-      // BUG: Should be 403 but no ownership check on single-resource GET
-      expect(res.status).toBe(200);
-      expect(res.body.employeeId).toBe("user-admin");
-      expect(res.body.counterparty).toBe("DeclLeakTest");
+      expect(res.status).toBe(403);
     });
   });
 
   // ── CREATE DECLARATION WITH STATUS APPROVED ──
   describe("Create declaration with pre-approved status", () => {
-    it("POST /api/declarations — team member can create declaration with status Approved (BUG: no status restriction on create)", async () => {
+    it("POST /api/declarations — team member cannot create with pre-approved status (enforced Draft)", async () => {
       const res = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -680,9 +669,9 @@ describe("Edge-Case Tests", () => {
           biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
           instances: "1", publicOfficial: "No",
         });
-      // BUG: Should enforce status === "Draft" on create
+      // Backend forces status to "Draft" regardless of what client sends
       expect(res.status).toBe(201);
-      expect(res.body.status).toBe("Approved");
+      expect(res.body.status).toBe("Draft");
       cleanupDeclIds.push(res.body.id);
     });
   });

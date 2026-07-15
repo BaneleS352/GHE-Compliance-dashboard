@@ -5,7 +5,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { DeclarationDetailView, SupportingDocuments } from "../pages/DeclarationDetailView";
 import { WorkflowTimeline, StepView } from "../components/WorkflowTimeline";
 import { useUser } from "../auth/UserContext";
-import { fetchWorkflowInstance, approveWorkflowStep, updateDeclarationStatus } from "../../services/api";
+import { fetchWorkflowInstance, approveWorkflowStep } from "../../services/api";
 
 export function ApprovalDetail({
   declaration,
@@ -167,14 +167,6 @@ export function ApprovalDetail({
         }
         await approveWorkflowStep({ declarationId: declaration.id, decision, notes });
       }
-    }
-
-    if (hasDecline) {
-      await updateDeclarationStatus(declaration.id, "Declined");
-    } else if (hasReturn) {
-      await updateDeclarationStatus(declaration.id, "Info Requested");
-    } else if (allApproved && stepsToUpdate.every((s) => s.status === "approved")) {
-      await updateDeclarationStatus(declaration.id, "Approved");
     }
 
     setWorkflow({ ...workflow, steps: stepsToUpdate });

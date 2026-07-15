@@ -163,8 +163,8 @@ router.post("/", authenticate, async (req: AuthRequest, res: Response): Promise<
       counterparty: data.counterparty,
       value: data.value,
       submitted: data.submitted,
-      approver: data.approver,
-      status: data.status,
+      approver: "",
+      status: "Draft",
       priority: data.priority,
       description: sanitize(data.description),
       relationship: data.relationship,
@@ -190,6 +190,11 @@ router.get("/:id", authenticate, async (req: AuthRequest, res: Response): Promis
   const declaration = await prisma.declaration.findUnique({ where: { id } });
   if (!declaration) {
     res.status(404).json({ error: "Declaration not found" });
+    return;
+  }
+
+  if (req.user!.role === "teamMember" && declaration.employeeId !== req.user!.id) {
+    res.status(403).json({ error: "Cannot view another user's declaration" });
     return;
   }
 
@@ -225,10 +230,11 @@ router.put("/:id", authenticate, async (req: AuthRequest, res: Response): Promis
   const updateData: Record<string, unknown> = {};
 
   const fieldMap: Record<string, string> = {
-    employee: "employee", employeeId: "employeeId", teamMemberNumber: "teamMemberNumber",
+    employee: "employee",
+    teamMemberNumber: "teamMemberNumber",
     lineManager: "lineManager", position: "position", department: "department",
     company: "company", team: "team", type: "type", counterparty: "counterparty",
-    value: "value", submitted: "submitted", approver: "approver", status: "status",
+    value: "value", submitted: "submitted",
     priority: "priority", description: "description", relationship: "relationship",
     receivedGiven: "receivedGiven", from: "fromField", contactPerson: "contactPerson",
     biddingProcess: "biddingProcess", contractNegotiation: "contractNegotiation",
@@ -311,6 +317,11 @@ router.patch("/:id/submit", authenticate, async (req: AuthRequest, res: Response
 });
 
 router.patch("/:id/status", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+  if (req.user!.role !== "admin") {
+    res.status(403).json({ error: "Only admins can change declaration status directly" });
+    return;
+  }
+
   const id = req.params.id as string;
   const { status } = req.body;
   const validStatuses = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Info Requested"];
