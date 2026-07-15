@@ -203,7 +203,7 @@ export function ApprovalDetail({
 
           <WorkflowTimeline
             steps={wfSteps}
-            decision={activeRole?.roleKey === currentUserStepRole ? activeRole.decision : undefined}
+            decision={activeRole?.roleKey === currentUserStepRole ? activeRole?.decision : undefined}
             onDecision={hasPendingUserStep && activeRole?.setDecision ? activeRole.setDecision : undefined}
             notes={hasPendingUserStep ? activeRole?.notes || "" : undefined}
             onNotesChange={hasPendingUserStep && activeRole?.setNotes ? activeRole.setNotes : undefined}
