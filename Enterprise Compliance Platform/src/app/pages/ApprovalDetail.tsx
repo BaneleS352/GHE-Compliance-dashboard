@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Declaration, ApprovalDecision } from "../../types/declaration";
 import { StatusBadge } from "../components/StatusBadge";
-import { DeclarationDetailView } from "../pages/DeclarationDetailView";
+import { DeclarationDetailView, SupportingDocuments } from "../pages/DeclarationDetailView";
 import { WorkflowTimeline, StepView } from "../components/WorkflowTimeline";
 import { useUser } from "../auth/UserContext";
 import { fetchWorkflowInstance, approveWorkflowStep, updateDeclaration } from "../../services/api";
@@ -199,7 +199,7 @@ export function ApprovalDetail({
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
         <div className="xl:col-span-3">
-          <DeclarationDetailView data={declaration} onBack={() => {}} hideBackButton />
+          <DeclarationDetailView data={declaration} onBack={() => {}} hideBackButton hideDocuments />
         </div>
 
         <div className="xl:col-span-2 space-y-5 h-full">
@@ -218,6 +218,10 @@ export function ApprovalDetail({
             onSubmit={hasPendingUserStep ? handleSubmit : undefined}
             submitDisabled={!activeRole?.decision}
           />
+        </div>
+
+        <div className="xl:col-span-5">
+          <SupportingDocuments data={declaration} />
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Download, FileText, Calendar, BarChart3 } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
@@ -6,6 +6,8 @@ import { PURPLE } from "../../../config/theme";
 import { Declaration } from "../../../types/declaration";
 import { fetchDeclarations, fetchConfig, fetchWorkflowInstance } from "../../../services/api";
 import { exportToExcel, ColumnDef } from "../../utils/excelExport";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 
 type ReportMeta = { title: string; desc: string };
 
@@ -17,6 +19,7 @@ const REPORTS: ReportMeta[] = [
 ];
 
 export function AdminReports() {
+  const reportRef = useRef<HTMLDivElement>(null);
   const [reportType, setReportType] = useState(REPORTS[0].title);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -148,8 +151,43 @@ export function AdminReports() {
     });
   };
 
-  const handleExportPdf = () => {
-    window.print();
+  const handleExportPdf = async () => {
+    if (!reportRef.current) return;
+    const canvas = await html2canvas(reportRef.current, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+    });
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF("l", "mm", "a4");
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth - 20;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    let y = 10;
+    if (imgHeight <= pageHeight - 20) {
+      pdf.addImage(imgData, "PNG", 10, y, imgWidth, imgHeight);
+    } else {
+      const ratio = imgHeight / imgWidth;
+      let remaining = imgHeight;
+      let srcY = 0;
+      const sliceH = pageHeight - 20;
+      while (remaining > 0) {
+        const h = Math.min(remaining, sliceH);
+        const sliceCanvas = document.createElement("canvas");
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = (h * canvas.width) / imgWidth;
+        const ctx = sliceCanvas.getContext("2d")!;
+        ctx.drawImage(canvas, 0, srcY, canvas.width, sliceCanvas.height, 0, 0, canvas.width, sliceCanvas.height);
+        const sliceData = sliceCanvas.toDataURL("image/png");
+        if (y > 10) pdf.addPage();
+        pdf.addImage(sliceData, "PNG", 10, 10, imgWidth, h);
+        srcY += sliceCanvas.height;
+        remaining -= h;
+        y = 10;
+      }
+    }
+    pdf.save(`${reportType.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   const statusColor = (s: string) =>
@@ -290,6 +328,7 @@ export function AdminReports() {
             </div>
           </Card>
 
+          <div ref={reportRef}>
           {generatedAt && reportType === "Compliance Status Report" && filtered.length > 0 && (
             <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
               <h3 className="mb-3 text-sm font-bold">Status Breakdown</h3>
@@ -422,6 +461,7 @@ export function AdminReports() {
           </Card>
         </div>
       </div>
+    </div>
     </div>
   );
 }

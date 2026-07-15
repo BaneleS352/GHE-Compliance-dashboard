@@ -10,10 +10,12 @@ export function DeclarationDetailView({
   data,
   onBack,
   hideBackButton,
+  hideDocuments,
 }: {
   data: Record<string, string> | Declaration;
   onBack: () => void;
   hideBackButton?: boolean;
+  hideDocuments?: boolean;
 }) {
   const isRecord = typeof (data as Declaration).value === "number";
   const d = isRecord ? (data as Declaration) : null;
@@ -74,22 +76,6 @@ export function DeclarationDetailView({
           ? ([[`Substantiation (> R${config.highValueThreshold})`, safe(record?.substantiation || "Required")]] as [string, string][])
           : []),
       ];
-
-  const sourceFiles = d?.files ?? record?.files ?? [];
-  const supportingDocuments: UploadedFile[] = Array.isArray(sourceFiles)
-    ? sourceFiles
-    : String(sourceFiles)
-        .split(",")
-        .map((file) => file.trim())
-        .filter(Boolean)
-        .map((file) => ({ name: file, size: 0, type: "", url: file }));
-
-  const downloadDocument = (file: UploadedFile) => {
-    const link = document.createElement("a");
-    link.href = file.url;
-    link.download = file.name;
-    link.click();
-  };
 
   return (
     <div className="space-y-5">
@@ -165,76 +151,118 @@ export function DeclarationDetailView({
 
         </div>
 
-      <div className="xl:col-span-3">
-        <div className="detail-panel-shell">
-        <Card
-          className="
-            detail-panel-card
-            p-6 rounded-2xl
-            bg-gradient-to-br from-[#f8fafc] via-[#eef2ff] to-[#e0e7ff]
-            border border-white/40
-            backdrop-blur-sm
-            relative overflow-hidden
-          "
-        >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.15),transparent_60%)] pointer-events-none" />
-          <div className="absolute bottom-0 right-0 opacity-20 pointer-events-none">
-            <div className="w-32 h-32 bg-indigo-300 rounded-full blur-2xl" />
-          </div>
-
-          <div className="relative z-10">
-            <h3 className="mb-6 inline-flex rounded-full border border-purple-200/70 bg-white/70 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm backdrop-blur-sm">
-              Supporting Documents
-            </h3>
-
-            <div className="space-y-3">
-              {supportingDocuments.length === 0 ? (
-                <div className="rounded-xl border border-white/60 bg-white/70 px-4 py-5 text-sm font-medium text-slate-500 transition-all duration-200 hover:border-purple-300 hover:shadow-md">
-                  No supporting documents were uploaded for this declaration.
-                </div>
-              ) : (
-                supportingDocuments.map((file, i) => (
-                  <motion.div
-                    key={`${file.name}-${i}`}
-                    whileHover={{ scale: 1.01, y: -2 }}
-                    transition={{ duration: 0.2 }}
-                    className="flex w-full flex-col gap-3 rounded-xl border border-white/60 bg-white/70 px-4 py-3 backdrop-blur-sm transition-all duration-200 hover:border-purple-300 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
-                        <FileText size={18} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-slate-800">{file.name}</p>
-                        <p className="text-xs text-slate-500">
-                          {file.size ? `${(file.size / 1024).toFixed(0)} KB` : "Uploaded document"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 sm:flex-shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => window.open(file.url, "_blank", "noopener,noreferrer")}
-                        className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-indigo-100 bg-white px-3 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 sm:flex-none"
-                      >
-                        <Eye size={13} /> View
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => downloadDocument(file)}
-                        className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-indigo-100 bg-white px-3 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 sm:flex-none"
-                      >
-                        <Download size={13} /> Download
-                      </button>
-                    </div>
-                  </motion.div>
-                ))
-              )}
-            </div>
-          </div>
-        </Card>
-        </div>
+      {!hideDocuments && <SupportingDocuments data={data} />}
       </div>
+    </div>
+  );
+}
+
+async function downloadFile(file: UploadedFile) {
+  const response = await fetch(file.url);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.name;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+async function viewFile(file: UploadedFile) {
+  const response = await fetch(file.url);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+function parseFiles(data: Record<string, string> | Declaration): UploadedFile[] {
+  const isRecord = typeof (data as Declaration).value === "number";
+  const d = isRecord ? (data as Declaration) : null;
+  const record = !d ? (data as Record<string, string>) : null;
+  const sourceFiles = d?.files ?? record?.files ?? [];
+  return Array.isArray(sourceFiles)
+    ? sourceFiles
+    : String(sourceFiles)
+        .split(",")
+        .map((file) => file.trim())
+        .filter(Boolean)
+        .map((file) => ({ name: file, size: 0, type: "", url: file }));
+}
+
+export function SupportingDocuments({ data }: { data: Record<string, string> | Declaration }) {
+  const supportingDocuments = parseFiles(data);
+  return (
+    <div className="xl:col-span-3">
+      <div className="detail-panel-shell">
+      <Card
+        className="
+          detail-panel-card
+          p-6 rounded-2xl
+          bg-gradient-to-br from-[#f8fafc] via-[#eef2ff] to-[#e0e7ff]
+          border border-white/40
+          backdrop-blur-sm
+          relative overflow-hidden
+        "
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.15),transparent_60%)] pointer-events-none" />
+        <div className="absolute bottom-0 right-0 opacity-20 pointer-events-none">
+          <div className="w-32 h-32 bg-indigo-300 rounded-full blur-2xl" />
+        </div>
+
+        <div className="relative z-10">
+          <h3 className="mb-6 inline-flex rounded-full border border-purple-200/70 bg-white/70 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm backdrop-blur-sm">
+            Supporting Documents
+          </h3>
+
+          <div className="space-y-3">
+            {supportingDocuments.length === 0 ? (
+              <div className="rounded-xl border border-white/60 bg-white/70 px-4 py-5 text-sm font-medium text-slate-500 transition-all duration-200 hover:border-purple-300 hover:shadow-md">
+                No supporting documents were uploaded for this declaration.
+              </div>
+            ) : (
+              supportingDocuments.map((file, i) => (
+                <motion.div
+                  key={`${file.name}-${i}`}
+                  whileHover={{ scale: 1.01, y: -2 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex w-full flex-col gap-3 rounded-xl border border-white/60 bg-white/70 px-4 py-3 backdrop-blur-sm transition-all duration-200 hover:border-purple-300 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
+                      <FileText size={18} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-800">{file.name}</p>
+                      <p className="text-xs text-slate-500">
+                        {file.size ? `${(file.size / 1024).toFixed(0)} KB` : "Uploaded document"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 sm:flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => viewFile(file)}
+                      className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-indigo-100 bg-white px-3 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 sm:flex-none"
+                    >
+                      <Eye size={13} /> View
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => downloadFile(file)}
+                      className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-indigo-100 bg-white px-3 text-xs font-semibold text-indigo-700 transition-colors hover:bg-indigo-50 sm:flex-none"
+                    >
+                      <Download size={13} /> Download
+                    </button>
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </div>
+        </div>
+      </Card>
       </div>
     </div>
   );
