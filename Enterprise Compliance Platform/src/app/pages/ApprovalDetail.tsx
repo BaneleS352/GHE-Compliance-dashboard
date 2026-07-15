@@ -75,9 +75,9 @@ export function ApprovalDetail({
   const hasHr = !!hrStep;
   const hasCeo = !!ceoStep;
 
-  const isLmDecided = !!lmDecision;
+  const isLmDecided = lmStep?.status !== "pending";
   const isHrEnabled = hasHr && isLmDecided;
-  const isCeoEnabled = hasCeo && isLmDecided && (hasHr ? !!hrDecision : true);
+  const isCeoEnabled = hasCeo && isLmDecided && (hasHr ? hrStep?.status !== "pending" : true);
 
   const decisionLabel = (d: string) => {
     const map: Record<string, string> = {
@@ -92,7 +92,7 @@ export function ApprovalDetail({
 
   const allRoles = [
     { roleKey: "lineManager", title: "1. Line Manager Approval", defaultActor: "Line Manager",
-      get decision() { return lmDecision; }, setDecision: setLmDecision,
+      get decision() { return lmStep?.status !== "pending" ? (lmStep?.decision ?? null) : lmDecision; }, setDecision: setLmDecision,
       get notes() { return lmNotes; }, setNotes: setLmNotes,
       get step() { return lmStep; }, get exists() { return hasLm; },
       get enabled() { return lmStep?.status === "pending"; },
@@ -100,7 +100,7 @@ export function ApprovalDetail({
       get decidedAt() { return lmStep?.decidedAt || null; },
     },
     { roleKey: "hr", title: "2. Head of HR Approval", defaultActor: "Head of HR",
-      get decision() { return hrDecision; }, setDecision: setHrDecision,
+      get decision() { return hrStep?.status !== "pending" ? (hrStep?.decision ?? null) : hrDecision; }, setDecision: setHrDecision,
       get notes() { return hrNotes; }, setNotes: setHrNotes,
       get step() { return hrStep; }, get exists() { return hasHr; },
       get enabled() { return isHrEnabled && hrStep?.status === "pending"; },
@@ -108,7 +108,7 @@ export function ApprovalDetail({
       get decidedAt() { return hrStep?.decidedAt || null; },
     },
     { roleKey: "ceo", title: "3. Group CEO Approval", defaultActor: "Group CEO",
-      get decision() { return ceoDecision; }, setDecision: setCeoDecision,
+      get decision() { return ceoStep?.status !== "pending" ? (ceoStep?.decision ?? null) : ceoDecision; }, setDecision: setCeoDecision,
       get notes() { return ceoNotes; }, setNotes: setCeoNotes,
       get step() { return ceoStep; }, get exists() { return hasCeo; },
       get enabled() { return isCeoEnabled && ceoStep?.status === "pending"; },
@@ -119,7 +119,7 @@ export function ApprovalDetail({
 
   const wfSteps: StepView[] = allRoles.map((r) => {
     if (!r.exists) return { label: r.title, actor: r.defaultActor, state: "skipped" };
-    const decided = r.decision || r.completed;
+    const decided = r.completed;
     return {
       label: r.title,
       actor: r.step?.assigneeName || r.defaultActor,
@@ -131,25 +131,25 @@ export function ApprovalDetail({
   });
 
   const hasPendingUserStep = workflow?.steps.some((s: any) => s.assignee === user?.id && s.status === "pending");
-  const activeRole = allRoles.find((r) => r.enabled && !r.decision);
   const currentUserStepRole = workflow?.steps.find((s: any) => s.assignee === user?.id)?.role;
+  const activeRole = allRoles.find((r) => r.enabled && r.roleKey === currentUserStepRole);
 
   const handleSubmit = async () => {
     if (!user || !workflow) return;
 
     const stepsToUpdate = [...workflow.steps];
-    const decisions = [lmDecision, hrDecision, ceoDecision];
-    const notesArr = [lmNotes, hrNotes, ceoNotes];
+    const decisionsByRole: Record<string, ApprovalDecision> = { lineManager: lmDecision, hr: hrDecision, ceo: ceoDecision };
+    const notesByRole: Record<string, string> = { lineManager: lmNotes, hr: hrNotes, ceo: ceoNotes };
     let allApproved = true;
     let hasReturn = false;
     let hasDecline = false;
 
-    for (let i = 0; i < stepsToUpdate.length; i++) {
-      const step = stepsToUpdate[i];
-      const decision = decisions[i];
+    for (const step of stepsToUpdate) {
+      const decision = decisionsByRole[step.role];
+      const notes = notesByRole[step.role];
       if (decision && step.assignee === user.id && step.status === "pending") {
         step.decision = decision;
-        step.notes = notesArr[i];
+        step.notes = notes;
         step.decidedAt = new Date().toISOString();
         if (decision === "decline" || decision === "reject") {
           step.status = "declined";
@@ -165,7 +165,7 @@ export function ApprovalDetail({
         } else {
           step.status = "approved";
         }
-        await approveWorkflowStep({ declarationId: declaration.id, decision, notes: notesArr[i] });
+        await approveWorkflowStep({ declarationId: declaration.id, decision, notes });
       }
     }
 
@@ -177,6 +177,7 @@ export function ApprovalDetail({
       await updateDeclaration(declaration.id, { status: "Approved" });
     }
 
+    setWorkflow({ ...workflow, steps: stepsToUpdate });
     setMessage("Decision submitted successfully.");
     setTimeout(() => { setMessage(""); onBack(); }, 1500);
   };
