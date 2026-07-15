@@ -261,8 +261,75 @@ test.describe("Approval workflow e2e", () => {
     await page.getByRole("button", { name: "Add User" }).click();
     await page.waitForTimeout(2000);
 
-    // Verify user appears in the table — scope to td cells to avoid hidden mobile rows
+    // Verify user appears in the table
     await expect(page.locator(`table td:has-text("${userName}")`)).toBeVisible();
     await expect(page.locator(`table td:has-text("${userEmail}")`)).toBeVisible();
+  });
+
+  test("Approver dashboard displays KPIs and recent declarations", async ({ page }) => {
+    await login(page, "sipho@hb.co.za");
+    await sidebarClick(page, "Dashboard");
+
+    // Page header
+    await expect(page.getByRole("heading", { name: "Approver Dashboard" })).toBeVisible();
+    await expect(page.getByText("Hollywoodbets GHE Overview")).toBeVisible();
+
+    // KPI cards — target the p tags which are the card labels
+    await expect(page.getByText("Pending Queue").first()).toBeVisible();
+    await expect(page.locator("p.text-muted-foreground:has-text('Approved')").first()).toBeVisible();
+    await expect(page.locator("p.text-muted-foreground:has-text('Declined')").first()).toBeVisible();
+
+    // Approval Queue button (sidebar nav)
+    await expect(page.locator('button:has-text("Approval Queue")').first()).toBeVisible();
+
+    // Recent declarations section
+    await expect(page.getByText("Show All Declarations")).toBeVisible();
+  });
+
+  test("Approval Queue filters and search", async ({ page }) => {
+    await login(page, "sipho@hb.co.za");
+    await sidebarClick(page, "Approval Queue");
+
+    await expect(page.getByRole("heading", { name: "Approval Queue" })).toBeVisible();
+
+    // Search input exists and is usable
+    const searchInput = page.locator('input[placeholder="Search declarations..."]');
+    await expect(searchInput).toBeVisible();
+
+    // Type a partial search that matches pending declarations
+    await searchInput.fill("GHE-2025");
+    await page.waitForTimeout(1000);
+
+    // Clear search
+    await searchInput.fill("");
+    await page.waitForTimeout(500);
+
+    // Toggle advanced filters
+    await page.locator('button:has-text("Filters")').click();
+    await page.waitForTimeout(500);
+  });
+
+  test("Admin manages workflow rules", async ({ page }) => {
+    await login(page, "admin@hb.co.za");
+    await sidebarClick(page, "Workflows");
+
+    await expect(page.getByText("Approval Workflows")).toBeVisible();
+
+    // Verify rules are displayed
+    const ruleCards = page.locator("h3.text-base.font-bold");
+    const ruleCount = await ruleCards.count();
+    expect(ruleCount).toBeGreaterThanOrEqual(3);
+
+    // Edit the first rule's name
+    await page.locator('button:has-text("Edit")').first().click();
+    await page.waitForTimeout(300);
+
+    const nameInput = page.locator("input.text-base.font-bold.rounded");
+    await nameInput.fill("Updated Rule Name");
+    await page.locator('button:has-text("Save")').click();
+    await page.waitForTimeout(1500);
+
+    // Verify the new name appears
+    await expect(page.getByText("Updated Rule Name")).toBeVisible();
   });
 });

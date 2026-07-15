@@ -753,8 +753,8 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
-          lineManager: "None", position: "Admin", department: "IT",
+          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Developer", department: "Marketing",
           type: "Gift", counterparty: "CfgLow", value: 100,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
           description: "config coupling low", relationship: "Test",
@@ -781,8 +781,8 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
-          lineManager: "None", position: "Admin", department: "IT",
+          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Developer", department: "Marketing",
           type: "Gift", counterparty: "CfgMed", value: 500,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
           description: "config coupling medium", relationship: "Test",
@@ -810,8 +810,8 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
-          lineManager: "None", position: "Admin", department: "IT",
+          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Developer", department: "Marketing",
           type: "Gift", counterparty: "CfgHigh", value: 5000,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
           description: "config coupling high", relationship: "Test",
@@ -850,8 +850,8 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
-          lineManager: "None", position: "Admin", department: "IT",
+          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Developer", department: "Marketing",
           type: "Gift", counterparty: "RuleAvail", value: 5000,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
           description: "rule availability test", relationship: "Test",
@@ -875,8 +875,8 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
-          lineManager: "None", position: "Admin", department: "IT",
+          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Developer", department: "Marketing",
           type: "Gift", counterparty: "FrozenFlow", value: 500,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
           description: "frozen workflow test", relationship: "Test",
@@ -899,7 +899,7 @@ describe("Edge-Case Tests", () => {
 
   // ── NULL LINE MANAGER ──
   describe("Null lineManager submit", () => {
-    it("Submitting declaration for user with null lineManager creates unreviewable workflow step (BUG: assignee is empty string)", async () => {
+    it("Submitting declaration for user with null lineManager skips LM step (no unreviewable orphan)", async () => {
       // Create user with no lineManager
       const userRes = await request(app)
         .post("/api/admin/users")
@@ -907,7 +907,6 @@ describe("Edge-Case Tests", () => {
         .send({
           name: "No LM User", email: "nolm@test.com", role: "teamMember",
           department: "IT", position: "Tester",
-          // lineManager not provided → defaults to null
         });
       expect(userRes.status).toBe(201);
       const userId = userRes.body.id;
@@ -929,20 +928,16 @@ describe("Edge-Case Tests", () => {
       expect(declRes.status).toBe(201);
       cleanupDeclIds.push(declRes.body.id);
 
-      // Submit via admin (admin can submit any declaration)
       const submitRes = await request(app)
         .patch(`/api/declarations/${declRes.body.id}/submit`)
         .set("Authorization", `Bearer ${getAdminToken()}`);
-      // Submit itself succeeds (no guard against null lineManager)
       expect(submitRes.status).toBe(200);
 
-      // But the LM step has assignee="" and assigneeName="Unknown" — unreviewable
+      // LM step is skipped — no unreviewable orphan step with empty assignee
       const inst = await request(app)
         .get(`/api/workflows/instances/${declRes.body.id}`)
         .set("Authorization", `Bearer ${getAdminToken()}`);
-      const lmStep = inst.body.steps[0];
-      expect(lmStep.assignee).toBe("");
-      expect(lmStep.assigneeName).toBe("Unknown");
+      expect(inst.body.steps).toHaveLength(0);
 
       // Cleanup: delete the test user
       await request(app)

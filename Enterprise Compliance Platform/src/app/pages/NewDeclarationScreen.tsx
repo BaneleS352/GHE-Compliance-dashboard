@@ -9,7 +9,7 @@ import { FS, FORM_SECTIONS } from "../components/FS";
 import { Card } from "../components/Card";
 import { PURPLE, F, inp } from "../../config/theme";
 import { Declaration, UploadedFile } from "../../types/declaration";
-import { createDeclaration } from "../../services/api";
+import { createDeclaration, submitDeclaration } from "../../services/api";
 import { useUser } from "../auth/UserContext";
 import { fetchConfig, fetchUserById, updateDeclaration } from "../../services/api";
 
@@ -335,7 +335,7 @@ export function NewDeclarationScreen({
       publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
       substantiation: requiresSubstantiation ? form.substantiation : "",
       approver: form.lineManager,
-      status: "Pending",
+      status: "Draft",
       priority,
       files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
     };
@@ -343,7 +343,8 @@ export function NewDeclarationScreen({
     let saved: Declaration | undefined;
     try {
       saved = await createDeclaration(declaration);
-      onSubmitSuccess(saved);
+      const submitted = await submitDeclaration(saved.id);
+      onSubmitSuccess(submitted);
     } catch (err) {
       if (saved) await updateDeclaration(saved.id, { status: "Draft" });
       setSubmitError(err instanceof Error ? err.message : "Failed to submit declaration.");

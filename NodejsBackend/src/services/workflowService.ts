@@ -56,7 +56,7 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
       assigneeName = ceoUser?.name || "CEO";
     }
 
-    if (assigneeId === employeeId) continue;
+    if (!assigneeId || assigneeId === employeeId) continue;
 
     steps.push({
       order: def.order,
