@@ -135,4 +135,17 @@ The new UI (`WorkflowTimeline` component) sends `accept`, `reject`, `decline`, `
 2. **Deleting rule-3** → 500 on new high-value submissions
 3. **Deleting system config** → 500 on any submission
 4. **No step order enforcement** — HR can approve before LM
-5. **No self-approval guard** — approver can approve own declaration
+5. ~~**No self-approval guard** — approver can approve own declaration~~ **(Fixed)** Steps where `assignee === creator` are now skipped entirely (auto-removed from the workflow). The timeline shows "Not Required" for those roles.
+
+## Self-Approval Guard
+
+When a declaration is submitted (`PATCH /:id/submit`), `createWorkflowSteps()` in `services/workflowService.ts` now skips any step whose resolved `assignee` matches the creator's user ID. This prevents approvers from approving their own declarations.
+
+### Scenarios
+
+| Creator | Skipped Steps | Remaining Steps |
+|---------|---------------|-----------------|
+| Team member | None | All rule-defined steps (normal flow) |
+| Line Manager | None (LM step → CEO as their lineManager) | All rule-defined steps |
+| HR approver | HR step | LM (→ CEO), CEO (if rule-3) |
+| CEO | LM step, CEO step | HR step (if rule-2/3), or empty (rule-1) |

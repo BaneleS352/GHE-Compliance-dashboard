@@ -20,9 +20,9 @@ export async function setup() {
   await prisma.user.createMany({
     data: [
       { id: "user-admin", name: "Admin User", email: "admin@test.com", passwordHash: hash, role: "admin", teamMemberNumber: "ADM-001", department: "IT", position: "System Admin", lineManager: null },
-      { id: "user-approver", name: "Sipho Approver", email: "sipho@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: null },
-      { id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: null },
-      { id: "user-ceo", name: "Sandile CEO", email: "sandile@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-003", department: "Executive", position: "Group CEO", lineManager: null },
+      { id: "user-approver", name: "Sipho Approver", email: "sipho@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: "user-ceo" },
+      { id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-ceo" },
+      { id: "user-ceo", name: "Sandile CEO", email: "sandile@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-003", department: "Executive", position: "Group CEO", lineManager: "user-ceo" },
       { id: "user-team", name: "Nomvula Team", email: "nomvula@test.com", passwordHash: hash, role: "teamMember", teamMemberNumber: "TM-001", department: "Marketing", position: "Brand Manager", lineManager: "user-approver" },
     ],
   });

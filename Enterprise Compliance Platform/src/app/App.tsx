@@ -86,7 +86,7 @@ function AppInner() {
             <div className="xl:col-span-3">
               <DeclarationDetailView data={submittedData} onBack={() => setShowSubmittedView(false)} />
             </div>
-            <div className="xl:col-span-2">
+            <div className="xl:col-span-2 h-full">
               <WorkflowTimeline declarationId={submittedData.id} employee={submittedData.employee} />
             </div>
           </div>

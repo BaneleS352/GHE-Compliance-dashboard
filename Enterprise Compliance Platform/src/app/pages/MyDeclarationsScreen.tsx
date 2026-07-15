@@ -130,7 +130,7 @@ export function MyDeclarationsScreen() {
         <div className="xl:col-span-3">
           <DeclarationDetailView data={viewDecl} onBack={() => setViewDecl(null)} />
         </div>
-        <div className="xl:col-span-2">
+        <div className="xl:col-span-2 h-full">
           <WorkflowTimeline declarationId={viewDecl.id} employee={viewDecl.employee} />
         </div>
       </div>

@@ -8,9 +8,9 @@ const SALT_ROUNDS = 10;
 const users = [
   { id: "user-1", name: "Nomvula Dlamini", email: "nomvula@hb.co.za", role: "teamMember", teamMemberNumber: "HB-204478", department: "Marketing", position: "Senior Brand Manager", lineManager: "user-3" },
   { id: "user-2", name: "Thabo Mokoena", email: "thabo@hb.co.za", role: "teamMember", teamMemberNumber: "HB-187234", department: "Sales", position: "Sales Executive", lineManager: "user-4" },
-  { id: "user-3", name: "Sipho Nkosi", email: "sipho@hb.co.za", role: "approver", teamMemberNumber: "HB-10001", department: "Marketing", position: "Line Manager", lineManager: null },
-  { id: "user-4", name: "Lindiwe Zulu", email: "lindiwe@hb.co.za", role: "approver", teamMemberNumber: "HB-10002", department: "HR", position: "Head of HR", lineManager: null },
-  { id: "user-5", name: "Sandile Shabalala", email: "sandile@hb.co.za", role: "approver", teamMemberNumber: "HB-10003", department: "Executive", position: "Group CEO", lineManager: null },
+  { id: "user-3", name: "Sipho Nkosi", email: "sipho@hb.co.za", role: "approver", teamMemberNumber: "HB-10001", department: "Marketing", position: "Line Manager", lineManager: "user-5" },
+  { id: "user-4", name: "Lindiwe Zulu", email: "lindiwe@hb.co.za", role: "approver", teamMemberNumber: "HB-10002", department: "HR", position: "Head of HR", lineManager: "user-5" },
+  { id: "user-5", name: "Sandile Shabalala", email: "sandile@hb.co.za", role: "approver", teamMemberNumber: "HB-10003", department: "Executive", position: "Group CEO", lineManager: "user-5" },
   { id: "user-6", name: "System Admin", email: "admin@hb.co.za", role: "admin", teamMemberNumber: "HB-00000", department: "IT", position: "System Administrator", lineManager: null },
   { id: "user-7", name: "Pieter van der Berg", email: "pieter@hb.co.za", role: "teamMember", teamMemberNumber: "HB-156902", department: "Finance", position: "Finance Analyst", lineManager: "user-3" },
   { id: "user-8", name: "Ayanda Khumalo", email: "ayanda@hb.co.za", role: "teamMember", teamMemberNumber: "HB-219033", department: "Operations", position: "Operations Manager", lineManager: "user-3" },
