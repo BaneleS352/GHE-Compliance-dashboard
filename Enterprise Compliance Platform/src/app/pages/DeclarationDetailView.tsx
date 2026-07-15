@@ -90,69 +90,62 @@ export function DeclarationDetailView({
         )}
         <h1 className="text-xl font-bold">Declaration Details</h1>
       </div>
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
-      <div className="xl:col-span-5 flex flex-col xl:flex-row gap-5">
-        <div className="flex-[3]">
-          <div className="detail-panel-shell h-full">
-          <Card
-            className="
-            detail-panel-card
-            p-6 h-full rounded-2xl
-            bg-gradient-to-br from-[#f8fafc] via-[#eef2ff] to-[#e0e7ff]
-            border border-white/40
-            backdrop-blur-sm
-            relative overflow-hidden
-          "
-        >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.15),transparent_60%)] pointer-events-none" />
-          <div className="absolute bottom-0 right-0 opacity-20 pointer-events-none">
-            <div className="w-32 h-32 bg-indigo-300 rounded-full blur-2xl" />
-          </div>
-
-          <div className="relative z-10">
-            <h2 className="mb-6 inline-flex rounded-full border border-purple-200/70 bg-white/70 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm backdrop-blur-sm">
-              Declaration Details
-            </h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {fields.map(([k, v]) => (
-                <motion.div
-                  key={k}
-                  whileHover={{ scale: 1.015, y: -2 }}
-                  transition={{ duration: 0.2 }}
-                  className={`
-                    rounded-xl p-4
-                    bg-white/70 backdrop-blur-sm
-                    border border-white/60
-                    shadow-sm
-                    transition-all duration-200
-                    hover:border-purple-300 hover:shadow-md
-                    ${
-                      ["Description", "Substantiation (> R2 000)"].includes(k)
-                        ? "sm:col-span-2"
-                        : ""
-                    }
-                  `}
-                >
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                    {k}
-                  </p>
-
-                  <p className="mt-2 text-sm font-medium text-slate-800 break-words">
-                    {v}
-                  </p>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </Card>
-        </div>
-        </div>
-
-        </div>
-
-      {!hideDocuments && <SupportingDocuments data={data} />}
+      <div className="detail-panel-shell">
+      <Card
+        className="
+        detail-panel-card
+        p-6 rounded-2xl
+        bg-gradient-to-br from-[#f8fafc] via-[#eef2ff] to-[#e0e7ff]
+        border border-white/40
+        backdrop-blur-sm
+        relative overflow-hidden
+      "
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.15),transparent_60%)] pointer-events-none" />
+      <div className="absolute bottom-0 right-0 opacity-20 pointer-events-none">
+        <div className="w-32 h-32 bg-indigo-300 rounded-full blur-2xl" />
       </div>
+
+      <div className="relative z-10">
+        <h2 className="mb-6 inline-flex rounded-full border border-purple-200/70 bg-white/70 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm backdrop-blur-sm">
+          Declaration Details
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {fields.map(([k, v]) => (
+            <motion.div
+              key={k}
+              whileHover={{ scale: 1.015, y: -2 }}
+              transition={{ duration: 0.2 }}
+              className={`
+                rounded-xl p-4
+                bg-white/70 backdrop-blur-sm
+                border border-white/60
+                shadow-sm
+                transition-all duration-200
+                hover:border-purple-300 hover:shadow-md
+                ${
+                  ["Description", "Substantiation (> R2 000)"].includes(k)
+                    ? "sm:col-span-2"
+                    : ""
+                }
+              `}
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                {k}
+              </p>
+
+              <p className="mt-2 text-sm font-medium text-slate-800 break-words">
+                {v}
+              </p>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </Card>
+    </div>
+
+    {!hideDocuments && <SupportingDocuments data={data} />}
     </div>
   );
 }
@@ -195,7 +188,7 @@ function parseFiles(data: Record<string, string> | Declaration): UploadedFile[] 
 export function SupportingDocuments({ data }: { data: Record<string, string> | Declaration }) {
   const supportingDocuments = parseFiles(data);
   return (
-    <div className="xl:col-span-3">
+    <div>
       <div className="detail-panel-shell">
       <Card
         className="

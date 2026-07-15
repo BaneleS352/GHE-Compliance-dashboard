@@ -220,7 +220,7 @@ export function ApprovalDetail({
           />
         </div>
 
-        <div className="xl:col-span-5">
+        <div className="xl:col-span-3">
           <SupportingDocuments data={declaration} />
         </div>
       </div>
