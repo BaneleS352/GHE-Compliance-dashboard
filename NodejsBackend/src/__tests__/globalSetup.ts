@@ -76,6 +76,9 @@ export async function setup() {
       { id: "ao-3", value: "foundation", label: "Donate to foundation" },
       { id: "ao-4", value: "decline", label: "Decline" },
       { id: "ao-5", value: "return", label: "Return for info" },
+      { id: "ao-6", value: "reject", label: "Reject" },
+      { id: "ao-7", value: "info", label: "Request info" },
+      { id: "ao-8", value: "escalate", label: "Escalate" },
     ],
   });
 

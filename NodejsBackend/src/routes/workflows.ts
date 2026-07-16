@@ -83,7 +83,10 @@ const approveSchema = {
 
 router.post("/approve", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const { declarationId, decision, notes } = req.body;
-  const validDecisions = ["return", "accept", "org", "foundation", "decline", "reject", "info", "escalate"];
+  const dbOptions = await prisma.approvalOption.findMany({ select: { value: true } });
+  const validDecisions = dbOptions.length > 0
+    ? dbOptions.map((o) => o.value)
+    : ["return", "accept", "org", "foundation", "decline", "reject", "info", "escalate"];
 
   if (!declarationId || !decision) {
     res.status(400).json({ error: "declarationId and decision are required" });
