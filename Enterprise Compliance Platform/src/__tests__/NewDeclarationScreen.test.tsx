@@ -44,18 +44,17 @@ function fillForm() {
   fireEvent.change(screen.getByPlaceholderText("Full legal name"), { target: { value: "Acme Corp" } });
   fireEvent.change(screen.getByPlaceholderText("e.g. Ahmed Al-Rashid"), { target: { value: "John Doe" } });
 
-  const selects = screen.getAllByRole("combobox");
-  fireEvent.change(selects[0], { target: { value: "Received" } });
-  fireEvent.change(selects[1], { target: { value: "Supplier" } });
-  fireEvent.change(selects[2], { target: { value: "No" } });
-  fireEvent.change(selects[3], { target: { value: "No" } });
-  fireEvent.change(selects[4], { target: { value: "Yes" } });
-  fireEvent.change(selects[5], { target: { value: "Gift" } });
-  fireEvent.change(selects[6], { target: { value: "Business Meeting" } });
-  fireEvent.change(selects[7], { target: { value: "1" } });
+  const triggers = screen.getAllByRole("combobox");
+  const selectValues = ["Received", "Supplier", "No", "No", "Yes", "Gift", "Business Meeting", "1"];
+  for (let i = 0; i < triggers.length; i++) {
+    fireEvent.click(triggers[i]);
+    fireEvent.click(screen.getByRole("option", { name: selectValues[i] }));
+  }
 
   fireEvent.change(screen.getByPlaceholderText(/Corporate dinner at Sandton Sun/i), { target: { value: "Test gift description" } });
   fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: "500" } });
+  const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+  if (dateInput) fireEvent.change(dateInput, { target: { value: "2026-07-15" } });
 }
 
 describe("NewDeclarationScreen", () => {
@@ -66,10 +65,14 @@ describe("NewDeclarationScreen", () => {
     });
     const sections = screen.getAllByText(/Team Member Details/i);
     expect(sections.length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/Declaration Details/i)).toBeInTheDocument();
-    expect(screen.getByText(/Gift, Hospitality or Entertainment Details/i)).toBeInTheDocument();
-    expect(screen.getByText(/Supporting Documents/i)).toBeInTheDocument();
-    expect(screen.getByText(/Declaration & Undertaking/i)).toBeInTheDocument();
+    const declDetails = screen.getAllByText(/Declaration Details/i);
+    expect(declDetails.length).toBeGreaterThanOrEqual(1);
+    const gheDetails = screen.getAllByText(/Gift, Hospitality or Entertainment Details/i);
+    expect(gheDetails.length).toBeGreaterThanOrEqual(1);
+    const suppDocs = screen.getAllByText(/Supporting Documents/i);
+    expect(suppDocs.length).toBeGreaterThanOrEqual(1);
+    const declUndertaking = screen.getAllByText(/Declaration & Undertaking/i);
+    expect(declUndertaking.length).toBeGreaterThanOrEqual(1);
   });
 
   it("auto-fills team member name from user context", async () => {
@@ -88,7 +91,7 @@ describe("NewDeclarationScreen", () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(screen.getByText(/Required/)).toBeInTheDocument();
+      expect(screen.getAllByText(/Required/).length).toBeGreaterThan(0);
     });
   });
 

@@ -30,11 +30,13 @@ npm install && npm run dev
 ## Testing
 
 ```bash
-# Backend (132 tests)
+# Backend (212 tests)
 cd NodejsBackend && npm test
 
-# Frontend (130 tests)
+# Frontend (160 tests)
 cd "Enterprise Compliance Platform" && npm test
 ```
 
-The backend includes **72 breaking tests** covering auth bypass, injection, oversized payloads, unicode attacks, and rapid-fire requests. The frontend includes **31 HTTP-layer breaking tests** covering error codes, network failure, malformed responses, and header validation.
+The backend includes **72 breaking tests** covering auth bypass, injection, oversized payloads, unicode attacks, and rapid-fire requests. The frontend includes **27 HTTP-layer breaking tests** covering error codes, network failure, malformed responses, and header validation.
+
+All 14 security vulnerabilities documented in [`docs/SECURITY.md`](docs/SECURITY.md) have been fixed and verified by passing tests.

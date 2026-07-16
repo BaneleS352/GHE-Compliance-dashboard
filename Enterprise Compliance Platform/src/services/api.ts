@@ -193,6 +193,15 @@ export async function fetchReportList(params?: Record<string, string>): Promise<
 export async function fetchApprovalOptions(): Promise<any[]> {
   return api.get<any[]>("/api/admin/config/approval-options");
 }
+export async function createApprovalOption(data: { id: string; value: string; label: string }): Promise<any> {
+  return api.post<any>("/api/admin/config/approval-options", data);
+}
+export async function updateApprovalOption(id: string, data: { value: string; label: string }): Promise<any> {
+  return api.put<any>(`/api/admin/config/approval-options/${id}`, data);
+}
+export async function deleteApprovalOption(id: string): Promise<any> {
+  return api.del<any>(`/api/admin/config/approval-options/${id}`);
+}
 
 function toApiDeclaration(declaration: Partial<Declaration>) {
   return {

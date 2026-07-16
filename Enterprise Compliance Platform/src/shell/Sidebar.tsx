@@ -1,4 +1,4 @@
-import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, Activity, List, BarChart3 } from "lucide-react";
+import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, Activity, List, BarChart3, CheckCircle2 } from "lucide-react";
 import { ImageWithFallback } from "../app/components/ImageWithFallback";
 import logoImg from "../assets/HB-Logo-NO-BG.png";
 import { YELLOW } from "../config/theme";
@@ -29,6 +29,7 @@ export function Sidebar({
           { screen: "admin-dropdowns" as Screen, icon: List,     label: "Dropdowns" },
           { screen: "admin-config"    as Screen, icon: Settings, label: "Config" },
           { screen: "admin-reports"   as Screen, icon: FileText, label: "Reports" },
+          { screen: "admin-approval-options" as Screen, icon: CheckCircle2, label: "Approval Options" },
         ]
       : role === "teamMember"
       ? [

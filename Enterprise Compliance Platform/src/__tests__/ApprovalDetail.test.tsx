@@ -26,12 +26,7 @@ const mockWorkflow = {
   ],
 };
 
-const mockUserStep = {
-  ...mockWorkflow,
-  steps: mockWorkflow.steps.map((s, i) =>
-    i === 0 ? { ...s, assignee: "user-current" } : s
-  ),
-};
+let mockUserStep: any;
 
 vi.mock("../services/api", () => ({
   fetchWorkflowInstance: vi.fn(),
@@ -62,13 +57,19 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
   Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, value: 800 });
   Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 600 });
+  mockUserStep = {
+    ...mockWorkflow,
+    steps: mockWorkflow.steps.map((s, i) =>
+      i === 0 ? { ...s, assignee: "user-current" } : { ...s }
+    ),
+  };
 });
 
 describe("ApprovalDetail", () => {
   it("shows loading state while fetching workflow", () => {
     vi.mocked(fetchWorkflowInstance).mockReturnValue(new Promise(() => {}));
     render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
-    expect(screen.getByText("Loading…")).toBeInTheDocument();
+    expect(screen.getByText("Loading workflow…")).toBeInTheDocument();
   });
 
   it("renders declaration info and workflow after load", async () => {
@@ -77,9 +78,9 @@ describe("ApprovalDetail", () => {
     await waitFor(() => {
       expect(screen.getByText("GHE-2026-1001")).toBeInTheDocument();
     });
-    expect(screen.getByText(/Line Manager Review/)).toBeInTheDocument();
-    expect(screen.getByText(/HR Review/)).toBeInTheDocument();
-    expect(screen.getByText(/CEO Approval/)).toBeInTheDocument();
+    expect(screen.getByText("1. Line Manager Approval")).toBeInTheDocument();
+    expect(screen.getByText("2. Head of HR Approval")).toBeInTheDocument();
+    expect(screen.getByText("3. Group CEO Approval")).toBeInTheDocument();
   });
 
   it("shows decision buttons for the current user's pending step", async () => {

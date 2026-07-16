@@ -53,10 +53,12 @@ router.get("/sla", authenticate, async (req: AuthRequest, res: Response): Promis
   for (const d of declarations) {
     const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: d.id } });
     if (!instance) continue;
-    const steps: any[] = JSON.parse(instance.steps);
+    let steps: any[];
+    try { steps = JSON.parse(instance.steps); } catch { continue; }
     for (const step of steps) {
       if (!step.decidedAt || !d.date) continue;
       const decided = new Date(step.decidedAt).getTime();
+      if (isNaN(decided)) continue;
       const submitted = new Date(d.date).getTime();
       const days = (decided - submitted) / (1000 * 60 * 60 * 24);
       const label = roleMap[step.role] || step.role;

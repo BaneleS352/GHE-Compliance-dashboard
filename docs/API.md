@@ -14,11 +14,11 @@ No auth required. Returns 5 preset users for the login dropdown.
 **Response 200:**
 ```json
 [
-  { "label": "Admin User", "email": "admin@test.com", "role": "admin" },
-  { "label": "Sipho Approver", "email": "sipho@test.com", "role": "approver" },
-  { "label": "Lindiwe HR", "email": "lindiwe@test.com", "role": "approver" },
-  { "label": "Sandile CEO", "email": "sandile@test.com", "role": "approver" },
-  { "label": "Nomvula Team", "email": "nomvula@test.com", "role": "teamMember" }
+  { "label": "Team Member — Nomvula Dlamini", "email": "nomvula@hb.co.za", "role": "teamMember" },
+  { "label": "Line Manager — Sipho Nkosi", "email": "sipho@hb.co.za", "role": "approver" },
+  { "label": "HR — Lindiwe Zulu", "email": "lindiwe@hb.co.za", "role": "approver" },
+  { "label": "CEO — Sandile Shabalala", "email": "sandile@hb.co.za", "role": "approver" },
+  { "label": "Admin — System Admin", "email": "admin@hb.co.za", "role": "admin" }
 ]
 ```
 
@@ -76,7 +76,7 @@ Create a new declaration.
 
 **Request body:** Full `DeclarationInput` (see Swagger for field list)  
 **Ownership check:** Team members can only create for themselves (`employeeId` must match token)  
-**Note:** `status` field is not restricted to "Draft" — can create pre-approved
+**Note:** Status is always set to "Draft" on creation (overrides any submitted status)
 
 **Response 201:** Created declaration object  
 **Errors:** 400 (Zod validation), 403 (IDOR)
@@ -92,7 +92,7 @@ Get single declaration with workflow steps.
 ### `PUT /api/declarations/:id`
 Update declaration fields. Only drafts or info-requested declarations can be edited.
 
-**Note:** No field whitelist — `status`, `employeeId`, and all other fields can be changed by any authorized user (team member can escalate their own status).
+**Note:** No field whitelist — `status`, `employeeId`, and all other fields can be changed by the owner. Team members cannot edit other users' declarations.
 
 **Errors:** 400 (not editable), 403 (IDOR), 404
 
@@ -109,9 +109,7 @@ Submit a draft — creates workflow steps and sets status to Pending.
 **Errors:** 400 (not a draft), 500 (missing system config or workflow rule)
 
 ### `PATCH /api/declarations/:id/status`
-Directly set declaration status.
-
-**Note:** No role guard — any authenticated user (including team members) can set any status including "Approved".
+Directly set declaration status. **Admin only.**
 
 **Request:** `{ "status": "Approved" }`  
 **Valid statuses:** Draft, Pending, Approved, Declined, Escalated, Info Requested
@@ -147,7 +145,7 @@ Approve, decline, or return a workflow step.
 { "declarationId": "GHE-TEST-001", "decision": "accept", "notes": "Approved" }
 ```
 
-**Valid decisions:** `accept`, `org`, `foundation`, `decline`, `return`
+**Valid decisions:** `return`, `accept`, `org`, `foundation`, `decline`, `reject`, `info`, `escalate`
 
 **Note:** No self-approval guard — approver can approve their own declaration.  
 **Note:** No step order enforcement — HR can approve before Line Manager.
@@ -197,11 +195,17 @@ Declaration counts grouped by status.
 ### `GET /api/reports/sla`
 Average/min/max turnaround days by approver role.
 
+**Query params:** `?startDate=&endDate=&department=&status=`
+
 ### `GET /api/reports/counterparty-concentration`
 Declarations grouped by counterparty, sorted by total value descending.
 
+**Query params:** `?startDate=&endDate=&department=&status=`
+
 ### `GET /api/reports/high-value`
 Declarations above `highValueThreshold` (default 2000), sorted by value descending.
+
+**Query params:** `?startDate=&endDate=&department=&status=`
 
 ### `GET /api/reports/list`
 Filtered declaration list for result tables.
@@ -274,6 +278,26 @@ Update dropdown options. **Admin only.** Empty arrays rejected.
 
 #### `GET /api/admin/config/approval-options`
 Get approval decision options. **Admin only.**
+
+#### `POST /api/admin/config/approval-options`
+Create a new approval option. **Admin only.**
+
+**Request:** `{ id, value, label }`  
+**Response 201:** `{ value, label }`  
+**Errors:** 400 (missing fields), 409 (duplicate id)
+
+#### `PUT /api/admin/config/approval-options/:id`
+Update an existing approval option. **Admin only.**
+
+**Request:** `{ value, label }`  
+**Response 200:** `{ value, label }`  
+**Errors:** 400 (missing fields), 404 (not found)
+
+#### `DELETE /api/admin/config/approval-options/:id`
+Delete an approval option. **Admin only.**
+
+**Response 200:** `{ "message": "Approval option deleted" }`  
+**Errors:** 404 (not found)
 
 ### Workflow Rules
 

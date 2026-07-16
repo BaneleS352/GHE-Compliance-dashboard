@@ -36,7 +36,7 @@ Start the server, then open: `http://localhost:3001/api/docs`
 
 ```bash
 cd NodejsBackend
-JWT_SECRET=test-secret DATABASE_URL="file:./dev.db" npx ts-node --files src/index.ts
+JWT_SECRET=test-secret DATABASE_URL="file:./dev.db" npx tsx watch src/index.ts
 ```
 
 ## Manual API Tests (curl / PowerShell)
@@ -244,6 +244,20 @@ Invoke-RestMethod -Uri "http://localhost:3001/api/admin/config/dropdowns" `
 # Get approval options
 Invoke-RestMethod -Uri "http://localhost:3001/api/admin/config/approval-options" `
   -Headers @{Authorization="Bearer $token"}
+
+# Create approval option
+Invoke-RestMethod -Uri "http://localhost:3001/api/admin/config/approval-options" `
+  -Method Post -Body '{"id":"new-opt","value":"new-opt","label":"New Option"}' `
+  -ContentType "application/json" -Headers @{Authorization="Bearer $token"}
+
+# Update approval option
+Invoke-RestMethod -Uri "http://localhost:3001/api/admin/config/approval-options/accept" `
+  -Method Put -Body '{"value":"accept","label":"Accept (Updated)"}' `
+  -ContentType "application/json" -Headers @{Authorization="Bearer $token"}
+
+# Delete approval option
+Invoke-RestMethod -Uri "http://localhost:3001/api/admin/config/approval-options/new-opt" `
+  -Method Delete -Headers @{Authorization="Bearer $token"}
 ```
 
 ### Admin — Workflow Rules
@@ -303,6 +317,8 @@ $team = (Invoke-RestMethod -Uri "http://localhost:3001/api/auth/login" -Method P
 
 ## Test Coverage Summary
 
+### Backend (212 tests)
+
 | File | Tests | What's tested |
 |------|-------|---------------|
 | `break.test.ts` | 72 | Auth attacks, JWT tampering, Zod validation, HTTP abuse, XSS, SQLi, rapid requests |
@@ -311,6 +327,28 @@ $team = (Invoke-RestMethod -Uri "http://localhost:3001/api/auth/login" -Method P
 | `workflows.test.ts` | 8 | Pending list, instances, approve/decline/return |
 | `auth.test.ts` | 7 | Login, me, preset users, RBAC |
 | `reports.test.ts` | 8 | Breakdown, SLA, concentration, high-value, list, export |
-| `admin/*.test.ts` | 25 | Dashboard, users CRUD, config CRUD, workflow rules CRUD, RBAC |
+| `admin/config.test.ts` | 17 | Config CRUD, dropdowns CRUD, approval-options CRUD, RBAC |
+| `admin/dashboard.test.ts` | 2 | Dashboard stats |
+| `admin/users.test.ts` | 10 | Users CRUD, RBAC |
+| `admin/workflows.test.ts` | 5 | Workflow rules CRUD |
+| `workflow-paths.test.ts` | 15 | Full approval path end-to-end scenarios |
 
-**Total backend: 182 tests** | **Frontend: 61 tests** | **Grand total: 243**
+### Frontend (160 tests)
+
+| File | Tests | What's tested |
+|------|-------|---------------|
+| `approval-workflow.test.tsx` | 22 | WorkflowTimeline rendering, decisions, notes, auto-fetch, submit |
+| `ApprovalQueue.test.tsx` | 10 | Queue loading, filtering, review, export |
+| `ApprovalDetail.test.tsx` | 9 | Detail loading, decisions, submission, back navigation |
+| `AdminApprovalOptions.test.tsx` | 1 | Page rendering with mocked data |
+| `MyDeclarationsScreen.test.tsx` | 8 | Loading, error, table, filters, export, KPIs |
+| `NewDeclarationScreen.test.tsx` | 9 | Form rendering, validation, submit, draft, upload |
+| `ErrorBoundary.test.tsx` | 5 | Error fallback, custom fallback, reset |
+| `UserContext.test.tsx` | 8 | Auth state, login/logout, localStorage persistence |
+| `integration.test.ts` | 8 | Auth + screen access, dashboard stats, create declaration |
+| `api-services.test.ts` | 40 | All API wrappers including approval-options CRUD |
+| `auth-edge-cases.test.ts` | 12 | Login edge cases, RBAC, screen access |
+| `dashboard-render.test.ts` | 1 | ApproverDashboard mount smoke test |
+| `frontend-break.test.ts` | 27 | httpClient edge cases, API wrapper URL building |
+
+**Backend: 212 tests · Frontend: 160 tests · Grand total: 372**

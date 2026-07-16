@@ -25,9 +25,9 @@ A full-stack compliance management system for tracking Gifts, Hospitality & Ente
 ## Quick Links
 
 - **Swagger UI**: `http://localhost:3001/api/docs` (start backend first)
-- **Backend Tests**: `cd NodejsBackend && npx vitest run` (182 tests)
-- **Frontend Tests**: `cd "Enterprise Compliance Platform" && npx vitest run` (61 tests)
-- **Total**: 243 tests
+- **Backend Tests**: `cd NodejsBackend && npm test` (203 tests)
+- **Frontend Tests**: `cd "Enterprise Compliance Platform" && npm test` (156 tests)
+- **Total**: 359 tests
 
 ## Test Data
 
@@ -35,8 +35,8 @@ Preset users (all password: `password`):
 
 | Role | Email |
 |------|-------|
-| Admin | admin@test.com |
-| Approver (LM) | sipho@test.com |
-| Approver (HR) | lindiwe@test.com |
-| Approver (CEO) | sandile@test.com |
-| Team Member | nomvula@test.com |
+| Admin | admin@hb.co.za |
+| Approver (LM) | sipho@hb.co.za |
+| Approver (HR) | lindiwe@hb.co.za |
+| Approver (CEO) | sandile@hb.co.za |
+| Team Member | nomvula@hb.co.za |

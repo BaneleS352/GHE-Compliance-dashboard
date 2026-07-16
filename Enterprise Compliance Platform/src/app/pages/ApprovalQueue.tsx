@@ -119,6 +119,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             value={department}
             onChange={(e) => setDepartment(e.target.value)}
             className="table-filter-select md:w-auto"
+            aria-label="Filter by department"
           >
             <option value="All">All Departments</option>
             {departments.map((dept) => (

@@ -99,4 +99,49 @@ router.get("/approval-options", authenticate, authorize("admin"), async (_req: A
   res.json(options.map((o) => ({ value: o.value, label: o.label })));
 });
 
+// POST /api/admin/config/approval-options
+router.post("/approval-options", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+  const { id, value, label } = req.body;
+  if (!id || !value || !label) {
+    res.status(400).json({ error: "id, value, and label are required" });
+    return;
+  }
+  const existing = await prisma.approvalOption.findUnique({ where: { id } });
+  if (existing) {
+    res.status(409).json({ error: "An option with this id already exists" });
+    return;
+  }
+  const option = await prisma.approvalOption.create({ data: { id, value, label } });
+  res.status(201).json({ value: option.value, label: option.label });
+});
+
+// PUT /api/admin/config/approval-options/:id
+router.put("/approval-options/:id", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+  const { value, label } = req.body;
+  if (!value || !label) {
+    res.status(400).json({ error: "value and label are required" });
+    return;
+  }
+  const existing = await prisma.approvalOption.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Approval option not found" });
+    return;
+  }
+  const option = await prisma.approvalOption.update({ where: { id }, data: { value, label } });
+  res.json({ value: option.value, label: option.label });
+});
+
+// DELETE /api/admin/config/approval-options/:id
+router.delete("/approval-options/:id", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+  const existing = await prisma.approvalOption.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Approval option not found" });
+    return;
+  }
+  await prisma.approvalOption.delete({ where: { id } });
+  res.json({ message: "Approval option deleted" });
+});
+
 export default router;

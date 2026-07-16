@@ -12,7 +12,8 @@ export type Screen =
   | "admin-workflows"
   | "admin-config"
   | "admin-dropdowns"
-  | "admin-reports";
+  | "admin-reports"
+  | "admin-approval-options";
 
 export type Role = "teamMember" | "approver" | "admin";
 

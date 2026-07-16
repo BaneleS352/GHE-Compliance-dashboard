@@ -2,11 +2,14 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import xss from "xss";
 import crypto from "crypto";
+import path from "path";
+import fs from "fs";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { createWorkflowSteps } from "../services/workflowService";
 
 const router = Router();
+const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
 function generateDeclarationId(): string {
   const year = new Date().getFullYear();
@@ -199,7 +202,7 @@ router.get("/:id", authenticate, async (req: AuthRequest, res: Response): Promis
   }
 
   const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: declaration.id } });
-  const workflowSteps = instance ? JSON.parse(instance.steps) : [];
+  const workflowSteps = instance ? safeJsonParse(instance.steps) : [];
 
   res.json({ ...declarationResponse(declaration), workflowSteps });
 });
@@ -276,7 +279,16 @@ router.delete("/:id", authenticate, async (req: AuthRequest, res: Response): Pro
     return;
   }
 
+  // Cascade: delete workflow instance and uploaded files before declaration
+  const files = await prisma.uploadedFile.findMany({ where: { declarationId: id } });
+  for (const f of files) {
+    const fp = path.join(UPLOAD_DIR, f.path);
+    if (fs.existsSync(fp)) fs.unlinkSync(fp);
+  }
+  await prisma.uploadedFile.deleteMany({ where: { declarationId: id } });
+  await prisma.workflowInstance.deleteMany({ where: { declarationId: id } });
   await prisma.declaration.delete({ where: { id } });
+
   res.json({ message: "Declaration deleted" });
 });
 

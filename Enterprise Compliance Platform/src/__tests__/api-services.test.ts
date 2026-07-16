@@ -13,6 +13,7 @@ import {
   fetchReportStatusBreakdown, fetchReportSLA,
   fetchReportCounterpartyConcentration, fetchReportHighValue,
   fetchReportList, fetchApprovalOptions,
+  createApprovalOption, updateApprovalOption, deleteApprovalOption,
 } from "../services/api";
 import { Declaration } from "../types/declaration";
 
@@ -294,6 +295,24 @@ describe("report endpoints", () => {
     mockFetch(200, [{ value: "accept", label: "Accept" }]);
     const result = await fetchApprovalOptions();
     expect(result).toHaveLength(1);
+  });
+
+  it("createApprovalOption POSTs new option", async () => {
+    mockFetch(201, { value: "new-opt", label: "New Option" });
+    const result = await createApprovalOption({ id: "new-opt", value: "new-opt", label: "New Option" });
+    expect(result.value).toBe("new-opt");
+  });
+
+  it("updateApprovalOption PUTs updated option", async () => {
+    mockFetch(200, { value: "updated", label: "Updated" });
+    const result = await updateApprovalOption("accept", { value: "updated", label: "Updated" });
+    expect(result.label).toBe("Updated");
+  });
+
+  it("deleteApprovalOption DELETEs option", async () => {
+    mockFetch(200, { message: "Deleted" });
+    const result = await deleteApprovalOption("accept");
+    expect(result.message).toBe("Deleted");
   });
 });
 

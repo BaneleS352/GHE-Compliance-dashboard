@@ -17,7 +17,8 @@ npx prisma db push
 npx prisma db seed    # Seeds test data with preset users, rules, config
 
 # 3. Start the backend
-JWT_SECRET=my-secret npx ts-node --files src/index.ts
+# (uses tsx watch — hot reload enabled)
+npm run dev
 # Server starts on http://localhost:3001
 
 # 4. In a new terminal — install and start frontend
@@ -64,15 +65,15 @@ npx prisma generate
 ## Running Tests
 
 ```bash
-# Backend (182 tests)
+# Backend (203 tests)
 cd NodejsBackend
-npx vitest run                   # Full suite
+npm test                         # Full suite
 npx vitest run src/__tests__/break.test.ts   # Single file
 npx vitest                       # Watch mode
 
-# Frontend (61 tests)
+# Frontend (156 tests)
 cd "Enterprise Compliance Platform"
-npx vitest run
+npm test
 npx vitest run -t "login"        # By test name pattern
 ```
 

@@ -62,7 +62,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .attach("file", Buffer.from("<html></html>"), "malicious.html");
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/not allowed/i);
     });
 
@@ -71,7 +71,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .attach("file", Buffer.from("MZ\x90\x00"), "virus.exe");
-      expect(res.status).toBe(500);
+      expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/not allowed/i);
     });
 
@@ -248,9 +248,8 @@ describe("Edge-Case Tests", () => {
         .post("/api/workflows/approve")
         .set("Authorization", `Bearer ${getApproverToken()}`)
         .send({ declarationId: declId, decision: "accept", notes: "Self-approving" });
-      // BUG: Should be 403 but there's no guard
-      expect(approveRes.status).toBe(200);
-      expect(approveRes.body.newStatus).toMatch(/Pending|Approved/);
+      // FIXED: Self-approval blocked
+      expect(approveRes.status).toBe(403);
     });
   });
 
@@ -291,8 +290,8 @@ describe("Edge-Case Tests", () => {
         .post("/api/workflows/approve")
         .set("Authorization", `Bearer ${getHrToken()}`)
         .send({ declarationId: declId, decision: "accept" });
-      // BUG: Should be 403 (must wait for LM), but order not enforced
-      expect(hrApprove.status).toBe(200);
+      // FIXED: Step order enforced (HR must wait for LM)
+      expect(hrApprove.status).toBe(403);
     });
   });
 
@@ -591,10 +590,8 @@ describe("Edge-Case Tests", () => {
       const res = await request(app)
         .get(`/api/workflows/instances/${createRes.body.id}`)
         .set("Authorization", `Bearer ${getTeamToken()}`);
-      // BUG: Should be 403 but there's no ownership check
-      expect(res.status).toBe(200);
-      expect(res.body.declarationId).toBe(createRes.body.id);
-      expect(Array.isArray(res.body.steps)).toBe(true);
+      // FIXED: Workflow instance ownership enforced
+      expect(res.status).toBe(403);
     });
   });
 
@@ -684,22 +681,22 @@ describe("Edge-Case Tests", () => {
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .attach("file", bigFile, "oversized.txt");
-      // BUG: Should be 413 Payload Too Large
-      expect(res.status).toBe(500);
+      // FIXED: Returns proper 413 status
+      expect(res.status).toBe(413);
       expect(res.body.error).toMatch(/File too large/i);
     });
   });
 
   // ── ORPHAN FILE UPLOAD ──
   describe("Orphan file upload", () => {
-    it("POST /api/files/upload — file linked to non-existent declarationId still succeeds (BUG: no FK validation)", async () => {
+    it("POST /api/files/upload — file linked to non-existent declarationId is rejected (BUG: no FK validation)", async () => {
       const res = await request(app)
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .field("declarationId", "GHE-NONEXIST-DECLARATION")
         .attach("file", Buffer.from("orphan data"), "orphan.txt");
-      expect(res.status).toBe(201);
-      expect(res.body.declarationId).toBeUndefined();
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/Declaration not found/i);
     });
   });
 
@@ -974,14 +971,15 @@ describe("Edge-Case Tests", () => {
       const getFile = await request(app)
         .get(`/api/files/${fileId}`)
         .set("Authorization", `Bearer ${getAdminToken()}`);
-      // BUG: File still exists even though declaration is gone
-      expect(getFile.status).toBe(200);
-      expect(getFile.text).toBe("cascade file");
+      // FIXED: Cascade delete removes file records
+      expect(getFile.status).toBe(404);
 
-      // Cleanup the orphaned file
-      await request(app)
-        .delete(`/api/files/${fileId}`)
-        .set("Authorization", `Bearer ${getAdminToken()}`);
+      // Workflow instance is also cascaded (none existed in this test, but confirm no orphan)
+      const { prisma } = await import("../config/prisma");
+      const orphanInst = await prisma.workflowInstance.findUnique({ where: { declarationId: declId } });
+      expect(orphanInst).toBeNull();
+      const orphanFile = await prisma.uploadedFile.findUnique({ where: { id: fileId } });
+      expect(orphanFile).toBeNull();
     });
   });
 
@@ -1019,12 +1017,11 @@ describe("Edge-Case Tests", () => {
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({ role: "admin" });
 
-      // The old token still has role "teamMember" — should still get 403
-      // BUG: If the server checked the DB, it would see the new role and allow access
+      // FIXED: Server checks DB role — now sees admin and allows access
       const after = await request(app)
         .get("/api/admin/config")
         .set("Authorization", `Bearer ${oldToken}`);
-      expect(after.status).toBe(403);
+      expect(after.status).toBe(200);
 
       // A NEW token with the updated role would work
       const newToken = jwt.sign({ id: userId, email: "rolechange@test.com", role: "admin" }, "test-secret", { expiresIn: "1h" });
@@ -1063,10 +1060,9 @@ describe("Edge-Case Tests", () => {
         // NaN in JSON becomes null, or the min may be NaN which serializes as null
         // The avg/min/max might be null if computed from NaN
         if (entry.role === "Line Manager") {
-          // Check that the bad date caused NaN issues
-          const hasNaN = [entry.avg, entry.min, entry.max].some((v: any) => v === null || (typeof v === "number" && isNaN(v)));
-          // BUG: Should not happen — dates should be valid or skipped
-          expect(hasNaN).toBe(true);
+          // FIXED: Bad dates are skipped, so no NaN/null values
+          const hasValid = [entry.avg, entry.min, entry.max].every((v: any) => typeof v === "number" && !isNaN(v));
+          expect(hasValid).toBe(true);
         }
       }
 

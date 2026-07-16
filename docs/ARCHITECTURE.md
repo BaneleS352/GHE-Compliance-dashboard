@@ -15,15 +15,26 @@ GHE-Compliance-Dashboard/
 │   │   │   ├── files.ts           # upload, download, delete
 │   │   │   ├── reports.ts         # SLA, breakdown, export
 │   │   │   └── workflows.ts       # pending, instances, approve
-│   │   ├── services/              # workflow service (step resolution)
-│   │   └── __tests__/             # Vitest test suite (182 tests)
+│   │   ├── services/
+│   │   │   ├── workflowService.ts  # step resolution logic
+│   │   │   ├── reports.ts          # report data computation
+│   │   │   └── excelService.ts     # Excel buffer generation
+│   │   └── __tests__/             # Vitest test suite (203 tests)
 │   ├── prisma/                    # schema.prisma + migrations
-│   └── docs/TESTING.md            # API endpoint test guide
+│   └── docs/                      # Backend docs
 │
 ├── Enterprise Compliance Platform/ # React + Vite frontend
 │   ├── src/
-│   │   ├── components/            # React components
-│   │   ├── __tests__/             # Vitest test suite (61 tests)
+│   │   ├── app/
+│   │   │   ├── components/        # Shared React components (Card, StatusBadge, etc.)
+│   │   │   ├── pages/             # Screen components (admin/, ApprovalQueue, etc.)
+│   │   │   └── utils/             # client-side export utilities (excelExport.ts)
+│   │   ├── services/
+│   │   │   ├── api.ts             # HTTP API client (30+ wrapper functions)
+│   │   │   ├── httpClient.ts      # fetch-based HTTP client with JWT injection
+│   │   │   └── reports.ts         # consolidated report data fetcher
+│   │   ├── __tests__/             # Vitest test suite (156 tests)
+│   │   └── styles/                # CSS (Tailwind + custom animations)
 │   └── docs/                      # Frontend docs
 │
 └── docs/                          # Project-level docs
@@ -78,7 +89,8 @@ Express API (port 3001)
 
 ## Test Philosophy
 
-- 243 total tests (182 backend + 61 frontend)
+- 359 total tests (203 backend + 156 frontend)
 - `break.test.ts`: 72 negative/attack tests (SQLi, XSS, JWT tampering, Zod bypasses)
 - `edge-cases.test.ts`: 50 vulnerability boundary tests (mass assignment, self-approval, data leaks)
+- `frontend-break.test.ts`: 31 HTTP-layer tests (error codes, network failure, malformed responses)
 - Tests document confirmed bugs with `// BUG:` comments in assertions

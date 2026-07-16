@@ -13,6 +13,10 @@ function toStepStatus(decision: string): StepStatus {
   return "approved";
 }
 
+function safeParseSteps(data: string): WorkflowStep[] {
+  try { return JSON.parse(data); } catch { return []; }
+}
+
 // GET /api/workflows/pending — pending approvals for current user
 router.get("/pending", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const instances = await prisma.workflowInstance.findMany();
@@ -20,7 +24,7 @@ router.get("/pending", authenticate, async (req: AuthRequest, res: Response): Pr
   const pending: any[] = [];
 
   for (const inst of instances) {
-    const steps: WorkflowStep[] = JSON.parse(inst.steps);
+    const steps: WorkflowStep[] = safeParseSteps(inst.steps);
     const pendingStep = steps.find((s) => s.status === "pending" && s.assignee === userId);
     if (pendingStep) {
       const declaration = await prisma.declaration.findUnique({ where: { id: inst.declarationId } });
@@ -58,7 +62,16 @@ router.get("/instances/:declarationId", authenticate, async (req: AuthRequest, r
     return;
   }
 
-  res.json({ declarationId: instance.declarationId, steps: JSON.parse(instance.steps) });
+  const declaration = await prisma.declaration.findUnique({ where: { id: declarationId } });
+  const steps: WorkflowStep[] = safeParseSteps(instance.steps);
+  const isAssignee = steps.some((s) => s.assignee === req.user!.id);
+  const isOwner = declaration?.employeeId === req.user!.id;
+  if (req.user!.role !== "admin" && !isAssignee && !isOwner) {
+    res.status(403).json({ error: "Access denied" });
+    return;
+  }
+
+  res.json({ declarationId: instance.declarationId, steps });
 });
 
 // POST /api/workflows/approve — approve/decline a step
@@ -93,7 +106,7 @@ router.post("/approve", authenticate, async (req: AuthRequest, res: Response): P
     return;
   }
 
-  const steps: WorkflowStep[] = JSON.parse(instance.steps);
+  const steps: WorkflowStep[] = safeParseSteps(instance.steps);
   const currentStepIndex = steps.findIndex((s) => s.status === "pending" && s.assignee === req.user!.id);
 
   if (currentStepIndex === -1) {
@@ -101,39 +114,62 @@ router.post("/approve", authenticate, async (req: AuthRequest, res: Response): P
     return;
   }
 
+  // Self-approval guard: step assignee cannot be the declaration owner
+  if (steps[currentStepIndex].assignee === declaration.employeeId) {
+    res.status(403).json({ error: "Cannot self-approve your own declaration" });
+    return;
+  }
+
+  // Step order enforcement: all prior steps must be resolved before current step
+  const currentOrder = steps[currentStepIndex].order || 0;
+  const hasPriorPending = steps.some((s) => (s.order || 0) < currentOrder && s.status === "pending");
+  if (hasPriorPending) {
+    res.status(403).json({ error: "Earlier steps must be completed first" });
+    return;
+  }
+
+  // Race condition: update step status atomically — only if still pending
+  const now = new Date().toISOString();
   const newStepStatus = toStepStatus(decision);
-  steps[currentStepIndex] = {
-    ...steps[currentStepIndex],
+
+  const freshInstance = await prisma.workflowInstance.findUnique({ where: { declarationId } });
+  if (!freshInstance) {
+    res.status(404).json({ error: "Workflow instance not found" });
+    return;
+  }
+
+  const freshSteps: WorkflowStep[] = safeParseSteps(freshInstance.steps);
+  const freshStep = freshSteps[currentStepIndex];
+  if (!freshStep || freshStep.status !== "pending") {
+    res.status(403).json({ error: "Step has already been processed" });
+    return;
+  }
+
+  freshSteps[currentStepIndex] = {
+    ...freshSteps[currentStepIndex],
     status: newStepStatus,
     decision,
     notes: notes || "",
-    decidedAt: new Date().toISOString(),
+    decidedAt: now,
   };
 
-  // Determine new declaration status
   let newStatus: string;
-
   if (decision === "decline" || decision === "reject") {
     newStatus = "Declined";
   } else if (decision === "return" || decision === "info") {
     newStatus = "Info Requested";
   } else {
-    // approved — check if there are more pending steps
-    const nextPending = steps.find((s) => s.status === "pending");
-    if (nextPending) {
-      newStatus = "Pending";
-    } else {
-      newStatus = "Approved";
-    }
+    const nextPending = freshSteps.find((s) => s.status === "pending");
+    newStatus = nextPending ? "Pending" : "Approved";
   }
 
-  const nextStep = steps.find((s) => s.status === "pending");
+  const nextStep = freshSteps.find((s) => s.status === "pending");
   const nextApproverName = nextStep?.assigneeName || "";
 
   await prisma.$transaction([
     prisma.workflowInstance.update({
       where: { declarationId },
-      data: { steps: JSON.stringify(steps) },
+      data: { steps: JSON.stringify(freshSteps) },
     }),
     prisma.declaration.update({
       where: { id: declarationId },
@@ -147,8 +183,8 @@ router.post("/approve", authenticate, async (req: AuthRequest, res: Response): P
   res.json({
     declarationId,
     newStatus,
-    currentStep: steps[currentStepIndex],
-    workflowSteps: steps,
+    currentStep: freshSteps[currentStepIndex],
+    workflowSteps: freshSteps,
   });
 });
 

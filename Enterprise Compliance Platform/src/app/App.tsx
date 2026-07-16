@@ -16,6 +16,7 @@ import { AdminWorkflows } from "./pages/admin/AdminWorkflows";
 import { AdminDropdowns } from "./pages/admin/AdminDropdowns";
 import { AdminConfig } from "./pages/admin/AdminConfig";
 import { AdminReports } from "./pages/admin/AdminReports";
+import { AdminApprovalOptions } from "./pages/admin/AdminApprovalOptions";
 import { SuccessModal } from "./components/SuccessModal";
 import { DraftBanner } from "./components/DraftBanner";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -31,7 +32,7 @@ function AppInner() {
   const [showDraftBanner, setShowDraftBanner]     = useState(false);
 
   const getRoleForScreen = (s: Screen): Role =>
-    s === "admin-dashboard" || s === "admin-users" || s === "admin-workflows" || s === "admin-dropdowns" || s === "admin-config" || s === "admin-reports" ? "admin"
+    s === "admin-dashboard" || s === "admin-users" || s === "admin-workflows" || s === "admin-dropdowns" || s === "admin-config" || s === "admin-reports" || s === "admin-approval-options" ? "admin"
     : s === "approver-dashboard" || s === "approval-queue" || s === "approval-detail" ? "approver"
     : "teamMember";
 
@@ -108,6 +109,7 @@ function AppInner() {
         {screen === "admin-dropdowns" && <AdminDropdowns />}
         {screen === "admin-config"    && <AdminConfig />}
         {screen === "admin-reports"   && <AdminReports />}
+        {screen === "admin-approval-options" && <AdminApprovalOptions />}
       </AppShell>
 
       {showSuccess && submittedData && (

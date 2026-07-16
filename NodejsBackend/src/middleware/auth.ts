@@ -11,7 +11,7 @@ export interface AuthRequest extends Request {
   };
 }
 
-export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
+export async function authenticate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     res.status(401).json({ error: "Missing or invalid authorization header" });
@@ -22,6 +22,14 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 
   try {
     const decoded = jwt.verify(token, config.jwtSecret) as { id: string; email: string; role: string };
+    try {
+      const dbUser = await prisma.user.findUnique({ where: { id: decoded.id }, select: { role: true } });
+      if (dbUser && dbUser.role !== decoded.role) {
+        decoded.role = dbUser.role;
+      }
+    } catch {
+      // DB lookup failed — fall through with JWT role
+    }
     req.user = decoded;
     next();
   } catch {

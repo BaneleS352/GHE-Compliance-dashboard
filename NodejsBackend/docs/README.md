@@ -9,5 +9,5 @@
 ## Key Resources
 
 - **Swagger UI**: Start server → `http://localhost:3001/api/docs`
-- **Test Suite**: `npx vitest run` (182 tests)
+- **Test Suite**: `npm test` (203 tests)
 - **Database Schema**: `prisma/schema.prisma`

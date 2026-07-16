@@ -1,5 +1,5 @@
-import { Router, Response } from "express";
-import multer from "multer";
+import { Router, Response, NextFunction } from "express";
+import multer, { MulterError } from "multer";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
@@ -42,11 +42,32 @@ const upload = multer({
   },
 });
 
+function handleMulterError(err: Error, _req: AuthRequest, res: Response, next: NextFunction): void {
+  if (err instanceof MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      res.status(413).json({ error: "File too large. Maximum size is 10MB" });
+      return;
+    }
+    res.status(400).json({ error: err.message });
+    return;
+  }
+  if (err.message && err.message.startsWith("File type")) {
+    res.status(400).json({ error: err.message });
+    return;
+  }
+  next(err);
+}
+
 // POST /api/files/upload
 router.post(
   "/upload",
   authenticate,
-  upload.single("file"),
+  (req: AuthRequest, res: Response, next: NextFunction) => {
+    upload.single("file")(req, res, (err: unknown) => {
+      if (err) { handleMulterError(err as Error, req, res, next); return; }
+      next();
+    });
+  },
   async (req: AuthRequest, res: Response): Promise<void> => {
     if (!req.file) {
       res.status(400).json({ error: "No file provided" });
@@ -54,6 +75,20 @@ router.post(
     }
 
     const declarationId = req.body.declarationId as string | undefined;
+
+    // FK validation: if declarationId provided, it must exist
+    if (declarationId) {
+      const decl = await prisma.declaration.findUnique({ where: { id: declarationId } });
+      if (!decl) {
+        res.status(400).json({ error: "Declaration not found" });
+        return;
+      }
+      // Ownership scoping: non-admin users can only upload to their own declarations
+      if (req.user!.role !== "admin" && decl.employeeId !== req.user!.id) {
+        res.status(403).json({ error: "Cannot upload to another user's declaration" });
+        return;
+      }
+    }
 
     const file = await prisma.uploadedFile.create({
       data: {
@@ -85,6 +120,15 @@ router.get("/:id", authenticate, async (req: AuthRequest, res: Response): Promis
     return;
   }
 
+  // Ownership scoping
+  if (req.user!.role !== "admin" && file.declarationId) {
+    const decl = await prisma.declaration.findUnique({ where: { id: file.declarationId } });
+    if (decl && decl.employeeId !== req.user!.id) {
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
+  }
+
   const filePath = path.join(UPLOAD_DIR, file.path);
   if (!fs.existsSync(filePath)) {
     res.status(404).json({ error: "File not found on disk" });
@@ -103,6 +147,15 @@ router.delete("/:id", authenticate, async (req: AuthRequest, res: Response): Pro
   if (!file) {
     res.status(404).json({ error: "File not found" });
     return;
+  }
+
+  // Ownership scoping
+  if (req.user!.role !== "admin" && file.declarationId) {
+    const decl = await prisma.declaration.findUnique({ where: { id: file.declarationId } });
+    if (decl && decl.employeeId !== req.user!.id) {
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
   }
 
   const filePath = path.join(UPLOAD_DIR, file.path);
