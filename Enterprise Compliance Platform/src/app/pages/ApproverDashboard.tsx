@@ -50,20 +50,16 @@ export function ApproverDashboard({ onNavigate }: { onNavigate: (s: Screen) => v
 
   const complianceTrend = stats.complianceTrend;
   const typeBreakdown   = stats.typeBreakdown;
+  const kpisData        = stats.kpis;
 
-  const pending   = declarations.filter((d) => d.status === "Pending");
-  const approved  = declarations.filter((d) => d.status === "Approved");
-  const declined  = declarations.filter((d) => d.status === "Declined");
-  const escalated = declarations.filter((d) => d.status === "Escalated");
   const queueCount = declarations.filter((d) => ["Pending", "Escalated", "Info Requested"].includes(d.status)).length;
-  const totalValue = declarations.reduce((sum, d) => sum + d.value, 0);
 
   const kpis = [
-    { label: "Pending Queue" as const, value: pending.length, icon: Clock, color: "#f59e0b", filter: "Pending" as DashboardFilter },
-    { label: "Approved" as const, value: approved.length, icon: Check, color: "#10b981", filter: "Approved" as DashboardFilter },
-    { label: "Declined" as const, value: declined.length, icon: X, color: "#ef4444", filter: "Declined" as DashboardFilter },
-    { label: "Escalated" as const, value: escalated.length, icon: ArrowUp, color: "#f97316", filter: "Escalated" as DashboardFilter },
-    { label: "Total Value" as const, value: `R ${Math.round(totalValue / 1000)}K`, icon: Coins, color: "#6366f1", filter: "Total Value" as DashboardFilter },
+    { label: "Pending Queue" as const, value: kpisData.pending, icon: Clock, color: "#f59e0b", filter: "Pending" as DashboardFilter },
+    { label: "Approved" as const, value: kpisData.approved, icon: Check, color: "#10b981", filter: "Approved" as DashboardFilter },
+    { label: "Declined" as const, value: kpisData.declined, icon: X, color: "#ef4444", filter: "Declined" as DashboardFilter },
+    { label: "Escalated" as const, value: kpisData.escalated, icon: ArrowUp, color: "#f97316", filter: "Escalated" as DashboardFilter },
+    { label: "Total Value" as const, value: `R ${Math.round(kpisData.totalValue / 1000)}K`, icon: Coins, color: "#6366f1", filter: "Total Value" as DashboardFilter },
   ];
 
   const filteredDeclarations =

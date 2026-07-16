@@ -1,13 +1,12 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Download, FileText, Calendar, BarChart3 } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { PURPLE } from "../../../config/theme";
-import { Declaration } from "../../../types/declaration";
-import { fetchDeclarations, fetchConfig, fetchWorkflowInstance } from "../../../services/api";
-import { exportToExcel, ColumnDef } from "../../utils/excelExport";
-import { jsPDF } from "jspdf";
+import { fetchReports } from "../../../services/reports";
+import { exportToExcel, ColumnDef } from "../../../utils/excelExport";
 import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 type ReportMeta = { title: string; desc: string };
 
@@ -26,105 +25,42 @@ export function AdminReports() {
   const [department, setDepartment] = useState("All Departments");
   const [status, setStatus] = useState("All Statuses");
   const [generatedAt, setGeneratedAt] = useState<string | null>(null);
-  const [allDeclarations, setAllDeclarations] = useState<Declaration[]>([]);
-  const [config, setConfig] = useState({ highValueThreshold: 2000, mediumValueThreshold: 500, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
-  const [workflowInstances, setWorkflowInstances] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState(false);
+  const [statusBreakdown, setStatusBreakdown] = useState<Record<string, number>>({});
+  const [slaData, setSlaData] = useState<any[]>([]);
+  const [counterpartyData, setCounterpartyData] = useState<any[]>([]);
+  const [declarations, setDeclarations] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchDeclarations().then(setAllDeclarations);
-    fetchConfig().then(setConfig);
-  }, []);
-
-  useEffect(() => {
-    const ids = allDeclarations.map((d) => d.id);
-    if (ids.length === 0) return;
-    Promise.all(ids.map((id) => fetchWorkflowInstance(id).then((wfi) => ({ id, wfi }))))
-      .then((results) => {
-        const map: Record<string, any> = {};
-        results.forEach(({ id, wfi }) => { if (wfi) map[id] = wfi; });
-        setWorkflowInstances(map);
-      });
-  }, [allDeclarations]);
-
-  const departments = useMemo(() => {
-    const deps = new Set(allDeclarations.map((d) => d.department).filter(Boolean));
-    return ["All Departments", ...Array.from(deps).sort()];
-  }, [allDeclarations]);
-
-  const filtered = useMemo(() => {
-    let list = [...allDeclarations];
-
-    if (startDate) list = list.filter((d) => d.date >= startDate);
-    if (endDate) list = list.filter((d) => d.date <= endDate);
-    if (department !== "All Departments") list = list.filter((d) => d.department === department);
-    if (status !== "All Statuses") list = list.filter((d) => d.status === status);
-
-    switch (reportType) {
-      case "High-Value Gifts Report":
-        list = list.filter((d) => d.value > config.highValueThreshold);
-        break;
+  const handleGenerate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params: Record<string, string> = {};
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+      if (department !== "All Departments") params.department = department;
+      if (status !== "All Statuses") params.status = status;
+      const data = await fetchReports(params);
+      setStatusBreakdown(data.statusBreakdown);
+      setSlaData(data.slaData);
+      setCounterpartyData(data.counterpartyData);
+      setDeclarations(data.declarations);
+      setDepartments(data.departments);
+      setGeneratedAt(new Date().toLocaleString());
+    } catch {
+      setError("Failed to generate report");
+    } finally {
+      setLoading(false);
     }
-
-    return list;
-  }, [allDeclarations, startDate, endDate, department, status, reportType, config.highValueThreshold]);
-
-  const statusBreakdown = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const d of filtered) {
-      counts[d.status] = (counts[d.status] || 0) + 1;
-    }
-    return counts;
-  }, [filtered]);
-
-  const slaData = useMemo(() => {
-    const byRole: Record<string, number[]> = {};
-    for (const d of filtered) {
-      const wf = workflowInstances[d.id];
-      if (!wf) continue;
-      for (const step of wf.steps) {
-        if (!step.decidedAt || !d.date) continue;
-        const decided = new Date(step.decidedAt).getTime();
-        const submitted = new Date(d.date).getTime();
-        if (!isNaN(decided) && !isNaN(submitted)) {
-          const days = (decided - submitted) / (1000 * 60 * 60 * 24);
-          if (!byRole[step.role]) byRole[step.role] = [];
-          byRole[step.role].push(days);
-        }
-      }
-    }
-    const result: { role: string; avg: string; min: string; max: string; count: number }[] = [];
-    for (const [role, times] of Object.entries(byRole)) {
-      const avg = times.reduce((a, b) => a + b, 0) / times.length;
-      result.push({
-        role: role === "lineManager" ? "Line Manager" : role === "hr" ? "HR" : "CEO",
-        avg: avg.toFixed(1),
-        min: Math.min(...times).toFixed(1),
-        max: Math.max(...times).toFixed(1),
-        count: times.length,
-      });
-    }
-    return result;
-  }, [filtered]);
-
-  const counterpartyData = useMemo(() => {
-    const groups: Record<string, { count: number; totalValue: number; items: typeof filtered }> = {};
-    for (const d of filtered) {
-      const key = d.Counterparty || "Unknown";
-      if (!groups[key]) groups[key] = { count: 0, totalValue: 0, items: [] };
-      groups[key].count++;
-      groups[key].totalValue += d.value;
-      groups[key].items.push(d);
-    }
-    return Object.entries(groups)
-      .map(([counterparty, data]) => ({ counterparty, ...data }))
-      .sort((a, b) => b.totalValue - a.totalValue);
-  }, [filtered]);
-
-  const handleGenerate = () => {
-    setGeneratedAt(new Date().toLocaleString());
   };
 
-  const handleExportExcel = () => {
+  useEffect(() => {
+    handleGenerate();
+  }, []);
+
+  const handleExportExcel = async () => {
     const columns: ColumnDef[] = [
       { header: "ID", key: "id", width: 16 },
       { header: "Employee", key: "employee", width: 22 },
@@ -136,18 +72,18 @@ export function AdminReports() {
       { header: "Date", key: "date", width: 14 },
     ];
 
-    exportToExcel({
+    await exportToExcel({
       fileName: `${reportType.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}`,
       sheetName: reportType.slice(0, 31),
       title: reportType,
       meta: [
         ["Generated", new Date().toLocaleString()],
-        ["Records", String(filtered.length)],
+        ["Records", String(declarations.length)],
         ...(department !== "All Departments" ? [["Department", department]] : []),
         ...(status !== "All Statuses" ? [["Status", status]] : []),
       ],
       columns,
-      rows: filtered as unknown as Record<string, unknown>[],
+      rows: declarations as unknown as Record<string, unknown>[],
     });
   };
 
@@ -286,6 +222,7 @@ export function AdminReports() {
               <div>
                 <label className="mb-1 block text-xs font-semibold text-muted-foreground">Department</label>
                 <select className="table-filter-select" value={department} onChange={(e) => setDepartment(e.target.value)}>
+                  <option>All Departments</option>
                   {departments.map((d) => (
                     <option key={d}>{d}</option>
                   ))}
@@ -329,139 +266,139 @@ export function AdminReports() {
           </Card>
 
           <div ref={reportRef}>
-          {generatedAt && reportType === "Compliance Status Report" && filtered.length > 0 && (
-            <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
-              <h3 className="mb-3 text-sm font-bold">Status Breakdown</h3>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                {Object.entries(statusBreakdown).map(([s, count]) => (
-                  <div key={s} className="rounded-xl border border-border bg-white/60 p-3 text-center">
-                    <p className="text-lg font-bold">{count}</p>
-                    <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColor(s)}`}>{s}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 text-right text-[11px] text-muted-foreground">Generated {generatedAt}</p>
-            </Card>
-          )}
-
-          {generatedAt && reportType === "SLA & Turnaround Time Report" && slaData.length > 0 && (
-            <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
-              <h3 className="mb-3 text-sm font-bold">Average Turnaround Time (days)</h3>
-              <div className="overflow-x-auto rounded-xl border border-border">
-                <table className="min-w-full text-left text-sm">
-                  <thead>
-                    <tr className="bg-slate-100 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      <th className="px-4 py-3">Role</th>
-                      <th className="px-4 py-3">Avg Days</th>
-                      <th className="px-4 py-3">Min</th>
-                      <th className="px-4 py-3">Max</th>
-                      <th className="px-4 py-3">Decisions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {slaData.map((r) => (
-                      <tr key={r.role} className="hover:bg-slate-50">
-                        <td className="px-4 py-2.5 font-semibold">{r.role}</td>
-                        <td className="px-4 py-2.5">{r.avg}</td>
-                        <td className="px-4 py-2.5">{r.min}</td>
-                        <td className="px-4 py-2.5">{r.max}</td>
-                        <td className="px-4 py-2.5">{r.count}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-2 text-right text-[11px] text-muted-foreground">Generated {generatedAt}</p>
-            </Card>
-          )}
-
-          {generatedAt && reportType === "Counterparty Concentration Report" && counterpartyData.length > 0 && (
-            <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
-              <h3 className="mb-3 text-sm font-bold">Counterparty Concentration</h3>
-              <div className="overflow-x-auto rounded-xl border border-border">
-                <table className="min-w-full text-left text-sm">
-                  <thead>
-                    <tr className="bg-slate-100 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      <th className="px-4 py-3">Counterparty</th>
-                      <th className="px-4 py-3">Declarations</th>
-                      <th className="px-4 py-3">Total Value</th>
-                      <th className="px-4 py-3">Avg Value</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {counterpartyData.map((c) => (
-                      <tr key={c.counterparty} className="hover:bg-slate-50">
-                        <td className="px-4 py-2.5 font-semibold">{c.counterparty}</td>
-                        <td className="px-4 py-2.5">{c.count}</td>
-                        <td className="px-4 py-2.5">R{c.totalValue}</td>
-                        <td className="px-4 py-2.5">R{(c.totalValue / c.count).toFixed(0)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-2 text-right text-[11px] text-muted-foreground">Generated {generatedAt}</p>
-            </Card>
-          )}
-
-          <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-bold">Results</h3>
-              <span className="rounded-full bg-purple-100 px-3 py-0.5 text-xs font-semibold text-purple-700">
-                {filtered.length} record{filtered.length !== 1 ? "s" : ""}
-              </span>
-            </div>
-
-            {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center border border-dashed border-primary/10 bg-white/70 p-10 text-center rounded-xl">
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-secondary/70">
-                  <FileText size={30} className="text-purple-500/60" />
+            {generatedAt && reportType === "Compliance Status Report" && declarations.length > 0 && (
+              <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
+                <h3 className="mb-3 text-sm font-bold">Status Breakdown</h3>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  {Object.entries(statusBreakdown).map(([s, count]) => (
+                    <div key={s} className="rounded-xl border border-border bg-white/60 p-3 text-center">
+                      <p className="text-lg font-bold">{count}</p>
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusColor(s)}`}>{s}</span>
+                    </div>
+                  ))}
                 </div>
-                <h3 className="mb-1 font-bold text-foreground">No Report Generated</h3>
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Select your parameters and click "Generate Report" to preview the data here before exporting.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-border">
-                <table className="min-w-full text-left text-sm">
-                  <thead>
-                    <tr className="bg-slate-100 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      <th className="px-4 py-3">ID</th>
-                      <th className="px-4 py-3">Employee</th>
-                      <th className="px-4 py-3">Dept</th>
-                      <th className="px-4 py-3">Type</th>
-                      <th className="px-4 py-3">Counterparty</th>
-                      <th className="px-4 py-3">Value</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {filtered.map((d) => (
-                      <tr key={d.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-2.5 font-medium">{d.id}</td>
-                        <td className="px-4 py-2.5">{d.employee}</td>
-                        <td className="px-4 py-2.5">{d.department}</td>
-                        <td className="px-4 py-2.5">{d.type}</td>
-                        <td className="px-4 py-2.5">{d.Counterparty}</td>
-                        <td className="px-4 py-2.5">R{d.value}</td>
-                        <td className="px-4 py-2.5">
-                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColor(d.status)}`}>
-                            {d.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5 text-muted-foreground">{d.date}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                <p className="mt-2 text-right text-[11px] text-muted-foreground">Generated {generatedAt}</p>
+              </Card>
             )}
-          </Card>
+
+            {generatedAt && reportType === "SLA & Turnaround Time Report" && slaData.length > 0 && (
+              <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
+                <h3 className="mb-3 text-sm font-bold">Average Turnaround Time (days)</h3>
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <table className="min-w-full text-left text-sm">
+                    <thead>
+                      <tr className="bg-slate-100 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <th className="px-4 py-3">Role</th>
+                        <th className="px-4 py-3">Avg Days</th>
+                        <th className="px-4 py-3">Min</th>
+                        <th className="px-4 py-3">Max</th>
+                        <th className="px-4 py-3">Decisions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {slaData.map((r) => (
+                        <tr key={r.role} className="hover:bg-slate-50">
+                          <td className="px-4 py-2.5 font-semibold">{r.role}</td>
+                          <td className="px-4 py-2.5">{r.avg}</td>
+                          <td className="px-4 py-2.5">{r.min}</td>
+                          <td className="px-4 py-2.5">{r.max}</td>
+                          <td className="px-4 py-2.5">{r.count}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-2 text-right text-[11px] text-muted-foreground">Generated {generatedAt}</p>
+              </Card>
+            )}
+
+            {generatedAt && reportType === "Counterparty Concentration Report" && counterpartyData.length > 0 && (
+              <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
+                <h3 className="mb-3 text-sm font-bold">Counterparty Concentration</h3>
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <table className="min-w-full text-left text-sm">
+                    <thead>
+                      <tr className="bg-slate-100 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <th className="px-4 py-3">Counterparty</th>
+                        <th className="px-4 py-3">Declarations</th>
+                        <th className="px-4 py-3">Total Value</th>
+                        <th className="px-4 py-3">Avg Value</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {counterpartyData.map((c) => (
+                        <tr key={c.counterparty} className="hover:bg-slate-50">
+                          <td className="px-4 py-2.5 font-semibold">{c.counterparty}</td>
+                          <td className="px-4 py-2.5">{c.count}</td>
+                          <td className="px-4 py-2.5">R{c.totalValue}</td>
+                          <td className="px-4 py-2.5">R{(c.totalValue / c.count).toFixed(0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-2 text-right text-[11px] text-muted-foreground">Generated {generatedAt}</p>
+              </Card>
+            )}
+
+            <Card className="border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-bold">Results</h3>
+                <span className="rounded-full bg-purple-100 px-3 py-0.5 text-xs font-semibold text-purple-700">
+                  {declarations.length} record{declarations.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              {declarations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center border border-dashed border-primary/10 bg-white/70 p-10 text-center rounded-xl">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-secondary/70">
+                    <FileText size={30} className="text-purple-500/60" />
+                  </div>
+                  <h3 className="mb-1 font-bold text-foreground">No Report Generated</h3>
+                  <p className="max-w-sm text-sm text-muted-foreground">
+                    Select your parameters and click "Generate Report" to preview the data here before exporting.
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-border">
+                  <table className="min-w-full text-left text-sm">
+                    <thead>
+                      <tr className="bg-slate-100 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <th className="px-4 py-3">ID</th>
+                        <th className="px-4 py-3">Employee</th>
+                        <th className="px-4 py-3">Dept</th>
+                        <th className="px-4 py-3">Type</th>
+                        <th className="px-4 py-3">Counterparty</th>
+                        <th className="px-4 py-3">Value</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {declarations.map((d) => (
+                        <tr key={d.id} className="hover:bg-slate-50">
+                          <td className="px-4 py-2.5 font-medium">{d.id}</td>
+                          <td className="px-4 py-2.5">{d.employee}</td>
+                          <td className="px-4 py-2.5">{d.department}</td>
+                          <td className="px-4 py-2.5">{d.type}</td>
+                          <td className="px-4 py-2.5">{d.Counterparty}</td>
+                          <td className="px-4 py-2.5">R{d.value}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColor(d.status)}`}>
+                              {d.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-muted-foreground">{d.date}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          </div>
         </div>
       </div>
-    </div>
     </div>
   );
 }

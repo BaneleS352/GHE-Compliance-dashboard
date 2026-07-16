@@ -95,19 +95,13 @@ export function DeclarationDetailView({
         className="
         detail-panel-card
         p-6 rounded-2xl
-        bg-gradient-to-br from-[#f8fafc] via-[#eef2ff] to-[#e0e7ff]
+        bg-white
         border border-white/40
-        backdrop-blur-sm
-        relative overflow-hidden
       "
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.15),transparent_60%)] pointer-events-none" />
-      <div className="absolute bottom-0 right-0 opacity-20 pointer-events-none">
-        <div className="w-32 h-32 bg-indigo-300 rounded-full blur-2xl" />
-      </div>
 
       <div className="relative z-10">
-        <h2 className="mb-6 inline-flex rounded-full border border-purple-200/70 bg-white/70 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm backdrop-blur-sm">
+        <h2 className="mb-6 inline-flex rounded-full border border-purple-200/70 bg-purple-50 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm">
           Declaration Details
         </h2>
 
@@ -119,8 +113,8 @@ export function DeclarationDetailView({
               transition={{ duration: 0.2 }}
               className={`
                 rounded-xl p-4
-                bg-white/70 backdrop-blur-sm
-                border border-white/60
+                bg-white
+                border border-slate-200
                 shadow-sm
                 transition-all duration-200
                 hover:border-purple-300 hover:shadow-md
@@ -194,25 +188,19 @@ export function SupportingDocuments({ data }: { data: Record<string, string> | D
         className="
           detail-panel-card
           p-6 rounded-2xl
-          bg-gradient-to-br from-[#f8fafc] via-[#eef2ff] to-[#e0e7ff]
+          bg-white
           border border-white/40
-          backdrop-blur-sm
-          relative overflow-hidden
         "
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.15),transparent_60%)] pointer-events-none" />
-        <div className="absolute bottom-0 right-0 opacity-20 pointer-events-none">
-          <div className="w-32 h-32 bg-indigo-300 rounded-full blur-2xl" />
-        </div>
 
         <div className="relative z-10">
-          <h3 className="mb-6 inline-flex rounded-full border border-purple-200/70 bg-white/70 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm backdrop-blur-sm">
+          <h3 className="mb-6 inline-flex rounded-full border border-purple-200/70 bg-purple-50 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm">
             Supporting Documents
           </h3>
 
           <div className="space-y-3">
             {supportingDocuments.length === 0 ? (
-              <div className="rounded-xl border border-white/60 bg-white/70 px-4 py-5 text-sm font-medium text-slate-500 transition-all duration-200 hover:border-purple-300 hover:shadow-md">
+                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-5 text-sm font-medium text-slate-500 transition-all duration-200 hover:border-purple-300 hover:shadow-md">
                 No supporting documents were uploaded for this declaration.
               </div>
             ) : (
@@ -221,7 +209,7 @@ export function SupportingDocuments({ data }: { data: Record<string, string> | D
                   key={`${file.name}-${i}`}
                   whileHover={{ scale: 1.01, y: -2 }}
                   transition={{ duration: 0.2 }}
-                  className="flex w-full flex-col gap-3 rounded-xl border border-white/60 bg-white/70 px-4 py-3 backdrop-blur-sm transition-all duration-200 hover:border-purple-300 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
+                  className="flex w-full flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 transition-all duration-200 hover:border-purple-300 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">

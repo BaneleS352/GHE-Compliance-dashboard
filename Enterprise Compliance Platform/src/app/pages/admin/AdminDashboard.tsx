@@ -5,25 +5,13 @@ import { PageHeader } from "../../components/PageHeader";
 import { KpiCard } from "../../components/KpiCard";
 import { PURPLE, YELLOW } from "../../../config/theme";
 import { Screen } from "../../../types/declaration";
-import { fetchUsers, fetchDeclarations, fetchWorkflowRules, fetchConfig } from "../../../services/api";
+import { fetchAdminDashboard } from "../../../services/api";
 
 export function AdminDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   const [stats, setStats] = useState({ users: 0, declarations: 0, workflows: 0, threshold: 2000 });
 
   useEffect(() => {
-    Promise.all([
-      fetchUsers(),
-      fetchDeclarations(),
-      fetchWorkflowRules(),
-      fetchConfig(),
-    ]).then(([users, declarations, workflows, config]) => {
-      setStats({
-        users: users.length,
-        declarations: declarations.length,
-        workflows: workflows.length,
-        threshold: config.highValueThreshold,
-      });
-    });
+    fetchAdminDashboard().then(setStats).catch(() => {});
   }, []);
 
   return (
