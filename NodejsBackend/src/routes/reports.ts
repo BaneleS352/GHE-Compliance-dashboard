@@ -25,7 +25,7 @@ function buildWhere(req: AuthRequest): Prisma.DeclarationWhereInput {
 }
 
 // GET /api/reports/status-breakdown
-router.get("/status-breakdown", authenticate, async (req: AuthRequest, res: Response): Promise<void> {
+router.get("/status-breakdown", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const declarations = await prisma.declaration.findMany({ where, select: { status: true } });
 
@@ -38,7 +38,7 @@ router.get("/status-breakdown", authenticate, async (req: AuthRequest, res: Resp
 });
 
 // GET /api/reports/sla
-router.get("/sla", authenticate, async (req: AuthRequest, res: Response): Promise<void> {
+router.get("/sla", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const declarations = await prisma.declaration.findMany({ where, select: { id: true, date: true } });
 
@@ -80,7 +80,7 @@ router.get("/sla", authenticate, async (req: AuthRequest, res: Response): Promis
 });
 
 // GET /api/reports/counterparty-concentration
-router.get("/counterparty-concentration", authenticate, async (req: AuthRequest, res: Response): Promise<void> {
+router.get("/counterparty-concentration", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const declarations = await prisma.declaration.findMany({ where, select: { counterparty: true, value: true } });
 
@@ -105,7 +105,7 @@ router.get("/counterparty-concentration", authenticate, async (req: AuthRequest,
 });
 
 // GET /api/reports/high-value
-router.get("/high-value", authenticate, async (req: AuthRequest, res: Response): Promise<void> {
+router.get("/high-value", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const config = await prisma.systemConfig.findFirst();
   const threshold = config?.highValueThreshold || 2000;
   const where = buildWhere(req);
@@ -124,7 +124,7 @@ router.get("/high-value", authenticate, async (req: AuthRequest, res: Response):
 });
 
 // GET /api/reports/list
-router.get("/list", authenticate, async (req: AuthRequest, res: Response): Promise<void> {
+router.get("/list", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const search = req.query.search as string | undefined;
 
@@ -147,7 +147,7 @@ router.get("/list", authenticate, async (req: AuthRequest, res: Response): Promi
 });
 
 // GET /api/reports/export — Excel download
-router.get("/export", authenticate, async (req: AuthRequest, res: Response): Promise<void> {
+router.get("/export", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const { reportType } = req.query;
 

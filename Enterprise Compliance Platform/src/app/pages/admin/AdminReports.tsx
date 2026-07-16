@@ -4,7 +4,7 @@ import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { PURPLE } from "../../../config/theme";
 import { fetchReports } from "../../../services/reports";
-import { exportToExcel, ColumnDef } from "../../../utils/excelExport";
+import { exportToExcel, ColumnDef } from "../../utils/excelExport";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
