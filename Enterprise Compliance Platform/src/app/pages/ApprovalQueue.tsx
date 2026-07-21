@@ -1,10 +1,7 @@
 import { useState, useEffect } from "react";
 import { Filter, Download, Search } from "lucide-react";
 import { fetchDeclarations } from "../../services/api";
-import { getApprovalOptions } from "../../data/db";
-
-const approvalOptions = getApprovalOptions();
-import { Declaration, ApprovalDecision } from "../../types/declaration";
+import { Declaration } from "../../types/declaration";
 import { PURPLE, formatRand } from "../../config/theme";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
@@ -12,70 +9,6 @@ import { THead } from "../components/THead";
 import { StatusBadge } from "../components/StatusBadge";
 import { TypeBadge } from "../components/TypeBadge";
 import { exportRowsToXls } from "../../utils/excel";
-
-export function ApproverDecisionBlock({
-  title,
-  role,
-  decision,
-  onSelect,
-  notes,
-  onNotesChange,
-}: {
-  title: string;
-  role: string;
-  decision: ApprovalDecision;
-  onSelect: (v: ApprovalDecision) => void;
-  notes: string;
-  onNotesChange: (v: string) => void;
-}) {
-  return (
-    <Card className="p-5">
-      <div className="mb-4 flex items-center gap-2.5 border-b border-border pb-3.5">
-        <div className="h-2 w-2 rounded-full" style={{ background: PURPLE }} />
-        <div>
-          <p className="text-sm font-bold">{title}</p>
-          <p className="text-xs text-muted-foreground">{role}</p>
-        </div>
-      </div>
-
-      <div className="mb-4 space-y-2 min-h-[220px]">
-        {approvalOptions.map((opt) => (
-          <label
-            key={opt.value}
-            className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-colors ${
-              decision === opt.value ? "border-primary bg-[#F5F2FF]" : "border-transparent hover:border-border hover:bg-muted/20"
-            }`}
-          >
-            <div className="flex-shrink-0">
-              <div className={`flex h-4 w-4 items-center justify-center rounded-full border-2 ${decision === opt.value ? "border-primary" : "border-muted-foreground/40"}`}>
-                {decision === opt.value && <div className="h-2 w-2 rounded-full" style={{ background: PURPLE }} />}
-              </div>
-            </div>
-            <p className="text-sm leading-snug text-foreground">{opt.label}</p>
-            <input
-              type="radio"
-              name={title}
-              checked={decision === opt.value}
-              onChange={() => onSelect(opt.value as ApprovalDecision)}
-              className="sr-only"
-            />
-          </label>
-        ))}
-      </div>
-
-      <div>
-        <label className="mb-1.5 block text-xs font-semibold text-muted-foreground">Notes / Comments</label>
-        <textarea
-          value={notes}
-          onChange={(e) => onNotesChange(e.target.value)}
-          rows={2}
-          className="w-full rounded-xl border bg-muted/20 px-3.5 py-2.5 text-sm"
-          placeholder="Add notes or reasoning..."
-        />
-      </div>
-    </Card>
-  );
-}
 
 export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void }) {
   const [allDeclarations, setAllDeclarations] = useState<Declaration[]>([]);
@@ -186,6 +119,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             value={department}
             onChange={(e) => setDepartment(e.target.value)}
             className="table-filter-select md:w-auto"
+            aria-label="Filter by department"
           >
             <option value="All">All Departments</option>
             {departments.map((dept) => (

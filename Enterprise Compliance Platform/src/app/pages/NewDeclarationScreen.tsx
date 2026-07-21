@@ -9,38 +9,22 @@ import { FS, FORM_SECTIONS } from "../components/FS";
 import { Card } from "../components/Card";
 import { PURPLE, F, inp } from "../../config/theme";
 import { Declaration, UploadedFile } from "../../types/declaration";
-import { createDeclaration } from "../../services/api";
+import { createDeclaration, submitDeclaration } from "../../services/api";
 import { useUser } from "../auth/UserContext";
-import {
-  getConfig, getUserById, getWorkflowRules,
-  setWorkflowForDeclaration, updateDeclaration,
-  determineWorkflowSteps,
-} from "../../data/db";
-import { WorkflowInstance, WorkflowStep } from "../../types/declaration";
+import { fetchConfig, fetchUserById, updateDeclaration } from "../../services/api";
 
-const getFinalApproverName = (value: number, lineManagerName: string): string => {
-    const rules = getWorkflowRules();
-    const ruleId = determineWorkflowSteps({ value } as Declaration);
-    const rule = rules.find((r) => r.id === ruleId);
-    if (!rule || rule.steps.length === 0) return "Unassigned";
-    const lastStep = rule.steps[rule.steps.length - 1];
-    if (lastStep.role === "ceo") {
-      const ceo = getUserById("user-5");
-      return ceo?.name || "Sandile Shabalala";
-    }
-    if (lastStep.role === "hr") {
-      const hr = getUserById("user-4");
-      return hr?.name || "Lindiwe Zulu";
-    }
-    return lineManagerName || "Line Manager";
-  };
+const determineRuleId = (value: number, highThreshold: number, mediumThreshold: number): string => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "rule-1";
+  if (value > highThreshold) return "rule-3";
+  if (value > mediumThreshold) return "rule-2";
+  return "rule-1";
+};
 
-  const getPriority = (value: number): "High" | "Medium" | "Low" => {
-    const config = getConfig();
-    if (value > config.highValueThreshold) return "High";
-    if (value > config.mediumValueThreshold) return "Medium";
-    return "Low";
-  };
+const getPriority = (value: number, highThreshold: number, mediumThreshold: number): "High" | "Medium" | "Low" => {
+  if (value > highThreshold) return "High";
+  if (value > mediumThreshold) return "Medium";
+  return "Low";
+};
 
 export function NewDeclarationScreen({
   onSubmitSuccess,
@@ -50,6 +34,24 @@ export function NewDeclarationScreen({
   onDraftSaved: () => void;
 }) {
   const { user } = useUser();
+  const [config, setConfig] = useState({ highValueThreshold: 2000, mediumValueThreshold: 500, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
+  const [lineManagerName, setLineManagerName] = useState("");
+
+  useEffect(() => {
+    fetchConfig().then(setConfig);
+  }, []);
+
+  useEffect(() => {
+    if (user?.lineManager) {
+      fetchUserById(user.lineManager).then((u) => setLineManagerName(u?.name || ""));
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (lineManagerName) {
+      setF("lineManager", lineManagerName);
+    }
+  }, [lineManagerName]);
 
   const formatRandValue = (value: string, fixedDecimals = false) => {
     if (!value) return "";
@@ -75,8 +77,6 @@ export function NewDeclarationScreen({
     const normalizedInteger = integerPart.replace(/^0+(?=\d)/, "") || "0";
     return decimalPart ? `${normalizedInteger}.${decimalPart}` : normalizedInteger;
   };
-
-  const lineManagerName = user?.lineManager ? getUserById(user.lineManager)?.name || "" : "";
 
   const [receivedGiven, setReceivedGiven] = useState("Received");
   const [category, setCategory] = useState("");
@@ -211,7 +211,7 @@ export function NewDeclarationScreen({
 
   const validate = () => {
     const value = Number(form.value || 0);
-    const requiresSubstantiation = Number.isFinite(value) && value > getConfig().highValueThreshold;
+    const requiresSubstantiation = Number.isFinite(value) && value > config.highValueThreshold;
     const requiresOccasionOther = form.occasion === "Other";
 
     const errs: Record<string, string> = {};
@@ -254,9 +254,9 @@ export function NewDeclarationScreen({
   const handleSaveDraft = async () => {
     if (!user) return;
     const value = Number(form.value || 0);
-    const requiresSubstantiation = Number.isFinite(value) && value > getConfig().highValueThreshold;
+    const requiresSubstantiation = Number.isFinite(value) && value > config.highValueThreshold;
     const requiresOccasionOther = form.occasion === "Other";
-    const priority = getPriority(value);
+    const priority = getPriority(value, config.highValueThreshold, config.mediumValueThreshold);
     const declaration: Declaration = {
       id: `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
       employee: form.employeeName,
@@ -283,7 +283,6 @@ export function NewDeclarationScreen({
       instances: form.instances,
       publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
       substantiation: requiresSubstantiation ? form.substantiation : "",
-      approver: getFinalApproverName(value, form.lineManager),
       status: "Draft",
       priority,
       files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
@@ -296,44 +295,7 @@ export function NewDeclarationScreen({
     }
   };
 
-  const createWorkflow = (declaration: Declaration) => {
-    if (!user) return;
-    const ruleId = determineWorkflowSteps(declaration);
-    const rule = getWorkflowRules().find((r) => r.id === ruleId);
-    if (!rule) return;
-
-    const steps: WorkflowStep[] = rule.steps.map((s) => {
-      let assigneeId = "";
-      let assigneeName = "";
-      if (s.role === "lineManager" && user.lineManager) {
-        assigneeId = user.lineManager;
-        const lm = getUserById(user.lineManager);
-        assigneeName = lm?.name || "";
-      } else if (s.role === "hr") {
-        const hr = getUserById("user-4");
-        assigneeId = "user-4";
-        assigneeName = hr?.name || "Lindiwe Zulu";
-      } else if (s.role === "ceo") {
-        const ceo = getUserById("user-5");
-        assigneeId = "user-5";
-        assigneeName = ceo?.name || "Sandile Shabalala";
-      }
-      return {
-        order: s.order,
-        role: s.role,
-        assignee: assigneeId,
-        assigneeName,
-        label: s.label,
-        status: "pending" as const,
-        decision: null,
-        notes: "",
-        decidedAt: null,
-      };
-    });
-
-    const instance: WorkflowInstance = { declarationId: declaration.id, steps };
-    setWorkflowForDeclaration(instance);
-  };
+  // createWorkflow is handled by the backend on submission
 
   const handleSubmit = async () => {
     if (!validate()) return;
@@ -342,9 +304,9 @@ export function NewDeclarationScreen({
     setSubmitError("");
 
     const value = Number(form.value || 0);
-    const requiresSubstantiation = Number.isFinite(value) && value > getConfig().highValueThreshold;
+    const requiresSubstantiation = Number.isFinite(value) && value > config.highValueThreshold;
     const requiresOccasionOther = form.occasion === "Other";
-    const priority = getPriority(value);
+    const priority = getPriority(value, config.highValueThreshold, config.mediumValueThreshold);
     const declaration: Declaration = {
       id: `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
       employee: form.employeeName,
@@ -371,8 +333,8 @@ export function NewDeclarationScreen({
       instances: form.instances,
       publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
       substantiation: requiresSubstantiation ? form.substantiation : "",
-      approver: getFinalApproverName(value, form.lineManager),
-      status: "Pending",
+      approver: "",
+      status: "Draft",
       priority,
       files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
     };
@@ -380,10 +342,10 @@ export function NewDeclarationScreen({
     let saved: Declaration | undefined;
     try {
       saved = await createDeclaration(declaration);
-      createWorkflow(saved);
-      onSubmitSuccess(saved);
+      const submitted = await submitDeclaration(saved.id);
+      onSubmitSuccess(submitted);
     } catch (err) {
-      if (saved) updateDeclaration(saved.id, { status: "Draft" });
+      if (saved) await updateDeclaration(saved.id, { status: "Draft" });
       setSubmitError(err instanceof Error ? err.message : "Failed to submit declaration.");
     } finally {
       setSubmitting(false);
@@ -402,7 +364,7 @@ export function NewDeclarationScreen({
   ];
 
   const valueNum = Number(form.value || 0);
-  const requiresSubstantiation = Number.isFinite(valueNum) && valueNum > getConfig().highValueThreshold;
+  const requiresSubstantiation = Number.isFinite(valueNum) && valueNum > config.highValueThreshold;
   const requiresOccasionOther = form.occasion === "Other";
 
   const ErrInp = ({ field, ...props }: { field: string } & React.InputHTMLAttributes<HTMLInputElement>) => (

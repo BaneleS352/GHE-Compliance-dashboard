@@ -12,7 +12,8 @@ export type Screen =
   | "admin-workflows"
   | "admin-config"
   | "admin-dropdowns"
-  | "admin-reports";
+  | "admin-reports"
+  | "admin-approval-options";
 
 export type Role = "teamMember" | "approver" | "admin";
 
@@ -25,18 +26,18 @@ export type StatusType =
   | "Info Requested";
 
 export type ApprovalDecision =
-  | "return"
   | "accept"
-  | "org"
-  | "foundation"
+  | "reject"
   | "decline"
+  | "info"
+  | "escalate"
   | null;
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  passwordHash: string;
+  passwordHash?: string;
   role: Role;
   teamMemberNumber: string;
   department: string;

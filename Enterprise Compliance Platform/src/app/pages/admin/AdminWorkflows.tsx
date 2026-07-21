@@ -4,7 +4,7 @@ import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { PURPLE } from "../../../config/theme";
 import { WorkflowRule } from "../../../types/declaration";
-import { getWorkflowRules, addWorkflowRule, updateWorkflowRule, deleteWorkflowRule } from "../../../data/db";
+import { fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule } from "../../../services/api";
 
 const ROLE_LABELS: Record<string, string> = { lineManager: "Line Manager", hr: "Head of HR", ceo: "Group CEO" };
 
@@ -13,10 +13,9 @@ export function AdminWorkflows() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
 
-  const refresh = () => setRules(getWorkflowRules());
-  useEffect(refresh, []);
+  useEffect(() => { fetchWorkflowRules().then(setRules); }, []);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     try {
       const newRule: WorkflowRule = {
         id: `rule-${Date.now()}`,
@@ -25,8 +24,8 @@ export function AdminWorkflows() {
         priority: rules.length + 1,
         steps: [{ order: 1, role: "lineManager", label: "Line Manager Review" }],
       };
-      addWorkflowRule(newRule);
-      refresh();
+      await createWorkflowRule(newRule);
+      fetchWorkflowRules().then(setRules);
     } catch (e: any) {
       alert(e.message);
     }
@@ -37,21 +36,21 @@ export function AdminWorkflows() {
     setEditName(rule.name);
   };
 
-  const handleSaveEdit = (id: string) => {
+  const handleSaveEdit = async (id: string) => {
     try {
-      updateWorkflowRule(id, { name: editName });
+      await updateWorkflowRule(id, { name: editName });
       setEditingId(null);
-      refresh();
+      fetchWorkflowRules().then(setRules);
     } catch (e: any) {
       alert(e.message);
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm("Delete this workflow rule?")) return;
     try {
-      deleteWorkflowRule(id);
-      refresh();
+      await deleteWorkflowRule(id);
+      fetchWorkflowRules().then(setRules);
     } catch (e: any) {
       alert(e.message);
     }

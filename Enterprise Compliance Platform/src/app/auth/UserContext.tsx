@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { User } from "../../types/declaration";
-import { getUserById } from "../../data/db";
+import { clearToken } from "../../services/httpClient";
+import { fetchCurrentUser } from "./authService";
 
 interface UserContextValue {
   user: User | null;
@@ -13,48 +14,62 @@ const UserContext = createContext<UserContextValue>({
   user: null,
   setUser: () => {},
   isAuthenticated: false,
+  logout: () => {},
 });
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem("ghe.auth.user");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        const freshUser = getUserById(parsed.id);
-        if (freshUser) {
-          setUser(freshUser);
-          setIsAuthenticated(true);
-        }
-      } catch {
+    const token = localStorage.getItem("ghe.auth.token");
+    if (!token) {
+      localStorage.removeItem("ghe.auth.user");
+      setLoading(false);
+      return;
+    }
+    const cached = localStorage.getItem("ghe.auth.user");
+    if (cached) {
+      try { setUser(JSON.parse(cached)); } catch { /* ignore */ }
+    }
+    fetchCurrentUser().then((u) => {
+      if (u) {
+        setUser(u);
+        localStorage.setItem("ghe.auth.user", JSON.stringify(u));
+      } else {
+        setUser(null);
+        clearToken();
         localStorage.removeItem("ghe.auth.user");
       }
+      setLoading(false);
+    });
+  }, []);
+
+  const login = useCallback((u: User | null) => {
+    setUser(u);
+    if (u) {
+      localStorage.setItem("ghe.auth.user", JSON.stringify(u));
+    } else {
+      localStorage.removeItem("ghe.auth.user");
     }
   }, []);
 
-  const login = (u: User | null) => {
-    if (!u) {
-      setUser(null);
-      setIsAuthenticated(false);
-      localStorage.removeItem("ghe.auth.user");
-      return;
-    }
-    setUser(u);
-    setIsAuthenticated(true);
-    localStorage.setItem("ghe.auth.user", JSON.stringify({ id: u.id }));
-  };
-
-  const logout = () => {
+  const logout = useCallback(() => {
     setUser(null);
-    setIsAuthenticated(false);
+    clearToken();
     localStorage.removeItem("ghe.auth.user");
-  };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center text-muted-foreground">
+        Loading...
+      </div>
+    );
+  }
 
   return (
-    <UserContext.Provider value={{ user, setUser: login, isAuthenticated, logout }}>
+    <UserContext.Provider value={{ user, setUser: login, isAuthenticated: !!user, logout }}>
       {children}
     </UserContext.Provider>
   );

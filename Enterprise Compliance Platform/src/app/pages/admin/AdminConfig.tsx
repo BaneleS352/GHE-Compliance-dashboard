@@ -3,17 +3,23 @@ import { Save, Shield, Mail } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { PURPLE } from "../../../config/theme";
-import { getConfig, saveConfig } from "../../../data/db";
+import { fetchConfig, saveConfig } from "../../../services/api";
 import { SystemConfig } from "../../../types/declaration";
 
 export function AdminConfig() {
-  const [config, setConfig] = useState<SystemConfig>(getConfig());
+  const [config, setConfig] = useState<SystemConfig>({
+    highValueThreshold: 2000,
+    mediumValueThreshold: 500,
+    slaEscalationDays: 7,
+    maxDeclarationsPerCounterparty: 10,
+    emailTemplate: "",
+  });
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => { setConfig(getConfig()); }, []);
+  useEffect(() => { fetchConfig().then(setConfig); }, []);
 
-  const handleSave = () => {
-    saveConfig(config);
+  const handleSave = async () => {
+    await saveConfig(config);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };

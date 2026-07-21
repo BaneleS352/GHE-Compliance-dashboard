@@ -1,18 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
-import { motion } from "framer-motion";
 import { Declaration, ApprovalDecision } from "../../types/declaration";
-import { PURPLE } from "../../config/theme";
-import { Card } from "../components/Card";
 import { StatusBadge } from "../components/StatusBadge";
-import { DeclarationDetailView } from "../pages/DeclarationDetailView";
-import { ApproverDecisionBlock } from "../pages/ApprovalQueue";
+import { DeclarationDetailView, SupportingDocuments } from "../pages/DeclarationDetailView";
+import { WorkflowTimeline, StepView } from "../components/WorkflowTimeline";
 import { useUser } from "../auth/UserContext";
-import {
-  getWorkflowForDeclaration, setWorkflowForDeclaration,
-  updateDeclaration,
-  canUserApprove,
-} from "../../data/db";
+import { fetchWorkflowInstance, approveWorkflowStep } from "../../services/api";
 
 export function ApprovalDetail({
   declaration,
@@ -22,24 +15,50 @@ export function ApprovalDetail({
   onBack: () => void;
 }) {
   const { user } = useUser();
-  const workflow = getWorkflowForDeclaration(declaration.id);
+  const [workflow, setWorkflow] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!user || !workflow) {
+  const [lmDecision, setLmDecision] = useState<ApprovalDecision>(null);
+  const [hrDecision, setHrDecision] = useState<ApprovalDecision>(null);
+  const [ceoDecision, setCeoDecision] = useState<ApprovalDecision>(null);
+  const [lmNotes, setLmNotes] = useState("");
+  const [hrNotes, setHrNotes] = useState("");
+  const [ceoNotes, setCeoNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!user) { setLoading(false); return; }
+    fetchWorkflowInstance(declaration.id)
+      .then((wf) => {
+        setWorkflow(wf);
+        if (wf) {
+          const getStep = (role: string) => wf.steps.find((s: any) => s.role === role);
+          setLmDecision(getStep("lineManager")?.decision ?? null);
+          setHrDecision(getStep("hr")?.decision ?? null);
+          setCeoDecision(getStep("ceo")?.decision ?? null);
+          setLmNotes(getStep("lineManager")?.notes ?? "");
+          setHrNotes(getStep("hr")?.notes ?? "");
+          setCeoNotes(getStep("ceo")?.notes ?? "");
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [declaration.id, user]);
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-center text-muted-foreground">
-          <p className="font-medium">No workflow found for this declaration.</p>
-          <button onClick={onBack} className="mt-4 text-purple-600 hover:underline">Back to Queue</button>
-        </div>
+        <div className="text-sm text-muted-foreground animate-pulse">Loading workflow…</div>
       </div>
     );
   }
 
-  if (!canUserApprove(declaration.id, user.id)) {
+  if (!workflow) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center text-muted-foreground">
-          <p className="font-medium">You are not assigned to approve this declaration.</p>
+          <p className="font-medium">No workflow found for this declaration.</p>
           <button onClick={onBack} className="mt-4 text-purple-600 hover:underline">Back to Queue</button>
         </div>
       </div>
@@ -52,113 +71,110 @@ export function ApprovalDetail({
   const hrStep = getStepByRole("hr");
   const ceoStep = getStepByRole("ceo");
 
-  const [lmDecision, setLmDecision] = useState<ApprovalDecision>(lmStep?.decision ?? null);
-  const [hrDecision, setHrDecision] = useState<ApprovalDecision>(hrStep?.decision ?? null);
-  const [ceoDecision, setCeoDecision] = useState<ApprovalDecision>(ceoStep?.decision ?? null);
-  const [lmNotes, setLmNotes] = useState(lmStep?.notes ?? "");
-  const [hrNotes, setHrNotes] = useState(hrStep?.notes ?? "");
-  const [ceoNotes, setCeoNotes] = useState(ceoStep?.notes ?? "");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-
   const hasLm = !!lmStep;
   const hasHr = !!hrStep;
   const hasCeo = !!ceoStep;
 
-  const isLmDecided = !!lmDecision;
+  const isLmDecided = lmStep?.status !== "pending";
   const isHrEnabled = hasHr && isLmDecided;
-  const isCeoEnabled = hasCeo && isLmDecided && (hasHr ? !!hrDecision : true);
+  const isCeoEnabled = hasCeo && isLmDecided && (hasHr ? hrStep?.status !== "pending" : true);
 
-  const steps = [
-    ...(hasLm ? [{
-      title: "1. Line Manager Approval",
-      role: lmStep?.assigneeName || "Line Manager",
-      roleKey: "lineManager",
-      decision: lmDecision,
-      setDecision: setLmDecision,
-      notes: lmNotes,
-      setNotes: setLmNotes,
-      enabled: lmStep?.status === "pending",
-      completed: lmStep && lmStep.status !== "pending",
-    }] : []),
-    ...(hasHr ? [{
-      title: "2. Head of HR Approval",
-      role: hrStep?.assigneeName || "Head of HR",
-      roleKey: "hr",
-      decision: hrDecision,
-      setDecision: setHrDecision,
-      notes: hrNotes,
-      setNotes: setHrNotes,
-      enabled: isHrEnabled && hrStep?.status === "pending",
-      completed: hrStep && hrStep.status !== "pending",
-    }] : []),
-    ...(hasCeo ? [{
-      title: "3. Group CEO Approval",
-      role: ceoStep?.assigneeName || "Group CEO",
-      roleKey: "ceo",
-      decision: ceoDecision,
-      setDecision: setCeoDecision,
-      notes: ceoNotes,
-      setNotes: setCeoNotes,
-      enabled: isCeoEnabled && ceoStep?.status === "pending",
-      completed: ceoStep && ceoStep.status !== "pending",
-    }] : []),
+  const decisionLabel = (d: string) => {
+    const map: Record<string, string> = {
+      accept: "Accept",
+      reject: "Reject",
+      decline: "Decline",
+      info: "Return for More Info",
+      escalate: "Escalate",
+    };
+    return map[d] || d;
+  };
+
+  const allRoles = [
+    { roleKey: "lineManager", title: "1. Line Manager Approval", defaultActor: "Line Manager",
+      get decision() { return lmStep?.status !== "pending" ? (lmStep?.decision ?? null) : lmDecision; }, setDecision: setLmDecision,
+      get notes() { return lmNotes; }, setNotes: setLmNotes,
+      get step() { return lmStep; }, get exists() { return hasLm; },
+      get enabled() { return lmStep?.status === "pending"; },
+      get completed() { return lmStep && lmStep.status !== "pending"; },
+      get decidedAt() { return lmStep?.decidedAt || null; },
+    },
+    { roleKey: "hr", title: "2. Head of HR Approval", defaultActor: "Head of HR",
+      get decision() { return hrStep?.status !== "pending" ? (hrStep?.decision ?? null) : hrDecision; }, setDecision: setHrDecision,
+      get notes() { return hrNotes; }, setNotes: setHrNotes,
+      get step() { return hrStep; }, get exists() { return hasHr; },
+      get enabled() { return isHrEnabled && hrStep?.status === "pending"; },
+      get completed() { return hrStep && hrStep.status !== "pending"; },
+      get decidedAt() { return hrStep?.decidedAt || null; },
+    },
+    { roleKey: "ceo", title: "3. Group CEO Approval", defaultActor: "Group CEO",
+      get decision() { return ceoStep?.status !== "pending" ? (ceoStep?.decision ?? null) : ceoDecision; }, setDecision: setCeoDecision,
+      get notes() { return ceoNotes; }, setNotes: setCeoNotes,
+      get step() { return ceoStep; }, get exists() { return hasCeo; },
+      get enabled() { return isCeoEnabled && ceoStep?.status === "pending"; },
+      get completed() { return ceoStep && ceoStep.status !== "pending"; },
+      get decidedAt() { return ceoStep?.decidedAt || null; },
+    },
   ];
 
-  const completedSteps = steps.filter((s) => s.completed || s.decision).length;
+  const wfSteps: StepView[] = allRoles.map((r) => {
+    if (!r.exists) return { label: r.title, actor: r.defaultActor, state: "skipped" };
+    const decided = r.completed;
+    return {
+      label: r.title,
+      actor: r.step?.assigneeName || r.defaultActor,
+      state: decided ? "completed" : r.enabled ? "active" : "pending",
+      decision: r.decision ? { label: decisionLabel(r.decision) } : null,
+      decidedAt: r.decidedAt,
+      notes: r.notes,
+    };
+  });
 
-  const handleSubmit = () => {
+  const hasPendingUserStep = workflow?.steps.some((s: any) => s.assignee === user?.id && s.status === "pending");
+  const currentUserStepRole = workflow?.steps.find((s: any) => s.assignee === user?.id)?.role;
+  const activeRole = allRoles.find((r) => r.enabled && r.roleKey === currentUserStepRole);
+
+  const handleSubmit = async () => {
     if (!user || !workflow) return;
 
     const stepsToUpdate = [...workflow.steps];
-    const decisions = [lmDecision, hrDecision, ceoDecision];
-    const notesArr = [lmNotes, hrNotes, ceoNotes];
+    const decisionsByRole: Record<string, ApprovalDecision> = { lineManager: lmDecision, hr: hrDecision, ceo: ceoDecision };
+    const notesByRole: Record<string, string> = { lineManager: lmNotes, hr: hrNotes, ceo: ceoNotes };
     let allApproved = true;
     let hasReturn = false;
     let hasDecline = false;
 
-    stepsToUpdate.forEach((step, i) => {
-      const decision = decisions[i];
+    for (const step of stepsToUpdate) {
+      const decision = decisionsByRole[step.role];
+      const notes = notesByRole[step.role];
       if (decision && step.assignee === user.id && step.status === "pending") {
         step.decision = decision;
-        step.notes = notesArr[i];
+        step.notes = notes;
         step.decidedAt = new Date().toISOString();
-        if (decision === "decline") {
+        if (decision === "decline" || decision === "reject") {
           step.status = "declined";
           hasDecline = true;
           allApproved = false;
-        } else if (decision === "return") {
+        } else if (decision === "info") {
           step.status = "returned";
           hasReturn = true;
+          allApproved = false;
+        } else if (decision === "escalate") {
+          step.status = "approved";
           allApproved = false;
         } else {
           step.status = "approved";
         }
+        await approveWorkflowStep({ declarationId: declaration.id, decision, notes });
       }
-    });
-
-    setWorkflowForDeclaration({ declarationId: declaration.id, steps: stepsToUpdate });
-
-    if (hasDecline) {
-      updateDeclaration(declaration.id, { status: "Declined" });
-    } else if (hasReturn) {
-      updateDeclaration(declaration.id, { status: "Info Requested" });
-    } else if (allApproved && stepsToUpdate.every((s) => s.status === "approved")) {
-      updateDeclaration(declaration.id, { status: "Approved" });
     }
 
+    setWorkflow({ ...workflow, steps: stepsToUpdate });
     setMessage("Decision submitted successfully.");
     setTimeout(() => { setMessage(""); onBack(); }, 1500);
   };
 
-  const getStepStyle = (enabled: boolean, decision: ApprovalDecision) => {
-    if (!enabled && !decision) return "opacity-50 pointer-events-none grayscale";
-    if (decision) return "bg-emerald-50/70 border-emerald-200 shadow-[0_10px_25px_rgba(16,185,129,0.15)]";
-    return "bg-white/70 border-white/60 shadow-sm hover:shadow-md";
-  };
 
-  const currentUserStepRole = workflow?.steps.find((s) => s.assignee === user?.id)?.role;
-  const currentUserIndex = steps.findIndex((s) => s.enabled);
 
   return (
     <div>
@@ -175,110 +191,29 @@ export function ApprovalDetail({
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
         <div className="xl:col-span-3">
-          <DeclarationDetailView data={declaration} onBack={() => {}} />
+          <DeclarationDetailView data={declaration} onBack={() => {}} hideBackButton hideDocuments />
         </div>
 
-        <div className="xl:col-span-2 space-y-5 xl:sticky xl:top-4 self-start">
+        <div className="xl:col-span-2 space-y-5 h-full">
           {message && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
               {message}
             </div>
           )}
 
-          <div className="relative">
-            <div className="absolute left-4 top-2 bottom-2 w-[2px] bg-gray-300/50" />
+          <WorkflowTimeline
+            steps={wfSteps}
+            decision={activeRole?.roleKey === currentUserStepRole ? activeRole?.decision : undefined}
+            onDecision={hasPendingUserStep && activeRole?.setDecision ? activeRole.setDecision : undefined}
+            notes={hasPendingUserStep ? activeRole?.notes || "" : undefined}
+            onNotesChange={hasPendingUserStep && activeRole?.setNotes ? activeRole.setNotes : undefined}
+            onSubmit={hasPendingUserStep ? handleSubmit : undefined}
+            submitDisabled={!activeRole?.decision}
+          />
+        </div>
 
-            <motion.div
-              className="absolute left-4 top-2 w-[2px] bg-gradient-to-b from-emerald-500 to-emerald-400"
-              animate={{ height: `${(completedSteps / (steps.length || 1)) * 100}%` }}
-              transition={{ duration: 0.5 }}
-            />
-
-            <div className="space-y-6">
-              {steps.map((step, i) => {
-                const isActive = step.enabled && !step.decision &&
-                  steps.findIndex((s) => s.enabled && !s.decision) === i;
-                const isCurrentUserStep = isActive && step.roleKey === currentUserStepRole;
-
-                return (
-                  <div key={i} className="flex items-start gap-4 relative">
-                    <div className="relative z-10">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
-                        step.decision ? "bg-emerald-500 text-white" :
-                        isActive ? "bg-white border-2 border-emerald-500 text-emerald-600" :
-                        "bg-white/40 border text-gray-400"
-                      }`}>
-                        {step.decision ? "✓" : i + 1}
-                      </div>
-                    </div>
-
-                    <motion.div
-                      initial={{ opacity: 0.5, y: 10 }}
-                      animate={{ opacity: step.enabled || step.decision ? 1 : 0.5, y: 0 }}
-                      className="flex-1"
-                    >
-                      <div className="rounded-2xl p-[1px] bg-gradient-to-br from-white/40 to-white/10">
-                        <div className={`rounded-2xl p-4 backdrop-blur-sm border transition-all ${getStepStyle(isCurrentUserStep, step.decision)}`}>
-                          <div className="flex justify-between mb-2">
-                            <span className="text-xs text-slate-500">{step.role}</span>
-                            {!step.enabled && !step.decision && (
-                              <span className="text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-400">Locked</span>
-                            )}
-                            {isActive && (
-                              <span className="text-[10px] px-2 py-1 rounded-full bg-indigo-100 text-indigo-600">In Progress</span>
-                            )}
-                            {step.decision && (
-                              <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-100 text-emerald-600">Completed</span>
-                            )}
-                          </div>
-
-                          {isCurrentUserStep ? (
-                            <ApproverDecisionBlock
-                              title={step.title}
-                              role={step.role}
-                              decision={step.decision}
-                              onSelect={step.setDecision}
-                              notes={step.notes}
-                              onNotesChange={step.setNotes}
-                            />
-                          ) : (
-                            <div className="rounded-xl bg-gray-50 p-4 text-sm text-muted-foreground">
-                              {step.decision
-                                ? <p>Decision recorded. <strong>{step.decision}</strong></p>
-                                : <p>Awaiting <strong>{step.roleKey === "lineManager" ? "Line Manager" : step.roleKey === "hr" ? "HR" : "CEO"}</strong> review.</p>
-                              }
-                              {step.notes && <p className="mt-2 text-xs italic">"{step.notes}"</p>}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </motion.div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {workflow?.steps.find((s) => s.assignee === user?.id) && (
-            <Card className="p-5 rounded-2xl bg-gradient-to-br from-[#f8fafc] via-[#eef2ff] to-[#e0e7ff] border border-white/40 shadow-[0_10px_30px_rgba(0,0,0,0.08)] backdrop-blur-sm relative overflow-hidden">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.15),transparent_60%)]" />
-              <div className="relative z-10">
-                <p className="text-xs text-slate-500 mb-4">
-                  Complete the current step before proceeding.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-2.5">
-                  <button
-                    onClick={handleSubmit}
-                    disabled={!steps.some((s) => s.decision && !s.completed)}
-                    className="flex-1 h-10 text-white rounded-xl text-sm disabled:opacity-40 shadow-md hover:shadow-lg transition"
-                    style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
-                  >
-                    Submit Decision
-                  </button>
-                </div>
-              </div>
-            </Card>
-          )}
+        <div className="xl:col-span-3">
+          <SupportingDocuments data={declaration} />
         </div>
       </div>
     </div>

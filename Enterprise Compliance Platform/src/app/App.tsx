@@ -8,13 +8,15 @@ import { MyDeclarationsScreen } from "./pages/MyDeclarationsScreen";
 import { ApproverDashboard } from "./pages/ApproverDashboard";
 import { ApprovalQueue } from "./pages/ApprovalQueue";
 import { ApprovalDetail } from "./pages/ApprovalDetail";
-import { DeclarationDetailView } from "./pages/DeclarationDetailView";
+import { DeclarationDetailView, SupportingDocuments } from "./pages/DeclarationDetailView";
+import { WorkflowTimeline } from "./components/WorkflowTimeline";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
 import { AdminUsers } from "./pages/admin/AdminUsers";
 import { AdminWorkflows } from "./pages/admin/AdminWorkflows";
 import { AdminDropdowns } from "./pages/admin/AdminDropdowns";
 import { AdminConfig } from "./pages/admin/AdminConfig";
 import { AdminReports } from "./pages/admin/AdminReports";
+import { AdminApprovalOptions } from "./pages/admin/AdminApprovalOptions";
 import { SuccessModal } from "./components/SuccessModal";
 import { DraftBanner } from "./components/DraftBanner";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -30,7 +32,7 @@ function AppInner() {
   const [showDraftBanner, setShowDraftBanner]     = useState(false);
 
   const getRoleForScreen = (s: Screen): Role =>
-    s === "admin-dashboard" || s === "admin-users" || s === "admin-workflows" || s === "admin-dropdowns" || s === "admin-config" || s === "admin-reports" ? "admin"
+    s === "admin-dashboard" || s === "admin-users" || s === "admin-workflows" || s === "admin-dropdowns" || s === "admin-config" || s === "admin-reports" || s === "admin-approval-options" ? "admin"
     : s === "approver-dashboard" || s === "approval-queue" || s === "approval-detail" ? "approver"
     : "teamMember";
 
@@ -81,7 +83,17 @@ function AppInner() {
           />
         )}
         {screen === "new-declaration" && showSubmittedView && submittedData && (
-          <DeclarationDetailView data={submittedData} onBack={() => setShowSubmittedView(false)} />
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+            <div className="xl:col-span-3">
+              <DeclarationDetailView data={submittedData} onBack={() => setShowSubmittedView(false)} hideDocuments />
+            </div>
+            <div className="xl:col-span-2 h-full">
+              <WorkflowTimeline declarationId={submittedData.id} employee={submittedData.employee} />
+            </div>
+            <div className="xl:col-span-3">
+              <SupportingDocuments data={submittedData} />
+            </div>
+          </div>
         )}
         {screen === "my-declarations"    && <MyDeclarationsScreen />}
         {screen === "approver-dashboard" && <ApproverDashboard onNavigate={guardedNavigate} />}
@@ -97,6 +109,7 @@ function AppInner() {
         {screen === "admin-dropdowns" && <AdminDropdowns />}
         {screen === "admin-config"    && <AdminConfig />}
         {screen === "admin-reports"   && <AdminReports />}
+        {screen === "admin-approval-options" && <AdminApprovalOptions />}
       </AppShell>
 
       {showSuccess && submittedData && (

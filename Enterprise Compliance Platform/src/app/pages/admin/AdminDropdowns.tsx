@@ -4,26 +4,26 @@ import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { THead } from "../../components/THead";
 import { PURPLE } from "../../../config/theme";
-import { getDropdowns, updateDropdowns } from "../../../data/db";
+import { fetchDropdowns, updateDropdowns } from "../../../services/api";
 
 export function AdminDropdowns() {
   const [activeTab, setActiveTab] = useState("departments");
-  const [data, setData] = useState(getDropdowns());
+  const [data, setData] = useState<Record<string, string[]>>({});
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
 
   const tabs = Object.keys(data) as (keyof typeof data)[];
 
-  useEffect(() => { setData(getDropdowns()); }, []);
+  useEffect(() => { fetchDropdowns().then(setData); }, []);
 
   const currentList = data[activeTab] || [];
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const item = prompt(`Add new ${activeTab.slice(0, -1)}:`);
     if (!item) return;
     const updated = { ...data, [activeTab]: [...currentList, item] };
     setData(updated);
-    updateDropdowns(updated);
+    await updateDropdowns(updated);
   };
 
   const handleEdit = (idx: number) => {
@@ -31,22 +31,22 @@ export function AdminDropdowns() {
     setEditValue(currentList[idx]);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (editingIdx === null || !editValue) return;
     const list = [...currentList];
     list[editingIdx] = editValue;
     const updated = { ...data, [activeTab]: list };
     setData(updated);
-    updateDropdowns(updated);
+    await updateDropdowns(updated);
     setEditingIdx(null);
   };
 
-  const handleDelete = (idx: number) => {
+  const handleDelete = async (idx: number) => {
     if (!confirm("Delete this option?")) return;
     const list = currentList.filter((_, i) => i !== idx);
     const updated = { ...data, [activeTab]: list };
     setData(updated);
-    updateDropdowns(updated);
+    await updateDropdowns(updated);
   };
 
   return (
