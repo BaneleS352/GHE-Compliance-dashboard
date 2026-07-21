@@ -24,7 +24,7 @@ export function AppShell({
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="fixed inset-0 flex overflow-hidden bg-slate-50" style={F}>
+    <div className="fixed inset-0 flex overflow-hidden" style={{ ...F, background: "#FEFCF3" }}>
       {/* ambient gradient blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[10%] w-[40%] h-[40%] rounded-full bg-purple-400/20 blur-[120px]" />

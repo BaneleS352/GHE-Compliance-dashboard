@@ -43,7 +43,7 @@ vi.mock("../services/api", () => ({
 
 vi.mock("../app/auth/UserContext", () => ({
   useUser: () => ({
-    user: { id: "user-1", name: "Alice", email: "alice@test.com", role: "teamMember" as const,
+        user: { id: "user-1", name: "Alice", email: "alice@test.com", role: "approver" as const,
             teamMemberNumber: "TM-001", department: "IT", position: "Dev", lineManager: "Bob" },
   }),
 }));
@@ -110,7 +110,7 @@ describe("MyDeclarationsScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "All" }));
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1003").length).toBeGreaterThan(0));
 
-    const searchInput = screen.getByPlaceholderText(/Declaration ID/i);
+    const searchInput = screen.getByPlaceholderText(/ID, Counterparty/i);
     fireEvent.change(searchInput, { target: { value: "CorpC" } });
     await waitFor(() => {
       expect(screen.getAllByText("GHE-2026-1003").length).toBeGreaterThan(0);
@@ -155,7 +155,7 @@ describe("MyDeclarationsScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "All" }));
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1003").length).toBeGreaterThan(0));
 
-    const searchInput = screen.getByPlaceholderText(/Declaration ID/i);
+    const searchInput = screen.getByPlaceholderText(/ID, Counterparty/i);
     fireEvent.change(searchInput, { target: { value: "ZZZ_NONEXISTENT" } });
     await waitFor(() => {
       expect(screen.queryAllByText("GHE-2026-1001").length).toBe(0);

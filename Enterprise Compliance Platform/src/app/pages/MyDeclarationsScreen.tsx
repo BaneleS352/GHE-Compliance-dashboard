@@ -25,12 +25,15 @@ export function MyDeclarationsScreen() {
       .finally(() => setLoading(false));
   }, []);
 
+  const isTeamMember = user?.role === "teamMember";
   const [viewMode, setViewMode] = useState<"my" | "all">("my");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [approverFilter, setApproverFilter] = useState("All");
-  const [dateFilter, setDateFilter] = useState("");
+  const [dateFilterStart, setDateFilterStart] = useState("");
+  const [dateFilterEnd, setDateFilterEnd] = useState("");
+  const [employeeFilter, setEmployeeFilter] = useState("All");
   const [activeKpi, setActiveKpi] = useState("All");
   const [sortKey, setSortKey] = useState<keyof Declaration | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -63,11 +66,14 @@ export function MyDeclarationsScreen() {
       (!search ||
         d.id.toLowerCase().includes(search.toLowerCase()) ||
         d.Counterparty.toLowerCase().includes(search.toLowerCase()) ||
-        d.employee.toLowerCase().includes(search.toLowerCase())) &&
+        d.employee.toLowerCase().includes(search.toLowerCase()) ||
+        (d.approver || "").toLowerCase().includes(search.toLowerCase())) &&
       (typeFilter === "All" || d.type === typeFilter) &&
       (statusFilter === "All" || d.status === statusFilter) &&
       (approverFilter === "All" || d.approver === approverFilter) &&
-      (!dateFilter || d.submitted === dateFilter)
+      (employeeFilter === "All" || d.employee === employeeFilter) &&
+      (!dateFilterStart || d.submitted >= dateFilterStart) &&
+      (!dateFilterEnd || d.submitted <= dateFilterEnd)
   );
 
   const sorted = [...filtered].sort((a, b) => {
@@ -147,20 +153,22 @@ export function MyDeclarationsScreen() {
         subtitle={`${visibleDeclarations.length} ${viewMode === "my" ? "of your" : "total"} declarations`}
         actions={
           <div className="flex gap-2">
-            <div className="flex overflow-hidden rounded-xl border border-border bg-white text-sm font-semibold">
-              <button
-                onClick={() => setViewMode("my")}
-                className={`px-4 py-2 transition-colors ${viewMode === "my" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
-              >
-                My
-              </button>
-              <button
-                onClick={() => setViewMode("all")}
-                className={`px-4 py-2 transition-colors ${viewMode === "all" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
-              >
-                All
-              </button>
-            </div>
+            {!isTeamMember && (
+              <div className="flex overflow-hidden rounded-xl border border-border bg-white text-sm font-semibold">
+                <button
+                  onClick={() => setViewMode("my")}
+                  className={`px-4 py-2 transition-colors ${viewMode === "my" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
+                >
+                  My
+                </button>
+                <button
+                  onClick={() => setViewMode("all")}
+                  className={`px-4 py-2 transition-colors ${viewMode === "all" ? "bg-primary text-white" : "text-muted-foreground hover:bg-muted"}`}
+                >
+                  All
+                </button>
+              </div>
+            )}
             <button onClick={exportExcel} className="flex h-10 items-center justify-center gap-2 rounded-xl border bg-white px-4 text-sm font-semibold hover:bg-muted sm:w-auto">
               <Download size={13} /> Export Excel
             </button>
@@ -176,13 +184,13 @@ export function MyDeclarationsScreen() {
         <KpiCard label="Total Value" value={`R ${Math.round(totalValue / 1000)}K`} icon={Coins} color="#6366f1" />
       </div>
 
-      <Card className="mb-4 grid grid-cols-1 gap-3 border-white/70 bg-white/85 p-3 sm:grid-cols-2 xl:grid-cols-5">
-        <div>
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Search</label>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Declaration ID, Type, Counterparty or Status" className="table-filter-input" />
+      <Card className="mb-4 grid grid-cols-1 gap-3 border-white/70 bg-white/85 p-3 sm:grid-cols-2 xl:grid-cols-6">
+        <div className="xl:col-span-2">
+          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Search</label>
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ID, Counterparty, Employee or Approver" className="table-filter-input" />
         </div>
         <div>
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Type</label>
+          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Type</label>
           <select onChange={(e) => setTypeFilter(e.target.value)} className="table-filter-select">
             <option value="All">All GHE</option>
             <option>Gift</option>
@@ -191,7 +199,7 @@ export function MyDeclarationsScreen() {
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Status</label>
+          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Status</label>
           <select onChange={(e) => setStatusFilter(e.target.value)} className="table-filter-select">
             <option value="All">All Status</option>
             <option>Pending</option>
@@ -200,18 +208,24 @@ export function MyDeclarationsScreen() {
             <option>Returned</option>
           </select>
         </div>
+        {!isTeamMember && (
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Employee</label>
+            <select onChange={(e) => setEmployeeFilter(e.target.value)} className="table-filter-select">
+              <option value="All">All Employees</option>
+              {[...new Set(declarations.map((d) => d.employee))].map((e) => (
+                <option key={e}>{e}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Approver</label>
-          <select onChange={(e) => setApproverFilter(e.target.value)} className="table-filter-select">
-            <option value="All">All Approvers</option>
-            {[...new Set(declarations.map((d) => d.approver))].map((a) => (
-              <option key={a}>{a}</option>
-            ))}
-          </select>
+          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Date From</label>
+          <input type="date" onChange={(e) => setDateFilterStart(e.target.value)} className="table-filter-input" />
         </div>
         <div>
-          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Date</label>
-          <input type="date" onChange={(e) => setDateFilter(e.target.value)} className="table-filter-input" />
+          <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Date To</label>
+          <input type="date" onChange={(e) => setDateFilterEnd(e.target.value)} className="table-filter-input" />
         </div>
       </Card>
 

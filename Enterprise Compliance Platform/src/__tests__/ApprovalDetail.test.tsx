@@ -87,10 +87,9 @@ describe("ApprovalDetail", () => {
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
     render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
     await waitFor(() => {
-      expect(screen.getByText("Please select a decision")).toBeInTheDocument();
+      expect(screen.getByText("Decision *")).toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: /Accept/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Reject/ })).toBeInTheDocument();
+    expect(screen.getByText(/Return - Team member/)).toBeInTheDocument();
   });
 
   it("does not crash when user has no pending step (accessibility view)", async () => {
@@ -99,19 +98,20 @@ describe("ApprovalDetail", () => {
     await waitFor(() => {
       expect(screen.getByText("GHE-2026-1001")).toBeInTheDocument();
     });
-    expect(screen.queryByText("Please select a decision")).not.toBeInTheDocument();
+    expect(screen.queryByText("Decision *")).not.toBeInTheDocument();
   });
 
-  it("selects a decision and updates button highlight", async () => {
+  it("selects a decision and highlights the radio option", async () => {
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
     render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Accept/ })).toBeInTheDocument();
+      expect(screen.getByText("Decision *")).toBeInTheDocument();
     });
 
-    const acceptBtn = screen.getByRole("button", { name: /Accept/ });
-    fireEvent.click(acceptBtn);
-    expect(acceptBtn.className).toContain("shadow-[0_0_0_2px_currentColor_inset]");
+    const acceptLabel = screen.getByText(/accept the actual GHE or offered GHE in their personal capacity/);
+    fireEvent.click(acceptLabel);
+    const labelEl = acceptLabel.closest("label")!;
+    expect(labelEl.className).toContain("border-purple-600");
   });
 
   it("submits decision and calls approveWorkflowStep", async () => {
@@ -119,10 +119,10 @@ describe("ApprovalDetail", () => {
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
     render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Accept/ })).toBeInTheDocument();
+      expect(screen.getByText("Decision *")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Accept/ }));
+    fireEvent.click(screen.getByText(/accept the actual GHE or offered GHE in their personal capacity/));
     const submitBtn = screen.getByText("Submit Decision");
     fireEvent.click(submitBtn);
 
@@ -138,10 +138,10 @@ describe("ApprovalDetail", () => {
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
     render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Accept/ })).toBeInTheDocument();
+      expect(screen.getByText("Decision *")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Accept/ }));
+    fireEvent.click(screen.getByText(/accept the actual GHE or offered GHE in their personal capacity/));
     fireEvent.click(screen.getByText("Submit Decision"));
 
     await waitFor(() => {

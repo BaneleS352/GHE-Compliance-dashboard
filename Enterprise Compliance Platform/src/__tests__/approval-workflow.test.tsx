@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { WorkflowTimeline, StepView, DECISION_BUTTONS, DECISION_LABELS } from "../app/components/WorkflowTimeline";
+import { WorkflowTimeline, StepView, APPROVAL_OPTIONS, DECISION_LABELS } from "../app/components/WorkflowTimeline";
 
 vi.mock("../services/api", () => ({
   fetchWorkflowInstance: vi.fn(),
@@ -70,15 +70,15 @@ describe("WorkflowTimeline", () => {
     expect(screen.getAllByText("Pending").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("shows decision select and buttons when active with onDecision callback", () => {
+  it("shows decision radio options when active with onDecision callback", () => {
     const onDecision = vi.fn();
     render(<WorkflowTimeline steps={mockSteps()} decision={null} onDecision={onDecision} />);
-    expect(screen.getByText("Please select a decision")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Accept/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Reject/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Decline/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Return for More Info/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Escalate/ })).toBeInTheDocument();
+    expect(screen.getByText("Decision *")).toBeInTheDocument();
+    expect(screen.getByText(/Return - Team member/)).toBeInTheDocument();
+    expect(screen.getByText(/Approved.*accept the actual GHE/)).toBeInTheDocument();
+    expect(screen.getByText(/Approved.*Organisation Pool/)).toBeInTheDocument();
+    expect(screen.getByText(/Approved.*Hollywood Foundation/)).toBeInTheDocument();
+    expect(screen.getByText(/Declined.*return the actual GHE/)).toBeInTheDocument();
   });
 
   it("shows notes textarea when onNotesChange is provided", () => {
@@ -86,19 +86,18 @@ describe("WorkflowTimeline", () => {
     expect(screen.getByPlaceholderText("Add notes or reasoning...")).toBeInTheDocument();
   });
 
-  it("calls onDecision when a decision button is clicked", () => {
+  it("calls onDecision when a radio option is clicked", () => {
     const onDecision = vi.fn();
     render(<WorkflowTimeline steps={mockSteps()} decision={null} onDecision={onDecision} onNotesChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /Accept/ }));
+    fireEvent.click(screen.getByText(/Approved.*accept the actual GHE/));
     expect(onDecision).toHaveBeenCalledWith("accept");
   });
 
-  it("calls onDecision when select changes", () => {
+  it("calls onDecision when radio label is clicked", () => {
     const onDecision = vi.fn();
     render(<WorkflowTimeline steps={mockSteps()} decision={null} onDecision={onDecision} />);
-    const select = screen.getByRole("combobox");
-    fireEvent.change(select, { target: { value: "accept" } });
-    expect(onDecision).toHaveBeenCalledWith("accept");
+    fireEvent.click(screen.getByText(/Return - Team member/));
+    expect(onDecision).toHaveBeenCalledWith("return");
   });
 
   it("calls onNotesChange when notes change", () => {
@@ -158,20 +157,20 @@ describe("WorkflowTimeline", () => {
     expect(screen.getByText(/"Approved with conditions"/)).toBeInTheDocument();
   });
 
-  it("handles all 5 decision button variants", () => {
+  it("renders all 5 approval options as radio labels", () => {
     const onDecision = vi.fn();
     render(<WorkflowTimeline steps={mockSteps()} decision={null} onDecision={onDecision} />);
-    expect(screen.getByRole("button", { name: /Accept/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Reject/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Decline/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Return for More Info/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Escalate/ })).toBeInTheDocument();
+    expect(screen.getByText(/Return - Team member/)).toBeInTheDocument();
+    expect(screen.getByText(/Approved.*accept the actual GHE/)).toBeInTheDocument();
+    expect(screen.getByText(/Approved.*Organisation Pool/)).toBeInTheDocument();
+    expect(screen.getByText(/Approved.*Hollywood Foundation/)).toBeInTheDocument();
+    expect(screen.getByText(/Declined.*return the actual GHE/)).toBeInTheDocument();
   });
 
-  it("highlights actively selected decision button", () => {
+  it("highlights actively selected radio option", () => {
     render(<WorkflowTimeline steps={mockSteps()} decision="accept" onDecision={vi.fn()} />);
-    const acceptBtn = screen.getByRole("button", { name: /Accept/ });
-    expect(acceptBtn.className).toContain("shadow-[0_0_0_2px_currentColor_inset]");
+    const label = screen.getByText(/Approved.*accept the actual GHE/).closest("label")!;
+    expect(label.className).toContain("border-purple-600");
   });
 
   it("renders read-only completed decisions for all roles", () => {
@@ -188,22 +187,30 @@ describe("WorkflowTimeline", () => {
 });
 
 describe("ApprovalDetail handleSubmit logic", () => {
-  it("all decision buttons exist in the DECISION_BUTTONS config", () => {
-    // Verify all 5 decisions from the backend validDecisions are represented in the UI
-    const values = DECISION_BUTTONS.map((d) => d.value);
+  it("all approval options exist in the APPROVAL_OPTIONS config", () => {
+    const values = APPROVAL_OPTIONS.map((d) => d.value);
+    expect(values).toContain("return");
     expect(values).toContain("accept");
-    expect(values).toContain("reject");
+    expect(values).toContain("org");
+    expect(values).toContain("foundation");
     expect(values).toContain("decline");
-    expect(values).toContain("info");
-    expect(values).toContain("escalate");
+  });
+
+  it("APPROVAL_OPTIONS labels are descriptive", () => {
+    const opt = (v: string) => APPROVAL_OPTIONS.find((o) => o.value === v)!;
+    expect(opt("return").label).toContain("Return");
+    expect(opt("accept").label).toContain("accept");
+    expect(opt("org").label).toContain("Organisation Pool");
+    expect(opt("foundation").label).toContain("Foundation");
+    expect(opt("decline").label).toContain("Declined");
   });
 
   it("DECISION_LABELS maps decisions correctly", () => {
     expect(DECISION_LABELS.accept).toBe("Accept");
-    expect(DECISION_LABELS.reject).toBe("Reject");
+    expect(DECISION_LABELS.return).toBe("Return");
+    expect(DECISION_LABELS.org).toBe("Org Pool");
+    expect(DECISION_LABELS.foundation).toBe("Foundation");
     expect(DECISION_LABELS.decline).toBe("Decline");
-    expect(DECISION_LABELS.info).toBe("Return for More Info");
-    expect(DECISION_LABELS.escalate).toBe("Escalate");
   });
 });
 

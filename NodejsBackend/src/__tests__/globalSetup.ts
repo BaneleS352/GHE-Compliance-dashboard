@@ -71,14 +71,11 @@ export async function setup() {
 
   await prisma.approvalOption.createMany({
     data: [
-      { id: "ao-1", value: "accept", label: "Accept personally" },
-      { id: "ao-2", value: "org", label: "Org pool" },
-      { id: "ao-3", value: "foundation", label: "Donate to foundation" },
-      { id: "ao-4", value: "decline", label: "Decline" },
-      { id: "ao-5", value: "return", label: "Return for info" },
-      { id: "ao-6", value: "reject", label: "Reject" },
-      { id: "ao-7", value: "info", label: "Request info" },
-      { id: "ao-8", value: "escalate", label: "Escalate" },
+      { id: "ao-1", value: "return", label: "Return - Team member to provide additional information." },
+      { id: "ao-2", value: "accept", label: "Approved - Team Member to accept the actual GHE or offered GHE in their personal capacity." },
+      { id: "ao-3", value: "org", label: "Approved - Team Member to share the actual GHE or offered GHE with the Organisation Pool." },
+      { id: "ao-4", value: "foundation", label: "Approved - Team Member to donate the actual GHE or offered GHE to the Hollywood Foundation." },
+      { id: "ao-5", value: "decline", label: "Declined - Team Member to return the actual GHE or regret the offered GHE." },
     ],
   });
 

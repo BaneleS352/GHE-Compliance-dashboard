@@ -96,16 +96,16 @@ describe("Workflows", () => {
     expect(res.status).toBe(400);
   });
 
-  it("POST /api/workflows/approve — new 'reject' decision maps to Declined", async () => {
+  it("POST /api/workflows/approve — 'decline' decision maps to Declined", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
         employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
-        type: "Gift", counterparty: "RejectTest", value: 1000,
+        type: "Gift", counterparty: "DeclineTest", value: 1000,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
-        description: "Reject test", relationship: "Test",
+        description: "Decline test", relationship: "Test",
         receivedGiven: "Received", from: "Supplier", contactPerson: "T",
         biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-05",
         instances: "1", publicOfficial: "No",
@@ -118,22 +118,22 @@ describe("Workflows", () => {
     const res = await request(app)
       .post("/api/workflows/approve")
       .set("Authorization", `Bearer ${getApproverToken()}`)
-      .send({ declarationId: id, decision: "reject", notes: "Rejected" });
+      .send({ declarationId: id, decision: "decline", notes: "Declined" });
     expect(res.status).toBe(200);
     expect(res.body.newStatus).toBe("Declined");
-    expect(res.body.currentStep.decision).toBe("reject");
+    expect(res.body.currentStep.decision).toBe("decline");
   });
 
-  it("POST /api/workflows/approve — new 'info' decision maps to Info Requested", async () => {
+  it("POST /api/workflows/approve — 'return' decision maps to Info Requested", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
         employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
-        type: "Gift", counterparty: "InfoTest", value: 1000,
+        type: "Gift", counterparty: "ReturnTest", value: 1000,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
-        description: "Info test", relationship: "Test",
+        description: "Return test", relationship: "Test",
         receivedGiven: "Received", from: "Supplier", contactPerson: "T",
         biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-05",
         instances: "1", publicOfficial: "No",
@@ -146,22 +146,22 @@ describe("Workflows", () => {
     const res = await request(app)
       .post("/api/workflows/approve")
       .set("Authorization", `Bearer ${getApproverToken()}`)
-      .send({ declarationId: id, decision: "info", notes: "Need more info" });
+      .send({ declarationId: id, decision: "return", notes: "Need more info" });
     expect(res.status).toBe(200);
     expect(res.body.newStatus).toBe("Info Requested");
-    expect(res.body.currentStep.decision).toBe("info");
+    expect(res.body.currentStep.decision).toBe("return");
   });
 
-  it("POST /api/workflows/approve — new 'escalate' decision maps to approved", async () => {
+  it("POST /api/workflows/approve — 'accept' decision maps to approved", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
         employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
-        type: "Gift", counterparty: "EscalateTest", value: 1000,
+        type: "Gift", counterparty: "AcceptTest", value: 1000,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
-        description: "Escalate test", relationship: "Test",
+        description: "Accept test", relationship: "Test",
         receivedGiven: "Received", from: "Supplier", contactPerson: "T",
         biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-05",
         instances: "1", publicOfficial: "No",
@@ -174,9 +174,9 @@ describe("Workflows", () => {
     const res = await request(app)
       .post("/api/workflows/approve")
       .set("Authorization", `Bearer ${getApproverToken()}`)
-      .send({ declarationId: id, decision: "escalate", notes: "Escalating to CEO" });
+      .send({ declarationId: id, decision: "accept", notes: "Accepted" });
     expect(res.status).toBe(200);
-    expect(res.body.currentStep.decision).toBe("escalate");
+    expect(res.body.currentStep.decision).toBe("accept");
     expect(res.body.currentStep.status).toBe("approved");
   });
 

@@ -25,16 +25,16 @@ export function TopBar({
         <div className="flex min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden rounded-full border border-[#6d28d9]/50 bg-gradient-to-r from-[#0f0225] via-[#2f0b63] to-[#4f1d95] px-3 py-2 shadow-[0_10px_24px_rgba(79,29,149,0.18)] transition-all hover:shadow-[0_14px_30px_rgba(79,29,149,0.25)] lg:px-8">
           <span className="hidden sm:block w-2.5 h-2.5 rounded-full bg-purple-600 animate-pulse shadow-[0_0_8px_rgba(147,51,234,0.6)] flex-shrink-0" />
           <div className="hidden min-w-0 flex-1 xl:flex xl:justify-center">
-            <span className="text-[11px] font-black uppercase tracking-wide text-transparent bg-gradient-to-r from-purple-200 via-violet-300 to-purple-500 bg-clip-text drop-shadow-sm whitespace-nowrap sm:text-xs lg:text-sm lg:tracking-widest">
+            <span className="text-[11px] font-black uppercase tracking-wide text-white whitespace-nowrap sm:text-xs lg:text-sm lg:tracking-widest">
               {headerText}
             </span>
           </div>
           <div className="header-carousel-mask flex min-w-0 flex-1 xl:hidden">
             <div className="header-carousel-track">
-              <span className="header-carousel-copy text-[11px] font-black uppercase tracking-wide text-transparent bg-gradient-to-r from-purple-200 via-violet-300 to-purple-500 bg-clip-text drop-shadow-sm sm:text-xs lg:text-sm lg:tracking-widest">
+              <span className="header-carousel-copy text-[11px] font-black uppercase tracking-wide text-white sm:text-xs lg:text-sm lg:tracking-widest">
                 {headerText}
               </span>
-              <span aria-hidden className="header-carousel-copy text-[11px] font-black uppercase tracking-wide text-transparent bg-gradient-to-r from-purple-200 via-violet-300 to-purple-500 bg-clip-text drop-shadow-sm sm:text-xs lg:text-sm lg:tracking-widest">
+              <span aria-hidden className="header-carousel-copy text-[11px] font-black uppercase tracking-wide text-white sm:text-xs lg:text-sm lg:tracking-widest">
                 {headerText}
               </span>
             </div>

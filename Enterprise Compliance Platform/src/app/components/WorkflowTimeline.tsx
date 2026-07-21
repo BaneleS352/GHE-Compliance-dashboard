@@ -3,19 +3,19 @@ import { fetchWorkflowInstance } from "../../services/api";
 import { ApprovalDecision } from "../../types/declaration";
 
 export const DECISION_LABELS: Record<string, string> = {
+  return: "Return",
   accept: "Accept",
-  reject: "Reject",
+  org: "Org Pool",
+  foundation: "Foundation",
   decline: "Decline",
-  info: "Return for More Info",
-  escalate: "Escalate",
 };
 
-export const DECISION_BUTTONS = [
-  { value: "accept", label: "Accept", icon: "\u2713", cls: "accept", color: "text-green-600", border: "border-green-200", hover: "hover:bg-green-50 hover:border-green-300" },
-  { value: "reject", label: "Reject", icon: "\u2715", cls: "reject", color: "text-red-500", border: "border-red-200", hover: "hover:bg-red-50 hover:border-red-300" },
-  { value: "decline", label: "Decline", icon: "\u2630", cls: "decline", color: "text-amber-500", border: "border-amber-200", hover: "hover:bg-amber-50 hover:border-amber-300" },
-  { value: "info", label: "Return for More Info", icon: "\u21BA", cls: "info", color: "text-blue-500", border: "border-blue-200", hover: "hover:bg-blue-50 hover:border-blue-300" },
-  { value: "escalate", label: "Escalate", icon: "\u29F8", cls: "escalate", color: "text-gray-500", border: "border-gray-200", hover: "hover:bg-gray-50 hover:border-gray-300" },
+export const APPROVAL_OPTIONS = [
+  { value: "return",     label: "Return - Team member to provide additional information." },
+  { value: "accept",     label: "Approved - Team Member to accept the actual GHE or offered GHE in their personal capacity." },
+  { value: "org",        label: "Approved - Team Member to share the actual GHE or offered GHE with the Organisation Pool." },
+  { value: "foundation", label: "Approved - Team Member to donate the actual GHE or offered GHE to the Hollywood Foundation." },
+  { value: "decline",    label: "Declined - Team Member to return the actual GHE or regret the offered GHE." },
 ];
 
 export interface StepView {
@@ -224,27 +224,37 @@ export function WorkflowTimeline({
                     <p className="text-xs font-semibold text-gray-500 mb-0.5">Status</p>
                     <p className="text-sm font-semibold text-purple-700 mb-3">Waiting for approval from {step.actor}</p>
 
-                    <p className="text-xs font-semibold text-gray-500 mb-0.5">Decision *</p>
-                    <select
-                      className="w-full rounded-[10px] border border-gray-200 bg-white px-3.5 py-2.5 text-sm appearance-none cursor-pointer mb-3 bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%236b7280%22%20stroke-width%3D%222%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
-                      value={decision ?? ""}
-                      onChange={(e) => onDecision(e.target.value as ApprovalDecision || null)}
-                    >
-                      <option value="">Please select a decision</option>
-                      {DECISION_BUTTONS.map((d) => (
-                        <option key={d.value} value={d.value}>{d.label}</option>
-                      ))}
-                    </select>
-
-                    <div className="flex flex-wrap gap-2">
-                      {DECISION_BUTTONS.map((d) => (
-                        <button
-                          key={d.value}
-                          onClick={() => onDecision(d.value as ApprovalDecision)}
-                          className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-[10px] border bg-white cursor-pointer transition-all duration-100 hover:-translate-y-[1px] hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] ${d.color} ${d.border} ${d.hover} ${decision === d.value ? "shadow-[0_0_0_2px_currentColor_inset]" : ""}`}
+                    <p className="text-xs font-semibold text-gray-500 mb-2">Decision *</p>
+                    <div className="space-y-1.5 mb-3">
+                      {APPROVAL_OPTIONS.map((opt) => (
+                        <label
+                          key={opt.value}
+                          className={`flex items-start gap-3 p-2.5 rounded-xl border-2 cursor-pointer transition-colors ${
+                            decision === opt.value
+                              ? "border-purple-600 bg-purple-50/50"
+                              : "border-transparent hover:border-gray-200 hover:bg-gray-50"
+                          }`}
                         >
-                          <span>{d.icon}</span> {d.label}
-                        </button>
+                          <div className="flex-shrink-0 mt-0.5">
+                            <div
+                              className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                decision === opt.value ? "border-purple-600" : "border-gray-300"
+                              }`}
+                            >
+                              {decision === opt.value && (
+                                <div className="w-2 h-2 rounded-full bg-purple-600" />
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-sm text-gray-700 leading-snug">{opt.label}</p>
+                          <input
+                            type="radio"
+                            name="wf-decision"
+                            checked={decision === opt.value}
+                            onChange={() => onDecision(opt.value as ApprovalDecision)}
+                            className="sr-only"
+                          />
+                        </label>
                       ))}
                     </div>
 

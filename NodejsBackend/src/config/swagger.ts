@@ -83,7 +83,7 @@ const options: swaggerJsdoc.Options = {
           required: ["declarationId", "decision"],
           properties: {
             declarationId: { type: "string" },
-            decision: { type: "string", enum: ["accept", "org", "foundation", "decline", "return", "reject", "info", "escalate"] },
+            decision: { type: "string", enum: ["return", "accept", "org", "foundation", "decline"] },
             notes: { type: "string" },
           },
         },

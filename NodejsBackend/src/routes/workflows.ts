@@ -8,8 +8,8 @@ const router = Router();
 type StepStatus = "pending" | "approved" | "declined" | "returned";
 
 function toStepStatus(decision: string): StepStatus {
-  if (decision === "decline" || decision === "reject") return "declined";
-  if (decision === "return" || decision === "info") return "returned";
+  if (decision === "decline") return "declined";
+  if (decision === "return") return "returned";
   return "approved";
 }
 
@@ -86,7 +86,7 @@ router.post("/approve", authenticate, async (req: AuthRequest, res: Response): P
   const dbOptions = await prisma.approvalOption.findMany({ select: { value: true } });
   const validDecisions = dbOptions.length > 0
     ? dbOptions.map((o) => o.value)
-    : ["return", "accept", "org", "foundation", "decline", "reject", "info", "escalate"];
+    : ["return", "accept", "org", "foundation", "decline"];
 
   if (!declarationId || !decision) {
     res.status(400).json({ error: "declarationId and decision are required" });
@@ -157,9 +157,9 @@ router.post("/approve", authenticate, async (req: AuthRequest, res: Response): P
   };
 
   let newStatus: string;
-  if (decision === "decline" || decision === "reject") {
+  if (decision === "decline") {
     newStatus = "Declined";
-  } else if (decision === "return" || decision === "info") {
+  } else if (decision === "return") {
     newStatus = "Info Requested";
   } else {
     const nextPending = freshSteps.find((s) => s.status === "pending");

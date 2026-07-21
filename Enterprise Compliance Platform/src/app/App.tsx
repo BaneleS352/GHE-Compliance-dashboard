@@ -96,7 +96,7 @@ function AppInner() {
           </div>
         )}
         {screen === "my-declarations"    && <MyDeclarationsScreen />}
-        {screen === "approver-dashboard" && <ApproverDashboard onNavigate={guardedNavigate} />}
+        {screen === "approver-dashboard" && <ApproverDashboard onNavigate={guardedNavigate} onReview={(d) => { setSelectedDecl(d); guardedNavigate("approval-detail"); }} />}
         {screen === "approval-queue"     && (
           <ApprovalQueue onReview={(d) => { setSelectedDecl(d); guardedNavigate("approval-detail"); }} />
         )}
