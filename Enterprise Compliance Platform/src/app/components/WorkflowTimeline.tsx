@@ -175,7 +175,10 @@ export function WorkflowTimeline({
   const [wf, setWf] = useState<any>(undefined);
 
   useEffect(() => {
-    if (declarationId) fetchWorkflowInstance(declarationId).then(setWf);
+    if (!declarationId) return;
+    fetchWorkflowInstance(declarationId)
+      .then(setWf)
+      .catch(() => setWf(null));
   }, [declarationId]);
 
   const steps = externalSteps || buildStepsFromWorkflow(wf, employee);

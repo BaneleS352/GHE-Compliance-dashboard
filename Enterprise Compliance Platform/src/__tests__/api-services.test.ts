@@ -234,10 +234,44 @@ describe("workflow rules CRUD", () => {
 });
 
 describe("workflow operations", () => {
-  it("fetchPendingWorkflows returns pending", async () => {
-    mockFetch(200, [{ declarationId: "GHE-1", step: { role: "lineManager" } }]);
+  it("fetchPendingWorkflows returns mapped pending declarations", async () => {
+    mockFetch(200, [{
+      declaration: {
+        id: "GHE-1",
+        employee: "A",
+        employeeId: "user-1",
+        teamMemberNumber: "TM-1",
+        lineManager: "Sipho",
+        position: "Manager",
+        department: "IT",
+        company: "HB",
+        team: "Ops",
+        type: "Gift",
+        counterparty: "B",
+        value: 100,
+        submitted: "2026-01-01",
+        approver: "Sipho",
+        status: "Pending",
+        priority: "Low",
+        description: "Test",
+        relationship: "Yes",
+        receivedGiven: "Received",
+        from: "Supplier",
+        contactPerson: "Jane",
+        biddingProcess: "No",
+        contractNegotiation: "No",
+        occasion: "Business Meeting",
+        date: "2026-01-01",
+        instances: "1",
+        publicOfficial: "No",
+        files: [],
+      },
+      step: { role: "lineManager", status: "pending" },
+    }]);
     const result = await fetchPendingWorkflows();
     expect(result).toHaveLength(1);
+    expect(result[0].declaration.Counterparty).toBe("B");
+    expect(result[0].declaration.contactPerson).toBe("Jane");
   });
 
   it("fetchWorkflowInstance returns instance", async () => {

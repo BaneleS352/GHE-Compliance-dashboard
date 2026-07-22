@@ -17,6 +17,7 @@ export function ApprovalDetail({
   const { user } = useUser();
   const [workflow, setWorkflow] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [declarationStatus, setDeclarationStatus] = useState(declaration.status);
 
   const [lmDecision, setLmDecision] = useState<ApprovalDecision>(null);
   const [hrDecision, setHrDecision] = useState<ApprovalDecision>(null);
@@ -24,8 +25,11 @@ export function ApprovalDetail({
   const [lmNotes, setLmNotes] = useState("");
   const [hrNotes, setHrNotes] = useState("");
   const [ceoNotes, setCeoNotes] = useState("");
-  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    setDeclarationStatus(declaration.status);
+  }, [declaration.status]);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -75,9 +79,10 @@ export function ApprovalDetail({
   const hasHr = !!hrStep;
   const hasCeo = !!ceoStep;
 
-  const isLmDecided = lmStep?.status !== "pending";
-  const isHrEnabled = hasHr && isLmDecided;
-  const isCeoEnabled = hasCeo && isLmDecided && (hasHr ? hrStep?.status !== "pending" : true);
+  const isLmApproved = lmStep?.status === "approved";
+  const isHrApproved = hrStep?.status === "approved";
+  const isHrEnabled = hasHr && isLmApproved;
+  const isCeoEnabled = hasCeo && isLmApproved && (hasHr ? isHrApproved : true);
 
   const decisionLabel = (d: string) => {
     const map: Record<string, string> = {
@@ -130,8 +135,13 @@ export function ApprovalDetail({
     };
   });
 
-  const hasPendingUserStep = workflow?.steps.some((s: any) => s.assignee === user?.id && s.status === "pending");
-  const currentUserStepRole = workflow?.steps.find((s: any) => s.assignee === user?.id)?.role;
+  const currentUserStep = workflow?.steps.find(
+    (s: any, index: number) =>
+      s.status === "pending" &&
+      workflow.steps.slice(0, index).every((prev: any) => prev.status === "approved")
+  );
+  const hasPendingUserStep = currentUserStep?.assignee === user?.id;
+  const currentUserStepRole = hasPendingUserStep ? currentUserStep?.role : undefined;
   const activeRole = allRoles.find((r) => r.enabled && r.roleKey === currentUserStepRole);
 
   const handleSubmit = async () => {
@@ -140,10 +150,6 @@ export function ApprovalDetail({
     const stepsToUpdate = [...workflow.steps];
     const decisionsByRole: Record<string, ApprovalDecision> = { lineManager: lmDecision, hr: hrDecision, ceo: ceoDecision };
     const notesByRole: Record<string, string> = { lineManager: lmNotes, hr: hrNotes, ceo: ceoNotes };
-    let allApproved = true;
-    let hasReturn = false;
-    let hasDecline = false;
-
     for (const step of stepsToUpdate) {
       const decision = decisionsByRole[step.role];
       const notes = notesByRole[step.role];
@@ -153,16 +159,13 @@ export function ApprovalDetail({
         step.decidedAt = new Date().toISOString();
         if (decision === "decline") {
           step.status = "declined";
-          hasDecline = true;
-          allApproved = false;
         } else if (decision === "return") {
           step.status = "returned";
-          hasReturn = true;
-          allApproved = false;
         } else {
           step.status = "approved";
         }
-        await approveWorkflowStep({ declarationId: declaration.id, decision, notes });
+        const response = await approveWorkflowStep({ declarationId: declaration.id, decision, notes });
+        setDeclarationStatus(response.newStatus ?? declaration.status);
       }
     }
 
@@ -183,7 +186,7 @@ export function ApprovalDetail({
           <ArrowLeft size={14} /> Back
         </button>
         <span className="font-mono font-bold">{declaration.id}</span>
-        <StatusBadge status={declaration.status} />
+        <StatusBadge status={declarationStatus} />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">

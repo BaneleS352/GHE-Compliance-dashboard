@@ -153,7 +153,11 @@ export async function deleteWorkflowRule(id: string): Promise<any> {
 
 // ── Workflows ─────────────────────────────────────────
 export async function fetchPendingWorkflows(): Promise<any[]> {
-  return api.get<any[]>("/api/workflows/pending");
+  const raw = await api.get<any[]>("/api/workflows/pending");
+  return raw.map((item) => ({
+    ...item,
+    declaration: mapDeclaration(item.declaration),
+  }));
 }
 
 export async function fetchWorkflowInstance(declarationId: string): Promise<any> {

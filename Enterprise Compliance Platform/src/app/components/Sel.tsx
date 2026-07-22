@@ -45,7 +45,7 @@ export const Sel: FC<SelProps> = ({
       onValueChange={onChange}
       disabled={disabled}
     >
-      <SelectTrigger className={`${inp} ${className}`}>
+      <SelectTrigger className={`${inp} data-[size=default]:h-11 data-[size=sm]:h-10 ${className}`}>
         <SelectValue placeholder={placeholderText} />
       </SelectTrigger>
 

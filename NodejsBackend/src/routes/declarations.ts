@@ -26,6 +26,16 @@ function sanitize(val: string): string {
   return xss(val, { whiteList: {}, stripIgnoreTag: true });
 }
 
+function safeParseWorkflowSteps(data: string | null | undefined): any[] {
+  if (!data) return [];
+  try {
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 function declarationResponse(d: any) {
   const parsed = safeJsonParse(d.files);
   return {
@@ -308,10 +318,31 @@ router.patch("/:id/submit", authenticate, async (req: AuthRequest, res: Response
     return;
   }
 
-  const workflowSteps = await createWorkflowSteps(existing.id, existing.employeeId, existing.value);
+  const existingInstance = await prisma.workflowInstance.findUnique({ where: { declarationId: existing.id } });
 
-  const firstApprover = workflowSteps[0];
-  const approverName = firstApprover ? firstApprover.assigneeName : existing.approver;
+  let workflowSteps = await createWorkflowSteps(existing.id, existing.employeeId, existing.value);
+
+  if (existing.status === "Info Requested" && existingInstance) {
+    const savedSteps = safeParseWorkflowSteps(existingInstance.steps);
+    const hasReturnedStep = savedSteps.some((step) => step.status === "returned");
+
+    if (hasReturnedStep) {
+      workflowSteps = savedSteps.map((step) =>
+        step.status === "returned"
+          ? {
+              ...step,
+              status: "pending",
+              decision: null,
+              notes: "",
+              decidedAt: null,
+            }
+          : step
+      );
+    }
+  }
+
+  const nextApprover = workflowSteps.find((step) => step.status === "pending");
+  const approverName = nextApprover ? nextApprover.assigneeName : existing.approver;
 
   const [updated] = await prisma.$transaction([
     prisma.declaration.update({

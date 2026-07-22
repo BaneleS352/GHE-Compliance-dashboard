@@ -147,6 +147,17 @@ describe("NewDeclarationScreen", () => {
     });
   });
 
+  it("keeps the shared select trigger height aligned with the date input", async () => {
+    render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
+
+    const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+    const selectTrigger = screen.getAllByRole("combobox")[0];
+
+    expect(dateInput.className).toContain("h-11");
+    expect(selectTrigger.className).toContain("data-[size=default]:h-11");
+  });
+
   it("shows upload error for unsupported file type", async () => {
     const { container } = render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={vi.fn()} />);
     await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());

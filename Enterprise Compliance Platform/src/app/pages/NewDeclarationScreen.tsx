@@ -616,9 +616,11 @@ export function NewDeclarationScreen({
                 maxLength={5000}
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
-              <div>
-                <FL error={errors.occasionOther}>Reason/Occasion for the gift</FL>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+              <div className="flex flex-col">
+                <div className="min-h-[3.5rem]">
+                  <FL error={errors.occasionOther}>Reason/Occasion for the gift</FL>
+                </div>
                 <Sel value={form.occasion} onChange={(v) => setF("occasion", v)}>
                   <option value="">Select reason…</option>
                   {occasionOptions.map((o) => <option key={o}>{o}</option>)}
@@ -633,8 +635,10 @@ export function NewDeclarationScreen({
                   />
                 )}
               </div>
-              <div>
-                <FL required error={errors.date}>Date of Gift</FL>
+              <div className="flex flex-col">
+                <div className="min-h-[3.5rem]">
+                  <FL required error={errors.date}>Date of Gift</FL>
+                </div>
                 <input
                   type="date"
                   className={`${inp} ${errors.date ? "border-red-400" : ""}`}

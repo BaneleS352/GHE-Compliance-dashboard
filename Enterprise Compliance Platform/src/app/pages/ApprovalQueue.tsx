@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { Download, Search, AlertTriangle } from "lucide-react";
-import { fetchDeclarations } from "../../services/api";
+import { fetchPendingWorkflows } from "../../services/api";
 import { Declaration } from "../../types/declaration";
 import { PURPLE, formatRand } from "../../config/theme";
-import { useUser } from "../auth/UserContext";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 import { THead } from "../components/THead";
@@ -21,7 +20,6 @@ function isOutstanding(dateStr: string): boolean {
 }
 
 export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void }) {
-  const { user } = useUser();
   const [allDeclarations, setAllDeclarations] = useState<Declaration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,17 +31,13 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const [overdueOnly, setOverdueOnly] = useState(false);
 
   useEffect(() => {
-    fetchDeclarations()
-      .then(setAllDeclarations)
+    fetchPendingWorkflows()
+      .then((items) => setAllDeclarations(items.map((item) => item.declaration)))
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
 
-  const queue = allDeclarations.filter(
-    (d) =>
-      ["Pending", "Escalated", "Info Requested"].includes(d.status) &&
-      (!user || d.approver === user.name)
-  );
+  const queue = allDeclarations;
   const departments = Array.from(new Set(queue.map((d) => d.department))).sort();
   const employees = Array.from(new Set(queue.map((d) => d.employee))).sort();
   const filteredQueue = queue.filter((d) => {
