@@ -82,10 +82,10 @@ export function ApprovalDetail({
   const decisionLabel = (d: string) => {
     const map: Record<string, string> = {
       accept: "Accept",
-      reject: "Reject",
+      return: "Return",
+      org: "Org Pool",
+      foundation: "Foundation",
       decline: "Decline",
-      info: "Return for More Info",
-      escalate: "Escalate",
     };
     return map[d] || d;
   };
@@ -151,16 +151,13 @@ export function ApprovalDetail({
         step.decision = decision;
         step.notes = notes;
         step.decidedAt = new Date().toISOString();
-        if (decision === "decline" || decision === "reject") {
+        if (decision === "decline") {
           step.status = "declined";
           hasDecline = true;
           allApproved = false;
-        } else if (decision === "info") {
+        } else if (decision === "return") {
           step.status = "returned";
           hasReturn = true;
-          allApproved = false;
-        } else if (decision === "escalate") {
-          step.status = "approved";
           allApproved = false;
         } else {
           step.status = "approved";

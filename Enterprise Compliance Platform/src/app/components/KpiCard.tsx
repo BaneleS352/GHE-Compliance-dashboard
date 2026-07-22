@@ -23,13 +23,13 @@ export function KpiCard({
         ${active ? "shadow-xl sm:scale-[1.03]" : "hover:shadow-md sm:hover:scale-[1.02]"}
       `}
       style={{
-        background: `linear-gradient(135deg, ${color}15, ${color}05)`,
+        background: `linear-gradient(135deg, ${color}35, ${color}18)`,
         borderColor: active ? color : "#eee",
       }}
     >
       <div
         className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
-        style={{ background: color + "20" }}
+        style={{ background: color + "40" }}
       >
         <Icon size={18} style={{ color }} />
       </div>

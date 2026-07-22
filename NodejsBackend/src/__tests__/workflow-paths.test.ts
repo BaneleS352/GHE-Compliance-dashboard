@@ -127,10 +127,9 @@ describe("Workflow decision paths", () => {
       const resHr = await request(app)
         .post("/api/workflows/approve")
         .set("Authorization", `Bearer ${getHrToken()}`)
-        .send({ declarationId: id, decision: "escalate" });
+        .send({ declarationId: id, decision: "org" });
       expect(resHr.status).toBe(200);
-      expect(resHr.body.newStatus).toBe("Approved");
-      expect(resHr.body.currentStep.decision).toBe("escalate");
+      expect(resHr.body.currentStep.decision).toBe("org");
     });
   });
 
@@ -168,7 +167,7 @@ describe("Workflow decision paths", () => {
       expect(inst.body.steps[1].status).toBe("declined");
     });
 
-    it("LM accepts → HR rejects → Declined", async () => {
+    it("LM accepts → HR declines → Declined (duplicate)", async () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -187,10 +186,10 @@ describe("Workflow decision paths", () => {
       const resHr = await request(app)
         .post("/api/workflows/approve")
         .set("Authorization", `Bearer ${getHrToken()}`)
-        .send({ declarationId: id, decision: "reject" });
+        .send({ declarationId: id, decision: "decline" });
       expect(resHr.status).toBe(200);
       expect(resHr.body.newStatus).toBe("Declined");
-      expect(resHr.body.currentStep.decision).toBe("reject");
+      expect(resHr.body.currentStep.decision).toBe("decline");
     });
 
     it("LM accepts → HR returns → Info Requested", async () => {
@@ -216,31 +215,6 @@ describe("Workflow decision paths", () => {
       expect(resHr.status).toBe(200);
       expect(resHr.body.newStatus).toBe("Info Requested");
       expect(resHr.body.currentStep.decision).toBe("return");
-    });
-
-    it("LM accepts → HR requests info → Info Requested", async () => {
-      const create = await request(app)
-        .post("/api/declarations")
-        .set("Authorization", `Bearer ${getTeamToken()}`)
-        .send(declBody({ counterparty: "PathAccInfMed", value: 500, priority: "Medium" }));
-      const id = create.body.id;
-
-      await request(app)
-        .patch(`/api/declarations/${id}/submit`)
-        .set("Authorization", `Bearer ${getTeamToken()}`);
-
-      await request(app)
-        .post("/api/workflows/approve")
-        .set("Authorization", `Bearer ${getApproverToken()}`)
-        .send({ declarationId: id, decision: "accept" });
-
-      const resHr = await request(app)
-        .post("/api/workflows/approve")
-        .set("Authorization", `Bearer ${getHrToken()}`)
-        .send({ declarationId: id, decision: "info" });
-      expect(resHr.status).toBe(200);
-      expect(resHr.body.newStatus).toBe("Info Requested");
-      expect(resHr.body.currentStep.decision).toBe("info");
     });
   });
 
@@ -293,7 +267,7 @@ describe("Workflow decision paths", () => {
       expect(inst.body.steps[2].status).toBe("approved");
     });
 
-    it("LM 'accept' → HR 'escalate' → CEO 'foundation' → fully approved", async () => {
+    it("LM 'accept' → HR 'org' → CEO 'foundation' → fully approved", async () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -312,7 +286,7 @@ describe("Workflow decision paths", () => {
       await request(app)
         .post("/api/workflows/approve")
         .set("Authorization", `Bearer ${getHrToken()}`)
-        .send({ declarationId: id, decision: "escalate" });
+        .send({ declarationId: id, decision: "org" });
 
       const resCeo = await request(app)
         .post("/api/workflows/approve")
@@ -361,7 +335,7 @@ describe("Workflow decision paths", () => {
       expect(inst.body.steps[2].status).toBe("declined");
     });
 
-    it("LM accepts → HR rejects → Declined (terminal at HR)", async () => {
+    it("LM accepts → HR declines → Declined (terminal at HR)", async () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -380,7 +354,7 @@ describe("Workflow decision paths", () => {
       const resHr = await request(app)
         .post("/api/workflows/approve")
         .set("Authorization", `Bearer ${getHrToken()}`)
-        .send({ declarationId: id, decision: "reject" });
+        .send({ declarationId: id, decision: "decline" });
       expect(resHr.status).toBe(200);
       expect(resHr.body.newStatus).toBe("Declined");
 

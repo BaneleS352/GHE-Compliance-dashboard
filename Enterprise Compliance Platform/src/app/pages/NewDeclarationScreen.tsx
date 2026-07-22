@@ -55,13 +55,14 @@ export function NewDeclarationScreen({
 
   const formatRandValue = (value: string, fixedDecimals = false) => {
     if (!value) return "";
+    const hasTrailingDot = value.endsWith(".");
     const [integerPartRaw, decimalPartRaw = ""] = value.split(".");
     const integerPart = (integerPartRaw || "0").replace(/^0+(?=\d)/, "") || "0";
     const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
     if (fixedDecimals) {
       return `${groupedInteger}.${(decimalPartRaw + "00").slice(0, 2)}`;
     }
-    return decimalPartRaw ? `${groupedInteger}.${decimalPartRaw.slice(0, 2)}` : groupedInteger;
+    return `${groupedInteger}${hasTrailingDot ? "." : decimalPartRaw ? `.${decimalPartRaw.slice(0, 2)}` : ""}`;
   };
 
   const parseRandInput = (raw: string) => {
@@ -75,7 +76,7 @@ export function NewDeclarationScreen({
     const integerPart = cleaned.slice(0, separatorIndex).replace(/[^\d]/g, "");
     const decimalPart = cleaned.slice(separatorIndex + 1).replace(/[^\d]/g, "").slice(0, 2);
     const normalizedInteger = integerPart.replace(/^0+(?=\d)/, "") || "0";
-    return decimalPart ? `${normalizedInteger}.${decimalPart}` : normalizedInteger;
+    return `${normalizedInteger}.${decimalPart}`;
   };
 
   const [receivedGiven, setReceivedGiven] = useState("Received");
@@ -115,8 +116,11 @@ export function NewDeclarationScreen({
     description: "",
   });
 
+  const CAPITALIZE_FIELDS = new Set(["employeeName", "employeeCode", "lineManager", "company", "department", "position", "Counterparty", "contactPerson", "description", "substantiation"]);
+
   const setF = (k: string, v: string) => {
-    setFormState((f) => ({ ...f, [k]: v }));
+    const val = CAPITALIZE_FIELDS.has(k) ? v.charAt(0).toUpperCase() + v.slice(1) : v;
+    setFormState((f) => ({ ...f, [k]: val }));
     setErrors((e) => ({ ...e, [k]: "" }));
     setSubmitError("");
   };
@@ -475,27 +479,27 @@ export function NewDeclarationScreen({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-5">
             <div>
               <FL required error={errors.employeeName}>Team Member Name</FL>
-              <ErrInp field="employeeName" value={form.employeeName} onChange={(e) => setF("employeeName", e.target.value)} />
+              <ErrInp field="employeeName" value={form.employeeName} onChange={(e) => setF("employeeName", e.target.value)} maxLength={100} />
             </div>
             <div>
               <FL error={errors.employeeCode}>Team Member Code</FL>
-              <ErrInp field="employeeCode" value={form.employeeCode} onChange={(e) => setF("employeeCode", e.target.value)} placeholder="e.g. HB-204478" />
+              <ErrInp field="employeeCode" value={form.employeeCode} onChange={(e) => setF("employeeCode", e.target.value)} placeholder="e.g. HB-204478" maxLength={50} />
             </div>
             <div>
               <FL required error={errors.lineManager}>Manager Name</FL>
-              <ErrInp field="lineManager" value={form.lineManager} onChange={(e) => setF("lineManager", e.target.value)} />
+              <ErrInp field="lineManager" value={form.lineManager} onChange={(e) => setF("lineManager", e.target.value)} maxLength={100} />
             </div>
             <div>
               <FL required error={errors.company}>Company</FL>
-              <ErrInp field="company" value={form.company} onChange={(e) => setF("company", e.target.value)} />
+              <ErrInp field="company" value={form.company} onChange={(e) => setF("company", e.target.value)} maxLength={100} />
             </div>
             <div>
               <FL required error={errors.department}>Department</FL>
-              <ErrInp field="department" value={form.department} onChange={(e) => setF("department", e.target.value)} />
+              <ErrInp field="department" value={form.department} onChange={(e) => setF("department", e.target.value)} maxLength={100} />
             </div>
             <div>
               <FL required error={errors.position}>Role / Position</FL>
-              <ErrInp field="position" value={form.position} onChange={(e) => setF("position", e.target.value)} />
+              <ErrInp field="position" value={form.position} onChange={(e) => setF("position", e.target.value)} maxLength={100} />
             </div>
           </div>
         </FS>
@@ -537,6 +541,7 @@ export function NewDeclarationScreen({
                 value={form.Counterparty}
                 onChange={(e) => setF("Counterparty", e.target.value)}
                 placeholder="Full legal name"
+                maxLength={200}
               />
             </div>
             <div>
@@ -548,6 +553,7 @@ export function NewDeclarationScreen({
                 value={form.contactPerson}
                 onChange={(e) => setF("contactPerson", e.target.value)}
                 placeholder="e.g. Ahmed Al-Rashid"
+                maxLength={200}
               />
             </div>
             <div className="space-y-5">
@@ -607,9 +613,10 @@ export function NewDeclarationScreen({
                 value={form.description}
                 onChange={(e) => setF("description", e.target.value)}
                 placeholder="e.g. Corporate dinner at Sandton Sun for 4 guests including wine and dessert. Estimated value R 4,200."
+                maxLength={5000}
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
               <div>
                 <FL error={errors.occasionOther}>Reason/Occasion for the gift</FL>
                 <Sel value={form.occasion} onChange={(v) => setF("occasion", v)}>
@@ -622,16 +629,18 @@ export function NewDeclarationScreen({
                     value={form.occasionOther}
                     onChange={(e) => setF("occasionOther", e.target.value)}
                     placeholder="Please specify the reason"
+                    maxLength={200}
                   />
                 )}
               </div>
-              <div className="self-start">
+              <div>
                 <FL required error={errors.date}>Date of Gift</FL>
                 <input
                   type="date"
                   className={`${inp} ${errors.date ? "border-red-400" : ""}`}
                   value={form.date}
                   onChange={(e) => setF("date", e.target.value)}
+                  max={new Date().toISOString().split("T")[0]}
                 />
               </div>
             </div>
@@ -677,6 +686,7 @@ export function NewDeclarationScreen({
                 value={form.substantiation}
                 onChange={(e) => setF("substantiation", e.target.value)}
                 placeholder="Substantiation for value exceeding R2,000.00 (if applicable)…"
+                maxLength={2000}
               />
             </div>
             )}
