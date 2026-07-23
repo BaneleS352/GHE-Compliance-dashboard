@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { fetchWorkflowInstance } from "../../services/api";
 import { ApprovalDecision } from "../../types/declaration";
 
 export const DECISION_LABELS: Record<string, string> = {
-  return: "Return",
-  accept: "Accept",
-  org: "Org Pool",
-  foundation: "Foundation",
-  decline: "Decline",
+  return: "Returned - Team member to provide additional information.",
+  accept: "Approved - Team Member to accept the actual GHE or offered GHE in their personal capacity.",
+  org: "Approved - Team Member to share the actual GHE or offered GHE with the Organisation Pool.",
+  foundation: "Approved - Team Member to donate the actual GHE or offered GHE to the Hollywood Foundation.",
+  decline: "Declined - Team Member to return the actual GHE or regret the offered GHE.",
 };
 
 export const APPROVAL_OPTIONS = [
@@ -84,14 +84,14 @@ function Dot({ state }: { state: "completed" | "active" | "pending" | "skipped" 
         "bg-gray-400 text-white"
       }`}
     >
-      {state === "skipped" ? "—" : ""}
+      {state === "skipped" ? "â€”" : ""}
     </div>
   );
 }
 
 function Badge({ state }: { state: "completed" | "active" | "pending" | "skipped" }) {
   if (state === "completed") {
-    return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-600 inline-flex items-center gap-1 whitespace-nowrap">✓ Completed</span>;
+    return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-600 inline-flex items-center gap-1 whitespace-nowrap">âœ“ Completed</span>;
   }
   if (state === "active") {
     return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 inline-flex items-center gap-1 whitespace-nowrap">In Progress</span>;
@@ -118,7 +118,7 @@ function CompletedDetails({ step }: { step: StepView }) {
     <>
       <div className="wf-detail-row flex justify-between py-1 text-sm">
         <span className="text-gray-500">Decision</span>
-        <span className="font-semibold text-green-600">{step.decision?.label || "-"}</span>
+        <span className={`font-semibold ${step.decision?.label?.startsWith("Declined") ? "text-red-600" : step.decision?.label?.startsWith("Returned") ? "text-sky-600" : "text-green-600"}`}>{step.decision?.label || "-"}</span>
       </div>
       <div className="wf-detail-row flex justify-between py-1 text-sm">
         <span className="text-gray-500">Date</span>
@@ -235,7 +235,7 @@ export function WorkflowTimeline({
                       {APPROVAL_OPTIONS.map((opt) => (
                         <label
                           key={opt.value}
-                          className={`flex items-start gap-3 p-2.5 rounded-xl border-2 cursor-pointer transition-colors ${
+                          className={`flex min-h-[64px] items-start gap-3 rounded-xl border-2 p-2.5 transition-colors ${
                             decision === opt.value
                               ? "border-purple-600 bg-purple-50/50"
                               : "border-transparent hover:border-gray-200 hover:bg-gray-50"
@@ -311,5 +311,8 @@ export function WorkflowTimeline({
     </div>
   );
 }
+
+
+
 
 

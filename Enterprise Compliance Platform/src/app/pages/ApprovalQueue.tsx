@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Download, Search, AlertTriangle } from "lucide-react";
 import { fetchPendingWorkflows } from "../../services/api";
 import { Declaration } from "../../types/declaration";
@@ -106,7 +106,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-sm text-muted-foreground animate-pulse">Loading queue…</div>
+        <div className="text-sm text-muted-foreground animate-pulse">Loading queueâ€¦</div>
       </div>
     );
   }
@@ -125,14 +125,20 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         title="Approval Queue"
         subtitle={`${filteredQueue.length} declarations awaiting your review`}
         actions={
-          <>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => { setSearch(""); setDepartment("All"); setStatus("All"); setPriority("All"); setEmployeeFilter("All"); setOverdueOnly(false); }}
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto"
+            >
+              Clear Filters
+            </button>
             <button
               onClick={exportQueue}
               className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto"
             >
-              <Download size={13} /> Export
+              <Download size={13} /> Export Excel
             </button>
-          </>
+          </div>
         }
       />
 
@@ -216,7 +222,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             className={`flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
               overdueOnly
                 ? "border-red-400 bg-red-500 text-white shadow-sm"
-                : "border-border bg-white/60 text-muted-foreground/60 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                : "border-red-200 bg-red-50 text-red-600 hover:border-red-300 hover:bg-red-100 hover:text-red-700"
             }`}
           >
             <AlertTriangle size={12} />
@@ -282,7 +288,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             }}
             className="cursor-pointer px-5 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider transition-all duration-200 hover:bg-purple-50/45 hover:text-purple-700"
           >
-            {label}{sortKey === label ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+            {label}{sortKey === label ? (sortDir === "asc" ? " â–²" : " â–¼") : ""}
           </th>
         ))}
         <th className="px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Actions</th>
@@ -345,5 +351,9 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
     </div>
   );
 }
+
+
+
+
 
 

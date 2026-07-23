@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { ArrowLeft, Download, FileText, Clock, Check, X, Coins, Eye, Undo } from "lucide-react";
 import { Declaration } from "../../types/declaration";
 import { fetchDeclarations } from "../../services/api";
@@ -62,7 +62,7 @@ export function MyDeclarationsScreen() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-sm text-muted-foreground animate-pulse">Loading declarations…</div>
+        <div className="text-sm text-muted-foreground animate-pulse">Loading declarationsâ€¦</div>
       </div>
     );
   }
@@ -211,6 +211,9 @@ export function MyDeclarationsScreen() {
                 </button>
               </div>
             )}
+            <button onClick={() => { setSearch(""); setTypeFilter("All"); setStatusFilter("All"); setApproverFilter("All"); setDateFilterStart(""); setDateFilterEnd(""); setEmployeeFilter("All"); setActiveKpi("All"); }} className="flex h-10 items-center justify-center gap-2 rounded-xl border bg-white px-4 text-sm font-semibold hover:bg-muted sm:w-auto">
+              Clear Filters
+            </button>
             <button onClick={exportExcel} className="flex h-10 items-center justify-center gap-2 rounded-xl border bg-white px-4 text-sm font-semibold hover:bg-muted sm:w-auto">
               <Download size={13} /> Export Excel
             </button>
@@ -264,11 +267,11 @@ export function MyDeclarationsScreen() {
         )}
         <div>
           <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Date From</label>
-          <input type="date" onChange={(e) => setDateFilterStart(e.target.value)} className="table-filter-input" />
+          <input type="date" value={dateFilterStart} onChange={(e) => setDateFilterStart(e.target.value)} className="table-filter-input" />
         </div>
         <div>
           <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Date To</label>
-          <input type="date" onChange={(e) => setDateFilterEnd(e.target.value)} className="table-filter-input" />
+          <input type="date" value={dateFilterEnd} onChange={(e) => setDateFilterEnd(e.target.value)} className="table-filter-input" />
         </div>
       </Card>
 
@@ -335,7 +338,7 @@ export function MyDeclarationsScreen() {
                   }}
                   className="cursor-pointer px-5 py-3 text-left text-xs font-bold transition-all duration-200 hover:bg-purple-50/45 hover:text-purple-700"
                 >
-                  {key === "counterparty" ? "COUNTERPARTY" : key === "approver" ? "FINAL APPROVER" : key.toUpperCase()}{sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                  {key === "counterparty" ? "COUNTERPARTY" : key === "approver" ? "FINAL APPROVER" : key.toUpperCase()}{sortKey === key ? (sortDir === "asc" ? " â–²" : " â–¼") : ""}
                 </th>
               ))}
               <th className="px-5 py-3 text-xs font-bold transition-all duration-200 hover:bg-purple-50/45">ACTIONS</th>
@@ -402,6 +405,9 @@ export function MyDeclarationsScreen() {
     </div>
   );
 }
+
+
+
 
 
 
