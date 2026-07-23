@@ -48,7 +48,7 @@ export function NewDeclarationScreen({
   }, [user]);
 
   useEffect(() => {
-    if (lineManagerName) {
+    if (lineManagerName && !form.lineManager) {
       setF("lineManager", lineManagerName);
     }
   }, [lineManagerName]);
@@ -193,6 +193,7 @@ export function NewDeclarationScreen({
         continue;
       }
       setUploadError(null);
+      pendingFilesRef.current = [...pendingFilesRef.current, file];
       const reader = new FileReader();
       reader.onload = () => {
         setFiles((f) => [
@@ -406,7 +407,7 @@ export function NewDeclarationScreen({
         </div>
       )}
 
-      <aside className="hidden w-48 flex-shrink-0 flex-col gap-3 self-start lg:sticky lg:top-4 lg:flex lg:min-h-[calc(100vh-2rem)]">
+      <aside className="hidden w-48 flex-shrink-0 flex-col gap-3 self-stretch lg:sticky lg:top-4 lg:flex lg:min-h-[calc(100vh-2rem)]">
         <Card className="p-3.5">
           <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2.5 px-1">
             Sections
@@ -531,7 +532,7 @@ export function NewDeclarationScreen({
                     onChange={(v) => setF("partyType", v)}
                     className={errors.partyType ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600" : ""}
                   >
-                    <option value="">Selectâ€¦</option>
+                    <option value="">Select…</option>
                     {partyOptions.map((o) => <option key={o}>{o}</option>)}
                   </Sel>
                 </div>
@@ -565,21 +566,21 @@ export function NewDeclarationScreen({
               <div>
                 <FL required error={errors.contractNegotiation}>Are we currently negotiating a contract with the Supplier or Customer?</FL>
                 <Sel value={form.contractNegotiation} onChange={(v) => setF("contractNegotiation", v)} className={errors.contractNegotiation ? "border-red-400" : ""}>
-                  <option value="">Selectâ€¦</option>
+                  <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
               </div>
               <div>
                 <FL required error={errors.biddingProcess}>Is the Supplier or Potential Supplier involved in a bidding process with us?</FL>
                 <Sel value={form.biddingProcess} onChange={(v) => setF("biddingProcess", v)} className={errors.biddingProcess ? "border-red-400" : ""}>
-                  <option value="">Selectâ€¦</option>
+                  <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
               </div>
               <div>
                 <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the Supplier or Customer?</FL>
                 <Sel value={form.existingRelationship} onChange={(v) => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
-                  <option value="">Selectâ€¦</option>
+                  <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
               </div>
@@ -596,7 +597,7 @@ export function NewDeclarationScreen({
                 onChange={(v) => { setCategory(v); setErrors((e) => ({ ...e, category: "" })); }}
                 className={errors.category ? "border-red-400" : ""}
               >
-                <option value="">Select categoryâ€¦</option>
+                <option value="">Select category…</option>
                 <option>Gift</option>
                 <option>Hospitality</option>
                 <option>Entertainment</option>
@@ -626,7 +627,7 @@ export function NewDeclarationScreen({
               <div className="flex flex-col">
                   <FL error={errors.occasionOther}>Reason/Occasion for the gift</FL>
                 <Sel value={form.occasion} onChange={(v) => setF("occasion", v)}>
-                  <option value="">Select reasonâ€¦</option>
+                  <option value="">Select reason…</option>
                   {occasionOptions.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
                 {requiresOccasionOther && (
@@ -655,7 +656,7 @@ export function NewDeclarationScreen({
                 Number of instances a gift has been given/received between you and this party in the past 12 months
               </FL>
               <Sel value={form.instances} onChange={(v) => setF("instances", v)} className={errors.instances ? "border-red-400" : ""}>
-                <option value="">Selectâ€¦</option>
+                <option value="">Select…</option>
                 {["0","1","2","3","4","5","6","7","8","9",">10"].map((n) => <option key={n}>{n}</option>)}
               </Sel>
             </div>
@@ -691,7 +692,7 @@ export function NewDeclarationScreen({
                 }`}
                 value={form.substantiation}
                 onChange={(e) => setF("substantiation", e.target.value)}
-                placeholder="Substantiation for value exceeding R2,000.00 (if applicable)â€¦"
+                placeholder="Substantiation for value exceeding R2,000.00 (if applicable)…"
                 maxLength={2000}
               />
               <p className="mt-1 text-right text-xs text-amber-700/80">{form.substantiation.length}/2000</p>
@@ -724,7 +725,7 @@ export function NewDeclarationScreen({
               <Upload size={24} style={{ color: PURPLE }} />
             </div>
             <p className="text-sm font-semibold text-foreground mb-1.5">Drag & drop files here, or click to browse</p>
-            <p className="text-xs text-muted-foreground">PDF (preferred), PNG, JPG, DOCX â€” max 20 MB each</p>
+            <p className="text-xs text-muted-foreground">PDF (preferred), PNG, JPG, DOCX — max 20 MB each</p>
           </div>
           {files.length > 0 && (
             <div className="mt-4 space-y-2">

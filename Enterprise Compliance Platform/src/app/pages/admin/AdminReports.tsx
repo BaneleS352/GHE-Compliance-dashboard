@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileText } from "lucide-react";
 import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { PURPLE, formatRand } from "../../../config/theme";
@@ -26,6 +27,7 @@ export function AdminReports() {
   const [highValueData, setHighValueData] = useState<any[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const params = useMemo(() => {
     const next: Record<string, string> = {};
@@ -88,53 +90,68 @@ export function AdminReports() {
     });
   };
 
-  const handleExportPdf = () => {
-    const pdf = new jsPDF("l", "mm", "a4");
-    pdf.setFontSize(16);
-    pdf.text(reportType, 14, 18);
-    pdf.setFontSize(10);
-    pdf.text(`Generated: ${new Date().toLocaleString("en-ZA")}`, 14, 26);
-
-    let y = 36;
-    const lines = reportType === "High-Value Gifts Report"
-      ? highValueData.map((row) => `${row.employee} | ${row.lineManager} | ${row.declarationCount} | ${formatRand(row.totalValue)} | Avg ${formatRand(row.averageValue)} | G ${row.totalGift} H ${row.totalHospitality} E ${row.totalEntertainment} | ${row.mostFrequentSupplier}`)
-      : counterpartyData.map((row) => `${row.counterparty} | ${row.count} declarations | ${formatRand(row.totalValue)} | Avg ${formatRand(row.avgValue)}`);
-
-    lines.forEach((line) => {
-      if (y > 190) {
-        pdf.addPage();
-        y = 20;
-      }
-      pdf.text(line.slice(0, 250), 14, y);
-      y += 7;
-    });
-
-    pdf.save(`${reportType.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  const handleExportPdf = async () => {
+    if (activeRows.length === 0) return;
+    const el = tableRef.current;
+    if (!el) return;
+    try {
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("l", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`${reportType.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch {
+      const pdf = new jsPDF("l", "mm", "a4");
+      pdf.setFontSize(16);
+      pdf.text(reportType, 14, 18);
+      pdf.setFontSize(10);
+      pdf.text(`Generated: ${new Date().toLocaleString("en-ZA")}`, 14, 26);
+      let y = 36;
+      const lines = reportType === "High-Value Gifts Report"
+        ? highValueData.map((row) => `${row.employee} | ${row.lineManager} | ${row.declarationCount} | ${formatRand(row.totalValue)} | Avg ${formatRand(row.averageValue)} | G ${row.totalGift} H ${row.totalHospitality} E ${row.totalEntertainment} | ${row.mostFrequentSupplier}`)
+        : counterpartyData.map((row) => `${row.counterparty} | ${row.count} declarations | ${formatRand(row.totalValue)} | Avg ${formatRand(row.avgValue)}`);
+      lines.forEach((line) => {
+        if (y > 190) { pdf.addPage(); y = 20; }
+        pdf.text(line.slice(0, 250), 14, y);
+        y += 7;
+      });
+      pdf.save(`${reportType.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    }
   };
 
   return (
     <div className="space-y-6">
       <PageHeader title="Operational Management Reports" subtitle="Generate and export focused operational reports." />
 
+      <div className="-mt-2 mb-2 flex items-center gap-4">
+        <div className="flex gap-1 rounded-xl bg-muted/60 p-1">
+          {REPORTS.map((report) => (
+            <button
+              key={report.title}
+              onClick={() => setReportType(report.title)}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                reportType === report.title
+                  ? "bg-white text-purple-900 shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {report.title}
+            </button>
+          ))}
+        </div>
+        <p className="text-sm text-muted-foreground">|</p>
+        <p className="text-sm text-muted-foreground">{REPORTS.find((report) => report.title === reportType)?.desc}</p>
+      </div>
+
       <Card className="p-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="flex flex-wrap gap-2">
-            {REPORTS.map((report) => (
-              <button
-                key={report.title}
-                onClick={() => setReportType(report.title)}
-                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-colors ${reportType === report.title ? "border-purple-200 bg-purple-50 text-purple-900" : "border-border bg-white text-muted-foreground hover:bg-muted"}`}
-              >
-                {report.title}
-              </button>
-            ))}
-          </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={handleExportExcel} className="flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"><Download size={14} /> Export Excel</button>
             <button onClick={handleExportPdf} className="flex h-10 items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-700 hover:bg-red-100"><Download size={14} /> Export PDF</button>
           </div>
         </div>
-        <p className="mt-3 text-sm text-muted-foreground">{REPORTS.find((report) => report.title === reportType)?.desc}</p>
       </Card>
 
       <Card className="p-5">
@@ -177,7 +194,7 @@ export function AdminReports() {
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
       {generatedAt && reportType === "High-Value Gifts Report" && (
-        <Card className="overflow-x-auto p-0">
+        <Card className="overflow-x-auto p-0"><div ref={tableRef}>
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <h3 className="text-sm font-bold text-foreground">High-Value Gifts Report</h3>
             <span className="text-xs text-muted-foreground">Generated {generatedAt}</span>
@@ -208,7 +225,7 @@ export function AdminReports() {
               ))}
             </tbody>
           </table>
-        </Card>
+        </div></Card>
       )}
 
       {generatedAt && reportType === "Counterparty Concentration Report" && (

@@ -106,7 +106,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-sm text-muted-foreground animate-pulse">Loading queueâ€¦</div>
+        <div className="text-sm text-muted-foreground animate-pulse">Loading queue…</div>
       </div>
     );
   }
@@ -221,7 +221,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             onClick={() => setOverdueOnly((v) => !v)}
             className={`flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
               overdueOnly
-                ? "border-red-400 bg-red-500 text-white shadow-sm"
+                ? "border-red-300 bg-red-100 text-red-700 shadow-sm"
                 : "border-red-200 bg-red-50 text-red-600 hover:border-red-300 hover:bg-red-100 hover:text-red-700"
             }`}
           >
@@ -288,7 +288,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             }}
             className="cursor-pointer px-5 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider transition-all duration-200 hover:bg-purple-50/45 hover:text-purple-700"
           >
-            {label}{sortKey === label ? (sortDir === "asc" ? " â–²" : " â–¼") : ""}
+            {label}{sortKey === label ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
           </th>
         ))}
         <th className="px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Actions</th>

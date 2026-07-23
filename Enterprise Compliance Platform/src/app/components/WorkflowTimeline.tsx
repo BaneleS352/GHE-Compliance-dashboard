@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+﻿﻿import { useState, useEffect } from "react";
 import { fetchWorkflowInstance } from "../../services/api";
 import { ApprovalDecision } from "../../types/declaration";
 
@@ -84,14 +84,23 @@ function Dot({ state }: { state: "completed" | "active" | "pending" | "skipped" 
         "bg-gray-400 text-white"
       }`}
     >
-      {state === "skipped" ? "â€”" : ""}
+      {state === "skipped" ? "—" : ""}
     </div>
   );
 }
 
-function Badge({ state }: { state: "completed" | "active" | "pending" | "skipped" }) {
+function getRailColor(step: StepView): string {
+  if (step.state !== "completed") return "bg-gray-200";
+  if (!step.decision?.label) return "bg-purple-300";
+  const lbl = step.decision.label;
+  if (lbl.startsWith("Declined")) return "bg-red-400";
+  if (lbl.startsWith("Returned")) return "bg-sky-400";
+  return "bg-green-500";
+}
+
+function Badge({ state, decision }: { state: "completed" | "active" | "pending" | "skipped"; decision?: { label: string } | null }) {
   if (state === "completed") {
-    return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-600 inline-flex items-center gap-1 whitespace-nowrap">âœ“ Completed</span>;
+    return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-600 inline-flex items-center gap-1 whitespace-nowrap">Completed</span>;
   }
   if (state === "active") {
     return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 inline-flex items-center gap-1 whitespace-nowrap">In Progress</span>;
@@ -102,15 +111,7 @@ function Badge({ state }: { state: "completed" | "active" | "pending" | "skipped
   if (state === "pending") {
     return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 inline-flex items-center gap-1 whitespace-nowrap">Pending</span>;
   }
-  return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 inline-flex items-center gap-1 whitespace-nowrap">Returned</span>;
-}
-
-function RailLine({ steps }: { steps: StepView[] }) {
-  const doneCount = steps.filter((s) => s.state !== "pending").length;
-  const pct = steps.length > 1 ? ((doneCount - 1) / (steps.length - 1)) * 100 : 0;
-  return (
-    <div className="absolute left-[13px] top-2 bottom-2 w-[2px] bg-gray-200" />
-  );
+  return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-400 inline-flex items-center gap-1 whitespace-nowrap">Unknown</span>;
 }
 
 function CompletedDetails({ step }: { step: StepView }) {
@@ -210,7 +211,7 @@ export function WorkflowTimeline({
           <div key={i} className="flex gap-4">
             <div className="flex flex-col items-center flex-shrink-0">
               <Dot state={step.state} />
-              {!isLast && <div className="w-[2px] flex-1 bg-purple-200 min-h-[24px] my-1" />}
+              {!isLast && <div className={`w-[2px] flex-1 ${getRailColor(step)} min-h-[24px] my-1`} />}
             </div>
 
               <div className={`flex-1 ${isLast ? "" : "pb-7"}`}>
@@ -219,7 +220,7 @@ export function WorkflowTimeline({
                   <p className="text-sm font-bold text-gray-900 m-0">{step.label}</p>
                   <p className="text-sm text-gray-500 m-0">{step.actor}</p>
                 </div>
-                <Badge state={step.state} />
+                <Badge state={step.state} decision={step.decision} />
               </div>
 
               <div className="bg-gray-50 border border-gray-200 rounded-[14px] p-4">

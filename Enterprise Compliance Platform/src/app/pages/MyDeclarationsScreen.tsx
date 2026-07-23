@@ -41,15 +41,17 @@ export function MyDeclarationsScreen() {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 10;
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
+  const [viewDeclStatus, setViewDeclStatus] = useState<string | null>(null);
 
   const {
-    wfSteps, wfMessage, canApprove,
+    wfSteps, wfMessage, canApprove, submitError,
     activeDecision, setActiveDecision,
     activeNotes, setActiveNotes,
     handleSubmit, submitDisabled,
   } = useWorkflowApproval({
     declarationId: viewDecl?.id ?? null,
     userId: user?.id ?? null,
+    onStatusUpdate: (s) => setViewDeclStatus(s),
   });
 
   useEffect(() => { setPage(0); }, [search, typeFilter, statusFilter, approverFilter, employeeFilter, dateFilterStart, dateFilterEnd, sortKey, sortDir]);
@@ -62,7 +64,7 @@ export function MyDeclarationsScreen() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-sm text-muted-foreground animate-pulse">Loading declarationsâ€¦</div>
+        <div className="text-sm text-muted-foreground animate-pulse">Loading declarations…</div>
       </div>
     );
   }
@@ -150,24 +152,32 @@ export function MyDeclarationsScreen() {
   };
 
   if (viewDecl) {
+    const displayStatus = viewDeclStatus || viewDecl.status;
     return (
       <div>
         <div className="flex flex-wrap items-center gap-2.5 mb-7 pb-5 border-b border-border">
           <button
             onClick={() => setViewDecl(null)}
-            className="h-9 px-3.5 border rounded-xl flex items-center gap-1.5 text-sm bg-card hover:bg-muted/50"
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold shadow-sm transition-colors hover:bg-muted/50"
           >
             <ArrowLeft size={14} /> Back
           </button>
-          <span className="font-mono font-bold">{viewDecl.id}</span>
-          <StatusBadge status={viewDecl.status} />
+          <span className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3.5 font-mono text-sm font-bold text-foreground shadow-sm">{viewDecl.id}</span>
+          <div className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-2.5 shadow-sm">
+            <StatusBadge status={displayStatus} />
+          </div>
         </div>
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
           <div className="xl:col-span-3 flex flex-col gap-5">
-            <DeclarationDetailView data={viewDecl} onBack={() => {}} hideBackButton hideDocuments hideTitle />
+            <DeclarationDetailView data={{ ...viewDecl, status: displayStatus }} onBack={() => {}} hideBackButton hideDocuments hideTitle />
             <SupportingDocuments data={viewDecl} />
           </div>
         <div className="xl:col-span-2 h-full space-y-5">
+          {submitError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {submitError}
+            </div>
+          )}
           {wfMessage && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
               {wfMessage}
@@ -324,24 +334,24 @@ export function MyDeclarationsScreen() {
 
       <Card className="hidden overflow-x-auto md:block">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-white">
-            <tr>
-              {["id", "type", "counterparty", "value", "submitted", "approver", "status"].map((key) => (
-                <th
-                  key={key}
-                  onClick={() => {
-                    if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
-                    else {
-                      setSortKey(key as keyof Declaration);
-                      setSortDir("asc");
-                    }
-                  }}
-                  className="cursor-pointer px-5 py-3 text-left text-xs font-bold transition-all duration-200 hover:bg-purple-50/45 hover:text-purple-700"
-                >
-                  {key === "counterparty" ? "COUNTERPARTY" : key === "approver" ? "FINAL APPROVER" : key.toUpperCase()}{sortKey === key ? (sortDir === "asc" ? " â–²" : " â–¼") : ""}
-                </th>
-              ))}
-              <th className="px-5 py-3 text-xs font-bold transition-all duration-200 hover:bg-purple-50/45">ACTIONS</th>
+          <thead>
+            <tr className="border-b border-border bg-[#F7F8FC]">
+              {["Declaration ID", "Type", "Counterparty", "Value", "Submitted", "Final Approver", "Status", "Actions"].map((label) => {
+                const key = label === "Declaration ID" ? "id" : label === "Type" ? "type" : label === "Counterparty" ? "counterparty" : label === "Value" ? "value" : label === "Submitted" ? "submitted" : label === "Final Approver" ? "approver" : label === "Status" ? "status" : null;
+                const isSortable = key !== null;
+                return (
+                  <th
+                    key={label}
+                    onClick={isSortable ? () => {
+                      if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
+                      else { setSortKey(key as keyof Declaration); setSortDir("asc"); }
+                    } : undefined}
+                    className={`px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground transition-all duration-200 ${isSortable ? "cursor-pointer hover:text-purple-700" : ""}`}
+                  >
+                    {label}{isSortable && sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>

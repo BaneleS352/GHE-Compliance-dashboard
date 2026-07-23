@@ -4,7 +4,11 @@ import { StepView } from "../components/WorkflowTimeline";
 import { fetchWorkflowInstance, approveWorkflowStep } from "../../services/api";
 
 const DECISION_LABEL: Record<string, string> = {
-  return: "Return", accept: "Accept", org: "Org Pool", foundation: "Foundation", decline: "Decline",
+  return: "Returned - Team member to provide additional information.",
+  accept: "Approved - Team Member to accept the actual GHE or offered GHE in their personal capacity.",
+  org: "Approved - Team Member to share the actual GHE or offered GHE with the Organisation Pool.",
+  foundation: "Approved - Team Member to donate the actual GHE or offered GHE to the Hollywood Foundation.",
+  decline: "Declined - Team Member to return the actual GHE or regret the offered GHE.",
 };
 
 interface UseWorkflowApprovalOptions {

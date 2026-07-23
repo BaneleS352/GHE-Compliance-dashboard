@@ -33,12 +33,17 @@ function AppInner() {
 
   useEffect(() => {
     if (!showSubmittedView) return;
-    const main = document.querySelector("main") as HTMLElement | null;
-    if (main) {
-      main.scrollTo({ top: 0, behavior: "auto" });
-    } else {
-      window.scrollTo({ top: 0, behavior: "auto" });
-    }
+    const scrollToTop = () => {
+      const main = document.querySelector("main") as HTMLElement | null;
+      if (main) {
+        main.scrollTo({ top: 0, behavior: "auto" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "auto" });
+      }
+    };
+    scrollToTop();
+    const id = setTimeout(scrollToTop, 100);
+    return () => clearTimeout(id);
   }, [showSubmittedView]);
 
   const getRoleForScreen = (s: Screen): Role =>
