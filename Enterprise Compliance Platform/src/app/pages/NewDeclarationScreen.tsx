@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+﻿import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   FileText, Upload, Download, Check, AlertCircle,
   Paperclip, Trash2, Send, X,
@@ -9,7 +9,7 @@ import { FS, FORM_SECTIONS } from "../components/FS";
 import { Card } from "../components/Card";
 import { PURPLE, F, inp } from "../../config/theme";
 import { Declaration, UploadedFile } from "../../types/declaration";
-import { createDeclaration, submitDeclaration } from "../../services/api";
+import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "../../services/api";
 import { useUser } from "../auth/UserContext";
 import { fetchConfig, fetchUserById, updateDeclaration } from "../../services/api";
 
@@ -26,12 +26,27 @@ const getPriority = (value: number, highThreshold: number, mediumThreshold: numb
   return "Low";
 };
 
+function ErrInp({ field, errors, ...props }: { field: string; errors: Record<string, string> } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      {...props}
+      className={`${inp} ${errors[field] ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`}
+    />
+  );
+}
+
+const OCCASION_OPTIONS = [
+  "Business Meeting", "Festive Season", "Milestone", "Other", "Relationship Maintenance", "Year End",
+];
+
 export function NewDeclarationScreen({
   onSubmitSuccess,
   onDraftSaved,
+  draft,
 }: {
   onSubmitSuccess: (data: Declaration) => void;
   onDraftSaved: () => void;
+  draft?: Declaration | null;
 }) {
   const { user } = useUser();
   const [config, setConfig] = useState({ highValueThreshold: 2000, mediumValueThreshold: 500, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
@@ -48,10 +63,43 @@ export function NewDeclarationScreen({
   }, [user]);
 
   useEffect(() => {
-    if (lineManagerName) {
+    if (lineManagerName && !form.lineManager) {
       setF("lineManager", lineManagerName);
     }
   }, [lineManagerName]);
+
+  useEffect(() => {
+    if (!draft) return;
+    const occasionInList = OCCASION_OPTIONS.includes(draft.occasion);
+    setFormState({
+      employeeName: draft.employee || "",
+      employeeCode: draft.teamMemberNumber || "",
+      lineManager: draft.lineManager || "",
+      company: draft.company || "",
+      department: draft.department || "",
+      team: draft.team || "",
+      position: draft.position || "",
+      partyType: draft.from || "",
+      Counterparty: draft.Counterparty || "",
+      contactPerson: draft.contactPerson || "",
+      existingRelationship: draft.relationship || "",
+      contractNegotiation: draft.contractNegotiation || "",
+      biddingProcess: draft.biddingProcess || "",
+      occasion: occasionInList ? draft.occasion : "Other",
+      occasionOther: occasionInList ? "" : draft.occasion || "",
+      date: draft.date || "",
+      value: String(draft.value || ""),
+      currency: "ZAR",
+      substantiation: draft.substantiation || "",
+      instances: draft.instances || "",
+      description: draft.description || "",
+    });
+    setReceivedGiven(draft.receivedGiven || "Received");
+    setCategory(draft.type || "");
+    setFiles(draft.files || []);
+    setErrors({});
+    setSubmitError("");
+  }, [draft]);
 
   const formatRandValue = (value: string, fixedDecimals = false) => {
     if (!value) return "";
@@ -91,6 +139,7 @@ export function NewDeclarationScreen({
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isValueFocused, setIsValueFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingFilesRef = useRef<File[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [form, setFormState] = useState({
@@ -117,7 +166,7 @@ export function NewDeclarationScreen({
     description: "",
   });
 
-  const CAPITALIZE_FIELDS = new Set(["employeeName", "employeeCode", "lineManager", "company", "department", "position", "Counterparty", "contactPerson", "description", "substantiation"]);
+  const CAPITALIZE_FIELDS = new Set(["Counterparty", "contactPerson"]);
 
   const setF = (k: string, v: string) => {
     const val = CAPITALIZE_FIELDS.has(k) ? v.charAt(0).toUpperCase() + v.slice(1) : v;
@@ -192,6 +241,7 @@ export function NewDeclarationScreen({
         continue;
       }
       setUploadError(null);
+      pendingFilesRef.current = [...pendingFilesRef.current, file];
       const reader = new FileReader();
       reader.onload = () => {
         setFiles((f) => [
@@ -257,13 +307,14 @@ export function NewDeclarationScreen({
   };
 
   const handleClear = () => {
-    setFormState({
-      employeeName: "", employeeCode: "", lineManager: "", company: "", department: "",
-      team: "", position: "", partyType: "", Counterparty: "", contactPerson: "",
+    setFormState((prev) => ({
+      employeeName: prev.employeeName, employeeCode: prev.employeeCode, lineManager: prev.lineManager,
+      company: prev.company, department: prev.department, team: prev.team, position: prev.position,
+      partyType: "", Counterparty: "", contactPerson: "",
       existingRelationship: "", contractNegotiation: "", biddingProcess: "", occasion: "",
       occasionOther: "", date: "", value: "", currency: "ZAR", substantiation: "", instances: "",
       description: "",
-    });
+    }));
     setCategory("");
     setReceivedGiven("Received");
     setFiles([]);
@@ -272,64 +323,15 @@ export function NewDeclarationScreen({
     setShowClearConfirm(false);
   };
 
-  const handleSaveDraft = async () => {
-    if (!user) return;
+  const buildDeclarationPayload = (): Declaration | null => {
+    if (!user) return null;
     const value = Number(form.value || 0);
     const requiresSubstantiation = Number.isFinite(value) && value > config.highValueThreshold;
     const requiresOccasionOther = form.occasion === "Other";
     const priority = getPriority(value, config.highValueThreshold, config.mediumValueThreshold);
-    const declaration: Declaration = {
-      id: `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
-      employee: form.employeeName,
-      employeeId: user.id,
-      teamMemberNumber: form.employeeCode,
-      lineManager: form.lineManager,
-      company: form.company,
-      department: form.department,
-      team: form.team,
-      position: form.position,
-      receivedGiven,
-      from: form.partyType,
-      Counterparty: form.Counterparty,
-      contactPerson: form.contactPerson,
-      relationship: form.existingRelationship,
-      contractNegotiation: form.contractNegotiation,
-      biddingProcess: form.biddingProcess,
-      type: category,
-      date: form.date,
-      submitted: new Date().toISOString().slice(0, 10),
-      value: Number.isFinite(value) ? value : 0,
-      occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
-      description: form.description,
-      instances: form.instances,
-      publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
-      substantiation: requiresSubstantiation ? form.substantiation : "",
-      status: "Draft",
-      priority,
-      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
-    };
-    try {
-      await createDeclaration(declaration);
-      onDraftSaved();
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save draft.");
-    }
-  };
 
-  // createWorkflow is handled by the backend on submission
-
-  const handleSubmit = async () => {
-    if (!validate()) return;
-    if (!user) return;
-    setSubmitting(true);
-    setSubmitError("");
-
-    const value = Number(form.value || 0);
-    const requiresSubstantiation = Number.isFinite(value) && value > config.highValueThreshold;
-    const requiresOccasionOther = form.occasion === "Other";
-    const priority = getPriority(value, config.highValueThreshold, config.mediumValueThreshold);
-    const declaration: Declaration = {
-      id: `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
+    return {
+      id: draft?.id || `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
       employee: form.employeeName,
       employeeId: user.id,
       teamMemberNumber: form.employeeCode,
@@ -357,13 +359,59 @@ export function NewDeclarationScreen({
       approver: "",
       status: "Draft",
       priority,
-      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
+      files,
     };
+  };
+
+  const syncUploadedFiles = async (declaration: Declaration): Promise<Declaration> => {
+    const committedFiles = files.filter((f) => !f.url.startsWith("data:"));
+    const newPendingFiles = pendingFilesRef.current;
+
+    const uploadedFiles = newPendingFiles.length > 0
+      ? await Promise.all(newPendingFiles.map((file) => uploadDeclarationFile(file, declaration.id)))
+      : [];
+
+    pendingFilesRef.current = [];
+    const allFiles = [...committedFiles, ...uploadedFiles];
+    setFiles(allFiles);
+    return updateDeclaration(declaration.id, { files: allFiles });
+  };
+
+  const handleSaveDraft = async () => {
+    const declaration = buildDeclarationPayload();
+    if (!declaration) return;
+    try {
+      if (draft) {
+        const saved = await updateDeclaration(draft.id, { ...declaration, files: [] });
+        await syncUploadedFiles(saved);
+      } else {
+        const saved = await createDeclaration({ ...declaration, files: [] });
+        await syncUploadedFiles(saved);
+      }
+      onDraftSaved();
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to save draft.");
+    }
+  };
+
+  // createWorkflow is handled by the backend on submission
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    const declaration = buildDeclarationPayload();
+    if (!declaration) return;
+    setSubmitting(true);
+    setSubmitError("");
 
     let saved: Declaration | undefined;
     try {
-      saved = await createDeclaration(declaration);
-      const submitted = await submitDeclaration(saved.id);
+      if (draft) {
+        saved = await updateDeclaration(draft.id, { ...declaration, files: [] });
+      } else {
+        saved = await createDeclaration({ ...declaration, files: [] });
+      }
+      const synced = await syncUploadedFiles(saved);
+      const submitted = await submitDeclaration(synced.id);
       onSubmitSuccess(submitted);
     } catch (err) {
       if (saved) await updateDeclaration(saved.id, { status: "Draft" });
@@ -380,23 +428,14 @@ export function NewDeclarationScreen({
     Hospitality: "Accommodation, travel, conferences, tickets or formal business functions.",
     Entertainment: "Meals, events, sporting or cultural activities or recreational activities.",
   };
-  const occasionOptions = [
-    "Business Meeting", "Festive Season", "Milestone", "Other", "Relationship Maintenance", "Year End",
-  ];
+
 
   const valueNum = Number(form.value || 0);
   const requiresSubstantiation = Number.isFinite(valueNum) && valueNum > config.highValueThreshold;
   const requiresOccasionOther = form.occasion === "Other";
 
-  const ErrInp = ({ field, ...props }: { field: string } & React.InputHTMLAttributes<HTMLInputElement>) => (
-    <input
-      {...props}
-      className={`${inp} ${errors[field] ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`}
-    />
-  );
-
   return (
-    <div className="flex items-start gap-3 max-w-none">
+    <div className="flex items-start gap-3 max-w-none lg:items-stretch">
       {uploadError && (
         <div className="fixed top-5 left-1/2 z-50 w-[min(92vw,460px)] -translate-x-1/2 rounded-2xl border border-amber-200 bg-white p-4 shadow-[0_18px_50px_rgba(79,29,149,0.18)]" style={F}>
           <div className="flex items-start gap-3">
@@ -418,7 +457,7 @@ export function NewDeclarationScreen({
         </div>
       )}
 
-      <aside className="w-48 flex-shrink-0 hidden lg:flex flex-col gap-3 sticky top-4 self-start">
+      <aside className="hidden w-48 flex-shrink-0 flex-col gap-3 self-start lg:sticky lg:top-4 lg:flex lg:min-h-[calc(100vh-2rem)]">
         <Card className="p-3.5">
           <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2.5 px-1">
             Sections
@@ -469,7 +508,7 @@ export function NewDeclarationScreen({
           ))}
         </div>
 
-        <div className="rounded-2xl border border-white/60 p-3.5 bg-white/70 backdrop-blur-xl shadow-[0_8px_30px_rgb(0,0,0,0.03)]">
+        <div className="mt-auto rounded-2xl border border-white/60 bg-white/70 p-3.5 shadow-[0_8px_30px_rgb(0,0,0,0.03)] backdrop-blur-xl">
           <p className="text-xs font-bold uppercase tracking-widest mb-2.5" style={{ color: PURPLE }}>
             Related Policies
           </p>
@@ -496,27 +535,27 @@ export function NewDeclarationScreen({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-5">
             <div>
               <FL required error={errors.employeeName}>Team Member Name</FL>
-              <ErrInp field="employeeName" value={form.employeeName} onChange={(e) => setF("employeeName", e.target.value)} maxLength={100} />
+              <ErrInp errors={errors} field="employeeName" value={form.employeeName} onChange={(e) => setF("employeeName", e.target.value)} maxLength={100} />
             </div>
             <div>
               <FL error={errors.employeeCode}>Team Member Code</FL>
-              <ErrInp field="employeeCode" value={form.employeeCode} onChange={(e) => setF("employeeCode", e.target.value)} placeholder="e.g. HB-204478" maxLength={50} />
+              <ErrInp errors={errors} field="employeeCode" value={form.employeeCode} onChange={(e) => setF("employeeCode", e.target.value)} placeholder="e.g. HB-204478" maxLength={50} />
             </div>
             <div>
               <FL required error={errors.lineManager}>Manager Name</FL>
-              <ErrInp field="lineManager" value={form.lineManager} onChange={(e) => setF("lineManager", e.target.value)} maxLength={100} />
+              <ErrInp errors={errors} field="lineManager" value={form.lineManager} onChange={(e) => setF("lineManager", e.target.value)} maxLength={100} />
             </div>
             <div>
               <FL required error={errors.company}>Company</FL>
-              <ErrInp field="company" value={form.company} onChange={(e) => setF("company", e.target.value)} maxLength={100} />
+              <ErrInp errors={errors} field="company" value={form.company} onChange={(e) => setF("company", e.target.value)} maxLength={100} />
             </div>
             <div>
               <FL required error={errors.department}>Department</FL>
-              <ErrInp field="department" value={form.department} onChange={(e) => setF("department", e.target.value)} maxLength={100} />
+              <ErrInp errors={errors} field="department" value={form.department} onChange={(e) => setF("department", e.target.value)} maxLength={100} />
             </div>
             <div>
               <FL required error={errors.position}>Role / Position</FL>
-              <ErrInp field="position" value={form.position} onChange={(e) => setF("position", e.target.value)} maxLength={100} />
+              <ErrInp errors={errors} field="position" value={form.position} onChange={(e) => setF("position", e.target.value)} maxLength={100} />
             </div>
           </div>
         </FS>
@@ -535,7 +574,7 @@ export function NewDeclarationScreen({
               </div>
               <div className="flex flex-col">
                 <FL required error={errors.partyType}>
-                  {receivedGiven === "Received" ? "Who did you receive it from?" : "Who did you give it to?"}
+                  {receivedGiven === "Received" ? "Who did you receive a Gift, Hospitality or Entertainment from?" : "Who did you give a Gift, Hospitality or Entertainment to?"}
                 </FL>
                 <div className="mt-auto">
                   <Sel
@@ -582,14 +621,14 @@ export function NewDeclarationScreen({
                 </Sel>
               </div>
               <div>
-                <FL required error={errors.biddingProcess}>Is the Supplier or potential Supplier involved in a bidding process with us?</FL>
+                <FL required error={errors.biddingProcess}>Is the Supplier or Potential Supplier involved in a bidding process with us?</FL>
                 <Sel value={form.biddingProcess} onChange={(v) => setF("biddingProcess", v)} className={errors.biddingProcess ? "border-red-400" : ""}>
                   <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
               </div>
               <div>
-                <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the Supplier/Customer?</FL>
+                <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the Supplier or Customer?</FL>
                 <Sel value={form.existingRelationship} onChange={(v) => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
                   <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
@@ -632,13 +671,14 @@ export function NewDeclarationScreen({
                 placeholder="e.g. Corporate dinner at Sandton Sun for 4 guests including wine and dessert. Estimated value R 4,200."
                 maxLength={5000}
               />
+              <p className="mt-1 text-right text-xs text-muted-foreground">{form.description.length}/5000</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
               <div className="flex flex-col">
                   <FL error={errors.occasionOther}>Reason/Occasion for the gift</FL>
                 <Sel value={form.occasion} onChange={(v) => setF("occasion", v)}>
                   <option value="">Select reason…</option>
-                  {occasionOptions.map((o) => <option key={o}>{o}</option>)}
+                  {OCCASION_OPTIONS.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
                 {requiresOccasionOther && (
                   <input
@@ -705,6 +745,7 @@ export function NewDeclarationScreen({
                 placeholder="Substantiation for value exceeding R2,000.00 (if applicable)…"
                 maxLength={2000}
               />
+              <p className="mt-1 text-right text-xs text-amber-700/80">{form.substantiation.length}/2000</p>
             </div>
             )}
           </div>
@@ -751,7 +792,7 @@ export function NewDeclarationScreen({
                     <Download size={13} />
                   </a>
                   <button
-                    onClick={(e) => { e.stopPropagation(); setFiles((fs) => fs.filter((_, j) => j !== i)); }}
+                    onClick={(e) => { e.stopPropagation(); pendingFilesRef.current = pendingFilesRef.current.filter((_, j) => j !== i); setFiles((fs) => fs.filter((_, j) => j !== i)); }}
                     className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500"
                   >
                     <Trash2 size={13} />
@@ -845,3 +886,13 @@ export function NewDeclarationScreen({
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+

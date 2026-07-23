@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Download, Search, AlertTriangle } from "lucide-react";
 import { fetchPendingWorkflows } from "../../services/api";
 import { Declaration } from "../../types/declaration";
-import { PURPLE, formatRand } from "../../config/theme";
+import { PURPLE, formatRand, PRIORITY_COLORS } from "../../config/theme";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 
 import { StatusBadge } from "../components/StatusBadge";
 import { TypeBadge } from "../components/TypeBadge";
+import { Table, Thead, Th, Tbody, Tr, Td, COL } from "../components/table";
 import { exportRowsToXls } from "../../utils/excel";
 
 function daysSince(dateStr: string): number {
@@ -77,11 +78,6 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         return 0;
       })
     : filteredQueue;
-  const priorityStyle: Record<string, string> = {
-    High: "bg-red-50 text-red-700",
-    Medium: "bg-amber-50 text-amber-700",
-    Low: "bg-emerald-50 text-emerald-700",
-  };
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
   const pagedQueue = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
@@ -125,14 +121,20 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         title="Approval Queue"
         subtitle={`${filteredQueue.length} declarations awaiting your review`}
         actions={
-          <>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => { setSearch(""); setDepartment("All"); setStatus("All"); setPriority("All"); setEmployeeFilter("All"); setOverdueOnly(false); }}
+              className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto"
+            >
+              Clear Filters
+            </button>
             <button
               onClick={exportQueue}
               className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border bg-white px-4 text-sm font-semibold transition-colors hover:bg-muted sm:w-auto"
             >
-              <Download size={13} /> Export
+              <Download size={13} /> Export Excel
             </button>
-          </>
+          </div>
         }
       />
 
@@ -215,20 +217,12 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             onClick={() => setOverdueOnly((v) => !v)}
             className={`flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
               overdueOnly
-                ? "border-red-400 bg-red-500 text-white shadow-sm"
-                : "border-border bg-white/60 text-muted-foreground/60 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                ? "border-red-300 bg-red-100 text-red-700 shadow-sm"
+                : "border-red-200 bg-red-50 text-red-600 hover:border-red-300 hover:bg-red-100 hover:text-red-700"
             }`}
           >
             <AlertTriangle size={12} />
             {overdueOnly ? "Overdue: On" : "Overdue only"}
-          </button>
-        </div>
-        <div className="flex items-end">
-          <button
-            onClick={() => { setSearch(""); setDepartment("All"); setStatus("All"); setPriority("All"); setEmployeeFilter("All"); setOverdueOnly(false); }}
-            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-          >
-            Clear Filters
           </button>
         </div>
       </Card>
@@ -260,7 +254,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
                 </div>
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Priority</p>
-                <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${priorityStyle[d.priority]}`}>{d.priority}</span>
+                <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${PRIORITY_COLORS[d.priority]?.bg || ""} ${PRIORITY_COLORS[d.priority]?.text || ""}`}>{d.priority}</span>
               </div>
             </div>
 
@@ -278,39 +272,39 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       </Card>
 
       <Card className="hidden overflow-x-auto md:block">
-        <table className="w-full text-sm">
-          <thead>
-      <tr className="border-b border-border bg-[#F7F8FC]">
-        {["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status"].map((label) => (
-          <th
-            key={label}
-            onClick={() => {
-              if (sortKey === label) setSortDir(sortDir === "asc" ? "desc" : "asc");
-              else { setSortKey(label); setSortDir("asc"); }
-            }}
-            className="cursor-pointer px-5 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider transition-all duration-200 hover:bg-purple-50/45 hover:text-purple-700"
-          >
-            {label}{sortKey === label ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-          </th>
-        ))}
-        <th className="px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Actions</th>
-      </tr>
-    </thead>
-          <tbody className="divide-y divide-border">
+        <Table>
+          <Thead>
+            {["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status"].map((label) => (
+              <Th
+                key={label}
+                sortable
+                active={sortKey === label}
+                direction={sortDir}
+                onClick={() => {
+                  if (sortKey === label) setSortDir(sortDir === "asc" ? "desc" : "asc");
+                  else { setSortKey(label); setSortDir("asc"); }
+                }}
+              >
+                {label}
+              </Th>
+            ))}
+            <Th>Actions</Th>
+          </Thead>
+          <Tbody>
             {pagedQueue.map((d) => (
-              <tr key={d.id} className="transition-colors hover:bg-muted/20">
-                <td className="whitespace-nowrap px-5 py-3"><span className="font-mono text-sm font-bold" style={{ color: PURPLE }}>{d.id}</span></td>
-                <td className="whitespace-nowrap px-5 py-3 font-medium text-foreground">{d.employee}</td>
-                <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">{d.department}</td>
-                <td className="px-5 py-3"><TypeBadge type={d.type} /></td>
-                <td className="whitespace-nowrap px-5 py-3 font-medium text-foreground">{d.Counterparty}</td>
-                <td className="whitespace-nowrap px-5 py-3 font-semibold tabular-nums">{formatRand(d.value)}</td>
-                <td className="whitespace-nowrap px-5 py-3 tabular-nums text-muted-foreground">{d.submitted}</td>
-                <td className="px-5 py-3">
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${priorityStyle[d.priority]}`}>{d.priority}</span>
-                </td>
-                <td className="px-5 py-3"><StatusBadge status={d.status} /></td>
-                <td className="px-5 py-3">
+              <Tr key={d.id}>
+                <Td><span className={COL.ID} style={{ color: PURPLE }}>{d.id}</span></Td>
+                <Td className={COL.EMPLOYEE}>{d.employee}</Td>
+                <Td className={COL.DEPARTMENT}>{d.department}</Td>
+                <Td><TypeBadge type={d.type} /></Td>
+                <Td className={COL.COUNTERPARTY}>{d.Counterparty}</Td>
+                <Td className={COL.VALUE}>{formatRand(d.value)}</Td>
+                <Td className={COL.SUBMITTED}>{d.submitted}</Td>
+                <Td>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${PRIORITY_COLORS[d.priority]?.bg || ""} ${PRIORITY_COLORS[d.priority]?.text || ""}`}>{d.priority}</span>
+                </Td>
+                <Td><StatusBadge status={d.status} /></Td>
+                <Td>
                   <button
                     onClick={() => onReview(d)}
                     className="h-8 rounded-lg px-3 text-xs font-semibold text-white hover:opacity-90"
@@ -318,11 +312,11 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
                   >
                     Review
                   </button>
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             ))}
-          </tbody>
-        </table>
+          </Tbody>
+        </Table>
         <div className="flex items-center justify-between border-t border-border bg-[#F7F8FC] px-5 py-3">
           <p className="text-xs text-muted-foreground">
             Showing <span className="font-semibold text-foreground">{filteredQueue.length}</span> declarations
@@ -353,3 +347,9 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
     </div>
   );
 }
+
+
+
+
+
+

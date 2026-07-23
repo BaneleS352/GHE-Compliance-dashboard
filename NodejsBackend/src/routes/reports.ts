@@ -24,64 +24,6 @@ function buildWhere(req: AuthRequest): Prisma.DeclarationWhereInput {
   return where;
 }
 
-// GET /api/reports/status-breakdown
-router.get("/status-breakdown", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
-  const where = buildWhere(req);
-  const declarations = await prisma.declaration.findMany({ where, select: { status: true } });
-
-  const counts: Record<string, number> = {};
-  for (const d of declarations) {
-    counts[d.status] = (counts[d.status] || 0) + 1;
-  }
-
-  res.json(counts);
-});
-
-// GET /api/reports/sla
-router.get("/sla", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
-  const where = buildWhere(req);
-  const declarations = await prisma.declaration.findMany({ where, select: { id: true, date: true } });
-
-  const roleMap: Record<string, string> = {
-    lineManager: "Line Manager",
-    hr: "HR",
-    ceo: "CEO",
-  };
-
-  const byRole: Record<string, number[]> = {};
-
-  for (const d of declarations) {
-    const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: d.id } });
-    if (!instance) continue;
-    let steps: any[];
-    try { steps = JSON.parse(instance.steps); } catch { continue; }
-    for (const step of steps) {
-      if (!step.decidedAt || !d.date) continue;
-      const decided = new Date(step.decidedAt).getTime();
-      if (isNaN(decided)) continue;
-      const submitted = new Date(d.date).getTime();
-      const days = (decided - submitted) / (1000 * 60 * 60 * 24);
-      const label = roleMap[step.role] || step.role;
-      if (!byRole[label]) byRole[label] = [];
-      byRole[label].push(days);
-    }
-  }
-
-  const slaData = Object.entries(byRole).map(([role, days]) => {
-    const total = days.reduce((s, d) => s + d, 0);
-    return {
-      role,
-      avg: Math.round((total / days.length) * 100) / 100,
-      min: Math.round(Math.min(...days) * 100) / 100,
-      max: Math.round(Math.max(...days) * 100) / 100,
-      count: days.length,
-    };
-  });
-
-  res.json(slaData);
-});
-
-// GET /api/reports/counterparty-concentration
 router.get("/counterparty-concentration", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const declarations = await prisma.declaration.findMany({ where, select: { counterparty: true, value: true } });
@@ -90,7 +32,7 @@ router.get("/counterparty-concentration", authenticate, async (req: AuthRequest,
   for (const d of declarations) {
     const key = d.counterparty || "Unknown";
     if (!groups[key]) groups[key] = { count: 0, totalValue: 0 };
-    groups[key].count++;
+    groups[key].count += 1;
     groups[key].totalValue += d.value;
   }
 
@@ -106,26 +48,71 @@ router.get("/counterparty-concentration", authenticate, async (req: AuthRequest,
   res.json(result);
 });
 
-// GET /api/reports/high-value
 router.get("/high-value", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
-  const config = await prisma.systemConfig.findFirst();
-  const threshold = config?.highValueThreshold || 2000;
+  const threshold = 2000;
   const where = buildWhere(req);
-  where.value = { gt: threshold };
+  where.value = { gte: threshold };
 
   const declarations = await prisma.declaration.findMany({
     where,
     orderBy: { value: "desc" },
     select: {
-      id: true, employee: true, department: true, type: true,
-      counterparty: true, value: true, date: true, submitted: true, status: true,
+      employee: true,
+      lineManager: true,
+      type: true,
+      counterparty: true,
+      value: true,
     },
   });
 
-  res.json(declarations);
+  const groups = new Map<string, {
+    employee: string;
+    lineManager: string;
+    declarationCount: number;
+    totalValue: number;
+    typeTotals: Record<string, number>;
+    suppliers: Record<string, number>;
+  }>();
+
+  for (const d of declarations) {
+    if (!groups.has(d.employee)) {
+      groups.set(d.employee, {
+        employee: d.employee,
+        lineManager: d.lineManager,
+        declarationCount: 0,
+        totalValue: 0,
+        typeTotals: { Gift: 0, Hospitality: 0, Entertainment: 0 },
+        suppliers: {},
+      });
+    }
+
+    const row = groups.get(d.employee)!;
+    row.declarationCount += 1;
+    row.totalValue += d.value;
+    row.typeTotals[d.type] = (row.typeTotals[d.type] || 0) + 1;
+    row.suppliers[d.counterparty] = (row.suppliers[d.counterparty] || 0) + 1;
+  }
+
+  const result = Array.from(groups.values())
+    .map((row) => {
+      const mostFrequentSupplier = Object.entries(row.suppliers).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
+      return {
+        employee: row.employee,
+        lineManager: row.lineManager,
+        declarationCount: row.declarationCount,
+        totalValue: Math.round(row.totalValue * 100) / 100,
+        averageValue: Math.round((row.totalValue / row.declarationCount) * 100) / 100,
+        totalGift: row.typeTotals.Gift || 0,
+        totalHospitality: row.typeTotals.Hospitality || 0,
+        totalEntertainment: row.typeTotals.Entertainment || 0,
+        mostFrequentSupplier,
+      };
+    })
+    .sort((a, b) => b.totalValue - a.totalValue);
+
+  res.json(result);
 });
 
-// GET /api/reports/list
 router.get("/list", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const search = req.query.search as string | undefined;
@@ -148,7 +135,6 @@ router.get("/list", authenticate, async (req: AuthRequest, res: Response): Promi
   res.json(result);
 });
 
-// GET /api/reports/export â€” Excel download
 router.get("/export", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const { reportType } = req.query;
@@ -180,11 +166,7 @@ router.get("/export", authenticate, async (req: AuthRequest, res: Response): Pro
 
   const rows = declarations.map((d) => ({ ...d }));
   const { department, status } = req.query;
-
-  const meta: [string, string][] = [
-    ["Generated", new Date().toISOString()],
-    ["Records", String(rows.length)],
-  ];
+  const meta: [string, string][] = [["Generated", new Date().toISOString()], ["Records", String(rows.length)]];
   if (department && department !== "All Departments") meta.push(["Department", String(department)]);
   if (status && status !== "All Statuses") meta.push(["Status", String(status)]);
 

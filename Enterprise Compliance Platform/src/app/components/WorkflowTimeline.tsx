@@ -1,22 +1,7 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { fetchWorkflowInstance } from "../../services/api";
 import { ApprovalDecision } from "../../types/declaration";
-
-export const DECISION_LABELS: Record<string, string> = {
-  return: "Return",
-  accept: "Accept",
-  org: "Org Pool",
-  foundation: "Foundation",
-  decline: "Decline",
-};
-
-export const APPROVAL_OPTIONS = [
-  { value: "return",     label: "Return - Team member to provide additional information." },
-  { value: "accept",     label: "Approved - Team Member to accept the actual GHE or offered GHE in their personal capacity." },
-  { value: "org",        label: "Approved - Team Member to share the actual GHE or offered GHE with the Organisation Pool." },
-  { value: "foundation", label: "Approved - Team Member to donate the actual GHE or offered GHE to the Hollywood Foundation." },
-  { value: "decline",    label: "Declined - Team Member to return the actual GHE or regret the offered GHE." },
-];
+import { DECISION_LABELS, APPROVAL_OPTIONS, STATUS_COLORS, labelToStatus } from "../../config/theme";
 
 export interface StepView {
   label: string;
@@ -74,24 +59,36 @@ function buildStepsFromWorkflow(wf: any, employee?: string): StepView[] {
   return result;
 }
 
-function Dot({ state }: { state: "completed" | "active" | "pending" | "skipped" }) {
+function dotColor(step: StepView): string {
+  if (step.state !== "completed") {
+    if (step.state === "active") return "bg-purple-600";
+    if (step.state === "skipped") return "bg-gray-100 border border-gray-300";
+    return "bg-gray-400";
+  }
+  if (!step.decision?.label) return "bg-purple-600";
+  return STATUS_COLORS[labelToStatus(step.decision.label)].dot;
+}
+
+function Dot({ step }: { step: StepView }) {
+  const color = dotColor(step);
   return (
     <div
-      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-        state === "completed" ? "bg-purple-600 text-white" :
-        state === "active" ? "bg-purple-600 text-white" :
-        state === "skipped" ? "bg-gray-100 text-gray-400 border border-gray-300" :
-        "bg-gray-400 text-white"
-      }`}
+      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${color} text-white`}
     >
-      {state === "skipped" ? "—" : ""}
+      {step.state === "skipped" ? "—" : ""}
     </div>
   );
 }
 
-function Badge({ state }: { state: "completed" | "active" | "pending" | "skipped" }) {
+function getRailColor(step: StepView): string {
+  if (step.state !== "completed") return "bg-gray-200";
+  if (!step.decision?.label) return "bg-purple-300";
+  return STATUS_COLORS[labelToStatus(step.decision.label)].rail;
+}
+
+function Badge({ state, decision }: { state: "completed" | "active" | "pending" | "skipped"; decision?: { label: string } | null }) {
   if (state === "completed") {
-    return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-600 inline-flex items-center gap-1 whitespace-nowrap">✓ Completed</span>;
+    return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-600 inline-flex items-center gap-1 whitespace-nowrap">Completed</span>;
   }
   if (state === "active") {
     return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 inline-flex items-center gap-1 whitespace-nowrap">In Progress</span>;
@@ -102,23 +99,18 @@ function Badge({ state }: { state: "completed" | "active" | "pending" | "skipped
   if (state === "pending") {
     return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 inline-flex items-center gap-1 whitespace-nowrap">Pending</span>;
   }
-  return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 inline-flex items-center gap-1 whitespace-nowrap">Returned</span>;
-}
-
-function RailLine({ steps }: { steps: StepView[] }) {
-  const doneCount = steps.filter((s) => s.state !== "pending").length;
-  const pct = steps.length > 1 ? ((doneCount - 1) / (steps.length - 1)) * 100 : 0;
-  return (
-    <div className="absolute left-[13px] top-2 bottom-2 w-[2px] bg-gray-200" />
-  );
+  return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-400 inline-flex items-center gap-1 whitespace-nowrap">Unknown</span>;
 }
 
 function CompletedDetails({ step }: { step: StepView }) {
+  const fullLabel = step.decision?.label || "";
+  const simpleStatus = fullLabel ? labelToStatus(fullLabel) : "-";
+  const c = simpleStatus !== "-" ? STATUS_COLORS[simpleStatus] : null;
   return (
     <>
       <div className="wf-detail-row flex justify-between py-1 text-sm">
         <span className="text-gray-500">Decision</span>
-        <span className="font-semibold text-green-600">{step.decision?.label || "-"}</span>
+        <span className={`font-semibold ${c ? c.text || "text-gray-900" : "text-gray-900"}`}>{simpleStatus}</span>
       </div>
       <div className="wf-detail-row flex justify-between py-1 text-sm">
         <span className="text-gray-500">Date</span>
@@ -128,19 +120,20 @@ function CompletedDetails({ step }: { step: StepView }) {
         <span className="text-gray-500">Time</span>
         <span className="font-semibold text-gray-900">{step.decidedAt ? step.decidedAt.slice(11, 16) : "-"}</span>
       </div>
-      {step.notes && (
-        <p className="mt-2 text-xs italic text-gray-500 border-t border-gray-200 pt-2">"{step.notes}"</p>
+      {fullLabel && (
+        <p className="mt-2 text-xs italic text-gray-500 border-t border-gray-200 pt-2">"{fullLabel}"</p>
       )}
     </>
   );
 }
 
-function PendingDetails() {
+function PendingDetails({ isActive }: { isActive?: boolean }) {
+  const c = isActive ? undefined : STATUS_COLORS.Pending;
   return (
     <>
       <div className="wf-detail-row flex justify-between py-1 text-sm">
-        <span className="text-gray-500">Status</span>
-        <span className="font-semibold text-gray-900">Pending</span>
+        <span className={c ? `text-xs font-semibold ${c.text}` : "text-gray-500"}>Status</span>
+        <span className={`font-semibold ${c ? c.text : "text-gray-900"}`}>Pending</span>
       </div>
       <div className="wf-detail-row flex justify-between py-1 text-sm">
         <span className="text-gray-500">Date</span>
@@ -157,8 +150,8 @@ function PendingDetails() {
 function WaitingDetails({ actor }: { actor: string }) {
   return (
     <>
-      <p className="text-sm text-blue-700 font-semibold mb-3">Returned — awaiting additional information from <strong>{actor}</strong></p>
-      <PendingDetails />
+      <p className="text-sm text-purple-700 font-semibold mb-3">Awaiting action from <strong>{actor}</strong></p>
+      <PendingDetails isActive />
     </>
   );
 }
@@ -187,7 +180,9 @@ export function WorkflowTimeline({
   const steps = externalSteps || buildStepsFromWorkflow(wf, employee);
 
   return (
-    <div className="bg-white rounded-2xl p-7 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_24px_rgba(76,29,149,0.06)] h-full" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif" }}>
+    <div className="detail-panel-shell h-full">
+      <div className="detail-panel-card bg-white p-7 flex flex-col" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif", height: "auto", minHeight: "100%" }}>
+      <div className="relative z-10 flex flex-col flex-1">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-[34px] h-[34px] rounded-[10px] bg-gradient-to-br from-purple-600 to-purple-500 flex items-center justify-center flex-shrink-0">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -198,101 +193,103 @@ export function WorkflowTimeline({
             <path d="M15.8 7.2 L13 16" />
           </svg>
         </div>
-        <h1 className="text-xs font-extrabold tracking-[0.06em] uppercase text-purple-700 m-0">Approval Workflow</h1>
+        <h1 className="inline-flex rounded-full border border-purple-200/70 bg-purple-50 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm m-0">Approval Workflow</h1>
       </div>
 
-      {steps.map((step, i) => {
-        const isLast = i === steps.length - 1;
-        const isActive = step.state === "active";
-        const isSkipped = step.state === "skipped";
+      <div className="flex-1">
+        {steps.map((step, i) => {
+          const isLast = i === steps.length - 1;
+          const isActive = step.state === "active";
+          const isSkipped = step.state === "skipped";
 
-        return (
-          <div key={i} className="flex gap-4">
-            <div className="flex flex-col items-center flex-shrink-0">
-              <Dot state={step.state} />
-              {!isLast && <div className="w-[2px] flex-1 bg-purple-200 min-h-[24px] my-1" />}
-            </div>
+          return (
+            <div key={i} className="flex gap-4">
+              <div className="flex flex-col items-center flex-shrink-0">
+                <Dot step={step} />
+                {!isLast && <div className={`w-[2px] flex-1 ${getRailColor(step)} min-h-[24px] my-1`} />}
+              </div>
 
-              <div className={`flex-1 ${isLast ? "" : "pb-7"}`}>
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <p className="text-sm font-bold text-gray-900 m-0">{step.label}</p>
-                  <p className="text-sm text-gray-500 m-0">{step.actor}</p>
+                <div className={`flex-1 ${isLast ? "" : "pb-7"}`}>
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900 m-0">{step.label}</p>
+                    <p className="text-sm text-gray-500 m-0">{step.actor}</p>
+                  </div>
+                  <Badge state={step.state} decision={step.decision} />
                 </div>
-                <Badge state={step.state} />
-              </div>
 
-              <div className="bg-gray-50 border border-gray-200 rounded-[14px] p-4">
-                {step.state === "completed" && <CompletedDetails step={step} />}
+                <div className="bg-gray-50 border border-gray-200 rounded-[14px] p-4">
+                  {step.state === "completed" && <CompletedDetails step={step} />}
 
-                {step.state === "active" && onDecision && (
-                  <>
-                    <p className="text-xs font-semibold text-gray-500 mb-0.5">Status</p>
-                    <p className="text-sm font-semibold text-purple-700 mb-3">Waiting for approval from {step.actor}</p>
+                  {step.state === "active" && onDecision && (
+                    <>
+                      <p className="text-xs font-semibold text-purple-700 mb-0.5">Status</p>
+                      <p className="text-sm font-semibold text-purple-700 mb-3">Waiting for approval from {step.actor}</p>
 
-                    <p className="text-xs font-semibold text-gray-500 mb-2">Decision *</p>
-                    <div className="space-y-1.5 mb-3">
-                      {APPROVAL_OPTIONS.map((opt) => (
-                        <label
-                          key={opt.value}
-                          className={`flex items-start gap-3 p-2.5 rounded-xl border-2 cursor-pointer transition-colors ${
-                            decision === opt.value
-                              ? "border-purple-600 bg-purple-50/50"
-                              : "border-transparent hover:border-gray-200 hover:bg-gray-50"
-                          }`}
-                        >
-                          <div className="flex-shrink-0 mt-0.5">
-                            <div
-                              className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                                decision === opt.value ? "border-purple-600" : "border-gray-300"
-                              }`}
-                            >
-                              {decision === opt.value && (
-                                <div className="w-2 h-2 rounded-full bg-purple-600" />
-                              )}
+                      <p className="text-xs font-semibold text-gray-500 mb-2">Decision *</p>
+                      <div className="space-y-1.5 mb-3">
+                        {APPROVAL_OPTIONS.map((opt) => (
+                          <label
+                            key={opt.value}
+                            className={`flex min-h-[64px] items-start gap-3 rounded-xl border-2 p-2.5 transition-colors ${
+                              decision === opt.value
+                                ? "border-purple-600 bg-purple-50/50"
+                                : "border-transparent hover:border-gray-200 hover:bg-gray-50"
+                            }`}
+                          >
+                            <div className="flex-shrink-0 mt-0.5">
+                              <div
+                                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                  decision === opt.value ? "border-purple-600" : "border-gray-300"
+                                }`}
+                              >
+                                {decision === opt.value && (
+                                  <div className="w-2 h-2 rounded-full bg-purple-600" />
+                                )}
+                              </div>
                             </div>
-                          </div>
-                          <p className="text-sm text-gray-700 leading-snug">{opt.label}</p>
-                          <input
-                            type="radio"
-                            name="wf-decision"
-                            checked={decision === opt.value}
-                            onChange={() => onDecision(opt.value as ApprovalDecision)}
-                            className="sr-only"
-                          />
-                        </label>
-                      ))}
-                    </div>
-
-                    {onNotesChange && (
-                      <div className="mt-4">
-                        <label className="mb-1 block text-xs font-semibold text-gray-500">Notes / Comments</label>
-                        <textarea
-                          value={notes || ""}
-                          onChange={(e) => onNotesChange(e.target.value)}
-                          rows={2}
-                          className="w-full rounded-[10px] border border-gray-200 bg-white px-3.5 py-2.5 text-sm"
-                          placeholder="Add notes or reasoning..."
-                        />
+                            <p className="text-sm text-gray-700 leading-snug">{opt.label}</p>
+                            <input
+                              type="radio"
+                              name="wf-decision"
+                              checked={decision === opt.value}
+                              onChange={() => onDecision(opt.value as ApprovalDecision)}
+                              className="sr-only"
+                            />
+                          </label>
+                        ))}
                       </div>
-                    )}
-                  </>
-                )}
 
-                {step.state === "active" && !onDecision && (
-                  <WaitingDetails actor={step.actor} />
-                )}
+                      {onNotesChange && (
+                        <div className="mt-4">
+                          <label className="mb-1 block text-xs font-semibold text-gray-500">Notes / Comments</label>
+                          <textarea
+                            value={notes || ""}
+                            onChange={(e) => onNotesChange(e.target.value)}
+                            rows={2}
+                            className="w-full rounded-[10px] border border-gray-200 bg-white px-3.5 py-2.5 text-sm"
+                            placeholder="Add notes or reasoning..."
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
 
-                {step.state === "pending" && <PendingDetails />}
+                  {step.state === "active" && !onDecision && (
+                    <WaitingDetails actor={step.actor} />
+                  )}
 
-                {step.state === "skipped" && (
-                  <div className="text-sm text-gray-400 italic">Not required for this declaration.</div>
-                )}
+                  {step.state === "pending" && <PendingDetails />}
+
+                  {step.state === "skipped" && (
+                    <div className="text-sm text-gray-400 italic">Not required for this declaration.</div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
 
       {onSubmit && (
         <div className="mt-5 bg-purple-50 rounded-[14px] p-4 text-center">
@@ -302,12 +299,19 @@ export function WorkflowTimeline({
           <button
             onClick={onSubmit}
             disabled={submitDisabled}
-            className="w-full py-3 border-none rounded-[10px] bg-gradient-to-br from-purple-700 to-purple-500 text-white text-sm font-bold cursor-pointer transition-all duration-100 disabled:opacity-45 disabled:cursor-not-allowed hover:not-disabled:-translate-y-[1px]"
+            className="w-full py-3 border-none rounded-[10px] bg-gradient-to-br from-purple-700 to-purple-500 text-white text-sm font-bold cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
           >
             {submitted ? "Decision Submitted" : "Submit Decision"}
           </button>
         </div>
       )}
     </div>
+    </div>
+    </div>
   );
 }
+
+
+
+
+

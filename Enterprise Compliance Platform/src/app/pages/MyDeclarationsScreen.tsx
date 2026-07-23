@@ -1,19 +1,22 @@
-import { useState, useEffect } from "react";
-import { ArrowLeft, Download, FileText, Clock, Check, X, Coins, Eye, Undo } from "lucide-react";
+﻿import { useState, useEffect } from "react";
+import { ArrowLeft, Download, Eye, Edit } from "lucide-react";
 import { Declaration } from "../../types/declaration";
 import { fetchDeclarations } from "../../services/api";
 import { formatRand } from "../../config/theme";
 import { useUser } from "../auth/UserContext";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
-import { KpiCard } from "../components/KpiCard";
+import { KpiCard, STATUS_KPI } from "../components/KpiCard";
 import { StatusBadge } from "../components/StatusBadge";
+import { TypeBadge } from "../components/TypeBadge";
 import { DeclarationDetailView, SupportingDocuments } from "../pages/DeclarationDetailView";
 import { WorkflowTimeline } from "../components/WorkflowTimeline";
+import { Table, Thead, Th, Tbody, Tr, Td, COL } from "../components/table";
+import { PURPLE } from "../../config/theme";
 import { exportRowsToXls } from "../../utils/excel";
 import { useWorkflowApproval } from "../hooks/useWorkflowApproval";
 
-export function MyDeclarationsScreen() {
+export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declaration) => void }) {
   const { user } = useUser();
   const [declarations, setDeclarations] = useState<Declaration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +30,7 @@ export function MyDeclarationsScreen() {
   }, []);
 
   const isTeamMember = user?.role === "teamMember";
-  const [viewMode, setViewMode] = useState<"my" | "all">("my");
+  const [viewMode, setViewMode] = useState<"my" | "all">(isTeamMember ? "my" : "all");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -41,16 +44,17 @@ export function MyDeclarationsScreen() {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 10;
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
+  const [viewDeclStatus, setViewDeclStatus] = useState<string | null>(null);
 
   const {
-    wfSteps, wfMessage, canApprove,
+    wfSteps, wfMessage, canApprove, submitError,
     activeDecision, setActiveDecision,
     activeNotes, setActiveNotes,
     handleSubmit, submitDisabled,
   } = useWorkflowApproval({
     declarationId: viewDecl?.id ?? null,
     userId: user?.id ?? null,
-    onSuccess: () => setViewDecl(null),
+    onStatusUpdate: (s) => setViewDeclStatus(s),
   });
 
   useEffect(() => { setPage(0); }, [search, typeFilter, statusFilter, approverFilter, employeeFilter, dateFilterStart, dateFilterEnd, sortKey, sortDir]);
@@ -58,7 +62,8 @@ export function MyDeclarationsScreen() {
   const userDeclarations = user
     ? declarations.filter((d) => d.employeeId === user.id || d.employee === user.name)
     : declarations;
-  const visibleDeclarations = viewMode === "my" ? userDeclarations : declarations;
+  const ownDraftsOnly = (d: Declaration) => d.status !== "Draft" || d.employeeId === user?.id || d.employee === user?.name;
+  const visibleDeclarations = (viewMode === "my" ? userDeclarations : declarations).filter(ownDraftsOnly);
 
   if (loading) {
     return (
@@ -111,8 +116,6 @@ export function MyDeclarationsScreen() {
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
   const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
-  const totalValue = visibleDeclarations.reduce((sum, d) => sum + d.value, 0);
-
 
   const handleKpiClick = (type: string) => {
     setActiveKpi(type);
@@ -151,40 +154,50 @@ export function MyDeclarationsScreen() {
   };
 
   if (viewDecl) {
+    const displayStatus = viewDeclStatus || viewDecl.status;
     return (
       <div>
         <div className="flex flex-wrap items-center gap-2.5 mb-7 pb-5 border-b border-border">
           <button
             onClick={() => setViewDecl(null)}
-            className="h-9 px-3.5 border rounded-xl flex items-center gap-1.5 text-sm bg-card hover:bg-muted/50"
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold shadow-sm transition-colors hover:bg-muted/50"
           >
             <ArrowLeft size={14} /> Back
           </button>
-          <span className="font-mono font-bold">{viewDecl.id}</span>
-          <StatusBadge status={viewDecl.status} />
+          <span className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3.5 font-mono text-sm font-bold text-foreground shadow-sm">{viewDecl.id}</span>
+          <div className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-2.5 shadow-sm">
+            <StatusBadge status={displayStatus} />
+          </div>
         </div>
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
-          <div className="xl:col-span-3 flex flex-col gap-5">
-            <DeclarationDetailView data={viewDecl} onBack={() => {}} hideBackButton hideDocuments hideTitle />
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
+          <div className="xl:col-span-3">
+            <DeclarationDetailView data={{ ...viewDecl, status: displayStatus }} onBack={() => {}} hideBackButton hideDocuments />
+          </div>
+          <div className="xl:col-span-2 space-y-5">
+            {submitError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {submitError}
+              </div>
+            )}
+            {wfMessage && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                {wfMessage}
+              </div>
+            )}
+            <WorkflowTimeline
+              steps={wfSteps}
+              decision={canApprove ? activeDecision : undefined}
+              onDecision={canApprove && setActiveDecision ? setActiveDecision : undefined}
+              notes={canApprove ? activeNotes : undefined}
+              onNotesChange={canApprove && setActiveNotes ? setActiveNotes : undefined}
+              onSubmit={canApprove ? handleSubmit : undefined}
+              submitDisabled={submitDisabled}
+            />
+          </div>
+          <div className="xl:col-span-3">
             <SupportingDocuments data={viewDecl} />
           </div>
-        <div className="xl:col-span-2 h-full space-y-5">
-          {wfMessage && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-              {wfMessage}
-            </div>
-          )}
-          <WorkflowTimeline
-            steps={wfSteps}
-            decision={canApprove ? activeDecision : undefined}
-            onDecision={canApprove && setActiveDecision ? setActiveDecision : undefined}
-            notes={canApprove ? activeNotes : undefined}
-            onNotesChange={canApprove && setActiveNotes ? setActiveNotes : undefined}
-            onSubmit={canApprove ? handleSubmit : undefined}
-            submitDisabled={submitDisabled}
-          />
         </div>
-      </div>
       </div>
     );
   }
@@ -212,6 +225,9 @@ export function MyDeclarationsScreen() {
                 </button>
               </div>
             )}
+            <button onClick={() => { setSearch(""); setTypeFilter("All"); setStatusFilter("All"); setApproverFilter("All"); setDateFilterStart(""); setDateFilterEnd(""); setEmployeeFilter("All"); setActiveKpi("All"); }} className="flex h-10 items-center justify-center gap-2 rounded-xl border bg-white px-4 text-sm font-semibold hover:bg-muted sm:w-auto">
+              Clear Filters
+            </button>
             <button onClick={exportExcel} className="flex h-10 items-center justify-center gap-2 rounded-xl border bg-white px-4 text-sm font-semibold hover:bg-muted sm:w-auto">
               <Download size={13} /> Export Excel
             </button>
@@ -219,13 +235,22 @@ export function MyDeclarationsScreen() {
         }
       />
 
-      <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        <KpiCard label="Total" value={String(visibleDeclarations.length)} icon={FileText} color="#7c3aed" active={activeKpi === "All"} onClick={() => handleKpiClick("All")} />
-        <KpiCard label="Pending" value={String(visibleDeclarations.filter((d) => d.status === "Pending").length)} icon={Clock} color="#f59e0b" active={activeKpi === "Pending"} onClick={() => handleKpiClick("Pending")} />
-        <KpiCard label="Approved" value={String(visibleDeclarations.filter((d) => d.status === "Approved").length)} icon={Check} color="#10b981" active={activeKpi === "Approved"} onClick={() => handleKpiClick("Approved")} />
-        <KpiCard label="Returned" value={String(visibleDeclarations.filter((d) => d.status === "Returned").length)} icon={Undo} color="#06b6d4" active={activeKpi === "Returned"} onClick={() => handleKpiClick("Returned")} />
-        <KpiCard label="Declined" value={String(visibleDeclarations.filter((d) => d.status === "Declined").length)} icon={X} color="#ef4444" active={activeKpi === "Declined"} onClick={() => handleKpiClick("Declined")} />
-        <KpiCard label="Total Value" value={`R ${Math.round(totalValue / 1000)}K`} icon={Coins} color="#6366f1" />
+      <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+        {(["Total", "Pending", "Approved", "Returned", "Declined"] as const).map((k) => {
+          const def = STATUS_KPI[k];
+          const count = k === "Total" ? visibleDeclarations.length : visibleDeclarations.filter((d) => d.status === def.filterValue).length;
+          return (
+            <KpiCard
+              key={def.key}
+              label={def.label}
+              value={String(count)}
+              icon={def.icon}
+              color={def.color}
+              active={activeKpi === def.filterValue}
+              onClick={() => handleKpiClick(def.filterValue)}
+            />
+          );
+        })}
       </div>
 
       <Card className="mb-4 grid grid-cols-1 gap-3 border-white/70 bg-white/85 p-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -265,19 +290,11 @@ export function MyDeclarationsScreen() {
         )}
         <div>
           <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Date From</label>
-          <input type="date" onChange={(e) => setDateFilterStart(e.target.value)} className="table-filter-input" />
+          <input type="date" value={dateFilterStart} onChange={(e) => setDateFilterStart(e.target.value)} className="table-filter-input" />
         </div>
         <div>
           <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Date To</label>
-          <input type="date" onChange={(e) => setDateFilterEnd(e.target.value)} className="table-filter-input" />
-        </div>
-        <div className="flex items-end">
-          <button
-            onClick={() => { setSearch(""); setTypeFilter("All"); setStatusFilter("All"); setApproverFilter("All"); setEmployeeFilter("All"); setDateFilterStart(""); setDateFilterEnd(""); setActiveKpi("All"); }}
-            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-          >
-            Clear Filters
-          </button>
+          <input type="date" value={dateFilterEnd} onChange={(e) => setDateFilterEnd(e.target.value)} className="table-filter-input" />
         </div>
       </Card>
 
@@ -316,9 +333,15 @@ export function MyDeclarationsScreen() {
               </div>
 
               <div className="mt-4 flex flex-col gap-2">
-                <button onClick={() => setViewDecl(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
-                  <Eye size={12} /> View
-                </button>
+                {d.status === "Draft" && onEditDraft ? (
+                  <button onClick={() => onEditDraft(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
+                    <Edit size={12} /> Continue
+                  </button>
+                ) : (
+                  <button onClick={() => setViewDecl(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
+                    <Eye size={12} /> View
+                  </button>
+                )}
                 <button onClick={() => exportRow(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl border text-xs font-semibold hover:border-primary">
                   <Download size={12} /> Export
                 </button>
@@ -329,57 +352,61 @@ export function MyDeclarationsScreen() {
       </Card>
 
       <Card className="hidden overflow-x-auto md:block">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 z-10 bg-white">
-            <tr>
-              {["id", "type", "counterparty", "value", "submitted", "approver", "status"].map((key) => (
-                <th
-                  key={key}
-                  onClick={() => {
+        <Table>
+          <Thead>
+            {["Declaration ID", "Type", "Counterparty", "Value", "Submitted", "Final Approver", "Status", "Actions"].map((label) => {
+              const key = label === "Declaration ID" ? "id" : label === "Type" ? "type" : label === "Counterparty" ? "counterparty" : label === "Value" ? "value" : label === "Submitted" ? "submitted" : label === "Final Approver" ? "approver" : label === "Status" ? "status" : null;
+              const isSortable = key !== null;
+              return (
+                <Th
+                  key={label}
+                  sortable={isSortable}
+                  active={isSortable && sortKey === key}
+                  direction={sortDir}
+                  onClick={isSortable ? () => {
                     if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
-                    else {
-                      setSortKey(key as keyof Declaration);
-                      setSortDir("asc");
-                    }
-                  }}
-                  className="cursor-pointer px-5 py-3 text-left text-xs font-bold transition-all duration-200 hover:bg-purple-50/45 hover:text-purple-700"
+                    else { setSortKey(key as keyof Declaration); setSortDir("asc"); }
+                  } : undefined}
                 >
-                  {key === "counterparty" ? "COUNTERPARTY" : key === "approver" ? "FINAL APPROVER" : key.toUpperCase()}{sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-                </th>
-              ))}
-              <th className="px-5 py-3 text-xs font-bold transition-all duration-200 hover:bg-purple-50/45">ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody>
+                  {label}
+                </Th>
+              );
+            })}
+          </Thead>
+          <Tbody>
             {sorted.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="py-10 text-center text-muted-foreground">No declarations found</td>
-              </tr>
+              <Tr><Td colSpan={8} className="py-10 text-center">No declarations found</Td></Tr>
             ) : (
               paged.map((d) => (
-                <tr key={d.id} className="group border-b border-border/70 transition-all duration-300 hover:bg-purple-50/35 hover:shadow-[inset_0_1px_0_rgba(196,181,253,0.12)]">
-                  <td className="whitespace-nowrap px-5 py-3 font-medium text-slate-700 transition-colors duration-200 group-hover:text-purple-900">{d.id}</td>
-                  <td className="whitespace-nowrap px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.type}</td>
-                  <td className="whitespace-nowrap px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.Counterparty}</td>
-                  <td className="whitespace-nowrap px-5 py-3 font-medium text-slate-700 transition-colors duration-200 group-hover:text-purple-900">{formatRand(d.value)}</td>
-                  <td className="whitespace-nowrap px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.submitted}</td>
-                  <td className="whitespace-nowrap px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.approver}</td>
-                  <td className="px-5 py-3 transition-transform duration-200 group-hover:translate-x-0.5"><StatusBadge status={d.status} /></td>
-                  <td className="px-5 py-3">
+                <Tr key={d.id}>
+                  <Td><span className={COL.ID} style={{ color: PURPLE }}>{d.id}</span></Td>
+                  <Td><TypeBadge type={d.type} /></Td>
+                  <Td className={COL.COUNTERPARTY}>{d.Counterparty}</Td>
+                  <Td className={COL.VALUE}>{formatRand(d.value)}</Td>
+                  <Td className={COL.SUBMITTED}>{d.submitted}</Td>
+                  <Td className={COL.APPROVER}>{d.approver}</Td>
+                  <Td><StatusBadge status={d.status} /></Td>
+                  <Td>
                     <div className="flex gap-2">
-                      <button onClick={() => setViewDecl(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
-                        <Eye size={12} /> View
-                      </button>
+                      {d.status === "Draft" && onEditDraft ? (
+                        <button onClick={() => onEditDraft(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
+                          <Edit size={12} /> Edit
+                        </button>
+                      ) : (
+                        <button onClick={() => setViewDecl(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
+                          <Eye size={12} /> View
+                        </button>
+                      )}
                       <button onClick={() => exportRow(d)} className="flex h-8 items-center gap-1 rounded-lg border px-3 text-xs font-semibold hover:border-primary">
                         <Download size={12} /> Export
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </Td>
+                </Tr>
               ))
             )}
-          </tbody>
-        </table>
+          </Tbody>
+        </Table>
         <div className="flex items-center justify-between border-t border-border bg-[#F7F8FC] px-5 py-3">
           <p className="text-xs text-muted-foreground">
             Showing <span className="font-semibold text-foreground">{sorted.length}</span> declarations
@@ -411,3 +438,11 @@ export function MyDeclarationsScreen() {
     </div>
   );
 }
+
+
+
+
+
+
+
+

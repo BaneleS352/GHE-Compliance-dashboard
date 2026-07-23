@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { NewDeclarationScreen } from "../app/pages/NewDeclarationScreen";
-import { createDeclaration, submitDeclaration, updateDeclaration, fetchConfig, fetchUserById } from "../services/api";
+import { createDeclaration, submitDeclaration, updateDeclaration, uploadDeclarationFile, fetchConfig, fetchUserById } from "../services/api";
 
 const mockConfig = {
   highValueThreshold: 2000, mediumValueThreshold: 250,
@@ -14,6 +14,7 @@ vi.mock("../services/api", () => ({
   createDeclaration: vi.fn(),
   submitDeclaration: vi.fn(),
   updateDeclaration: vi.fn(),
+  uploadDeclarationFile: vi.fn(),
 }));
 
 vi.mock("../app/auth/UserContext", () => ({
@@ -97,6 +98,8 @@ describe("NewDeclarationScreen", () => {
 
   it("calls createDeclaration + submitDeclaration on valid submit", async () => {
     vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
+    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: "file-1", name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/file-1" } as any);
+    vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
     vi.mocked(submitDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Pending", approver: "Sipho Nkosi" } as any);
 
     const onSuccess = vi.fn();
@@ -119,6 +122,8 @@ describe("NewDeclarationScreen", () => {
 
   it("calls createDeclaration on Save Draft", async () => {
     vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
+    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: "file-1", name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/file-1" } as any);
+    vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
 
     const onDraftSaved = vi.fn();
     render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={onDraftSaved} />);
@@ -136,6 +141,8 @@ describe("NewDeclarationScreen", () => {
 
   it("saves partially filled form as draft (J2.2)", async () => {
     vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
+    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: "file-1", name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/file-1" } as any);
+    vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
 
     const onDraftSaved = vi.fn();
     render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={onDraftSaved} />);
@@ -156,6 +163,8 @@ describe("NewDeclarationScreen", () => {
 
   it("saves draft with file upload (J2.3)", async () => {
     vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
+    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: "file-1", name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/file-1" } as any);
+    vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
 
     const onDraftSaved = vi.fn();
     const { container } = render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={onDraftSaved} />);
@@ -219,6 +228,8 @@ describe("NewDeclarationScreen", () => {
 
   it("submits with receivedGiven=Given and includes correct values (J1.5)", async () => {
     vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
+    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: "file-1", name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/file-1" } as any);
+    vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
     vi.mocked(submitDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Pending", approver: "Sipho Nkosi" } as any);
 
     const onSuccess = vi.fn();
@@ -304,3 +315,6 @@ describe("NewDeclarationScreen", () => {
     });
   });
 });
+
+
+

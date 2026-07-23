@@ -1,4 +1,4 @@
-import { Declaration, ComplianceTrendPoint, TypeBreakdownItem } from "../types/declaration";
+import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile } from "../types/declaration";
 import { api } from "./httpClient";
 
 export async function fetchDeclarations(status?: string, search?: string): Promise<Declaration[]> {
@@ -35,6 +35,12 @@ export async function submitDeclaration(id: string): Promise<Declaration> {
   return mapDeclaration(raw);
 }
 
+export async function uploadDeclarationFile(file: File, declarationId: string): Promise<UploadedFile> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("declarationId", declarationId);
+  return api.postForm<UploadedFile>("/api/files/upload", formData);
+}
 export interface DashboardStats {
   kpis: {
     total: number;
@@ -240,3 +246,6 @@ function toApiDeclaration(declaration: Partial<Declaration>) {
     ...(declaration.files !== undefined && { files: declaration.files }),
   };
 }
+
+
+

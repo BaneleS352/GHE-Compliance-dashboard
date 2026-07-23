@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { UserProvider, useUser } from "./auth/UserContext";
 import { canAccessScreen } from "./auth/authService";
 import { AppShell } from "../shell/AppShell";
@@ -8,8 +8,6 @@ import { MyDeclarationsScreen } from "./pages/MyDeclarationsScreen";
 import { ApproverDashboard } from "./pages/ApproverDashboard";
 import { ApprovalQueue } from "./pages/ApprovalQueue";
 import { ApprovalDetail } from "./pages/ApprovalDetail";
-import { DeclarationDetailView, SupportingDocuments } from "./pages/DeclarationDetailView";
-import { WorkflowTimeline } from "./components/WorkflowTimeline";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
 import { AdminUsers } from "./pages/admin/AdminUsers";
 import { AdminWorkflows } from "./pages/admin/AdminWorkflows";
@@ -24,12 +22,28 @@ import { Screen, Role, Declaration } from "../types/declaration";
 
 function AppInner() {
   const { user, setUser } = useUser();
-  const [screen, setScreen]             = useState<Screen>("landing");
+  const [screen, setScreen] = useState<Screen>("landing");
   const [selectedDecl, setSelectedDecl] = useState<Declaration | null>(null);
   const [submittedData, setSubmittedData] = useState<Declaration | null>(null);
-  const [showSuccess, setShowSuccess]     = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [showSubmittedView, setShowSubmittedView] = useState(false);
-  const [showDraftBanner, setShowDraftBanner]     = useState(false);
+  const [showDraftBanner, setShowDraftBanner] = useState(false);
+  const [editingDraft, setEditingDraft] = useState<Declaration | null>(null);
+
+  useEffect(() => {
+    if (!showSubmittedView) return;
+    const scrollToTop = () => {
+      const main = document.querySelector("main") as HTMLElement | null;
+      if (main) {
+        main.scrollTo({ top: 0, behavior: "auto" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "auto" });
+      }
+    };
+    scrollToTop();
+    const id = setTimeout(scrollToTop, 100);
+    return () => clearTimeout(id);
+  }, [showSubmittedView]);
 
   const getRoleForScreen = (s: Screen): Role =>
     s === "admin-dashboard" || s === "admin-users" || s === "admin-workflows" || s === "admin-dropdowns" || s === "admin-config" || s === "admin-reports" || s === "admin-approval-options" ? "admin"
@@ -56,6 +70,7 @@ function AppInner() {
   };
 
   const guardedNavigate = (s: Screen) => {
+    if (s === "new-declaration") setEditingDraft(null);
     if (!canAccessScreen(user, s)) {
       setScreen("landing");
       return;
@@ -78,37 +93,24 @@ function AppInner() {
       <AppShell role={user?.role || getRoleForScreen(screen)} screen={screen} userName={user?.name || ""} onNavigate={guardedNavigate} onSignOut={handleSignOut} user={user}>
         {screen === "new-declaration" && !showSubmittedView && (
           <NewDeclarationScreen
-            onSubmitSuccess={handleSubmitSuccess}
+            onSubmitSuccess={(data) => { setEditingDraft(null); handleSubmitSuccess(data); }}
             onDraftSaved={() => setShowDraftBanner(true)}
+            draft={editingDraft}
           />
         )}
         {screen === "new-declaration" && showSubmittedView && submittedData && (
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
-            <div className="xl:col-span-3">
-              <DeclarationDetailView data={submittedData} onBack={() => setShowSubmittedView(false)} hideDocuments />
-            </div>
-            <div className="xl:col-span-2 h-full">
-              <WorkflowTimeline declarationId={submittedData.id} employee={submittedData.employee} />
-            </div>
-            <div className="xl:col-span-3">
-              <SupportingDocuments data={submittedData} />
-            </div>
-          </div>
+          <ApprovalDetail declaration={submittedData} onBack={() => setShowSubmittedView(false)} readOnly />
         )}
-        {screen === "my-declarations"    && <MyDeclarationsScreen />}
+        {screen === "my-declarations" && <MyDeclarationsScreen onEditDraft={(d) => { setEditingDraft(d); setScreen("new-declaration"); }} />}
         {screen === "approver-dashboard" && <ApproverDashboard onNavigate={guardedNavigate} onReview={(d) => { setSelectedDecl(d); guardedNavigate("approval-detail"); }} />}
-        {screen === "approval-queue"     && (
-          <ApprovalQueue onReview={(d) => { setSelectedDecl(d); guardedNavigate("approval-detail"); }} />
-        )}
-        {screen === "approval-detail" && selectedDecl && (
-          <ApprovalDetail declaration={selectedDecl} onBack={() => guardedNavigate("approval-queue")} />
-        )}
+        {screen === "approval-queue" && <ApprovalQueue onReview={(d) => { setSelectedDecl(d); guardedNavigate("approval-detail"); }} />}
+        {screen === "approval-detail" && selectedDecl && <ApprovalDetail declaration={selectedDecl} onBack={() => guardedNavigate("approval-queue")} />}
         {screen === "admin-dashboard" && <AdminDashboard onNavigate={guardedNavigate} />}
-        {screen === "admin-users"     && <AdminUsers />}
+        {screen === "admin-users" && <AdminUsers />}
         {screen === "admin-workflows" && <AdminWorkflows />}
         {screen === "admin-dropdowns" && <AdminDropdowns />}
-        {screen === "admin-config"    && <AdminConfig />}
-        {screen === "admin-reports"   && <AdminReports />}
+        {screen === "admin-config" && <AdminConfig />}
+        {screen === "admin-reports" && <AdminReports />}
         {screen === "admin-approval-options" && <AdminApprovalOptions />}
       </AppShell>
 
@@ -116,7 +118,10 @@ function AppInner() {
         <SuccessModal
           data={submittedData}
           onClose={() => setShowSuccess(false)}
-          onView={() => { setShowSuccess(false); setShowSubmittedView(true); }}
+          onView={() => {
+            setShowSuccess(false);
+            setShowSubmittedView(true);
+          }}
         />
       )}
     </>

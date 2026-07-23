@@ -11,13 +11,11 @@ export function DeclarationDetailView({
   onBack,
   hideBackButton,
   hideDocuments,
-  hideTitle,
 }: {
   data: Record<string, string> | Declaration;
   onBack: () => void;
   hideBackButton?: boolean;
   hideDocuments?: boolean;
-  hideTitle?: boolean;
 }) {
   const isRecord = typeof (data as Declaration).value === "number";
   const d = isRecord ? (data as Declaration) : null;
@@ -80,21 +78,9 @@ export function DeclarationDetailView({
       ];
 
   return (
-    <div className="space-y-5">
-      {!hideTitle && (
-        <div className="flex items-center gap-3">
-          {!hideBackButton && (
-            <button
-              onClick={onBack}
-              className="flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-purple-200 hover:bg-purple-50 hover:text-purple-700 hover:shadow-sm active:translate-y-0 active:scale-[0.98]"
-            >
-              <ArrowLeft size={14} /> Back
-            </button>
-          )}
-          <h1 className="text-xl font-bold">Declaration Details</h1>
-        </div>
-      )}
-      <div className="detail-panel-shell">
+    <div className="h-full flex flex-col gap-5">
+      
+      <div className="detail-panel-shell flex-1 min-h-0">
       <Card
         className="
         detail-panel-card
@@ -105,25 +91,19 @@ export function DeclarationDetailView({
     >
 
       <div className="relative z-10">
-        {!hideTitle && (
           <h2 className="mb-6 inline-flex rounded-full border border-purple-200/70 bg-purple-50 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm">
             Declaration Details
           </h2>
-        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {fields.map(([k, v]) => (
-            <motion.div
+            <div
               key={k}
-              whileHover={{ scale: 1.015, y: -2 }}
-              transition={{ duration: 0.2 }}
               className={`
                 rounded-xl p-4
                 bg-white
                 border border-slate-200
                 shadow-sm
-                transition-all duration-200
-                hover:border-purple-300 hover:shadow-md
                 ${
                   ["Description", "Substantiation (> R2 000)"].includes(k)
                     ? "sm:col-span-2"
@@ -138,7 +118,7 @@ export function DeclarationDetailView({
               <p className="mt-2 text-sm font-medium text-slate-800 break-words">
                 {v}
               </p>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
@@ -206,17 +186,15 @@ export function SupportingDocuments({ data }: { data: Record<string, string> | D
 
           <div className="space-y-3">
             {supportingDocuments.length === 0 ? (
-                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-5 text-sm font-medium text-slate-500 transition-all duration-200 hover:border-purple-300 hover:shadow-md">
+                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-5 text-sm font-medium text-slate-500">
                 No supporting documents were uploaded for this declaration.
               </div>
             ) : (
               supportingDocuments.map((file, i) => (
-                <motion.div
-                  key={`${file.name}-${i}`}
-                  whileHover={{ scale: 1.01, y: -2 }}
-                  transition={{ duration: 0.2 }}
-                  className="flex w-full flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 transition-all duration-200 hover:border-purple-300 hover:shadow-md sm:flex-row sm:items-center sm:justify-between"
-                >
+                  <div
+                    key={`${file.name}-${i}`}
+                        className="flex w-full flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
                       <FileText size={18} />
@@ -244,7 +222,7 @@ export function SupportingDocuments({ data }: { data: Record<string, string> | D
                       <Download size={13} /> Download
                     </button>
                   </div>
-                </motion.div>
+                </div>
               ))
             )}
           </div>
@@ -254,3 +232,5 @@ export function SupportingDocuments({ data }: { data: Record<string, string> | D
     </div>
   );
 }
+
+

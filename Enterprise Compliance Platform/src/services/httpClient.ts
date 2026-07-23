@@ -4,6 +4,10 @@ function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+export function getAuthToken(): string | null {
+  return getToken();
+}
+
 export function setToken(token: string | null): void {
   if (token) {
     localStorage.setItem(TOKEN_KEY, token);
@@ -34,7 +38,8 @@ async function request<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  const headers: Record<string, string> = isFormData ? {} : { "Content-Type": "application/json" };
   const token = getToken();
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -43,7 +48,7 @@ async function request<T>(
   const res = await fetch(path, {
     method,
     headers,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? (isFormData ? body as FormData : JSON.stringify(body)) : undefined,
   });
 
   if (!res.ok) {
@@ -64,6 +69,7 @@ async function request<T>(
 export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
+  postForm: <T>(path: string, body: FormData) => request<T>("POST", path, body),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body),
   patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body),
   del: <T>(path: string) => request<T>("DELETE", path),

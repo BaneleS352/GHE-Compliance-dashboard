@@ -13,15 +13,49 @@ export const typeCfg: Record<string, { bg: string; text: string }> = {
   Entertainment: { bg: "#fffbeb", text: "#b45309" },
 };
 
-// ─── Status badge colours ───────────────────────────────────────────────────────
-export const statusConfig: Record<StatusType, { bg: string; text: string; ring: string }> = {
-  Draft:            { bg: "bg-slate-100",  text: "text-slate-600",   ring: "bg-slate-400" },
-  Pending:          { bg: "bg-amber-50",   text: "text-amber-700",   ring: "bg-amber-400" },
-  Approved:         { bg: "bg-emerald-50", text: "text-emerald-700", ring: "bg-emerald-500" },
-  Declined:         { bg: "bg-red-50",     text: "text-red-700",     ring: "bg-red-500" },
-  Escalated:        { bg: "bg-orange-50",  text: "text-orange-700",  ring: "bg-orange-500" },
-  "Info Requested": { bg: "bg-blue-50",    text: "text-blue-700",    ring: "bg-blue-500" },
-  Returned:         { bg: "bg-purple-50",  text: "text-purple-700",  ring: "bg-purple-500" },
+// ─── Status colours — single source of truth ────────────────────────────────────
+//         bg / text / ring = Tailwind classes for StatusBadge
+//         hex              = hex colour for KPI cards, icons, gradients
+//         dot / rail       = Tailwind classes for WorkflowTimeline
+export const STATUS_COLORS: Record<StatusType, { bg: string; text: string; ring: string; hex: string; dot: string; rail: string }> = {
+  Draft:            { bg: "bg-slate-100",  text: "text-slate-600",   ring: "bg-slate-400", hex: "#94a3b8", dot: "bg-slate-400", rail: "bg-slate-300" },
+  Pending:          { bg: "bg-amber-50",   text: "text-amber-700",   ring: "bg-amber-400", hex: "#f59e0b", dot: "bg-amber-500", rail: "bg-amber-300" },
+  Approved:         { bg: "bg-emerald-50", text: "text-emerald-700", ring: "bg-emerald-500", hex: "#10b981", dot: "bg-emerald-500", rail: "bg-emerald-300" },
+  Declined:         { bg: "bg-red-50",     text: "text-red-700",     ring: "bg-red-500", hex: "#ef4444", dot: "bg-red-500", rail: "bg-red-300" },
+  Escalated:        { bg: "bg-orange-50",  text: "text-orange-700",  ring: "bg-orange-500", hex: "#f97316", dot: "bg-orange-500", rail: "bg-orange-300" },
+  "Info Requested": { bg: "bg-blue-50",    text: "text-blue-700",    ring: "bg-blue-500", hex: "#3b82f6", dot: "bg-blue-500", rail: "bg-blue-300" },
+  Returned:         { bg: "bg-sky-50",     text: "text-sky-700",     ring: "bg-sky-500", hex: "#06b6d4", dot: "bg-sky-500", rail: "bg-sky-300" },
+};
+
+// ─── Decision labels (shared by WorkflowTimeline & useWorkflowApproval) ────────
+export const DECISION_LABELS: Record<string, string> = {
+  return: "Returned - Team member to provide additional information.",
+  accept: "Approved - Team Member to accept the actual GHE or offered GHE in their personal capacity.",
+  org: "Approved - Team Member to share the actual GHE or offered GHE with the Organisation Pool.",
+  foundation: "Approved - Team Member to donate the actual GHE or offered GHE to the Hollywood Foundation.",
+  decline: "Declined - Team Member to return the actual GHE or regret the offered GHE.",
+};
+
+export const APPROVAL_OPTIONS = [
+  { value: "return",     label: "Return - Team member to provide additional information." },
+  { value: "accept",     label: "Approved - Team Member to accept the actual GHE or offered GHE in their personal capacity." },
+  { value: "org",        label: "Approved - Team Member to share the actual GHE or offered GHE with the Organisation Pool." },
+  { value: "foundation", label: "Approved - Team Member to donate the actual GHE or offered GHE to the Hollywood Foundation." },
+  { value: "decline",    label: "Declined - Team Member to return the actual GHE or regret the offered GHE." },
+];
+
+// ─── Helper: map decision label text → StatusType ──────────────────────────────
+export function labelToStatus(label: string): StatusType {
+  if (label.startsWith("Declined")) return "Declined";
+  if (label.startsWith("Returned")) return "Returned";
+  return "Approved";
+}
+
+// ─── Priority colours ──────────────────────────────────────────────────────────
+export const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
+  High:   { bg: "bg-red-50",   text: "text-red-700" },
+  Medium: { bg: "bg-amber-50", text: "text-amber-700" },
+  Low:    { bg: "bg-emerald-50", text: "text-emerald-700" },
 };
 
 // ─── Formatters ─────────────────────────────────────────────────────────────────

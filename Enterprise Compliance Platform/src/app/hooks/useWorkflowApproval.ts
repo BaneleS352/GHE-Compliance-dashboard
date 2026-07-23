@@ -2,19 +2,15 @@ import { useState, useEffect, useCallback } from "react";
 import { ApprovalDecision } from "../../types/declaration";
 import { StepView } from "../components/WorkflowTimeline";
 import { fetchWorkflowInstance, approveWorkflowStep } from "../../services/api";
-
-const DECISION_LABEL: Record<string, string> = {
-  return: "Return", accept: "Accept", org: "Org Pool", foundation: "Foundation", decline: "Decline",
-};
+import { DECISION_LABELS } from "../../config/theme";
 
 interface UseWorkflowApprovalOptions {
   declarationId: string | null;
   userId: string | null;
-  onSuccess?: () => void;
   onStatusUpdate?: (status: string) => void;
 }
 
-export function useWorkflowApproval({ declarationId, userId, onSuccess, onStatusUpdate }: UseWorkflowApprovalOptions) {
+export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: UseWorkflowApprovalOptions) {
   const [wfInstance, setWfInstance] = useState<any>(null);
   const [wfLoading, setWfLoading] = useState(!!declarationId);
   const [lmDecision, setLmDecision] = useState<ApprovalDecision>(null);
@@ -99,7 +95,7 @@ export function useWorkflowApproval({ declarationId, userId, onSuccess, onStatus
       label: r.title,
       actor: r.step?.assigneeName || r.defaultActor,
       state: decided ? "completed" : r.enabled ? "active" : "pending",
-      decision: r.decision ? { label: DECISION_LABEL[r.decision] || r.decision } : null,
+      decision: r.decision ? { label: DECISION_LABELS[r.decision] || r.decision } : null,
       decidedAt: r.decidedAt,
       notes: r.notes,
     };
@@ -133,9 +129,9 @@ export function useWorkflowApproval({ declarationId, userId, onSuccess, onStatus
           if (res?.newStatus) onStatusUpdate?.(res.newStatus);
         }
       }
-      setWfInstance({ ...wfInstance, steps: stepsToUpdate });
+      setWfInstance((current: any) => current ? { ...current, steps: stepsToUpdate } : current);
       setWfMessage("Decision submitted successfully.");
-      setTimeout(() => { setWfMessage(""); onSuccess?.(); }, 1500);
+      setTimeout(() => { setWfMessage(""); }, 1500);
     } catch (err: any) {
       setSubmitError(err.message || "An error occurred while submitting the decision.");
     }

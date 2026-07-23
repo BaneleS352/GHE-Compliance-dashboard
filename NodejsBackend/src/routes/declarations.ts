@@ -128,7 +128,7 @@ const createSchema = z.object({
   counterparty: z.string().min(1),
   value: z.number().nonnegative(),
   submitted: z.string(),
-  approver: z.string(),
+  approver: z.string().optional(),
   status: z.string(),
   priority: z.string(),
   description: z.string().max(10000),
@@ -388,3 +388,4 @@ router.patch("/:id/status", authenticate, async (req: AuthRequest, res: Response
 });
 
 export default router;
+
