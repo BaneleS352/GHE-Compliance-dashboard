@@ -78,9 +78,9 @@ export function DeclarationDetailView({
       ];
 
   return (
-    <div className="space-y-5">
+    <div className="h-full flex flex-col gap-5">
       
-      <div className="detail-panel-shell">
+      <div className="detail-panel-shell flex-1 min-h-0">
       <Card
         className="
         detail-panel-card

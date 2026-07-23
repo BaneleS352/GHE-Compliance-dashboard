@@ -45,12 +45,9 @@ export function ApprovalDetail({ declaration, onBack }: { declaration: Declarati
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
         <div className="xl:col-span-3">
           <DeclarationDetailView data={declaration} onBack={() => {}} hideBackButton hideDocuments hideTitle />
-          <div className="mt-5">
-            <SupportingDocuments data={declaration} />
-          </div>
         </div>
 
-        <div className="xl:col-span-2 h-full space-y-5">
+        <div className="xl:col-span-2 space-y-5">
           {submitError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{submitError}</div>}
           {wfMessage && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{wfMessage}</div>}
 
@@ -63,6 +60,10 @@ export function ApprovalDetail({ declaration, onBack }: { declaration: Declarati
             onSubmit={canApprove ? handleSubmit : undefined}
             submitDisabled={submitDisabled}
           />
+        </div>
+
+        <div className="xl:col-span-3">
+          <SupportingDocuments data={declaration} />
         </div>
       </div>
     </div>

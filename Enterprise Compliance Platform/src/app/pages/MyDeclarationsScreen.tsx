@@ -169,14 +169,11 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
             <StatusBadge status={displayStatus} />
           </div>
         </div>
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
           <div className="xl:col-span-3">
             <DeclarationDetailView data={{ ...viewDecl, status: displayStatus }} onBack={() => {}} hideBackButton hideDocuments />
-            <div className="mt-5">
-              <SupportingDocuments data={viewDecl} />
-            </div>
           </div>
-          <div className="xl:col-span-2 h-full space-y-5">
+          <div className="xl:col-span-2 space-y-5">
             {submitError && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                 {submitError}
@@ -196,6 +193,9 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
               onSubmit={canApprove ? handleSubmit : undefined}
               submitDisabled={submitDisabled}
             />
+          </div>
+          <div className="xl:col-span-3">
+            <SupportingDocuments data={viewDecl} />
           </div>
         </div>
       </div>
