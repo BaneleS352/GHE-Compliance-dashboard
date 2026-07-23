@@ -3,7 +3,7 @@ import { Search, Plus, Edit, Trash2, UserRound } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { THead } from "../../components/THead";
-import { PURPLE } from "../../../config/theme";
+import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
 import { fetchUsers, createUser, updateUser, deleteUser } from "../../../services/api";
 import { User } from "../../../types/declaration";
 
@@ -132,14 +132,14 @@ export function AdminUsers() {
           <button
             onClick={handleAdd}
             className="flex h-10 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(79,29,149,0.28)] sm:w-auto"
-            style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent" }}
+            style={{ background: GRADIENT_PRIMARY, border: "1px solid transparent" }}
           >
             <Plus size={15} /> Add User
           </button>
         }
       />
 
-      <Card className="flex flex-col gap-3 border-white/70 bg-white/80 p-3.5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl md:flex-row">
+      <Card className="flex flex-col gap-3 border-white/70 bg-white/80 p-3.5 card-shadow md:flex-row">
         <div className="relative flex-1">
           <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -154,7 +154,7 @@ export function AdminUsers() {
         </select>
       </Card>
 
-      <Card className="space-y-3 border-white/70 bg-white/80 p-3.5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl md:hidden">
+      <Card className="space-y-3 border-white/70 bg-white/80 p-3.5 card-shadow md:hidden">
         {filtered.map((u) => (
           <div key={u.id} className="group rounded-2xl border border-primary/10 bg-white/95 p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-purple-200/70 hover:shadow-[0_14px_35px_rgba(79,29,149,0.08)]">
             <div className="flex items-start justify-between gap-3">
@@ -193,7 +193,7 @@ export function AdminUsers() {
         )}
       </Card>
 
-      <Card className="hidden overflow-x-auto border-white/70 bg-white/80 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl md:block">
+      <Card className="hidden overflow-x-auto border-white/70 bg-white/80 card-shadow md:block">
         <table className="w-full min-w-[800px] text-sm">
           <THead cols={["User ID", "Name", "Email", "Role", "Department", "Status", "Actions"]} />
           <tbody className="divide-y divide-border">

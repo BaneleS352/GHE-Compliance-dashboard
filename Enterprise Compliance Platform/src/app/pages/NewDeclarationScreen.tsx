@@ -7,7 +7,7 @@ import { Sel } from "../components/Sel";
 import { FL } from "../components/FL";
 import { FS, FORM_SECTIONS } from "../components/FS";
 import { Card } from "../components/Card";
-import { PURPLE, F, inp } from "../../config/theme";
+import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG } from "../../config/theme";
 import { Declaration, UploadedFile } from "../../types/declaration";
 import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "../../services/api";
 import { useUser } from "../auth/UserContext";
@@ -439,7 +439,7 @@ export function NewDeclarationScreen({
       {uploadError && (
         <div className="fixed top-5 left-1/2 z-50 w-[min(92vw,460px)] -translate-x-1/2 rounded-2xl border border-amber-200 bg-white p-4 shadow-[0_18px_50px_rgba(79,29,149,0.18)]" style={F}>
           <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, #F8D74A, #f59e0b)" }}>
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: GRADIENT_ACCENT }}>
               <AlertCircle size={20} className="text-purple-950" />
             </div>
             <div className="min-w-0 flex-1">
@@ -479,8 +479,8 @@ export function NewDeclarationScreen({
                     className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-sm transition-colors duration-200"
                     style={
                       active
-                        ? { background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, color: "#fff" }
-                        : { background: "#F0EEF8", color: "#6B6B80" }
+                        ? { background: GRADIENT_PRIMARY, color: "#fff" }
+                        : { background: "var(--muted)", color: "var(--muted-foreground)" }
                     }
                   >
                     {s.num}
@@ -653,7 +653,7 @@ export function NewDeclarationScreen({
                 <option>Entertainment</option>
               </Sel>
               {category && (
-                <div className="mt-2.5 flex items-start gap-2.5 p-3.5 rounded-xl border border-primary/10" style={{ background: "#F5F2FF" }}>
+                <div className="mt-2.5 flex items-start gap-2.5 p-3.5 rounded-xl border border-primary/10" style={{ background: INFO_BG }}>
                   <Check size={13} className="mt-0.5 flex-shrink-0" style={{ color: PURPLE }} />
                   <p className="text-sm text-foreground">
                     <span className="font-semibold">{category}:</span> {categoryDefs[category]}
@@ -852,7 +852,7 @@ export function NewDeclarationScreen({
                   onClick={handleSubmit}
                   disabled={submitting}
                   className="h-12 px-8 rounded-xl text-sm font-semibold text-white transition-all duration-300 ease-out flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(79,29,149,0.39)] hover:-translate-y-0.5 hover:border-yellow-400 hover:bg-yellow-400 hover:text-white hover:shadow-[0_8px_24px_rgba(250,204,21,0.35)] active:translate-y-0 active:scale-[0.98]"
-                  style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent", opacity: submitting ? 0.7 : 1 }}
+                  style={{ background: GRADIENT_PRIMARY, border: "1px solid transparent", opacity: submitting ? 0.7 : 1 }}
                 >
                   <Send size={14} /> {submitting ? "Submitting..." : "Submit Declaration"}
                 </button>

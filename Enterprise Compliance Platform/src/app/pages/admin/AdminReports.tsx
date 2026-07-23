@@ -5,7 +5,7 @@ import html2canvas from "html2canvas";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { Table, Thead, Th, Tbody, Tr, Td, COL } from "../../components/table";
-import { PURPLE, formatRand } from "../../../config/theme";
+import { PURPLE, formatRand, GRADIENT_PRIMARY } from "../../../config/theme";
 import { fetchReports } from "../../../services/reports";
 import { exportToExcel, ColumnDef } from "../../utils/excelExport";
 
@@ -185,7 +185,7 @@ export function AdminReports() {
             </select>
           </div>
           <div className="flex items-end">
-            <button onClick={handleGenerate} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-white" style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}>
+            <button onClick={handleGenerate} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-white" style={{ background: GRADIENT_PRIMARY }}>
               <FileText size={14} /> {loading ? "Generating..." : "Generate Report"}
             </button>
           </div>

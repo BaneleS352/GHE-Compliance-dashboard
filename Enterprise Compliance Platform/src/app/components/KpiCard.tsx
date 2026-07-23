@@ -1,5 +1,6 @@
 import React, { useId } from "react";
 import { FileText, Clock, Check, Undo, X, ArrowUp } from "lucide-react";
+import { STATUS_COLORS } from "../../config/theme";
 
 export interface KpiDef {
   key: string;
@@ -10,12 +11,12 @@ export interface KpiDef {
 }
 
 export const STATUS_KPI: Record<string, KpiDef> = {
-  Total:     { key: "Total",     label: "Total",     icon: FileText, color: "#7c3aed", filterValue: "All" },
-  Pending:   { key: "Pending",   label: "Pending",   icon: Clock,    color: "#f59e0b", filterValue: "Pending" },
-  Approved:  { key: "Approved",  label: "Approved",  icon: Check,    color: "#10b981", filterValue: "Approved" },
-  Returned:  { key: "Returned",  label: "Returned",  icon: Undo,     color: "#06b6d4", filterValue: "Returned" },
-  Declined:  { key: "Declined",  label: "Declined",  icon: X,        color: "#ef4444", filterValue: "Declined" },
-  Escalated: { key: "Escalated", label: "Escalated", icon: ArrowUp,  color: "#f97316", filterValue: "Escalated" },
+  Total:     { key: "Total",     label: "Total",     icon: FileText, color: "#7c3aed",             filterValue: "All" },
+  Pending:   { key: "Pending",   label: "Pending",   icon: Clock,    color: STATUS_COLORS.Pending.hex,   filterValue: "Pending" },
+  Approved:  { key: "Approved",  label: "Approved",  icon: Check,    color: STATUS_COLORS.Approved.hex,  filterValue: "Approved" },
+  Returned:  { key: "Returned",  label: "Returned",  icon: Undo,     color: STATUS_COLORS.Returned.hex,  filterValue: "Returned" },
+  Declined:  { key: "Declined",  label: "Declined",  icon: X,        color: STATUS_COLORS.Declined.hex,  filterValue: "Declined" },
+  Escalated: { key: "Escalated", label: "Escalated", icon: ArrowUp,  color: STATUS_COLORS.Escalated.hex, filterValue: "Escalated" },
 };
 
 const GRADIENTS: Record<string, string> = {

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Save, Shield, Mail } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
-import { PURPLE } from "../../../config/theme";
+import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
 import { fetchConfig, saveConfig } from "../../../services/api";
 import { SystemConfig } from "../../../types/declaration";
 
@@ -32,7 +32,7 @@ export function AdminConfig() {
         actions={
           <button onClick={handleSave}
             className="flex h-10 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(79,29,149,0.28)] sm:w-auto"
-            style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent" }}
+            style={{ background: GRADIENT_PRIMARY, border: "1px solid transparent" }}
           >
             <Save size={15} /> {saved ? "Saved!" : "Save Changes"}
           </button>
@@ -46,7 +46,7 @@ export function AdminConfig() {
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card className="border-white/70 bg-white/80 p-6 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
+        <Card className="border-white/70 bg-white/80 p-6 card-shadow">
           <div className="mb-5 flex items-center gap-3 border-b border-border pb-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary shadow-sm">
               <Shield className="text-purple-600" size={18} />
@@ -73,7 +73,7 @@ export function AdminConfig() {
           </div>
         </Card>
 
-        <Card className="border-white/70 bg-white/80 p-6 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl lg:col-span-2">
+        <Card className="border-white/70 bg-white/80 p-6 card-shadow lg:col-span-2">
           <div className="mb-5 flex items-center gap-3 border-b border-border pb-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary shadow-sm">
               <Mail className="text-purple-600" size={18} />

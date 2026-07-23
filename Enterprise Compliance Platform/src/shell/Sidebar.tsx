@@ -1,7 +1,7 @@
 import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, Activity, List, BarChart3, CheckCircle2 } from "lucide-react";
 import { ImageWithFallback } from "../app/components/ImageWithFallback";
 import logoImg from "../assets/HB-Logo-NO-BG.png";
-import { YELLOW } from "../config/theme";
+import { YELLOW, GRADIENT_SIDEBAR } from "../config/theme";
 import { Role, Screen, User } from "../types/declaration";
 import { canAccessScreen } from "../app/auth/authService";
 
@@ -53,7 +53,7 @@ export function Sidebar({
     <>
     <aside
       className={`hidden md:flex flex-shrink-0 flex-col transition-all duration-300 ${collapsed ? "w-16" : "w-56"}`}
-      style={{ background: "linear-gradient(180deg, #0f0225 0%, #39156F 100%)" }}
+      style={{ background: GRADIENT_SIDEBAR }}
     >
       <div
         className={`h-16 flex items-center border-b ${collapsed ? "justify-center px-0" : "justify-between px-4"}`}

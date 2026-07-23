@@ -407,7 +407,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
             )}
           </Tbody>
         </Table>
-        <div className="flex items-center justify-between border-t border-border bg-[#F7F8FC] px-5 py-3">
+        <div className="flex items-center justify-between border-t border-border bg-table-header-bg px-5 py-3">
           <p className="text-xs text-muted-foreground">
             Showing <span className="font-semibold text-foreground">{sorted.length}</span> declarations
           </p>

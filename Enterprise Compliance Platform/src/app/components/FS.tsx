@@ -1,6 +1,6 @@
 import React from "react";
 import { Card } from "./Card";
-import { PURPLE } from "../../config/theme";
+import { PURPLE, GRADIENT_PRIMARY } from "../../config/theme";
 
 export const FORM_SECTIONS = [
   { id: "sec-team",        num: "1", label: "Team Member Details" },
@@ -26,7 +26,7 @@ export function FS({
       <div className="flex items-center gap-3 mb-4">
         <div
           className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-bold text-white shadow-[0_4px_10px_rgba(79,29,149,0.2)] flex-shrink-0"
-          style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
+          style={{ background: GRADIENT_PRIMARY }}
         >
           {num}
         </div>

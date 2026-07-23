@@ -8,7 +8,7 @@ interface TheadProps {
 export function Thead({ children, className = "" }: TheadProps) {
   return (
     <thead className={className}>
-      <tr className="border-b border-border bg-[#F7F8FC]">{children}</tr>
+      <tr className="border-b border-border bg-table-header-bg">{children}</tr>
     </thead>
   );
 }
