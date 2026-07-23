@@ -7,13 +7,7 @@ import { WorkflowTimeline } from "../components/WorkflowTimeline";
 import { useUser } from "../auth/UserContext";
 import { useWorkflowApproval } from "../hooks/useWorkflowApproval";
 
-export function ApprovalDetail({
-  declaration,
-  onBack,
-}: {
-  declaration: Declaration;
-  onBack: () => void;
-}) {
+export function ApprovalDetail({ declaration, onBack }: { declaration: Declaration; onBack: () => void }) {
   const { user } = useUser();
   const [declarationStatus, setDeclarationStatus] = useState(declaration.status);
 
@@ -29,48 +23,34 @@ export function ApprovalDetail({
   } = useWorkflowApproval({
     declarationId: declaration.id,
     userId: user?.id ?? null,
-    onSuccess: onBack,
     onStatusUpdate: (s) => setDeclarationStatus(s),
   });
 
   if (wfLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-sm text-muted-foreground animate-pulse">Loading workflowâ€¦</div>
-      </div>
-    );
+    return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted-foreground animate-pulse">Loading workflow…</div></div>;
   }
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2.5 mb-7 pb-5 border-b border-border">
-        <button
-          onClick={onBack}
-          className="h-9 px-3.5 border rounded-xl flex items-center gap-1.5 text-sm bg-card hover:bg-muted/50"
-        >
+      <div className="mb-7 flex flex-wrap items-center gap-2.5 border-b border-border pb-5">
+        <button onClick={onBack} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold shadow-sm transition-colors hover:bg-muted/50">
           <ArrowLeft size={14} /> Back
         </button>
-        <span className="font-mono font-bold">{declaration.id}</span>
-        <StatusBadge status={declarationStatus} />
+        <span className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-3.5 font-mono text-sm font-bold text-foreground shadow-sm">{declaration.id}</span>
+        <div className="inline-flex h-9 items-center rounded-xl border border-slate-200 bg-white px-2.5 shadow-sm">
+          <StatusBadge status={declarationStatus} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
         <div className="xl:col-span-3 flex flex-col gap-5">
           <DeclarationDetailView data={declaration} onBack={() => {}} hideBackButton hideDocuments hideTitle />
           <SupportingDocuments data={declaration} />
         </div>
 
-        <div className="xl:col-span-2 space-y-5 h-full">
-          {submitError && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-              {submitError}
-            </div>
-          )}
-          {wfMessage && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-              {wfMessage}
-            </div>
-          )}
+        <div className="xl:col-span-2 h-full space-y-5">
+          {submitError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{submitError}</div>}
+          {wfMessage && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{wfMessage}</div>}
 
           <WorkflowTimeline
             steps={wfSteps}

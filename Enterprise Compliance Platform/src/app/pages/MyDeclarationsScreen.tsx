@@ -27,7 +27,7 @@ export function MyDeclarationsScreen() {
   }, []);
 
   const isTeamMember = user?.role === "teamMember";
-  const [viewMode, setViewMode] = useState<"my" | "all">("my");
+  const [viewMode, setViewMode] = useState<"my" | "all">(isTeamMember ? "my" : "all");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -50,7 +50,6 @@ export function MyDeclarationsScreen() {
   } = useWorkflowApproval({
     declarationId: viewDecl?.id ?? null,
     userId: user?.id ?? null,
-    onSuccess: () => setViewDecl(null),
   });
 
   useEffect(() => { setPage(0); }, [search, typeFilter, statusFilter, approverFilter, employeeFilter, dateFilterStart, dateFilterEnd, sortKey, sortDir]);
@@ -271,14 +270,6 @@ export function MyDeclarationsScreen() {
           <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Date To</label>
           <input type="date" onChange={(e) => setDateFilterEnd(e.target.value)} className="table-filter-input" />
         </div>
-        <div className="flex items-end">
-          <button
-            onClick={() => { setSearch(""); setTypeFilter("All"); setStatusFilter("All"); setApproverFilter("All"); setEmployeeFilter("All"); setDateFilterStart(""); setDateFilterEnd(""); setActiveKpi("All"); }}
-            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-          >
-            Clear Filters
-          </button>
-        </div>
       </Card>
 
       <Card className="space-y-3 p-3.5 md:hidden">
@@ -411,3 +402,8 @@ export function MyDeclarationsScreen() {
     </div>
   );
 }
+
+
+
+
+

@@ -223,14 +223,6 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             {overdueOnly ? "Overdue: On" : "Overdue only"}
           </button>
         </div>
-        <div className="flex items-end">
-          <button
-            onClick={() => { setSearch(""); setDepartment("All"); setStatus("All"); setPriority("All"); setEmployeeFilter("All"); setOverdueOnly(false); }}
-            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-          >
-            Clear Filters
-          </button>
-        </div>
       </Card>
 
       <Card className="space-y-3 p-3.5 md:hidden">
@@ -353,3 +345,5 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
     </div>
   );
 }
+
+

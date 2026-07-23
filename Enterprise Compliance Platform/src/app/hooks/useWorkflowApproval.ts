@@ -10,11 +10,10 @@ const DECISION_LABEL: Record<string, string> = {
 interface UseWorkflowApprovalOptions {
   declarationId: string | null;
   userId: string | null;
-  onSuccess?: () => void;
   onStatusUpdate?: (status: string) => void;
 }
 
-export function useWorkflowApproval({ declarationId, userId, onSuccess, onStatusUpdate }: UseWorkflowApprovalOptions) {
+export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: UseWorkflowApprovalOptions) {
   const [wfInstance, setWfInstance] = useState<any>(null);
   const [wfLoading, setWfLoading] = useState(!!declarationId);
   const [lmDecision, setLmDecision] = useState<ApprovalDecision>(null);
@@ -133,9 +132,9 @@ export function useWorkflowApproval({ declarationId, userId, onSuccess, onStatus
           if (res?.newStatus) onStatusUpdate?.(res.newStatus);
         }
       }
-      setWfInstance({ ...wfInstance, steps: stepsToUpdate });
+      setWfInstance((current: any) => current ? { ...current, steps: stepsToUpdate } : current);
       setWfMessage("Decision submitted successfully.");
-      setTimeout(() => { setWfMessage(""); onSuccess?.(); }, 1500);
+      setTimeout(() => { setWfMessage(""); }, 1500);
     } catch (err: any) {
       setSubmitError(err.message || "An error occurred while submitting the decision.");
     }

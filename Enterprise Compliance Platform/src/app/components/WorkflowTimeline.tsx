@@ -157,7 +157,7 @@ function PendingDetails() {
 function WaitingDetails({ actor }: { actor: string }) {
   return (
     <>
-      <p className="text-sm text-blue-700 font-semibold mb-3">Returned — awaiting additional information from <strong>{actor}</strong></p>
+      <p className="text-sm text-blue-700 font-semibold mb-3">Awaiting action from <strong>{actor}</strong></p>
       <PendingDetails />
     </>
   );
@@ -311,3 +311,5 @@ export function WorkflowTimeline({
     </div>
   );
 }
+
+

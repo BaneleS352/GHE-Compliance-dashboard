@@ -9,7 +9,7 @@ import { FS, FORM_SECTIONS } from "../components/FS";
 import { Card } from "../components/Card";
 import { PURPLE, F, inp } from "../../config/theme";
 import { Declaration, UploadedFile } from "../../types/declaration";
-import { createDeclaration, submitDeclaration } from "../../services/api";
+import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "../../services/api";
 import { useUser } from "../auth/UserContext";
 import { fetchConfig, fetchUserById, updateDeclaration } from "../../services/api";
 
@@ -272,63 +272,14 @@ export function NewDeclarationScreen({
     setShowClearConfirm(false);
   };
 
-  const handleSaveDraft = async () => {
-    if (!user) return;
+  const buildDeclarationPayload = (): Declaration | null => {
+    if (!user) return null;
     const value = Number(form.value || 0);
     const requiresSubstantiation = Number.isFinite(value) && value > config.highValueThreshold;
     const requiresOccasionOther = form.occasion === "Other";
     const priority = getPriority(value, config.highValueThreshold, config.mediumValueThreshold);
-    const declaration: Declaration = {
-      id: `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
-      employee: form.employeeName,
-      employeeId: user.id,
-      teamMemberNumber: form.employeeCode,
-      lineManager: form.lineManager,
-      company: form.company,
-      department: form.department,
-      team: form.team,
-      position: form.position,
-      receivedGiven,
-      from: form.partyType,
-      Counterparty: form.Counterparty,
-      contactPerson: form.contactPerson,
-      relationship: form.existingRelationship,
-      contractNegotiation: form.contractNegotiation,
-      biddingProcess: form.biddingProcess,
-      type: category,
-      date: form.date,
-      submitted: new Date().toISOString().slice(0, 10),
-      value: Number.isFinite(value) ? value : 0,
-      occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
-      description: form.description,
-      instances: form.instances,
-      publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
-      substantiation: requiresSubstantiation ? form.substantiation : "",
-      status: "Draft",
-      priority,
-      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
-    };
-    try {
-      await createDeclaration(declaration);
-      onDraftSaved();
-    } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save draft.");
-    }
-  };
 
-  // createWorkflow is handled by the backend on submission
-
-  const handleSubmit = async () => {
-    if (!validate()) return;
-    if (!user) return;
-    setSubmitting(true);
-    setSubmitError("");
-
-    const value = Number(form.value || 0);
-    const requiresSubstantiation = Number.isFinite(value) && value > config.highValueThreshold;
-    const requiresOccasionOther = form.occasion === "Other";
-    const priority = getPriority(value, config.highValueThreshold, config.mediumValueThreshold);
-    const declaration: Declaration = {
+    return {
       id: `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
       employee: form.employeeName,
       employeeId: user.id,
@@ -357,13 +308,49 @@ export function NewDeclarationScreen({
       approver: "",
       status: "Draft",
       priority,
-      files: files.map((f) => ({ name: f.name, size: f.size, type: f.type, url: f.url, data: f.data || "" })),
+      files,
     };
+  };
+
+  const syncUploadedFiles = async (declaration: Declaration): Promise<Declaration> => {
+    if (pendingFilesRef.current.length === 0) {
+      return declaration;
+    }
+
+    const uploadedFiles = await Promise.all(
+      pendingFilesRef.current.map((file) => uploadDeclarationFile(file, declaration.id))
+    );
+    pendingFilesRef.current = [];
+    setFiles(uploadedFiles);
+    return updateDeclaration(declaration.id, { files: uploadedFiles });
+  };
+
+  const handleSaveDraft = async () => {
+    const declaration = buildDeclarationPayload();
+    if (!declaration) return;
+    try {
+      const saved = await createDeclaration({ ...declaration, files: [] });
+      await syncUploadedFiles(saved);
+      onDraftSaved();
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Failed to save draft.");
+    }
+  };
+
+  // createWorkflow is handled by the backend on submission
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    const declaration = buildDeclarationPayload();
+    if (!declaration) return;
+    setSubmitting(true);
+    setSubmitError("");
 
     let saved: Declaration | undefined;
     try {
-      saved = await createDeclaration(declaration);
-      const submitted = await submitDeclaration(saved.id);
+      saved = await createDeclaration({ ...declaration, files: [] });
+      const synced = await syncUploadedFiles(saved);
+      const submitted = await submitDeclaration(synced.id);
       onSubmitSuccess(submitted);
     } catch (err) {
       if (saved) await updateDeclaration(saved.id, { status: "Draft" });
@@ -535,7 +522,7 @@ export function NewDeclarationScreen({
               </div>
               <div className="flex flex-col">
                 <FL required error={errors.partyType}>
-                  {receivedGiven === "Received" ? "Who did you receive it from?" : "Who did you give it to?"}
+                  {receivedGiven === "Received" ? "Who did you receive a Gift, Hospitality or Entertainment from?" : "Who did you give a Gift, Hospitality or Entertainment to?"}
                 </FL>
                 <div className="mt-auto">
                   <Sel
@@ -582,14 +569,14 @@ export function NewDeclarationScreen({
                 </Sel>
               </div>
               <div>
-                <FL required error={errors.biddingProcess}>Is the Supplier or potential Supplier involved in a bidding process with us?</FL>
+                <FL required error={errors.biddingProcess}>Is the Supplier or Potential Supplier involved in a bidding process with us?</FL>
                 <Sel value={form.biddingProcess} onChange={(v) => setF("biddingProcess", v)} className={errors.biddingProcess ? "border-red-400" : ""}>
                   <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
               </div>
               <div>
-                <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the Supplier/Customer?</FL>
+                <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the Supplier or Customer?</FL>
                 <Sel value={form.existingRelationship} onChange={(v) => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
                   <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
@@ -751,7 +738,7 @@ export function NewDeclarationScreen({
                     <Download size={13} />
                   </a>
                   <button
-                    onClick={(e) => { e.stopPropagation(); setFiles((fs) => fs.filter((_, j) => j !== i)); }}
+                    onClick={(e) => { e.stopPropagation(); pendingFilesRef.current = pendingFilesRef.current.filter((_, j) => j !== i); setFiles((fs) => fs.filter((_, j) => j !== i)); }}
                     className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500"
                   >
                     <Trash2 size={13} />
@@ -845,3 +832,8 @@ export function NewDeclarationScreen({
     </div>
   );
 }
+
+
+
+
+
