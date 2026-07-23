@@ -8,7 +8,7 @@ import { PageHeader } from "../components/PageHeader";
 
 import { StatusBadge } from "../components/StatusBadge";
 import { TypeBadge } from "../components/TypeBadge";
-import { Table, Thead, Th, Tbody, Tr, Td } from "../components/table";
+import { Table, Thead, Th, Tbody, Tr, Td, COL } from "../components/table";
 import { exportRowsToXls } from "../../utils/excel";
 
 function daysSince(dateStr: string): number {
@@ -298,13 +298,13 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
           <Tbody>
             {pagedQueue.map((d) => (
               <Tr key={d.id}>
-                <Td><span className="font-mono text-sm font-bold" style={{ color: PURPLE }}>{d.id}</span></Td>
-                <Td className="font-medium text-foreground">{d.employee}</Td>
-                <Td className="text-muted-foreground">{d.department}</Td>
+                <Td><span className={COL.ID} style={{ color: PURPLE }}>{d.id}</span></Td>
+                <Td className={COL.EMPLOYEE}>{d.employee}</Td>
+                <Td className={COL.DEPARTMENT}>{d.department}</Td>
                 <Td><TypeBadge type={d.type} /></Td>
-                <Td className="font-medium text-foreground">{d.Counterparty}</Td>
-                <Td className="font-semibold tabular-nums">{formatRand(d.value)}</Td>
-                <Td className="tabular-nums text-muted-foreground">{d.submitted}</Td>
+                <Td className={COL.COUNTERPARTY}>{d.Counterparty}</Td>
+                <Td className={COL.VALUE}>{formatRand(d.value)}</Td>
+                <Td className={COL.SUBMITTED}>{d.submitted}</Td>
                 <Td>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${priorityStyle[d.priority]}`}>{d.priority}</span>
                 </Td>

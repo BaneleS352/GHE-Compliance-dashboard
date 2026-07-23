@@ -4,7 +4,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
-import { Table, Thead, Th, Tbody, Tr, Td } from "../../components/table";
+import { Table, Thead, Th, Tbody, Tr, Td, COL } from "../../components/table";
 import { PURPLE, formatRand } from "../../../config/theme";
 import { fetchReports } from "../../../services/reports";
 import { exportToExcel, ColumnDef } from "../../utils/excelExport";
@@ -211,15 +211,15 @@ export function AdminReports() {
                 <Tr><Td colSpan={9} className="py-10 text-center">No records for the selected range.</Td></Tr>
               ) : highValueData.map((row) => (
                 <Tr key={row.employee}>
-                  <Td className="font-medium text-foreground">{row.employee}</Td>
-                  <Td className="text-muted-foreground">{row.lineManager}</Td>
-                  <Td className="tabular-nums">{row.declarationCount}</Td>
-                  <Td className="font-semibold tabular-nums">{formatRand(row.totalValue)}</Td>
-                  <Td className="tabular-nums">{formatRand(row.averageValue)}</Td>
-                  <Td className="tabular-nums">{row.totalGift}</Td>
-                  <Td className="tabular-nums">{row.totalHospitality}</Td>
-                  <Td className="tabular-nums">{row.totalEntertainment}</Td>
-                  <Td className="text-muted-foreground">{row.mostFrequentSupplier}</Td>
+                  <Td className={COL.EMPLOYEE}>{row.employee}</Td>
+                  <Td className={COL.DEPARTMENT}>{row.lineManager}</Td>
+                  <Td className={COL.TABULAR_NUMS}>{row.declarationCount}</Td>
+                  <Td className={COL.VALUE}>{formatRand(row.totalValue)}</Td>
+                  <Td className={COL.TABULAR_NUMS}>{formatRand(row.averageValue)}</Td>
+                  <Td className={COL.TABULAR_NUMS}>{row.totalGift}</Td>
+                  <Td className={COL.TABULAR_NUMS}>{row.totalHospitality}</Td>
+                  <Td className={COL.TABULAR_NUMS}>{row.totalEntertainment}</Td>
+                  <Td className={COL.TEXT_MUTED}>{row.mostFrequentSupplier}</Td>
                 </Tr>
               ))}
             </Tbody>

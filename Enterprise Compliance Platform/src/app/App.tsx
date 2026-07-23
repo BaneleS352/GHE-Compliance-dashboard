@@ -28,6 +28,7 @@ function AppInner() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showSubmittedView, setShowSubmittedView] = useState(false);
   const [showDraftBanner, setShowDraftBanner] = useState(false);
+  const [editingDraft, setEditingDraft] = useState<Declaration | null>(null);
 
   useEffect(() => {
     if (!showSubmittedView) return;
@@ -69,6 +70,7 @@ function AppInner() {
   };
 
   const guardedNavigate = (s: Screen) => {
+    if (s === "new-declaration") setEditingDraft(null);
     if (!canAccessScreen(user, s)) {
       setScreen("landing");
       return;
@@ -90,12 +92,16 @@ function AppInner() {
 
       <AppShell role={user?.role || getRoleForScreen(screen)} screen={screen} userName={user?.name || ""} onNavigate={guardedNavigate} onSignOut={handleSignOut} user={user}>
         {screen === "new-declaration" && !showSubmittedView && (
-          <NewDeclarationScreen onSubmitSuccess={handleSubmitSuccess} onDraftSaved={() => setShowDraftBanner(true)} />
+          <NewDeclarationScreen
+            onSubmitSuccess={(data) => { setEditingDraft(null); handleSubmitSuccess(data); }}
+            onDraftSaved={() => setShowDraftBanner(true)}
+            draft={editingDraft}
+          />
         )}
         {screen === "new-declaration" && showSubmittedView && submittedData && (
           <ApprovalDetail declaration={submittedData} onBack={() => setShowSubmittedView(false)} readOnly />
         )}
-        {screen === "my-declarations" && <MyDeclarationsScreen />}
+        {screen === "my-declarations" && <MyDeclarationsScreen onEditDraft={(d) => { setEditingDraft(d); setScreen("new-declaration"); }} />}
         {screen === "approver-dashboard" && <ApproverDashboard onNavigate={guardedNavigate} onReview={(d) => { setSelectedDecl(d); guardedNavigate("approval-detail"); }} />}
         {screen === "approval-queue" && <ApprovalQueue onReview={(d) => { setSelectedDecl(d); guardedNavigate("approval-detail"); }} />}
         {screen === "approval-detail" && selectedDecl && <ApprovalDetail declaration={selectedDecl} onBack={() => guardedNavigate("approval-queue")} />}

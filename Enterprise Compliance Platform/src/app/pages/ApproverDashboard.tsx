@@ -1,13 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Check,
-  X,
-  Clock,
   Coins,
-  ArrowUp,
   CheckSquare,
   AlertTriangle,
-  ChevronRight,
   FileText,
 } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
@@ -18,7 +13,8 @@ import { useUser } from "../auth/UserContext";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 import { THead } from "../components/THead";
-import { Table, Tbody, Tr, Td } from "../components/table";
+import { Table, Tbody, Tr, Td, COL } from "../components/table";
+import { KpiCard, STATUS_KPI } from "../components/KpiCard";
 
 type DashboardFilter = "All" | "Pending" | "Approved" | "Declined" | "Escalated" | "Total Value";
 
@@ -138,13 +134,12 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   const queueCount = scopedDeclarations.filter((d) => ["Pending", "Escalated", "Info Requested"].includes(d.status)).length;
   const monthLabel = new Date().toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
 
-  const kpis = [
-    { label: "Pending Queue" as const, value: kpisData.pending, icon: Clock, color: "#f59e0b", filter: "Pending" as DashboardFilter },
-    { label: "Approved" as const, value: kpisData.approved, icon: Check, color: "#10b981", filter: "Approved" as DashboardFilter },
-    { label: "Declined" as const, value: kpisData.declined, icon: X, color: "#ef4444", filter: "Declined" as DashboardFilter },
-    { label: "Escalated" as const, value: kpisData.escalated, icon: ArrowUp, color: "#f97316", filter: "Escalated" as DashboardFilter },
-    { label: "Total Value" as const, value: formatRand(kpisData.totalValue), icon: Coins, color: "#6366f1", filter: "Total Value" as DashboardFilter },
-  ];
+  const kpiDefs = [
+    { ...STATUS_KPI.Pending, label: "Pending Queue" },
+    STATUS_KPI.Approved,
+    STATUS_KPI.Declined,
+    STATUS_KPI.Escalated,
+  ] as const;
 
   return (
     <div className="space-y-6">
@@ -166,29 +161,21 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
       />
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {kpis.map((k, i) => {
-          const isActive = activeFilter === k.filter;
+        {kpiDefs.map((def) => {
+          const value = String(def.key === "Pending" ? kpisData.pending : def.key === "Approved" ? kpisData.approved : def.key === "Declined" ? kpisData.declined : kpisData.escalated);
           return (
-            <div
-              key={i}
-              onClick={() => setActiveFilter(k.filter)}
-              className={`flex min-h-32 cursor-pointer items-center rounded-2xl border p-4 transition-all duration-300 sm:min-h-36 sm:p-5 ${
-                isActive ? "shadow-xl ring-2 ring-primary/15 sm:scale-[1.02]" : "hover:shadow-lg sm:hover:scale-[1.02]"
-              }`}
-              style={{ background: `linear-gradient(135deg, ${k.color}35, ${k.color}18)`, borderColor: isActive ? k.color : "#eee" }}
-            >
-              <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: `${k.color}40` }}>
-                  <k.icon size={18} style={{ color: k.color }} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-2xl font-bold text-foreground">{k.value}</p>
-                  <p className="text-xs text-muted-foreground">{k.label}</p>
-                </div>
-              </div>
-            </div>
+            <KpiCard
+              key={def.key}
+              label={def.label}
+              value={value}
+              icon={def.icon}
+              color={def.color}
+              active={activeFilter === def.filterValue}
+              onClick={() => setActiveFilter(def.filterValue as DashboardFilter)}
+            />
           );
         })}
+        <KpiCard label="Total Value" value={formatRand(kpisData.totalValue)} icon={Coins} color="#6366f1" />
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
@@ -304,11 +291,11 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                 departmentStats.slice(deptPage * DEPT_PAGE_SIZE, (deptPage + 1) * DEPT_PAGE_SIZE).map((row) => (
                   <Tr key={row.name}>
                     <Td className="font-semibold text-foreground">{row.name}</Td>
-                    <Td className="tabular-nums">{row.declarations}</Td>
+                    <Td className={COL.TABULAR_NUMS}>{row.declarations}</Td>
                     <Td className="font-semibold text-amber-600">{row.pending}</Td>
                     <Td className="font-semibold text-emerald-600">{row.approved}</Td>
                     <Td className="font-semibold text-red-600">{row.declined}</Td>
-                    <Td className="font-semibold tabular-nums text-foreground">{formatRand(row.totalValue)}</Td>
+                    <Td className={COL.VALUE}>{formatRand(row.totalValue)}</Td>
                   </Tr>
                 ))
               )}

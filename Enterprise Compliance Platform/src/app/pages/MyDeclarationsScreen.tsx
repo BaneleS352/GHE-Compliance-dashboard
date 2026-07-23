@@ -1,21 +1,22 @@
 ﻿import { useState, useEffect } from "react";
-import { ArrowLeft, Download, FileText, Clock, Check, X, Coins, Eye, Undo } from "lucide-react";
+import { ArrowLeft, Download, Eye, Edit } from "lucide-react";
 import { Declaration } from "../../types/declaration";
 import { fetchDeclarations } from "../../services/api";
 import { formatRand } from "../../config/theme";
 import { useUser } from "../auth/UserContext";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
-import { KpiCard } from "../components/KpiCard";
+import { KpiCard, STATUS_KPI } from "../components/KpiCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { TypeBadge } from "../components/TypeBadge";
 import { DeclarationDetailView, SupportingDocuments } from "../pages/DeclarationDetailView";
 import { WorkflowTimeline } from "../components/WorkflowTimeline";
-import { Table, Thead, Th, Tbody, Tr, Td } from "../components/table";
+import { Table, Thead, Th, Tbody, Tr, Td, COL } from "../components/table";
+import { PURPLE } from "../../config/theme";
 import { exportRowsToXls } from "../../utils/excel";
 import { useWorkflowApproval } from "../hooks/useWorkflowApproval";
 
-export function MyDeclarationsScreen() {
+export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declaration) => void }) {
   const { user } = useUser();
   const [declarations, setDeclarations] = useState<Declaration[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +62,8 @@ export function MyDeclarationsScreen() {
   const userDeclarations = user
     ? declarations.filter((d) => d.employeeId === user.id || d.employee === user.name)
     : declarations;
-  const visibleDeclarations = viewMode === "my" ? userDeclarations : declarations;
+  const ownDraftsOnly = (d: Declaration) => d.status !== "Draft" || d.employeeId === user?.id || d.employee === user?.name;
+  const visibleDeclarations = (viewMode === "my" ? userDeclarations : declarations).filter(ownDraftsOnly);
 
   if (loading) {
     return (
@@ -113,8 +115,6 @@ export function MyDeclarationsScreen() {
 
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
   const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-
-  const totalValue = visibleDeclarations.reduce((sum, d) => sum + d.value, 0);
 
 
   const handleKpiClick = (type: string) => {
@@ -233,13 +233,22 @@ export function MyDeclarationsScreen() {
         }
       />
 
-      <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        <KpiCard label="Total" value={String(visibleDeclarations.length)} icon={FileText} color="#7c3aed" active={activeKpi === "All"} onClick={() => handleKpiClick("All")} />
-        <KpiCard label="Pending" value={String(visibleDeclarations.filter((d) => d.status === "Pending").length)} icon={Clock} color="#f59e0b" active={activeKpi === "Pending"} onClick={() => handleKpiClick("Pending")} />
-        <KpiCard label="Approved" value={String(visibleDeclarations.filter((d) => d.status === "Approved").length)} icon={Check} color="#10b981" active={activeKpi === "Approved"} onClick={() => handleKpiClick("Approved")} />
-        <KpiCard label="Returned" value={String(visibleDeclarations.filter((d) => d.status === "Returned").length)} icon={Undo} color="#06b6d4" active={activeKpi === "Returned"} onClick={() => handleKpiClick("Returned")} />
-        <KpiCard label="Declined" value={String(visibleDeclarations.filter((d) => d.status === "Declined").length)} icon={X} color="#ef4444" active={activeKpi === "Declined"} onClick={() => handleKpiClick("Declined")} />
-        <KpiCard label="Total Value" value={`R ${Math.round(totalValue / 1000)}K`} icon={Coins} color="#6366f1" />
+      <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+        {(["Total", "Pending", "Approved", "Returned", "Declined"] as const).map((k) => {
+          const def = STATUS_KPI[k];
+          const count = k === "Total" ? visibleDeclarations.length : visibleDeclarations.filter((d) => d.status === def.filterValue).length;
+          return (
+            <KpiCard
+              key={def.key}
+              label={def.label}
+              value={String(count)}
+              icon={def.icon}
+              color={def.color}
+              active={activeKpi === def.filterValue}
+              onClick={() => handleKpiClick(def.filterValue)}
+            />
+          );
+        })}
       </div>
 
       <Card className="mb-4 grid grid-cols-1 gap-3 border-white/70 bg-white/85 p-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -322,9 +331,15 @@ export function MyDeclarationsScreen() {
               </div>
 
               <div className="mt-4 flex flex-col gap-2">
-                <button onClick={() => setViewDecl(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
-                  <Eye size={12} /> View
-                </button>
+                {d.status === "Draft" && onEditDraft ? (
+                  <button onClick={() => onEditDraft(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
+                    <Edit size={12} /> Continue
+                  </button>
+                ) : (
+                  <button onClick={() => setViewDecl(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
+                    <Eye size={12} /> View
+                  </button>
+                )}
                 <button onClick={() => exportRow(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl border text-xs font-semibold hover:border-primary">
                   <Download size={12} /> Export
                 </button>
@@ -362,18 +377,24 @@ export function MyDeclarationsScreen() {
             ) : (
               paged.map((d) => (
                 <Tr key={d.id}>
-                  <Td className="font-mono text-sm font-bold text-purple-600">{d.id}</Td>
+                  <Td><span className={COL.ID} style={{ color: PURPLE }}>{d.id}</span></Td>
                   <Td><TypeBadge type={d.type} /></Td>
-                  <Td className="font-medium text-foreground">{d.Counterparty}</Td>
-                  <Td className="font-semibold tabular-nums">{formatRand(d.value)}</Td>
-                  <Td className="tabular-nums text-muted-foreground">{d.submitted}</Td>
-                  <Td className="text-muted-foreground">{d.approver}</Td>
+                  <Td className={COL.COUNTERPARTY}>{d.Counterparty}</Td>
+                  <Td className={COL.VALUE}>{formatRand(d.value)}</Td>
+                  <Td className={COL.SUBMITTED}>{d.submitted}</Td>
+                  <Td className={COL.APPROVER}>{d.approver}</Td>
                   <Td><StatusBadge status={d.status} /></Td>
                   <Td>
                     <div className="flex gap-2">
-                      <button onClick={() => setViewDecl(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
-                        <Eye size={12} /> View
-                      </button>
+                      {d.status === "Draft" && onEditDraft ? (
+                        <button onClick={() => onEditDraft(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
+                          <Edit size={12} /> Edit
+                        </button>
+                      ) : (
+                        <button onClick={() => setViewDecl(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
+                          <Eye size={12} /> View
+                        </button>
+                      )}
                       <button onClick={() => exportRow(d)} className="flex h-8 items-center gap-1 rounded-lg border px-3 text-xs font-semibold hover:border-primary">
                         <Download size={12} /> Export
                       </button>
