@@ -11,13 +11,11 @@ export function DeclarationDetailView({
   onBack,
   hideBackButton,
   hideDocuments,
-  hideTitle,
 }: {
   data: Record<string, string> | Declaration;
   onBack: () => void;
   hideBackButton?: boolean;
   hideDocuments?: boolean;
-  hideTitle?: boolean;
 }) {
   const isRecord = typeof (data as Declaration).value === "number";
   const d = isRecord ? (data as Declaration) : null;
@@ -82,17 +80,6 @@ export function DeclarationDetailView({
   return (
     <div className="space-y-5">
       
-        <div className="flex items-center gap-3">
-          {!hideBackButton && (
-            <button
-              onClick={onBack}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 text-sm font-semibold shadow-sm transition-colors hover:bg-muted/50"
-            >
-              <ArrowLeft size={14} /> Back
-            </button>
-          )}
-          <h1 className="text-xl font-bold">Declaration Details</h1>
-        </div>
       <div className="detail-panel-shell">
       <Card
         className="
@@ -104,11 +91,9 @@ export function DeclarationDetailView({
     >
 
       <div className="relative z-10">
-        {!hideTitle && (
           <h2 className="mb-6 inline-flex rounded-full border border-purple-200/70 bg-purple-50 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm">
             Declaration Details
           </h2>
-        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {fields.map(([k, v]) => (

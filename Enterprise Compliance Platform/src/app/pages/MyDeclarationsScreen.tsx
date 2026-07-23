@@ -8,6 +8,7 @@ import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 import { KpiCard } from "../components/KpiCard";
 import { StatusBadge } from "../components/StatusBadge";
+import { TypeBadge } from "../components/TypeBadge";
 import { DeclarationDetailView, SupportingDocuments } from "../pages/DeclarationDetailView";
 import { WorkflowTimeline } from "../components/WorkflowTimeline";
 import { Table, Thead, Th, Tbody, Tr, Td } from "../components/table";
@@ -170,7 +171,7 @@ export function MyDeclarationsScreen() {
         </div>
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
           <div className="xl:col-span-3 flex flex-col gap-5">
-            <DeclarationDetailView data={{ ...viewDecl, status: displayStatus }} onBack={() => {}} hideBackButton hideDocuments hideTitle />
+            <DeclarationDetailView data={{ ...viewDecl, status: displayStatus }} onBack={() => {}} hideBackButton hideDocuments />
             <SupportingDocuments data={viewDecl} />
           </div>
         <div className="xl:col-span-2 h-full space-y-5">
@@ -361,12 +362,12 @@ export function MyDeclarationsScreen() {
             ) : (
               paged.map((d) => (
                 <Tr key={d.id}>
-                  <Td className="font-medium text-foreground">{d.id}</Td>
-                  <Td className="text-foreground">{d.type}</Td>
-                  <Td className="text-foreground">{d.Counterparty}</Td>
-                  <Td className="font-medium text-foreground">{formatRand(d.value)}</Td>
-                  <Td className="text-foreground">{d.submitted}</Td>
-                  <Td className="text-foreground">{d.approver}</Td>
+                  <Td className="font-mono text-sm font-bold text-purple-600">{d.id}</Td>
+                  <Td><TypeBadge type={d.type} /></Td>
+                  <Td className="font-medium text-foreground">{d.Counterparty}</Td>
+                  <Td className="font-semibold tabular-nums">{formatRand(d.value)}</Td>
+                  <Td className="tabular-nums text-muted-foreground">{d.submitted}</Td>
+                  <Td className="text-muted-foreground">{d.approver}</Td>
                   <Td><StatusBadge status={d.status} /></Td>
                   <Td>
                     <div className="flex gap-2">

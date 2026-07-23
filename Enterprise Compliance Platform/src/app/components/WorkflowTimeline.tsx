@@ -1,4 +1,4 @@
-﻿﻿import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { fetchWorkflowInstance } from "../../services/api";
 import { ApprovalDecision } from "../../types/declaration";
 
@@ -188,7 +188,9 @@ export function WorkflowTimeline({
   const steps = externalSteps || buildStepsFromWorkflow(wf, employee);
 
   return (
-    <div className="bg-white rounded-2xl p-7 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_24px_rgba(76,29,149,0.06)] h-full" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif" }}>
+    <div className="detail-panel-shell h-full">
+      <div className="detail-panel-card bg-white p-7" style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif" }}>
+      <div className="relative z-10">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-[34px] h-[34px] rounded-[10px] bg-gradient-to-br from-purple-600 to-purple-500 flex items-center justify-center flex-shrink-0">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -199,7 +201,7 @@ export function WorkflowTimeline({
             <path d="M15.8 7.2 L13 16" />
           </svg>
         </div>
-        <h1 className="text-xs font-extrabold tracking-[0.06em] uppercase text-purple-700 m-0">Approval Workflow</h1>
+        <h1 className="inline-flex rounded-full border border-purple-200/70 bg-purple-50 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm m-0">Approval Workflow</h1>
       </div>
 
       {steps.map((step, i) => {
@@ -303,12 +305,14 @@ export function WorkflowTimeline({
           <button
             onClick={onSubmit}
             disabled={submitDisabled}
-            className="w-full py-3 border-none rounded-[10px] bg-gradient-to-br from-purple-700 to-purple-500 text-white text-sm font-bold cursor-pointer transition-all duration-100 disabled:opacity-45 disabled:cursor-not-allowed hover:not-disabled:-translate-y-[1px]"
+            className="w-full py-3 border-none rounded-[10px] bg-gradient-to-br from-purple-700 to-purple-500 text-white text-sm font-bold cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"
           >
             {submitted ? "Decision Submitted" : "Submit Decision"}
           </button>
         </div>
       )}
+    </div>
+    </div>
     </div>
   );
 }

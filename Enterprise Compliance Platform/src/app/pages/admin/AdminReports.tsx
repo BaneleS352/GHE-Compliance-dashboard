@@ -213,12 +213,12 @@ export function AdminReports() {
                 <Tr key={row.employee}>
                   <Td className="font-medium text-foreground">{row.employee}</Td>
                   <Td className="text-muted-foreground">{row.lineManager}</Td>
-                  <Td>{row.declarationCount}</Td>
-                  <Td className="font-semibold">{formatRand(row.totalValue)}</Td>
-                  <Td>{formatRand(row.averageValue)}</Td>
-                  <Td>{row.totalGift}</Td>
-                  <Td>{row.totalHospitality}</Td>
-                  <Td>{row.totalEntertainment}</Td>
+                  <Td className="tabular-nums">{row.declarationCount}</Td>
+                  <Td className="font-semibold tabular-nums">{formatRand(row.totalValue)}</Td>
+                  <Td className="tabular-nums">{formatRand(row.averageValue)}</Td>
+                  <Td className="tabular-nums">{row.totalGift}</Td>
+                  <Td className="tabular-nums">{row.totalHospitality}</Td>
+                  <Td className="tabular-nums">{row.totalEntertainment}</Td>
                   <Td className="text-muted-foreground">{row.mostFrequentSupplier}</Td>
                 </Tr>
               ))}

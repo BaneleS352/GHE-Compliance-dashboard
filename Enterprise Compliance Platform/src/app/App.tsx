@@ -8,8 +8,6 @@ import { MyDeclarationsScreen } from "./pages/MyDeclarationsScreen";
 import { ApproverDashboard } from "./pages/ApproverDashboard";
 import { ApprovalQueue } from "./pages/ApprovalQueue";
 import { ApprovalDetail } from "./pages/ApprovalDetail";
-import { DeclarationDetailView, SupportingDocuments } from "./pages/DeclarationDetailView";
-import { WorkflowTimeline } from "./components/WorkflowTimeline";
 import { AdminDashboard } from "./pages/admin/AdminDashboard";
 import { AdminUsers } from "./pages/admin/AdminUsers";
 import { AdminWorkflows } from "./pages/admin/AdminWorkflows";
@@ -95,17 +93,7 @@ function AppInner() {
           <NewDeclarationScreen onSubmitSuccess={handleSubmitSuccess} onDraftSaved={() => setShowDraftBanner(true)} />
         )}
         {screen === "new-declaration" && showSubmittedView && submittedData && (
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
-            <div className="xl:col-span-3">
-              <DeclarationDetailView data={submittedData} onBack={() => setShowSubmittedView(false)} hideDocuments />
-            </div>
-            <div className="xl:col-span-2 h-full">
-              <WorkflowTimeline declarationId={submittedData.id} employee={submittedData.employee} />
-            </div>
-            <div className="xl:col-span-3">
-              <SupportingDocuments data={submittedData} />
-            </div>
-          </div>
+          <ApprovalDetail declaration={submittedData} onBack={() => setShowSubmittedView(false)} readOnly />
         )}
         {screen === "my-declarations" && <MyDeclarationsScreen />}
         {screen === "approver-dashboard" && <ApproverDashboard onNavigate={guardedNavigate} onReview={(d) => { setSelectedDecl(d); guardedNavigate("approval-detail"); }} />}

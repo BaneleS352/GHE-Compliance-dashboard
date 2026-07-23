@@ -304,7 +304,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                 departmentStats.slice(deptPage * DEPT_PAGE_SIZE, (deptPage + 1) * DEPT_PAGE_SIZE).map((row) => (
                   <Tr key={row.name}>
                     <Td className="font-semibold text-foreground">{row.name}</Td>
-                    <Td className="text-foreground">{row.declarations}</Td>
+                    <Td className="tabular-nums">{row.declarations}</Td>
                     <Td className="font-semibold text-amber-600">{row.pending}</Td>
                     <Td className="font-semibold text-emerald-600">{row.approved}</Td>
                     <Td className="font-semibold text-red-600">{row.declined}</Td>
