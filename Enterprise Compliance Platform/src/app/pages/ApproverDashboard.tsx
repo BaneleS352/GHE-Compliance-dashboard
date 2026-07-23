@@ -18,6 +18,7 @@ import { useUser } from "../auth/UserContext";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 import { THead } from "../components/THead";
+import { Table, Tbody, Tr, Td } from "../components/table";
 
 type DashboardFilter = "All" | "Pending" | "Approved" | "Declined" | "Escalated" | "Total Value";
 
@@ -127,7 +128,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   }, [filteredDeclarations]);
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted-foreground animate-pulse">Loading dashboard…</div></div>;
+    return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted-foreground animate-pulse">Loading dashboardï¿½</div></div>;
   }
 
   if (error) {
@@ -149,7 +150,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
     <div className="space-y-6">
       <PageHeader
         title="Approver Dashboard"
-        subtitle={`Current month view • ${monthLabel}`}
+        subtitle={`Current month view ï¿½ ${monthLabel}`}
         actions={
           <button
             onClick={() => onNavigate("approval-queue")}
@@ -208,7 +209,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-3 text-[11px]">
                     <span className="font-semibold" style={{ color: PURPLE }}>{formatRand(row.totalValue)}</span>
-                    <span className="text-muted-foreground">Gift {row.types.Gift || 0} • Hosp {row.types.Hospitality || 0} • Ent {row.types.Entertainment || 0}</span>
+                    <span className="text-muted-foreground">Gift {row.types.Gift || 0} ï¿½ Hosp {row.types.Hospitality || 0} ï¿½ Ent {row.types.Entertainment || 0}</span>
                   </div>
                 </div>
               ))
@@ -244,7 +245,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                     return (
                       <div key={entry.name} className="rounded-xl border border-border bg-white px-3 py-2 text-center">
                         <p className="text-xs font-semibold text-foreground">{entry.name}</p>
-                        <p className="text-[11px] text-muted-foreground">{entry.value} • {percent}%</p>
+                        <p className="text-[11px] text-muted-foreground">{entry.value} ï¿½ {percent}%</p>
                       </div>
                     );
                   })}
@@ -257,7 +258,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
         <Card className="flex flex-col p-5" style={{ borderLeft: "4px solid #ef4444" }}>
           <div className="mb-1 flex items-center gap-2">
             <AlertTriangle size={14} style={{ color: "#ef4444" }} />
-            <p className="text-xs font-bold uppercase tracking-wide text-red-600">Overdue • 7+ Days</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-red-600">Overdue ï¿½ 7+ Days</p>
           </div>
           <div className="mt-3 flex-1 space-y-2">
             {overdueDeclarations.length === 0 ? (
@@ -274,7 +275,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-mono font-bold" style={{ color: PURPLE }}>{d.id}</p>
-                    <p className="truncate text-[10px] text-muted-foreground">{d.employee} • {daysSince(d.submitted)} days</p>
+                    <p className="truncate text-[10px] text-muted-foreground">{d.employee} ï¿½ {daysSince(d.submitted)} days</p>
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${d.priority === "High" ? "bg-red-100 text-red-700" : d.priority === "Medium" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>
                     {d.priority}
@@ -294,27 +295,25 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <Table>
             <THead cols={["Department", "Declarations", "Pending", "Approved", "Declined", "Total Value"]} />
-            <tbody className="divide-y divide-border">
+            <Tbody>
               {departmentStats.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">No current-month data available</td>
-                </tr>
+                <Tr><Td colSpan={6} className="py-10 text-center">No current-month data available</Td></Tr>
               ) : (
                 departmentStats.slice(deptPage * DEPT_PAGE_SIZE, (deptPage + 1) * DEPT_PAGE_SIZE).map((row) => (
-                  <tr key={row.name} className="transition-colors hover:bg-muted/20">
-                    <td className="whitespace-nowrap px-5 py-3 text-xs font-semibold text-foreground">{row.name}</td>
-                    <td className="whitespace-nowrap px-5 py-3 text-xs text-foreground">{row.declarations}</td>
-                    <td className="whitespace-nowrap px-5 py-3 text-xs font-semibold text-amber-600">{row.pending}</td>
-                    <td className="whitespace-nowrap px-5 py-3 text-xs font-semibold text-emerald-600">{row.approved}</td>
-                    <td className="whitespace-nowrap px-5 py-3 text-xs font-semibold text-red-600">{row.declined}</td>
-                    <td className="whitespace-nowrap px-5 py-3 text-xs font-semibold tabular-nums text-foreground">{formatRand(row.totalValue)}</td>
-                  </tr>
+                  <Tr key={row.name}>
+                    <Td className="font-semibold text-foreground">{row.name}</Td>
+                    <Td className="text-foreground">{row.declarations}</Td>
+                    <Td className="font-semibold text-amber-600">{row.pending}</Td>
+                    <Td className="font-semibold text-emerald-600">{row.approved}</Td>
+                    <Td className="font-semibold text-red-600">{row.declined}</Td>
+                    <Td className="font-semibold tabular-nums text-foreground">{formatRand(row.totalValue)}</Td>
+                  </Tr>
                 ))
               )}
-            </tbody>
-          </table>
+            </Tbody>
+          </Table>
           {departmentStats.length > DEPT_PAGE_SIZE && (
             <div className="flex items-center justify-between border-t border-border bg-[#F7F8FC] px-5 py-3">
               <p className="text-xs text-muted-foreground">Showing <span className="font-semibold text-foreground">{departmentStats.length}</span> departments</p>

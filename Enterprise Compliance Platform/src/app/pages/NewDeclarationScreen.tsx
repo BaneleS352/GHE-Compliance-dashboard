@@ -407,7 +407,7 @@ export function NewDeclarationScreen({
         </div>
       )}
 
-      <aside className="hidden w-48 flex-shrink-0 flex-col gap-3 self-stretch lg:sticky lg:top-4 lg:flex lg:min-h-[calc(100vh-2rem)]">
+      <aside className="hidden w-48 flex-shrink-0 flex-col gap-3 self-start lg:sticky lg:top-4 lg:flex lg:min-h-[calc(100vh-2rem)]">
         <Card className="p-3.5">
           <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2.5 px-1">
             Sections

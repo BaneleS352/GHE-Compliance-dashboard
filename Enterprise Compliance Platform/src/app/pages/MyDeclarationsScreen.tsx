@@ -10,6 +10,7 @@ import { KpiCard } from "../components/KpiCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { DeclarationDetailView, SupportingDocuments } from "../pages/DeclarationDetailView";
 import { WorkflowTimeline } from "../components/WorkflowTimeline";
+import { Table, Thead, Th, Tbody, Tr, Td } from "../components/table";
 import { exportRowsToXls } from "../../utils/excel";
 import { useWorkflowApproval } from "../hooks/useWorkflowApproval";
 
@@ -333,43 +334,41 @@ export function MyDeclarationsScreen() {
       </Card>
 
       <Card className="hidden overflow-x-auto md:block">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-[#F7F8FC]">
-              {["Declaration ID", "Type", "Counterparty", "Value", "Submitted", "Final Approver", "Status", "Actions"].map((label) => {
-                const key = label === "Declaration ID" ? "id" : label === "Type" ? "type" : label === "Counterparty" ? "counterparty" : label === "Value" ? "value" : label === "Submitted" ? "submitted" : label === "Final Approver" ? "approver" : label === "Status" ? "status" : null;
-                const isSortable = key !== null;
-                return (
-                  <th
-                    key={label}
-                    onClick={isSortable ? () => {
-                      if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
-                      else { setSortKey(key as keyof Declaration); setSortDir("asc"); }
-                    } : undefined}
-                    className={`px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground transition-all duration-200 ${isSortable ? "cursor-pointer hover:text-purple-700" : ""}`}
-                  >
-                    {label}{isSortable && sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <Thead>
+            {["Declaration ID", "Type", "Counterparty", "Value", "Submitted", "Final Approver", "Status", "Actions"].map((label) => {
+              const key = label === "Declaration ID" ? "id" : label === "Type" ? "type" : label === "Counterparty" ? "counterparty" : label === "Value" ? "value" : label === "Submitted" ? "submitted" : label === "Final Approver" ? "approver" : label === "Status" ? "status" : null;
+              const isSortable = key !== null;
+              return (
+                <Th
+                  key={label}
+                  sortable={isSortable}
+                  active={isSortable && sortKey === key}
+                  direction={sortDir}
+                  onClick={isSortable ? () => {
+                    if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
+                    else { setSortKey(key as keyof Declaration); setSortDir("asc"); }
+                  } : undefined}
+                >
+                  {label}
+                </Th>
+              );
+            })}
+          </Thead>
+          <Tbody>
             {sorted.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="py-10 text-center text-muted-foreground">No declarations found</td>
-              </tr>
+              <Tr><Td colSpan={8} className="py-10 text-center">No declarations found</Td></Tr>
             ) : (
               paged.map((d) => (
-                <tr key={d.id} className="group border-b border-border/70 transition-all duration-300 hover:bg-purple-50/35 hover:shadow-[inset_0_1px_0_rgba(196,181,253,0.12)]">
-                  <td className="whitespace-nowrap px-5 py-3 font-medium text-slate-700 transition-colors duration-200 group-hover:text-purple-900">{d.id}</td>
-                  <td className="whitespace-nowrap px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.type}</td>
-                  <td className="whitespace-nowrap px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.Counterparty}</td>
-                  <td className="whitespace-nowrap px-5 py-3 font-medium text-slate-700 transition-colors duration-200 group-hover:text-purple-900">{formatRand(d.value)}</td>
-                  <td className="whitespace-nowrap px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.submitted}</td>
-                  <td className="whitespace-nowrap px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.approver}</td>
-                  <td className="px-5 py-3 transition-transform duration-200 group-hover:translate-x-0.5"><StatusBadge status={d.status} /></td>
-                  <td className="px-5 py-3">
+                <Tr key={d.id}>
+                  <Td className="font-medium text-foreground">{d.id}</Td>
+                  <Td className="text-foreground">{d.type}</Td>
+                  <Td className="text-foreground">{d.Counterparty}</Td>
+                  <Td className="font-medium text-foreground">{formatRand(d.value)}</Td>
+                  <Td className="text-foreground">{d.submitted}</Td>
+                  <Td className="text-foreground">{d.approver}</Td>
+                  <Td><StatusBadge status={d.status} /></Td>
+                  <Td>
                     <div className="flex gap-2">
                       <button onClick={() => setViewDecl(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
                         <Eye size={12} /> View
@@ -378,12 +377,12 @@ export function MyDeclarationsScreen() {
                         <Download size={12} /> Export
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </Td>
+                </Tr>
               ))
             )}
-          </tbody>
-        </table>
+          </Tbody>
+        </Table>
         <div className="flex items-center justify-between border-t border-border bg-[#F7F8FC] px-5 py-3">
           <p className="text-xs text-muted-foreground">
             Showing <span className="font-semibold text-foreground">{sorted.length}</span> declarations

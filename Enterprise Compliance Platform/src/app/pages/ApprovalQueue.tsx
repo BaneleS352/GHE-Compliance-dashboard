@@ -8,6 +8,7 @@ import { PageHeader } from "../components/PageHeader";
 
 import { StatusBadge } from "../components/StatusBadge";
 import { TypeBadge } from "../components/TypeBadge";
+import { Table, Thead, Th, Tbody, Tr, Td } from "../components/table";
 import { exportRowsToXls } from "../../utils/excel";
 
 function daysSince(dateStr: string): number {
@@ -276,39 +277,39 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       </Card>
 
       <Card className="hidden overflow-x-auto md:block">
-        <table className="w-full text-sm">
-          <thead>
-      <tr className="border-b border-border bg-[#F7F8FC]">
-        {["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status"].map((label) => (
-          <th
-            key={label}
-            onClick={() => {
-              if (sortKey === label) setSortDir(sortDir === "asc" ? "desc" : "asc");
-              else { setSortKey(label); setSortDir("asc"); }
-            }}
-            className="cursor-pointer px-5 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider transition-all duration-200 hover:bg-purple-50/45 hover:text-purple-700"
-          >
-            {label}{sortKey === label ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-          </th>
-        ))}
-        <th className="px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Actions</th>
-      </tr>
-    </thead>
-          <tbody className="divide-y divide-border">
+        <Table>
+          <Thead>
+            {["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status"].map((label) => (
+              <Th
+                key={label}
+                sortable
+                active={sortKey === label}
+                direction={sortDir}
+                onClick={() => {
+                  if (sortKey === label) setSortDir(sortDir === "asc" ? "desc" : "asc");
+                  else { setSortKey(label); setSortDir("asc"); }
+                }}
+              >
+                {label}
+              </Th>
+            ))}
+            <Th>Actions</Th>
+          </Thead>
+          <Tbody>
             {pagedQueue.map((d) => (
-              <tr key={d.id} className="transition-colors hover:bg-muted/20">
-                <td className="whitespace-nowrap px-5 py-3"><span className="font-mono text-sm font-bold" style={{ color: PURPLE }}>{d.id}</span></td>
-                <td className="whitespace-nowrap px-5 py-3 font-medium text-foreground">{d.employee}</td>
-                <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">{d.department}</td>
-                <td className="px-5 py-3"><TypeBadge type={d.type} /></td>
-                <td className="whitespace-nowrap px-5 py-3 font-medium text-foreground">{d.Counterparty}</td>
-                <td className="whitespace-nowrap px-5 py-3 font-semibold tabular-nums">{formatRand(d.value)}</td>
-                <td className="whitespace-nowrap px-5 py-3 tabular-nums text-muted-foreground">{d.submitted}</td>
-                <td className="px-5 py-3">
+              <Tr key={d.id}>
+                <Td><span className="font-mono text-sm font-bold" style={{ color: PURPLE }}>{d.id}</span></Td>
+                <Td className="font-medium text-foreground">{d.employee}</Td>
+                <Td className="text-muted-foreground">{d.department}</Td>
+                <Td><TypeBadge type={d.type} /></Td>
+                <Td className="font-medium text-foreground">{d.Counterparty}</Td>
+                <Td className="font-semibold tabular-nums">{formatRand(d.value)}</Td>
+                <Td className="tabular-nums text-muted-foreground">{d.submitted}</Td>
+                <Td>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${priorityStyle[d.priority]}`}>{d.priority}</span>
-                </td>
-                <td className="px-5 py-3"><StatusBadge status={d.status} /></td>
-                <td className="px-5 py-3">
+                </Td>
+                <Td><StatusBadge status={d.status} /></Td>
+                <Td>
                   <button
                     onClick={() => onReview(d)}
                     className="h-8 rounded-lg px-3 text-xs font-semibold text-white hover:opacity-90"
@@ -316,11 +317,11 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
                   >
                     Review
                   </button>
-                </td>
-              </tr>
+                </Td>
+              </Tr>
             ))}
-          </tbody>
-        </table>
+          </Tbody>
+        </Table>
         <div className="flex items-center justify-between border-t border-border bg-[#F7F8FC] px-5 py-3">
           <p className="text-xs text-muted-foreground">
             Showing <span className="font-semibold text-foreground">{filteredQueue.length}</span> declarations

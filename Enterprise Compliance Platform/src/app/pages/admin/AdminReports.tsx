@@ -4,6 +4,7 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
+import { Table, Thead, Th, Tbody, Tr, Td } from "../../components/table";
 import { PURPLE, formatRand } from "../../../config/theme";
 import { fetchReports } from "../../../services/reports";
 import { exportToExcel, ColumnDef } from "../../utils/excelExport";
@@ -199,64 +200,33 @@ export function AdminReports() {
             <h3 className="text-sm font-bold text-foreground">High-Value Gifts Report</h3>
             <span className="text-xs text-muted-foreground">Generated {generatedAt}</span>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-[#F7F8FC]">
-                {["Employee", "Line Manager", "Declarations", "Total Value", "Average Value", "Total G", "Total H", "Total E", "Most Frequent Supplier"].map((label) => (
-                  <th key={label} className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {highValueData.length === 0 ? (
-                <tr><td colSpan={9} className="py-10 text-center text-sm text-muted-foreground">No records for the selected range.</td></tr>
-              ) : highValueData.map((row) => (
-                <tr key={row.employee} className="transition-colors hover:bg-muted/20">
-                  <td className="whitespace-nowrap px-5 py-3 font-medium text-foreground">{row.employee}</td>
-                  <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">{row.lineManager}</td>
-                  <td className="whitespace-nowrap px-5 py-3">{row.declarationCount}</td>
-                  <td className="whitespace-nowrap px-5 py-3 font-semibold">{formatRand(row.totalValue)}</td>
-                  <td className="whitespace-nowrap px-5 py-3">{formatRand(row.averageValue)}</td>
-                  <td className="whitespace-nowrap px-5 py-3">{row.totalGift}</td>
-                  <td className="whitespace-nowrap px-5 py-3">{row.totalHospitality}</td>
-                  <td className="whitespace-nowrap px-5 py-3">{row.totalEntertainment}</td>
-                  <td className="px-5 py-3 text-muted-foreground">{row.mostFrequentSupplier}</td>
-                </tr>
+          <Table>
+            <Thead>
+              {["Employee", "Line Manager", "Declarations", "Total Value", "Average Value", "Total G", "Total H", "Total E", "Most Frequent Supplier"].map((label) => (
+                <Th key={label}>{label}</Th>
               ))}
-            </tbody>
-          </table>
+            </Thead>
+            <Tbody>
+              {highValueData.length === 0 ? (
+                <Tr><Td colSpan={9} className="py-10 text-center">No records for the selected range.</Td></Tr>
+              ) : highValueData.map((row) => (
+                <Tr key={row.employee}>
+                  <Td className="font-medium text-foreground">{row.employee}</Td>
+                  <Td className="text-muted-foreground">{row.lineManager}</Td>
+                  <Td>{row.declarationCount}</Td>
+                  <Td className="font-semibold">{formatRand(row.totalValue)}</Td>
+                  <Td>{formatRand(row.averageValue)}</Td>
+                  <Td>{row.totalGift}</Td>
+                  <Td>{row.totalHospitality}</Td>
+                  <Td>{row.totalEntertainment}</Td>
+                  <Td className="text-muted-foreground">{row.mostFrequentSupplier}</Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
         </div></Card>
       )}
 
-      {generatedAt && reportType === "Counterparty Concentration Report" && (
-        <Card className="overflow-x-auto p-0">
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <h3 className="text-sm font-bold text-foreground">Counterparty Concentration Report</h3>
-            <span className="text-xs text-muted-foreground">Generated {generatedAt}</span>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-[#F7F8FC]">
-                {["Counterparty", "Declarations", "Total Value", "Average Value"].map((label) => (
-                  <th key={label} className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">{label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {counterpartyData.length === 0 ? (
-                <tr><td colSpan={4} className="py-10 text-center text-sm text-muted-foreground">No records for the selected range.</td></tr>
-              ) : counterpartyData.map((row) => (
-                <tr key={row.counterparty} className="transition-colors hover:bg-muted/20">
-                  <td className="px-5 py-3 font-medium text-foreground">{row.counterparty}</td>
-                  <td className="whitespace-nowrap px-5 py-3">{row.count}</td>
-                  <td className="whitespace-nowrap px-5 py-3 font-semibold">{formatRand(row.totalValue)}</td>
-                  <td className="whitespace-nowrap px-5 py-3">{formatRand(row.avgValue)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      )}
     </div>
   );
 }
