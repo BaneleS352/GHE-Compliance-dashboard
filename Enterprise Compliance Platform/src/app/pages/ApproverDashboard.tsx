@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, ReactNode } from "react";
 import {
   Coins,
   CheckSquare,
@@ -8,21 +8,27 @@ import {
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { fetchDeclarations } from "../../services/api";
 import { Screen, Declaration } from "../../types/declaration";
-import { PURPLE, YELLOW, formatRand, PRIORITY_COLORS, STATUS_COLORS } from "../../config/theme";
+import { PURPLE, YELLOW, formatRand, PRIORITY_COLORS, STATUS_COLORS, GRADIENT_PRIMARY, TYPE_COLORS } from "../../config/theme";
 import { useUser } from "../auth/UserContext";
-import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 import { THead } from "../components/THead";
 import { Table, Tbody, Tr, Td, COL } from "../components/table";
 import { KpiCard, STATUS_KPI } from "../components/KpiCard";
 
+function ModernCard({ children, className = "", style, accent }: { children: ReactNode; className?: string; style?: React.CSSProperties; accent?: string }) {
+  return (
+    <div
+      className={`relative isolate overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 shadow-[0_4px_24px_rgba(79,29,149,0.06)] transition-all duration-300 hover:shadow-[0_8px_32px_rgba(79,29,149,0.1)] ${className}`}
+      style={accent ? { borderLeft: `3px solid ${accent}`, ...style } : style}
+    >
+      {children}
+    </div>
+  );
+}
+
 type DashboardFilter = "All" | "Pending" | "Approved" | "Declined" | "Escalated" | "Total Value";
 
-const TYPE_COLORS: Record<string, string> = {
-  Gift: "#7c3aed",
-  Hospitality: "#0f766e",
-  Entertainment: "#d97706",
-};
+
 
 function isCurrentMonth(value: string): boolean {
   const date = new Date(value);
@@ -155,7 +161,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
           <button
             onClick={() => onNavigate("approval-queue")}
             className="flex h-10 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold text-white transition-all hover:opacity-90 sm:w-auto"
-            style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
+            style={{ background: GRADIENT_PRIMARY }}
           >
             <CheckSquare size={15} /> Approval Queue
             <span className="ml-0.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold" style={{ background: YELLOW, color: "#1E1E2D" }}>
@@ -185,17 +191,17 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <Card className="flex flex-col p-5">
+        <ModernCard className="flex flex-col p-5" accent={PURPLE}>
           <div className="mb-1 flex items-center gap-2">
             <FileText size={14} style={{ color: PURPLE }} />
-            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Team Member Activity</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-foreground/70">Team Member Activity</p>
           </div>
           <div className="mt-3 flex-1 space-y-2">
             {teamActivity.length === 0 ? (
               <p className="text-xs text-muted-foreground">No current-month activity yet</p>
             ) : (
               teamActivity.map((row) => (
-                <div key={row.name} className="rounded-xl bg-muted/30 p-3">
+                <div key={row.name} className="rounded-xl bg-purple-50/40 p-3 ring-1 ring-purple-500/8 transition-all hover:bg-purple-50/70">
                   <div className="flex items-center justify-between gap-3">
                     <p className="truncate text-sm font-semibold text-foreground">{row.name}</p>
                     <span className="text-[10px] text-muted-foreground">{row.declarations} decl.</span>
@@ -208,12 +214,12 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
               ))
             )}
           </div>
-        </Card>
+        </ModernCard>
 
-        <Card className="flex flex-col p-5">
+        <ModernCard className="flex flex-col p-5" accent={PURPLE}>
           <div className="mb-1 flex items-center gap-2">
             <Coins size={14} style={{ color: PURPLE }} />
-            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">GHE Distribution</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-foreground/70">GHE Distribution</p>
           </div>
           <div className="mt-3 flex-1">
             {typeDistribution.length === 0 ? (
@@ -236,7 +242,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                   {typeDistribution.map((entry) => {
                     const percent = Math.round((entry.value / typeDistribution.reduce((sum, item) => sum + item.value, 0)) * 100);
                     return (
-                      <div key={entry.name} className="rounded-xl border border-border bg-white px-3 py-2 text-center">
+                      <div key={entry.name} className="rounded-xl border border-purple-100 bg-white/60 px-3 py-2 text-center">
                         <p className="text-xs font-semibold text-foreground">{entry.name}</p>
                         <p className="text-[11px] text-muted-foreground">{entry.value} · {percent}%</p>
                       </div>
@@ -246,9 +252,9 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
               </>
             )}
           </div>
-        </Card>
+        </ModernCard>
 
-        <Card className="flex flex-col p-5" style={{ borderLeft: "4px solid #ef4444" }}>
+        <ModernCard className="flex flex-col p-5" accent="#ef4444">
           <div className="mb-1 flex items-center gap-2">
             <AlertTriangle size={14} style={{ color: "#ef4444" }} />
             <p className="text-xs font-bold uppercase tracking-wide text-red-600">Overdue 7+ Days</p>
@@ -264,7 +270,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                 <button
                   key={d.id}
                   onClick={() => onReview?.(d)}
-                  className="flex w-full items-center justify-between rounded-xl bg-red-50 p-2.5 text-left transition-colors hover:bg-red-100"
+                  className="flex w-full items-center justify-between rounded-xl bg-red-50/60 p-2.5 text-left ring-1 ring-red-500/10 transition-all hover:bg-red-50"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-mono font-bold" style={{ color: PURPLE }}>{d.id}</p>
@@ -277,11 +283,11 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
               ))
             )}
           </div>
-        </Card>
+        </ModernCard>
       </div>
 
-      <Card>
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+      <ModernCard>
+        <div className="flex items-center justify-between border-b border-purple-100 px-5 py-4">
           <h3 className="text-sm font-bold text-foreground">Department Insights</h3>
           <p className="text-xs text-muted-foreground">
             <strong className="text-foreground">{departmentStats.reduce((sum, row) => sum + row.declarations, 0)}</strong> current-month declarations
@@ -308,17 +314,17 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
             </Tbody>
           </Table>
           {departmentStats.length > DEPT_PAGE_SIZE && (
-            <div className="flex items-center justify-between border-t border-border bg-[#F7F8FC] px-5 py-3">
+            <div className="flex items-center justify-between border-t border-purple-100 bg-purple-50/30 px-5 py-3">
               <p className="text-xs text-muted-foreground">Showing <span className="font-semibold text-foreground">{departmentStats.length}</span> departments</p>
               <div className="flex items-center gap-2">
-                <button onClick={() => setDeptPage((p) => Math.max(0, p - 1))} disabled={deptPage === 0} className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40">Previous</button>
+                <button onClick={() => setDeptPage((p) => Math.max(0, p - 1))} disabled={deptPage === 0} className="rounded-lg border border-purple-100 bg-white/60 px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-purple-50 disabled:opacity-40">Previous</button>
                 <span className="text-xs text-muted-foreground">Page {deptPage + 1} of {Math.ceil(departmentStats.length / DEPT_PAGE_SIZE)}</span>
-                <button onClick={() => setDeptPage((p) => Math.min(Math.ceil(departmentStats.length / DEPT_PAGE_SIZE) - 1, p + 1))} disabled={deptPage >= Math.ceil(departmentStats.length / DEPT_PAGE_SIZE) - 1} className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40">Next</button>
+                <button onClick={() => setDeptPage((p) => Math.min(Math.ceil(departmentStats.length / DEPT_PAGE_SIZE) - 1, p + 1))} disabled={deptPage >= Math.ceil(departmentStats.length / DEPT_PAGE_SIZE) - 1} className="rounded-lg border border-purple-100 bg-white/60 px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-purple-50 disabled:opacity-40">Next</button>
               </div>
             </div>
           )}
         </div>
-      </Card>
+      </ModernCard>
     </div>
   );
 }

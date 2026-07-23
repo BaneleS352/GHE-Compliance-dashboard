@@ -3,7 +3,7 @@ import { Plus, Edit, Trash2, ListTree } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { THead } from "../../components/THead";
-import { PURPLE } from "../../../config/theme";
+import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
 import { fetchDropdowns, updateDropdowns } from "../../../services/api";
 
 export function AdminDropdowns() {
@@ -66,7 +66,7 @@ export function AdminDropdowns() {
         ))}
       </div>
 
-      <Card className="overflow-hidden border-white/70 bg-white/80 p-0 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
+      <Card className="overflow-hidden border-white/70 bg-white/80 p-0 card-shadow">
         <div className="flex flex-col gap-3 border-b border-border bg-secondary/15 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm">
@@ -79,7 +79,7 @@ export function AdminDropdowns() {
           </div>
           <button onClick={handleAdd}
             className="flex h-9 w-full items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 sm:w-auto"
-            style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
+            style={{ background: GRADIENT_PRIMARY }}
           >
             <Plus size={13} /> Add
           </button>

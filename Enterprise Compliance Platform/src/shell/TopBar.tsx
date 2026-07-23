@@ -1,5 +1,5 @@
 import { LogOut } from "lucide-react";
-import { PURPLE } from "../config/theme";
+import { PURPLE, GRADIENT_PRIMARY } from "../config/theme";
 import { Role } from "../types/declaration";
 
 export function TopBar({
@@ -47,7 +47,7 @@ export function TopBar({
         <div className="group flex items-center gap-2 rounded-full border border-white/80 bg-white/60 py-1.5 pl-1.5 pr-1.5 shadow-sm transition-colors hover:bg-white md:gap-3 md:pr-4">
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md group-hover:scale-105 transition-transform"
-            style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
+            style={{ background: GRADIENT_PRIMARY }}
           >
             {initials}
           </div>

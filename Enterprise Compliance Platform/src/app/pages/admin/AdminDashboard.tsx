@@ -3,7 +3,7 @@ import { Users, Activity, FileText } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { KpiCard } from "../../components/KpiCard";
-import { PURPLE, YELLOW } from "../../../config/theme";
+import { PURPLE, GRADIENT_PRIMARY, GRADIENT_ACCENT } from "../../../config/theme";
 import { Screen } from "../../../types/declaration";
 import { fetchAdminDashboard } from "../../../services/api";
 
@@ -22,7 +22,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: Screen) => void
         actions={
           <button onClick={() => onNavigate("admin-users")}
             className="flex h-10 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(79,29,149,0.28)] sm:w-auto"
-            style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent" }}
+            style={{ background: GRADIENT_PRIMARY, border: "1px solid transparent" }}
           >
             <Users size={15} /> Manage Users
           </button>
@@ -37,7 +37,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: Screen) => void
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-        <Card className="border-white/70 bg-white/80 p-6 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
+        <Card className="border-white/70 bg-white/80 p-6 card-shadow">
           <div className="mb-5 flex items-center gap-2">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.24em] text-muted-foreground">Quick Links</p>
@@ -67,8 +67,8 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: Screen) => void
           </div>
         </Card>
 
-        <Card className="flex flex-col items-center justify-center border-white/70 bg-white/80 p-6 text-center shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl">
-          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full shadow-[0_12px_28px_rgba(248,215,74,0.3)]" style={{ background: `linear-gradient(135deg, ${YELLOW}, #f59e0b)` }}>
+        <Card className="flex flex-col items-center justify-center border-white/70 bg-white/80 p-6 text-center card-shadow">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full shadow-[0_12px_28px_rgba(248,215,74,0.3)]" style={{ background: GRADIENT_ACCENT }}>
             <Activity size={28} className="text-purple-950" />
           </div>
           <h3 className="text-lg font-bold text-foreground mb-2">System Healthy</h3>

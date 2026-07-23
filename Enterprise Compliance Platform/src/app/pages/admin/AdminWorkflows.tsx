@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Plus, Edit, Trash2, ArrowRight, Workflow } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
-import { PURPLE } from "../../../config/theme";
+import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
 import { WorkflowRule } from "../../../types/declaration";
 import { fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule } from "../../../services/api";
 
@@ -64,7 +64,7 @@ export function AdminWorkflows() {
         actions={
           <button onClick={handleAdd}
             className="flex h-10 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(79,29,149,0.28)] sm:w-auto"
-            style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent" }}
+            style={{ background: GRADIENT_PRIMARY, border: "1px solid transparent" }}
           >
             <Plus size={15} /> New Workflow
           </button>
@@ -73,7 +73,7 @@ export function AdminWorkflows() {
 
       <div className="grid grid-cols-1 gap-5">
         {rules.map((rule) => (
-          <Card key={rule.id} className="group flex flex-col justify-between gap-4 border-white/70 bg-white/80 p-5 shadow-[0_18px_45px_rgba(79,29,149,0.08)] backdrop-blur-xl transition-all md:flex-row md:items-center">
+          <Card key={rule.id} className="group flex flex-col justify-between gap-4 border-white/70 bg-white/80 p-5 card-shadow transition-all md:flex-row md:items-center">
             <div className="flex flex-1 gap-4">
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-secondary shadow-sm transition-transform group-hover:scale-105 group-hover:bg-purple-100">
                 <Workflow size={18} style={{ color: PURPLE }} />

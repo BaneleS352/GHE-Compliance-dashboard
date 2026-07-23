@@ -1,5 +1,5 @@
 import { Check, Sparkles, X } from "lucide-react";
-import { PURPLE, YELLOW, F } from "../../config/theme";
+import { PURPLE, YELLOW, F, GRADIENT_PRIMARY, INFO_BG } from "../../config/theme";
 import { Declaration } from "../../types/declaration";
 
 export function SuccessModal({
@@ -76,7 +76,7 @@ export function SuccessModal({
           </span>{" "}
           has been submitted for approval. Your line manager will be notified shortly.
         </p>
-        <div className="rounded-2xl p-4 mb-6 text-left space-y-2" style={{ background: "#F5F2FF" }}>
+        <div className="rounded-2xl p-4 mb-6 text-left space-y-2" style={{ background: INFO_BG }}>
           {[
             ["Declaration ID", data.id],
             ["Type", data.type],
@@ -100,7 +100,7 @@ export function SuccessModal({
           <button
             onClick={onView}
             className="flex-1 h-11 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-all"
-            style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
+            style={{ background: GRADIENT_PRIMARY }}
           >
             View Declaration
           </button>

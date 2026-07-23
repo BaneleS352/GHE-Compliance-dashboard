@@ -165,4 +165,14 @@ textarea,
 @keyframes dash { to { stroke-dashoffset:-400; } }
 .stream{ stroke-dasharray:6 10; animation:dash 12s linear infinite; }
 
+/* ─── Shared utility classes ────────────────────────────────────────────────── */
+.card-shadow {
+  box-shadow: 0 18px 45px rgba(79,29,149,0.08);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+.btn-gradient {
+  background: linear-gradient(135deg, var(--primary), var(--purple-600));
+}
+
 

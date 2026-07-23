@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ImageWithFallback } from "../components/ImageWithFallback";
 import logoImg from "../../assets/Logo.png";
 import bannerImg from "../../assets/Button.png";
-import { PURPLE, F, inp } from "../../config/theme";
+import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_LANDING } from "../../config/theme";
 import { Role } from "../../types/declaration";
 import { useUser } from "../auth/UserContext";
 import { authenticate } from "../auth/authService";
@@ -45,7 +45,7 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
   return (
     <div className="min-h-screen w-full flex" style={F}>
       <div className="hidden lg:flex w-[58%] flex-col relative overflow-hidden"
-        style={{ background: `linear-gradient(145deg, #0f0225 0%, #39156F 35%, ${PURPLE} 70%, #6d28d9 100%)` }}
+        style={{ background: GRADIENT_LANDING }}
       >
         <div className="absolute inset-0 pointer-events-none" aria-hidden>
           <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full opacity-20"
@@ -96,7 +96,7 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
             <div className="pt-1">
               <button type="submit" disabled={loading}
                 className="w-full h-11 rounded-xl text-sm font-semibold text-white hover:opacity-90 active:scale-[0.98] disabled:opacity-60 transition-all"
-                style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)` }}
+                style={{ background: GRADIENT_PRIMARY }}
               >
                 {loading ? "Signing in…" : "Sign In"}
               </button>

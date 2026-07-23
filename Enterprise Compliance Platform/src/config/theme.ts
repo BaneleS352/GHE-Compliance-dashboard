@@ -1,10 +1,29 @@
 import { StatusType } from "../types/declaration";
 
 // ─── Brand tokens ───────────────────────────────────────────────────────────────
-export const PURPLE = "#4F1D95";
-export const DEEP   = "#39156F";
-export const YELLOW = "#F8D74A";
-export const F      = { fontFamily: "'Plus Jakarta Sans', sans-serif" };
+export const PURPLE     = "#4F1D95";
+export const DEEP       = "#39156F";
+export const YELLOW     = "#F8D74A";
+export const DARKEST    = "#0f0225";    // darkest purple used in gradients
+export const PURPLE_600 = "#6d28d9";   // medium purple (tailwind purple-600)
+export const F          = { fontFamily: "'Plus Jakarta Sans', sans-serif" };
+
+// ─── Common gradient strings (for inline style={{ background: ... }}) ──────────
+export const GRADIENT_PRIMARY = `linear-gradient(135deg, ${PURPLE}, ${PURPLE_600})`;
+export const GRADIENT_ACCENT = `linear-gradient(135deg, ${YELLOW}, #f59e0b)`;
+export const GRADIENT_SIDEBAR = `linear-gradient(180deg, ${DARKEST} 0%, ${DEEP} 100%)`;
+export const GRADIENT_LANDING = `linear-gradient(145deg, ${DARKEST} 0%, ${DEEP} 35%, ${PURPLE} 70%, ${PURPLE_600} 100%)`;
+
+// ─── Shared background colours ──────────────────────────────────────────────────
+export const TABLE_HEADER_BG = "#F7F8FC";
+export const INFO_BG        = "#F5F2FF";
+
+// ─── Declaration type chart colours (shared by dashboard charts) ────────────────
+export const TYPE_COLORS: Record<string, string> = {
+  Gift:          "#6d28d9",
+  Hospitality:   "#0e7490",
+  Entertainment: "#b45309",
+};
 
 // ─── Type badge colours ─────────────────────────────────────────────────────────
 export const typeCfg: Record<string, { bg: string; text: string }> = {
