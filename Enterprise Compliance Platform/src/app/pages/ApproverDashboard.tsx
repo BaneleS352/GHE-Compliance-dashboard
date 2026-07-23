@@ -104,10 +104,15 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
 
   const overdueDeclarations = useMemo(() => {
     const sevenDaysAgo = Date.now() - 7 * 86400000;
-    return filteredDeclarations
-      .filter((d) => ["Pending", "Escalated", "Info Requested"].includes(d.status) && new Date(d.submitted).getTime() < sevenDaysAgo)
+    return declarations
+      .filter((d) => {
+        if (!["Pending", "Escalated", "Info Requested"].includes(d.status)) return false;
+        if (new Date(d.submitted).getTime() >= sevenDaysAgo) return false;
+        if (!isAdmin && d.approver !== user?.name) return false;
+        return true;
+      })
       .sort((a, b) => new Date(a.submitted).getTime() - new Date(b.submitted).getTime());
-  }, [filteredDeclarations]);
+  }, [declarations, isAdmin, user]);
 
   const departmentStats = useMemo(() => {
     const map = new Map<string, { declarations: number; approved: number; declined: number; pending: number; totalValue: number }>();
@@ -124,7 +129,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   }, [filteredDeclarations]);
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted-foreground animate-pulse">Loading dashboard�</div></div>;
+    return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted-foreground animate-pulse">Loading dashboard…</div></div>;
   }
 
   if (error) {
@@ -145,7 +150,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
     <div className="space-y-6">
       <PageHeader
         title="Approver Dashboard"
-        subtitle={`Current month view � ${monthLabel}`}
+        subtitle={`Current month view — ${monthLabel}`}
         actions={
           <button
             onClick={() => onNavigate("approval-queue")}
@@ -170,12 +175,13 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
               value={value}
               icon={def.icon}
               color={def.color}
+              decorKey={def.key}
               active={activeFilter === def.filterValue}
               onClick={() => setActiveFilter(def.filterValue as DashboardFilter)}
             />
           );
         })}
-        <KpiCard label="Total Value" value={formatRand(kpisData.totalValue)} icon={Coins} color="#6366f1" />
+        <KpiCard label="Total Value" value={formatRand(kpisData.totalValue)} icon={Coins} color="#6366f1" decorKey="Total Value" />
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
@@ -196,7 +202,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-3 text-[11px]">
                     <span className="font-semibold" style={{ color: PURPLE }}>{formatRand(row.totalValue)}</span>
-                    <span className="text-muted-foreground">Gift {row.types.Gift || 0} � Hosp {row.types.Hospitality || 0} � Ent {row.types.Entertainment || 0}</span>
+                    <span className="text-muted-foreground">Gift {row.types.Gift || 0} · Hosp {row.types.Hospitality || 0} · Ent {row.types.Entertainment || 0}</span>
                   </div>
                 </div>
               ))
@@ -232,7 +238,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                     return (
                       <div key={entry.name} className="rounded-xl border border-border bg-white px-3 py-2 text-center">
                         <p className="text-xs font-semibold text-foreground">{entry.name}</p>
-                        <p className="text-[11px] text-muted-foreground">{entry.value} � {percent}%</p>
+                        <p className="text-[11px] text-muted-foreground">{entry.value} · {percent}%</p>
                       </div>
                     );
                   })}
@@ -245,7 +251,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
         <Card className="flex flex-col p-5" style={{ borderLeft: "4px solid #ef4444" }}>
           <div className="mb-1 flex items-center gap-2">
             <AlertTriangle size={14} style={{ color: "#ef4444" }} />
-            <p className="text-xs font-bold uppercase tracking-wide text-red-600">Overdue � 7+ Days</p>
+            <p className="text-xs font-bold uppercase tracking-wide text-red-600">Overdue 7+ Days</p>
           </div>
           <div className="mt-3 flex-1 space-y-2">
             {overdueDeclarations.length === 0 ? (
@@ -262,7 +268,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-mono font-bold" style={{ color: PURPLE }}>{d.id}</p>
-                    <p className="truncate text-[10px] text-muted-foreground">{d.employee} � {daysSince(d.submitted)} days</p>
+                    <p className="truncate text-[10px] text-muted-foreground">{d.employee} · {daysSince(d.submitted)} days</p>
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${PRIORITY_COLORS[d.priority]?.bg || "bg-gray-100"} ${PRIORITY_COLORS[d.priority]?.text || "text-gray-700"}`}>
                     {d.priority}

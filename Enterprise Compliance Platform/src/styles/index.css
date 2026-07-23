@@ -159,3 +159,10 @@ textarea,
     display: inline;
   }
 }
+
+@keyframes floaty { 0%,100%{ transform:translateY(0);} 50%{ transform:translateY(-3px);} }
+.decor.float{ animation:floaty 6s ease-in-out infinite; }
+@keyframes dash { to { stroke-dashoffset:-400; } }
+.stream{ stroke-dasharray:6 10; animation:dash 12s linear infinite; }
+
+

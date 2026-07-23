@@ -27,7 +27,7 @@ export function ApprovalDetail({ declaration, onBack }: { declaration: Declarati
   });
 
   if (wfLoading) {
-    return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted-foreground animate-pulse">Loading workflow�</div></div>;
+    return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted-foreground animate-pulse">Loading workflow…</div></div>;
   }
 
   return (
