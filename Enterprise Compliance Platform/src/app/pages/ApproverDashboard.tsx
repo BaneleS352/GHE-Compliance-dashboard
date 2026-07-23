@@ -8,7 +8,7 @@ import {
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { fetchDeclarations } from "../../services/api";
 import { Screen, Declaration } from "../../types/declaration";
-import { PURPLE, YELLOW, formatRand } from "../../config/theme";
+import { PURPLE, YELLOW, formatRand, PRIORITY_COLORS, STATUS_COLORS } from "../../config/theme";
 import { useUser } from "../auth/UserContext";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
@@ -264,7 +264,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                     <p className="text-xs font-mono font-bold" style={{ color: PURPLE }}>{d.id}</p>
                     <p className="truncate text-[10px] text-muted-foreground">{d.employee} � {daysSince(d.submitted)} days</p>
                   </div>
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${d.priority === "High" ? "bg-red-100 text-red-700" : d.priority === "Medium" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${PRIORITY_COLORS[d.priority]?.bg || "bg-gray-100"} ${PRIORITY_COLORS[d.priority]?.text || "text-gray-700"}`}>
                     {d.priority}
                   </span>
                 </button>
@@ -292,9 +292,9 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                   <Tr key={row.name}>
                     <Td className="font-semibold text-foreground">{row.name}</Td>
                     <Td className={COL.TABULAR_NUMS}>{row.declarations}</Td>
-                    <Td className="font-semibold text-amber-600">{row.pending}</Td>
-                    <Td className="font-semibold text-emerald-600">{row.approved}</Td>
-                    <Td className="font-semibold text-red-600">{row.declined}</Td>
+                    <Td className={`font-semibold ${STATUS_COLORS.Pending.text}`}>{row.pending}</Td>
+                    <Td className={`font-semibold ${STATUS_COLORS.Approved.text}`}>{row.approved}</Td>
+                    <Td className={`font-semibold ${STATUS_COLORS.Declined.text}`}>{row.declined}</Td>
                     <Td className={COL.VALUE}>{formatRand(row.totalValue)}</Td>
                   </Tr>
                 ))

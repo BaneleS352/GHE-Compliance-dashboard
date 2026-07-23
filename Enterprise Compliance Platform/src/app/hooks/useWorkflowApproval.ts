@@ -2,14 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ApprovalDecision } from "../../types/declaration";
 import { StepView } from "../components/WorkflowTimeline";
 import { fetchWorkflowInstance, approveWorkflowStep } from "../../services/api";
-
-const DECISION_LABEL: Record<string, string> = {
-  return: "Returned - Team member to provide additional information.",
-  accept: "Approved - Team Member to accept the actual GHE or offered GHE in their personal capacity.",
-  org: "Approved - Team Member to share the actual GHE or offered GHE with the Organisation Pool.",
-  foundation: "Approved - Team Member to donate the actual GHE or offered GHE to the Hollywood Foundation.",
-  decline: "Declined - Team Member to return the actual GHE or regret the offered GHE.",
-};
+import { DECISION_LABELS } from "../../config/theme";
 
 interface UseWorkflowApprovalOptions {
   declarationId: string | null;
@@ -102,7 +95,7 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
       label: r.title,
       actor: r.step?.assigneeName || r.defaultActor,
       state: decided ? "completed" : r.enabled ? "active" : "pending",
-      decision: r.decision ? { label: DECISION_LABEL[r.decision] || r.decision } : null,
+      decision: r.decision ? { label: DECISION_LABELS[r.decision] || r.decision } : null,
       decidedAt: r.decidedAt,
       notes: r.notes,
     };

@@ -2,7 +2,7 @@
 import { Download, Search, AlertTriangle } from "lucide-react";
 import { fetchPendingWorkflows } from "../../services/api";
 import { Declaration } from "../../types/declaration";
-import { PURPLE, formatRand } from "../../config/theme";
+import { PURPLE, formatRand, PRIORITY_COLORS } from "../../config/theme";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
 
@@ -78,11 +78,6 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         return 0;
       })
     : filteredQueue;
-  const priorityStyle: Record<string, string> = {
-    High: "bg-red-50 text-red-700",
-    Medium: "bg-amber-50 text-amber-700",
-    Low: "bg-emerald-50 text-emerald-700",
-  };
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
   const pagedQueue = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
@@ -259,7 +254,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
                 </div>
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Priority</p>
-                <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${priorityStyle[d.priority]}`}>{d.priority}</span>
+                <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${PRIORITY_COLORS[d.priority]?.bg || ""} ${PRIORITY_COLORS[d.priority]?.text || ""}`}>{d.priority}</span>
               </div>
             </div>
 
@@ -306,7 +301,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
                 <Td className={COL.VALUE}>{formatRand(d.value)}</Td>
                 <Td className={COL.SUBMITTED}>{d.submitted}</Td>
                 <Td>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${priorityStyle[d.priority]}`}>{d.priority}</span>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${PRIORITY_COLORS[d.priority]?.bg || ""} ${PRIORITY_COLORS[d.priority]?.text || ""}`}>{d.priority}</span>
                 </Td>
                 <Td><StatusBadge status={d.status} /></Td>
                 <Td>

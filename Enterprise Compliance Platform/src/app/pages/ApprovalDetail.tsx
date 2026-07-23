@@ -27,7 +27,7 @@ export function ApprovalDetail({ declaration, onBack }: { declaration: Declarati
   });
 
   if (wfLoading) {
-    return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted-foreground animate-pulse">Loading workflow…</div></div>;
+    return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted-foreground animate-pulse">Loading workflowï¿½</div></div>;
   }
 
   return (
@@ -43,9 +43,11 @@ export function ApprovalDetail({ declaration, onBack }: { declaration: Declarati
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
-        <div className="xl:col-span-3 flex flex-col gap-5">
+        <div className="xl:col-span-3">
           <DeclarationDetailView data={declaration} onBack={() => {}} hideBackButton hideDocuments hideTitle />
-          <SupportingDocuments data={declaration} />
+          <div className="mt-5">
+            <SupportingDocuments data={declaration} />
+          </div>
         </div>
 
         <div className="xl:col-span-2 h-full space-y-5">
