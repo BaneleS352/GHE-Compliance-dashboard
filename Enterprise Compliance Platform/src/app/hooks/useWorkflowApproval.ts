@@ -24,6 +24,7 @@ export function useWorkflowApproval({ declarationId, userId, onSuccess, onStatus
   const [hrNotes, setHrNotes] = useState("");
   const [ceoNotes, setCeoNotes] = useState("");
   const [wfMessage, setWfMessage] = useState("");
+  const [submitError, setSubmitError] = useState("");
 
   useEffect(() => {
     if (!declarationId) { setWfInstance(null); return; }
@@ -113,30 +114,35 @@ export function useWorkflowApproval({ declarationId, userId, onSuccess, onStatus
 
   const handleSubmit = async () => {
     if (!userId || !wfInstance) return;
+    setSubmitError("");
     const stepsToUpdate = [...wfInstance.steps];
     const decisionsByRole: Record<string, ApprovalDecision> = { lineManager: lmDecision, hr: hrDecision, ceo: ceoDecision };
     const notesByRole: Record<string, string> = { lineManager: lmNotes, hr: hrNotes, ceo: ceoNotes };
-    for (const step of stepsToUpdate) {
-      const decision = decisionsByRole[step.role];
-      const notes = notesByRole[step.role];
-      if (decision && step.assignee === userId && step.status === "pending") {
-        step.decision = decision;
-        step.notes = notes;
-        step.decidedAt = new Date().toISOString();
-        if (decision === "decline") step.status = "declined";
-        else if (decision === "return") step.status = "returned";
-        else step.status = "approved";
-        const res = await approveWorkflowStep({ declarationId, decision, notes });
-        if (res?.newStatus) onStatusUpdate?.(res.newStatus);
+    try {
+      for (const step of stepsToUpdate) {
+        const decision = decisionsByRole[step.role];
+        const notes = notesByRole[step.role];
+        if (decision && step.assignee === userId && step.status === "pending") {
+          step.decision = decision;
+          step.notes = notes;
+          step.decidedAt = new Date().toISOString();
+          if (decision === "decline") step.status = "declined";
+          else if (decision === "return") step.status = "returned";
+          else step.status = "approved";
+          const res = await approveWorkflowStep({ declarationId, decision, notes });
+          if (res?.newStatus) onStatusUpdate?.(res.newStatus);
+        }
       }
+      setWfInstance({ ...wfInstance, steps: stepsToUpdate });
+      setWfMessage("Decision submitted successfully.");
+      setTimeout(() => { setWfMessage(""); onSuccess?.(); }, 1500);
+    } catch (err: any) {
+      setSubmitError(err.message || "An error occurred while submitting the decision.");
     }
-    setWfInstance({ ...wfInstance, steps: stepsToUpdate });
-    setWfMessage("Decision submitted successfully.");
-    setTimeout(() => { setWfMessage(""); onSuccess?.(); }, 1500);
   };
 
   return {
-    wfSteps, wfMessage, wfLoading, canApprove,
+    wfSteps, wfMessage, wfLoading, canApprove, submitError,
     activeDecision: activeRole?.decision as ApprovalDecision | undefined,
     setActiveDecision: activeRole?.setDecision as ((d: ApprovalDecision) => void) | undefined,
     activeNotes: activeRole?.notes || "",

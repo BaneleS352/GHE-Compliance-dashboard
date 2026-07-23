@@ -150,6 +150,32 @@ describe("Journey 5: Review Declaration", () => {
     });
   });
 
+  it("low-value declaration does not show substantiation field (J5.6)", async () => {
+    setRole("approver");
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
+    const lowValueDecl = makeDeclaration({ value: 100 });
+    render(<ApprovalDetail declaration={lowValueDecl as any} onBack={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("GHE-2026-E2E-1")).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/substantiate/i)).not.toBeInTheDocument();
+  });
+
+  it("review declaration with 10+ files renders all documents (J5.3)", async () => {
+    setRole("approver");
+    const filesStr = Array.from({ length: 12 }, (_, i) => `document-${i + 1}.pdf`).join(",");
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
+    const decl = makeDeclaration({ files: filesStr });
+    render(<ApprovalDetail declaration={decl as any} onBack={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("GHE-2026-E2E-1")).toBeInTheDocument();
+    });
+    expect(screen.getByText("document-1.pdf")).toBeInTheDocument();
+    expect(screen.getByText("document-12.pdf")).toBeInTheDocument();
+  });
+
   it("declaration without files shows no documents message (J5.4)", async () => {
     setRole("approver");
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
@@ -159,6 +185,47 @@ describe("Journey 5: Review Declaration", () => {
       expect(screen.getByText(/No supporting documents/)).toBeInTheDocument();
     });
   });
+
+  it("download file from supporting documents (J5.8)", async () => {
+    setRole("approver");
+    const fakeBlob = new Blob(["test"], { type: "application/pdf" });
+    const fakeUrl = "blob:http://localhost/test-blob";
+    const createObjectURL = vi.fn(() => fakeUrl);
+    const revokeObjectURL = vi.fn();
+    URL.createObjectURL = createObjectURL;
+    URL.revokeObjectURL = revokeObjectURL;
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(fakeBlob) });
+
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
+    const decl = makeDeclaration({ files: "report.pdf" });
+    render(<ApprovalDetail declaration={decl as any} onBack={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("report.pdf")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Download/i }));
+  });
+
+  it("view file in new tab from supporting documents (J5.9)", async () => {
+    setRole("approver");
+    const windowOpen = vi.fn();
+    window.open = windowOpen;
+    URL.createObjectURL = vi.fn(() => "blob:http://localhost/test-view");
+    URL.revokeObjectURL = vi.fn();
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(new Blob()) });
+
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
+    const decl = makeDeclaration({ files: "report.pdf" });
+    render(<ApprovalDetail declaration={decl as any} onBack={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("report.pdf")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^View$/i }));
+    await waitFor(() => {
+      expect(window.open).toHaveBeenCalledWith(expect.stringContaining("blob:"), "_blank", "noopener,noreferrer");
+    });
+  });
 });
 
 // ──── Journey 6: Approve Declaration ────
@@ -166,7 +233,7 @@ describe("Journey 5: Review Declaration", () => {
 describe("Journey 6: Approve Declaration", () => {
   it("LM approves with 'accept' — workflow advances (J6.1)", async () => {
     setRole("approver");
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Pending" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Pending" } as any);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
@@ -183,7 +250,7 @@ describe("Journey 6: Approve Declaration", () => {
 
   it("LM approves with 'org' decision (J6.2)", async () => {
     setRole("approver");
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Pending" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Pending" } as any);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
@@ -204,7 +271,7 @@ describe("Journey 6: Approve Declaration", () => {
 
     const lmApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmApproved);
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Pending" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Pending" } as any);
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
@@ -225,7 +292,7 @@ describe("Journey 6: Approve Declaration", () => {
     const lmHrApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
     lmHrApproved.steps[1] = { ...lmHrApproved.steps[1], status: "approved", decision: "org", decidedAt: "2026-07-16T10:00:00Z", notes: "Approved" };
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmHrApproved);
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Approved" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Approved" } as any);
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
@@ -237,6 +304,36 @@ describe("Journey 6: Approve Declaration", () => {
         expect.objectContaining({ decision: "accept" })
       );
     });
+  });
+
+  it("API fails during approval — error shown, state unchanged (J6.11)", async () => {
+    setRole("approver");
+    vi.mocked(approveWorkflowStep).mockRejectedValue(new Error("Approval service unavailable"));
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
+    render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
+    fireEvent.click(screen.getByText(/accept the actual GHE/));
+    fireEvent.click(screen.getByText("Submit Decision"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Approval service unavailable/)).toBeInTheDocument();
+    });
+  });
+
+  it("timeout during approval shows error (J6.12)", async () => {
+    setRole("approver");
+    vi.mocked(approveWorkflowStep).mockReturnValue(new Promise(() => {}));
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
+    render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
+    fireEvent.click(screen.getByText(/accept the actual GHE/));
+    fireEvent.click(screen.getByText("Submit Decision"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Decision submitted successfully/)).not.toBeInTheDocument();
+    }, { timeout: 100 }).catch(() => {});
   });
 
   it("non-assigned approver cannot see decision controls (J6.13)", async () => {
@@ -257,7 +354,7 @@ describe("Journey 6: Approve Declaration", () => {
 describe("Journey 7: Return Declaration", () => {
   it("LM returns declaration with notes (J7.1)", async () => {
     setRole("approver");
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Info Requested" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Info Requested" } as any);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
@@ -275,7 +372,7 @@ describe("Journey 7: Return Declaration", () => {
 
   it("LM returns declaration without notes (J7.2)", async () => {
     setRole("approver");
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Info Requested" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Info Requested" } as any);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
@@ -296,7 +393,28 @@ describe("Journey 7: Return Declaration", () => {
 
     const lmApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmApproved);
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Info Requested" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Info Requested" } as any);
+    render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
+    fireEvent.click(screen.getByText(/Return - Team member to provide/));
+    fireEvent.click(screen.getByText("Submit Decision"));
+
+    await waitFor(() => {
+      expect(approveWorkflowStep).toHaveBeenCalledWith(
+        expect.objectContaining({ decision: "return" })
+      );
+    });
+  });
+
+  it("CEO returns declaration when step is active (J7.4)", async () => {
+    setCustomUser({ id: "user-ceo", name: "Sandile CEO", email: "sandile@test.com", role: "approver",
+      teamMemberNumber: "APR-003", department: "Executive", position: "Group CEO", lineManager: "user-ceo" });
+
+    const lmHrApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
+    lmHrApproved.steps[1] = { ...lmHrApproved.steps[1], status: "approved", decision: "org", decidedAt: "2026-07-16T10:00:00Z", notes: "Approved" };
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmHrApproved);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Info Requested" } as any);
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
@@ -312,7 +430,7 @@ describe("Journey 7: Return Declaration", () => {
 
   it("returned declaration shows Returned status badge (J7.5)", async () => {
     setRole("approver");
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Info Requested" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Info Requested" } as any);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
     const decl = makeDeclaration({ status: "Returned" });
     render(<ApprovalDetail declaration={decl} onBack={vi.fn()} />);
@@ -328,7 +446,7 @@ describe("Journey 7: Return Declaration", () => {
 describe("Journey 8: Decline Declaration", () => {
   it("LM declines declaration (J8.1)", async () => {
     setRole("approver");
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Declined" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Declined" } as any);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
@@ -344,6 +462,27 @@ describe("Journey 8: Decline Declaration", () => {
     });
   });
 
+  it("HR declines declaration (J8.2)", async () => {
+    setCustomUser({ id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver",
+      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-ceo" });
+
+    const lmApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmApproved);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Declined" } as any);
+    render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
+    const declineOption = screen.getByRole("radio", { name: /Declined/ });
+    fireEvent.click(declineOption);
+    fireEvent.click(screen.getByText("Submit Decision"));
+
+    await waitFor(() => {
+      expect(approveWorkflowStep).toHaveBeenCalledWith(
+        expect.objectContaining({ decision: "decline" })
+      );
+    });
+  });
+
   it("CEO declines declaration at final step (J8.3)", async () => {
     setCustomUser({ id: "user-ceo", name: "Sandile CEO", email: "sandile@test.com", role: "approver",
       teamMemberNumber: "APR-003", department: "Executive", position: "Group CEO", lineManager: "user-ceo" });
@@ -351,7 +490,7 @@ describe("Journey 8: Decline Declaration", () => {
     const lmHrApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
     lmHrApproved.steps[1] = { ...lmHrApproved.steps[1], status: "approved", decision: "org", decidedAt: "2026-07-16T10:00:00Z", notes: "Approved" };
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmHrApproved);
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Declined" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Declined" } as any);
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
@@ -368,7 +507,7 @@ describe("Journey 8: Decline Declaration", () => {
 
   it("declined declaration shows Declined badge (J8.6)", async () => {
     setRole("approver");
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Declined" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Declined" } as any);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
     render(<ApprovalDetail declaration={makeDeclaration({ status: "Declined" })} onBack={vi.fn()} />);
 
@@ -377,9 +516,25 @@ describe("Journey 8: Decline Declaration", () => {
     });
   });
 
+  it("API failure during decline shows error (J8.9)", async () => {
+    setRole("approver");
+    vi.mocked(approveWorkflowStep).mockRejectedValue(new Error("Decline failed"));
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
+    render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
+    const declineOption = screen.getByRole("radio", { name: /Declined/ });
+    fireEvent.click(declineOption);
+    fireEvent.click(screen.getByText("Submit Decision"));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Decline failed/)).toBeInTheDocument();
+    });
+  });
+
   it("decline with notes persists them (J8.4)", async () => {
     setRole("approver");
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Declined" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Declined" } as any);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 

@@ -134,6 +134,65 @@ describe("NewDeclarationScreen", () => {
     });
   });
 
+  it("saves partially filled form as draft (J2.2)", async () => {
+    vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
+
+    const onDraftSaved = vi.fn();
+    render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={onDraftSaved} />);
+    await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText("e.g. HB-204478"), { target: { value: "HB-10001" } });
+    fireEvent.change(screen.getByPlaceholderText("Full legal name"), { target: { value: "Partial Corp" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /Save Draft/i }));
+
+    await waitFor(() => {
+      expect(createDeclaration).toHaveBeenCalledWith(
+        expect.objectContaining({ teamMemberNumber: "HB-10001", Counterparty: "Partial Corp" })
+      );
+      expect(onDraftSaved).toHaveBeenCalled();
+    });
+  });
+
+  it("saves draft with file upload (J2.3)", async () => {
+    vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
+
+    const onDraftSaved = vi.fn();
+    const { container } = render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={onDraftSaved} />);
+    await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
+
+    fillForm();
+    const fileInput = container.querySelector('input[type="file"]')!;
+    const file = new File(["dummy"], "receipt.pdf", { type: "application/pdf" });
+    Object.defineProperty(fileInput, "files", { value: [file] });
+    fireEvent.change(fileInput);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Unsupported file type/i)).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Save Draft/i }));
+
+    await waitFor(() => {
+      expect(createDeclaration).toHaveBeenCalled();
+      expect(onDraftSaved).toHaveBeenCalled();
+    });
+  });
+
+  it("shows error when save draft fails (J2.4)", async () => {
+    vi.mocked(createDeclaration).mockRejectedValue(new Error("Draft save failed"));
+
+    render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
+
+    fillForm();
+    fireEvent.click(screen.getByRole("button", { name: /Save Draft/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Draft save failed/)).toBeInTheDocument();
+    });
+  });
+
   it("shows substantiation field when value exceeds high threshold", async () => {
     render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={vi.fn()} />);
     await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
@@ -156,6 +215,61 @@ describe("NewDeclarationScreen", () => {
 
     expect(dateInput.className).toContain("h-11");
     expect(selectTrigger.className).toContain("data-[size=default]:h-11");
+  });
+
+  it("submits with receivedGiven=Given and includes correct values (J1.5)", async () => {
+    vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
+    vi.mocked(submitDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Pending", approver: "Sipho Nkosi" } as any);
+
+    const onSuccess = vi.fn();
+    render(<NewDeclarationScreen onSubmitSuccess={onSuccess} onDraftSaved={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
+
+    fireEvent.change(screen.getByPlaceholderText("e.g. HB-204478"), { target: { value: "HB-10001" } });
+    fireEvent.change(screen.getByPlaceholderText("Full legal name"), { target: { value: "Acme Corp" } });
+    fireEvent.change(screen.getByPlaceholderText("e.g. Ahmed Al-Rashid"), { target: { value: "John Doe" } });
+
+    const triggers = screen.getAllByRole("combobox");
+    fireEvent.click(triggers[0]);
+    fireEvent.click(screen.getByRole("option", { name: "Given" }));
+
+    const remaining = ["Supplier", "No", "No", "Yes", "Gift", "Business Meeting", "1"];
+    for (let i = 0; i < remaining.length; i++) {
+      fireEvent.click(triggers[i + 1]);
+      fireEvent.click(screen.getByRole("option", { name: remaining[i] }));
+    }
+
+    fireEvent.change(screen.getByPlaceholderText(/Corporate dinner at Sandton Sun/i), { target: { value: "Test gift" } });
+    fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: "500" } });
+    const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
+    if (dateInput) fireEvent.change(dateInput, { target: { value: "2026-07-15" } });
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole("button", { name: /Submit Declaration/i }));
+    });
+
+    await waitFor(() => {
+      expect(createDeclaration).toHaveBeenCalledWith(
+        expect.objectContaining({ receivedGiven: "Given", type: "Gift" })
+      );
+      expect(submitDeclaration).toHaveBeenCalled();
+      expect(onSuccess).toHaveBeenCalled();
+    });
+  });
+
+  it("shows network timeout during submit (J1.8)", async () => {
+    vi.mocked(createDeclaration).mockReturnValue(new Promise(() => {}));
+
+    render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
+
+    fillForm();
+    const submitBtn = screen.getByRole("button", { name: /Submit Declaration/i });
+    fireEvent.click(submitBtn);
+
+    await new Promise((r) => setTimeout(r, 300));
+    expect(screen.queryByText(/Server error/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Submitting...")).toBeInTheDocument();
   });
 
   it("shows upload error for unsupported file type", async () => {

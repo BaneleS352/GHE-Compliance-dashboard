@@ -22,7 +22,7 @@ export function ApprovalDetail({
   }, [declaration.status]);
 
   const {
-    wfSteps, wfMessage, wfLoading, canApprove,
+    wfSteps, wfMessage, wfLoading, canApprove, submitError,
     activeDecision, setActiveDecision,
     activeNotes, setActiveNotes,
     handleSubmit, submitDisabled,
@@ -61,6 +61,11 @@ export function ApprovalDetail({
         </div>
 
         <div className="xl:col-span-2 space-y-5 h-full">
+          {submitError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {submitError}
+            </div>
+          )}
           {wfMessage && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
               {wfMessage}

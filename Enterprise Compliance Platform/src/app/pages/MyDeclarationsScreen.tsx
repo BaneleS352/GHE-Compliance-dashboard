@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Download, FileText, Clock, Check, X, Coins, Eye } from "lucide-react";
+import { ArrowLeft, Download, FileText, Clock, Check, X, Coins, Eye, Undo } from "lucide-react";
 import { Declaration } from "../../types/declaration";
 import { fetchDeclarations } from "../../services/api";
 import { formatRand } from "../../config/theme";
@@ -164,8 +164,9 @@ export function MyDeclarationsScreen() {
           <StatusBadge status={viewDecl.status} />
         </div>
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
-          <div className="xl:col-span-3">
+          <div className="xl:col-span-3 flex flex-col gap-5">
             <DeclarationDetailView data={viewDecl} onBack={() => {}} hideBackButton hideDocuments hideTitle />
+            <SupportingDocuments data={viewDecl} />
           </div>
         <div className="xl:col-span-2 h-full space-y-5">
           {wfMessage && (
@@ -182,9 +183,6 @@ export function MyDeclarationsScreen() {
             onSubmit={canApprove ? handleSubmit : undefined}
             submitDisabled={submitDisabled}
           />
-        </div>
-        <div className="xl:col-span-3">
-          <SupportingDocuments data={viewDecl} />
         </div>
       </div>
       </div>
@@ -221,10 +219,11 @@ export function MyDeclarationsScreen() {
         }
       />
 
-      <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-6">
         <KpiCard label="Total" value={String(visibleDeclarations.length)} icon={FileText} color="#7c3aed" active={activeKpi === "All"} onClick={() => handleKpiClick("All")} />
         <KpiCard label="Pending" value={String(visibleDeclarations.filter((d) => d.status === "Pending").length)} icon={Clock} color="#f59e0b" active={activeKpi === "Pending"} onClick={() => handleKpiClick("Pending")} />
         <KpiCard label="Approved" value={String(visibleDeclarations.filter((d) => d.status === "Approved").length)} icon={Check} color="#10b981" active={activeKpi === "Approved"} onClick={() => handleKpiClick("Approved")} />
+        <KpiCard label="Returned" value={String(visibleDeclarations.filter((d) => d.status === "Returned").length)} icon={Undo} color="#06b6d4" active={activeKpi === "Returned"} onClick={() => handleKpiClick("Returned")} />
         <KpiCard label="Declined" value={String(visibleDeclarations.filter((d) => d.status === "Declined").length)} icon={X} color="#ef4444" active={activeKpi === "Declined"} onClick={() => handleKpiClick("Declined")} />
         <KpiCard label="Total Value" value={`R ${Math.round(totalValue / 1000)}K`} icon={Coins} color="#6366f1" />
       </div>
@@ -236,7 +235,7 @@ export function MyDeclarationsScreen() {
         </div>
         <div>
           <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Type</label>
-          <select onChange={(e) => setTypeFilter(e.target.value)} className="table-filter-select">
+          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="table-filter-select">
             <option value="All">All GHE</option>
             <option>Gift</option>
             <option>Hospitality</option>
@@ -245,7 +244,7 @@ export function MyDeclarationsScreen() {
         </div>
         <div>
           <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Status</label>
-          <select onChange={(e) => setStatusFilter(e.target.value)} className="table-filter-select">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="table-filter-select">
             <option value="All">All Status</option>
             <option>Pending</option>
             <option>Approved</option>
@@ -256,7 +255,7 @@ export function MyDeclarationsScreen() {
         {!isTeamMember && (
           <div>
             <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Employee</label>
-            <select onChange={(e) => setEmployeeFilter(e.target.value)} className="table-filter-select">
+            <select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)} className="table-filter-select">
               <option value="All">All Employees</option>
               {[...new Set(declarations.map((d) => d.employee))].map((e) => (
                 <option key={e}>{e}</option>
