@@ -13,6 +13,8 @@ type DashboardFilter = "All" | "Pending" | "Approved" | "Declined" | "Escalated"
 export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Screen) => void; onReview?: (d: Declaration) => void }) {
   const { user } = useUser();
   const [activeFilter, setActiveFilter] = useState<DashboardFilter>("All");
+  const [deptPage, setDeptPage] = useState(0);
+  const DEPT_PAGE_SIZE = 10;
   const [declarations, setDeclarations]   = useState<Declaration[]>([]);
   const [stats, setStats]                 = useState<DashboardStats | null>(null);
   const [loading, setLoading]             = useState(true);
@@ -151,16 +153,20 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
             <div
               key={i}
               onClick={() => setActiveFilter(k.filter)}
-              className={`cursor-pointer rounded-2xl border p-4 transition-all duration-300 sm:p-5 ${
+              className={`flex min-h-32 cursor-pointer items-center rounded-2xl border p-4 transition-all duration-300 sm:min-h-36 sm:p-5 ${
                 isActive ? "shadow-xl ring-2 ring-primary/15 sm:scale-[1.02]" : "hover:shadow-lg sm:hover:scale-[1.02]"
               }`}
               style={{ background: `linear-gradient(135deg, ${k.color}35, ${k.color}18)`, borderColor: isActive ? k.color : "#eee" }}
             >
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: `${k.color}40` }}>
-                <k.icon size={18} style={{ color: k.color }} />
+              <div className="flex items-center gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: `${k.color}40` }}>
+                  <k.icon size={18} style={{ color: k.color }} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-2xl font-bold text-foreground">{k.value}</p>
+                  <p className="text-xs text-muted-foreground">{k.label}</p>
+                </div>
               </div>
-              <p className="text-2xl font-bold text-foreground">{k.value}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{k.label}</p>
             </div>
           );
         })}
@@ -311,7 +317,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
           </p>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px] text-sm">
+          <table className="w-full text-sm">
             <THead cols={["Department", "Declarations", "Pending", "Approved", "Declined", "Total Value"]} />
             <tbody className="divide-y divide-border">
               {departmentStats.length === 0 ? (
@@ -319,25 +325,51 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                   <td colSpan={6} className="py-10 text-center text-xs text-muted-foreground">No data available</td>
                 </tr>
               ) : (
-                departmentStats.map((d) => (
+                departmentStats.slice(deptPage * DEPT_PAGE_SIZE, (deptPage + 1) * DEPT_PAGE_SIZE).map((d) => (
                   <tr key={d.name} className="transition-colors hover:bg-muted/20">
-                    <td className="px-5 py-3 text-xs font-semibold text-foreground">{d.name}</td>
-                    <td className="px-5 py-3 text-xs text-foreground">{d.declarations}</td>
-                    <td className="px-5 py-3">
+                    <td className="whitespace-nowrap px-5 py-3 text-xs font-semibold text-foreground">{d.name}</td>
+                    <td className="whitespace-nowrap px-5 py-3 text-xs text-foreground">{d.declarations}</td>
+                    <td className="whitespace-nowrap px-5 py-3">
                       <span className={`text-xs font-semibold ${d.pending > 0 ? "text-amber-600" : "text-muted-foreground"}`}>{d.pending}</span>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="whitespace-nowrap px-5 py-3">
                       <span className={`text-xs font-semibold ${d.approved > 0 ? "text-emerald-600" : "text-muted-foreground"}`}>{d.approved}</span>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="whitespace-nowrap px-5 py-3">
                       <span className={`text-xs font-semibold ${d.declined > 0 ? "text-red-600" : "text-muted-foreground"}`}>{d.declined}</span>
                     </td>
-                    <td className="px-5 py-3 text-xs font-semibold tabular-nums text-foreground">{formatRand(d.totalValue)}</td>
+                    <td className="whitespace-nowrap px-5 py-3 text-xs font-semibold tabular-nums text-foreground">{formatRand(d.totalValue)}</td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
+          {departmentStats.length > DEPT_PAGE_SIZE && (
+            <div className="flex items-center justify-between border-t border-border bg-[#F7F8FC] px-5 py-3">
+              <p className="text-xs text-muted-foreground">
+                Showing <span className="font-semibold text-foreground">{departmentStats.length}</span> departments
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setDeptPage((p) => Math.max(0, p - 1))}
+                  disabled={deptPage === 0}
+                  className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <span className="text-xs text-muted-foreground">
+                  Page {deptPage + 1} of {Math.ceil(departmentStats.length / DEPT_PAGE_SIZE)}
+                </span>
+                <button
+                  onClick={() => setDeptPage((p) => Math.min(Math.ceil(departmentStats.length / DEPT_PAGE_SIZE) - 1, p + 1))}
+                  disabled={deptPage >= Math.ceil(departmentStats.length / DEPT_PAGE_SIZE) - 1}
+                  className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </Card>
     </div>

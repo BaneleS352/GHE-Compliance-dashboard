@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Download, FileText, Clock, Check, X, Coins, Eye } from "lucide-react";
+import { ArrowLeft, Download, FileText, Clock, Check, X, Coins, Eye } from "lucide-react";
 import { Declaration } from "../../types/declaration";
 import { fetchDeclarations } from "../../services/api";
 import { formatRand } from "../../config/theme";
@@ -11,6 +11,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { DeclarationDetailView, SupportingDocuments } from "../pages/DeclarationDetailView";
 import { WorkflowTimeline } from "../components/WorkflowTimeline";
 import { exportRowsToXls } from "../../utils/excel";
+import { useWorkflowApproval } from "../hooks/useWorkflowApproval";
 
 export function MyDeclarationsScreen() {
   const { user } = useUser();
@@ -37,7 +38,22 @@ export function MyDeclarationsScreen() {
   const [activeKpi, setActiveKpi] = useState("All");
   const [sortKey, setSortKey] = useState<keyof Declaration | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 10;
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
+
+  const {
+    wfSteps, wfMessage, canApprove,
+    activeDecision, setActiveDecision,
+    activeNotes, setActiveNotes,
+    handleSubmit, submitDisabled,
+  } = useWorkflowApproval({
+    declarationId: viewDecl?.id ?? null,
+    userId: user?.id ?? null,
+    onSuccess: () => setViewDecl(null),
+  });
+
+  useEffect(() => { setPage(0); }, [search, typeFilter, statusFilter, approverFilter, employeeFilter, dateFilterStart, dateFilterEnd, sortKey, sortDir]);
 
   const userDeclarations = user
     ? declarations.filter((d) => d.employeeId === user.id || d.employee === user.name)
@@ -92,7 +108,11 @@ export function MyDeclarationsScreen() {
     return 0;
   });
 
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const paged = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
   const totalValue = visibleDeclarations.reduce((sum, d) => sum + d.value, 0);
+
 
   const handleKpiClick = (type: string) => {
     setActiveKpi(type);
@@ -132,16 +152,41 @@ export function MyDeclarationsScreen() {
 
   if (viewDecl) {
     return (
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
-        <div className="xl:col-span-3">
-          <DeclarationDetailView data={viewDecl} onBack={() => setViewDecl(null)} hideDocuments />
+      <div>
+        <div className="flex flex-wrap items-center gap-2.5 mb-7 pb-5 border-b border-border">
+          <button
+            onClick={() => setViewDecl(null)}
+            className="h-9 px-3.5 border rounded-xl flex items-center gap-1.5 text-sm bg-card hover:bg-muted/50"
+          >
+            <ArrowLeft size={14} /> Back
+          </button>
+          <span className="font-mono font-bold">{viewDecl.id}</span>
+          <StatusBadge status={viewDecl.status} />
         </div>
-        <div className="xl:col-span-2 h-full">
-          <WorkflowTimeline declarationId={viewDecl.id} employee={viewDecl.employee} />
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
+          <div className="xl:col-span-3">
+            <DeclarationDetailView data={viewDecl} onBack={() => {}} hideBackButton hideDocuments hideTitle />
+          </div>
+        <div className="xl:col-span-2 h-full space-y-5">
+          {wfMessage && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+              {wfMessage}
+            </div>
+          )}
+          <WorkflowTimeline
+            steps={wfSteps}
+            decision={canApprove ? activeDecision : undefined}
+            onDecision={canApprove && setActiveDecision ? setActiveDecision : undefined}
+            notes={canApprove ? activeNotes : undefined}
+            onNotesChange={canApprove && setActiveNotes ? setActiveNotes : undefined}
+            onSubmit={canApprove ? handleSubmit : undefined}
+            submitDisabled={submitDisabled}
+          />
         </div>
         <div className="xl:col-span-3">
           <SupportingDocuments data={viewDecl} />
         </div>
+      </div>
       </div>
     );
   }
@@ -184,8 +229,8 @@ export function MyDeclarationsScreen() {
         <KpiCard label="Total Value" value={`R ${Math.round(totalValue / 1000)}K`} icon={Coins} color="#6366f1" />
       </div>
 
-      <Card className="mb-4 grid grid-cols-1 gap-3 border-white/70 bg-white/85 p-3 sm:grid-cols-2 xl:grid-cols-6">
-        <div className="xl:col-span-2">
+      <Card className="mb-4 grid grid-cols-1 gap-3 border-white/70 bg-white/85 p-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div>
           <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Search</label>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ID, Counterparty, Employee or Approver" className="table-filter-input" />
         </div>
@@ -226,6 +271,14 @@ export function MyDeclarationsScreen() {
         <div>
           <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Date To</label>
           <input type="date" onChange={(e) => setDateFilterEnd(e.target.value)} className="table-filter-input" />
+        </div>
+        <div className="flex items-end">
+          <button
+            onClick={() => { setSearch(""); setTypeFilter("All"); setStatusFilter("All"); setApproverFilter("All"); setEmployeeFilter("All"); setDateFilterStart(""); setDateFilterEnd(""); setActiveKpi("All"); }}
+            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+          >
+            Clear Filters
+          </button>
         </div>
       </Card>
 
@@ -277,7 +330,7 @@ export function MyDeclarationsScreen() {
       </Card>
 
       <Card className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[920px] text-sm">
+        <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-white">
             <tr>
               {["id", "type", "counterparty", "value", "submitted", "approver", "status"].map((key) => (
@@ -292,7 +345,7 @@ export function MyDeclarationsScreen() {
                   }}
                   className="cursor-pointer px-5 py-3 text-left text-xs font-bold transition-all duration-200 hover:bg-purple-50/45 hover:text-purple-700"
                 >
-                  {key === "counterparty" ? "COUNTERPARTY" : key === "approver" ? "FINAL APPROVER" : key.toUpperCase()}
+                  {key === "counterparty" ? "COUNTERPARTY" : key === "approver" ? "FINAL APPROVER" : key.toUpperCase()}{sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
                 </th>
               ))}
               <th className="px-5 py-3 text-xs font-bold transition-all duration-200 hover:bg-purple-50/45">ACTIONS</th>
@@ -304,14 +357,14 @@ export function MyDeclarationsScreen() {
                 <td colSpan={8} className="py-10 text-center text-muted-foreground">No declarations found</td>
               </tr>
             ) : (
-              sorted.map((d) => (
+              paged.map((d) => (
                 <tr key={d.id} className="group border-b border-border/70 transition-all duration-300 hover:bg-purple-50/35 hover:shadow-[inset_0_1px_0_rgba(196,181,253,0.12)]">
-                  <td className="px-5 py-3 font-medium text-slate-700 transition-colors duration-200 group-hover:text-purple-900">{d.id}</td>
-                  <td className="px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.type}</td>
-                  <td className="px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.Counterparty}</td>
-                  <td className="px-5 py-3 font-medium text-slate-700 transition-colors duration-200 group-hover:text-purple-900">{formatRand(d.value)}</td>
-                  <td className="px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.submitted}</td>
-                  <td className="px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.approver}</td>
+                  <td className="whitespace-nowrap px-5 py-3 font-medium text-slate-700 transition-colors duration-200 group-hover:text-purple-900">{d.id}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.type}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.Counterparty}</td>
+                  <td className="whitespace-nowrap px-5 py-3 font-medium text-slate-700 transition-colors duration-200 group-hover:text-purple-900">{formatRand(d.value)}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.submitted}</td>
+                  <td className="whitespace-nowrap px-5 py-3 text-slate-700 transition-colors duration-200 group-hover:text-slate-900">{d.approver}</td>
                   <td className="px-5 py-3 transition-transform duration-200 group-hover:translate-x-0.5"><StatusBadge status={d.status} /></td>
                   <td className="px-5 py-3">
                     <div className="flex gap-2">
@@ -328,6 +381,32 @@ export function MyDeclarationsScreen() {
             )}
           </tbody>
         </table>
+        <div className="flex items-center justify-between border-t border-border bg-[#F7F8FC] px-5 py-3">
+          <p className="text-xs text-muted-foreground">
+            Showing <span className="font-semibold text-foreground">{sorted.length}</span> declarations
+          </p>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <span className="text-xs text-muted-foreground">
+                Page {page + 1} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
 
       </Card>
     </div>

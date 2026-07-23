@@ -5,7 +5,7 @@ export function THead({ cols, compact }: { cols: string[]; compact?: boolean }) 
         {cols.map((c) => (
           <th
             key={c}
-            className={`text-left text-[11px] font-bold text-muted-foreground uppercase tracking-wider ${compact ? "px-2 py-2.5" : "px-5 py-3"}`}
+            className={`text-left text-xs font-bold text-muted-foreground uppercase tracking-wider ${compact ? "px-2 py-2.5" : "px-5 py-3"}`}
           >
             {c}
           </th>

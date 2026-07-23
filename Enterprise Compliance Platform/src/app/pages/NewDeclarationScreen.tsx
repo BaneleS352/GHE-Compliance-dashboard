@@ -88,6 +88,7 @@ export function NewDeclarationScreen({
   const [uploadError, setUploadError] = useState<{ title: string; message: string } | null>(null);
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isValueFocused, setIsValueFocused] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -253,6 +254,22 @@ export function NewDeclarationScreen({
       return false;
     }
     return true;
+  };
+
+  const handleClear = () => {
+    setFormState({
+      employeeName: "", employeeCode: "", lineManager: "", company: "", department: "",
+      team: "", position: "", partyType: "", Counterparty: "", contactPerson: "",
+      existingRelationship: "", contractNegotiation: "", biddingProcess: "", occasion: "",
+      occasionOther: "", date: "", value: "", currency: "ZAR", substantiation: "", instances: "",
+      description: "",
+    });
+    setCategory("");
+    setReceivedGiven("Received");
+    setFiles([]);
+    setErrors({});
+    setSubmitError("");
+    setShowClearConfirm(false);
   };
 
   const handleSaveDraft = async () => {
@@ -618,9 +635,7 @@ export function NewDeclarationScreen({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
               <div className="flex flex-col">
-                <div className="min-h-[3.5rem]">
                   <FL error={errors.occasionOther}>Reason/Occasion for the gift</FL>
-                </div>
                 <Sel value={form.occasion} onChange={(v) => setF("occasion", v)}>
                   <option value="">Select reason…</option>
                   {occasionOptions.map((o) => <option key={o}>{o}</option>)}
@@ -636,9 +651,7 @@ export function NewDeclarationScreen({
                 )}
               </div>
               <div className="flex flex-col">
-                <div className="min-h-[3.5rem]">
                   <FL required error={errors.date}>Date of Gift</FL>
-                </div>
                 <input
                   type="date"
                   className={`${inp} ${errors.date ? "border-red-400" : ""}`}
@@ -780,22 +793,52 @@ export function NewDeclarationScreen({
                 {submitError}
               </div>
             )}
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-between gap-3">
               <button
-                onClick={handleSaveDraft}
-                className="h-12 px-6 rounded-xl text-sm font-semibold border border-slate-200 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:border-purple-200 hover:bg-purple-50 hover:shadow-sm active:translate-y-0 active:scale-[0.98]"
+                onClick={() => setShowClearConfirm(true)}
+                className="h-12 px-5 rounded-xl text-sm font-semibold border border-red-200 bg-white text-red-600 transition-all duration-200 hover:-translate-y-0.5 hover:border-red-300 hover:bg-red-50 hover:shadow-sm active:translate-y-0 active:scale-[0.98]"
               >
-                Save Draft
+                Clear Form
               </button>
-              <button
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="h-12 px-8 rounded-xl text-sm font-semibold text-white transition-all duration-300 ease-out flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(79,29,149,0.39)] hover:-translate-y-0.5 hover:border-yellow-400 hover:bg-yellow-400 hover:text-white hover:shadow-[0_8px_24px_rgba(250,204,21,0.35)] active:translate-y-0 active:scale-[0.98]"
-                style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent", opacity: submitting ? 0.7 : 1 }}
-              >
-                <Send size={14} /> {submitting ? "Submitting..." : "Submit Declaration"}
-              </button>
+              <div className="flex flex-col-reverse sm:flex-row gap-3">
+                <button
+                  onClick={handleSaveDraft}
+                  className="h-12 px-6 rounded-xl text-sm font-semibold border border-slate-200 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:border-purple-200 hover:bg-purple-50 hover:shadow-sm active:translate-y-0 active:scale-[0.98]"
+                >
+                  Save Draft
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="h-12 px-8 rounded-xl text-sm font-semibold text-white transition-all duration-300 ease-out flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(79,29,149,0.39)] hover:-translate-y-0.5 hover:border-yellow-400 hover:bg-yellow-400 hover:text-white hover:shadow-[0_8px_24px_rgba(250,204,21,0.35)] active:translate-y-0 active:scale-[0.98]"
+                  style={{ background: `linear-gradient(135deg, ${PURPLE}, #6d28d9)`, border: "1px solid transparent", opacity: submitting ? 0.7 : 1 }}
+                >
+                  <Send size={14} /> {submitting ? "Submitting..." : "Submit Declaration"}
+                </button>
+              </div>
             </div>
+            {showClearConfirm && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+                <div className="mx-4 w-full max-w-sm rounded-2xl border border-border bg-white p-6 shadow-2xl">
+                  <p className="text-sm font-bold text-foreground mb-2">Clear form?</p>
+                  <p className="text-sm text-muted-foreground mb-5">All entered data including uploaded files will be lost. This cannot be undone.</p>
+                  <div className="flex justify-end gap-3">
+                    <button
+                      onClick={() => setShowClearConfirm(false)}
+                      className="h-10 px-4 rounded-xl text-sm font-semibold border border-slate-200 bg-white hover:bg-muted transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleClear}
+                      className="h-10 px-4 rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </FS>
       </div>

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MyDeclarationsScreen } from "../app/pages/MyDeclarationsScreen";
-import { fetchDeclarations } from "../services/api";
+import { fetchDeclarations, fetchWorkflowInstance, fetchConfig } from "../services/api";
 import { exportRowsToXls } from "../utils/excel";
 
 const mockDeclarations = [
@@ -37,14 +37,29 @@ const mockDeclarations = [
   },
 ];
 
+const mockEmptySteps = {
+  declarationId: "GHE-2026-1001",
+  steps: [
+    { order: 1, role: "lineManager" as const, assignee: "user-3", assigneeName: "Bob",
+      label: "Line Manager Review", status: "pending" as const, decision: null, notes: "", decidedAt: null },
+  ],
+};
+
 vi.mock("../services/api", () => ({
   fetchDeclarations: vi.fn(),
+  fetchWorkflowInstance: vi.fn(),
+  fetchConfig: vi.fn(() => Promise.resolve({
+    highValueThreshold: 2000, mediumValueThreshold: 250,
+    slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "",
+  })),
 }));
+
+let mockUserRole = "approver";
 
 vi.mock("../app/auth/UserContext", () => ({
   useUser: () => ({
-        user: { id: "user-1", name: "Alice", email: "alice@test.com", role: "approver" as const,
-            teamMemberNumber: "TM-001", department: "IT", position: "Dev", lineManager: "Bob" },
+    user: { id: "user-1", name: "Alice", email: "alice@test.com", role: mockUserRole as "approver" | "teamMember",
+        teamMemberNumber: "TM-001", department: "IT", position: "Dev", lineManager: "Bob" as string | null },
   }),
 }));
 
@@ -53,6 +68,7 @@ vi.mock("../utils/excel", () => ({
 }));
 
 beforeEach(() => {
+  mockUserRole = "approver";
   vi.clearAllMocks();
   class RO {
     cb: any;
@@ -161,6 +177,62 @@ describe("MyDeclarationsScreen", () => {
       expect(screen.queryAllByText("GHE-2026-1001").length).toBe(0);
       expect(screen.queryAllByText("GHE-2026-1002").length).toBe(0);
       expect(screen.queryAllByText("GHE-2026-1003").length).toBe(0);
+    });
+  });
+
+  // ── Journeys 2 & 3: Draft shows, draft opened via View ──
+
+  it("shows draft declarations in the table with a Draft status badge (J2.5)", async () => {
+    vi.mocked(fetchDeclarations).mockResolvedValue(mockDeclarations);
+    render(<MyDeclarationsScreen />);
+    await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    await waitFor(() => {
+      expect(screen.getAllByText("GHE-2026-1003").length).toBeGreaterThan(0);
+    });
+  });
+
+  it("switches to team member mode when user role is teamMember (no My/All toggle)", async () => {
+    mockUserRole = "teamMember";
+
+    vi.mocked(fetchDeclarations).mockResolvedValue(mockDeclarations);
+    render(<MyDeclarationsScreen />);
+    await waitFor(() => {
+      expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByRole("button", { name: "My" })).not.toBeInTheDocument();
+  });
+
+  it("shows Returned declarations with correct status badge (J7.5)", async () => {
+    const returnedDecl = { ...mockDeclarations[0], status: "Returned" as const };
+    vi.mocked(fetchDeclarations).mockResolvedValue([returnedDecl]);
+    render(<MyDeclarationsScreen />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Returned").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("shows Declined declarations with correct status badge (J8.6)", async () => {
+    const declinedDecl = { ...mockDeclarations[0], status: "Declined" as const };
+    vi.mocked(fetchDeclarations).mockResolvedValue([declinedDecl]);
+    render(<MyDeclarationsScreen />);
+    await waitFor(() => {
+      expect(screen.getAllByText("Declined").length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("opens declaration detail view when View button is clicked (J3.1)", async () => {
+    vi.mocked(fetchDeclarations).mockResolvedValue(mockDeclarations);
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockEmptySteps);
+    render(<MyDeclarationsScreen />);
+    await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
+
+    const viewButtons = screen.getAllByText("View");
+    fireEvent.click(viewButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText("1. Line Manager Approval")).toBeInTheDocument();
     });
   });
 });

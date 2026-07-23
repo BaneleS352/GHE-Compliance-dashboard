@@ -21,6 +21,7 @@ export const statusConfig: Record<StatusType, { bg: string; text: string; ring: 
   Declined:         { bg: "bg-red-50",     text: "text-red-700",     ring: "bg-red-500" },
   Escalated:        { bg: "bg-orange-50",  text: "text-orange-700",  ring: "bg-orange-500" },
   "Info Requested": { bg: "bg-blue-50",    text: "text-blue-700",    ring: "bg-blue-500" },
+  Returned:         { bg: "bg-purple-50",  text: "text-purple-700",  ring: "bg-purple-500" },
 };
 
 // ─── Formatters ─────────────────────────────────────────────────────────────────

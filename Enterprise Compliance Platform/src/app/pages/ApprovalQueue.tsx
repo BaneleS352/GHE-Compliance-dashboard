@@ -5,7 +5,7 @@ import { Declaration } from "../../types/declaration";
 import { PURPLE, formatRand } from "../../config/theme";
 import { Card } from "../components/Card";
 import { PageHeader } from "../components/PageHeader";
-import { THead } from "../components/THead";
+
 import { StatusBadge } from "../components/StatusBadge";
 import { TypeBadge } from "../components/TypeBadge";
 import { exportRowsToXls } from "../../utils/excel";
@@ -29,6 +29,10 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const [priority, setPriority] = useState("All");
   const [employeeFilter, setEmployeeFilter] = useState("All");
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [page, setPage] = useState(0);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const PAGE_SIZE = 10;
 
   useEffect(() => {
     fetchPendingWorkflows()
@@ -36,6 +40,8 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { setPage(0); }, [search, department, status, priority, employeeFilter, overdueOnly, sortKey, sortDir]);
 
   const queue = allDeclarations;
   const departments = Array.from(new Set(queue.map((d) => d.department))).sort();
@@ -54,16 +60,36 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       (!overdueOnly || isOutstanding(d.submitted))
     );
   });
+  const sortFieldMap: Record<string, string> = {
+    "Declaration ID": "id", Employee: "employee", Dept: "department", Type: "type",
+    Counterparty: "Counterparty", Value: "value", Submitted: "submitted",
+    Priority: "priority", Status: "status",
+  };
+  const sorted = sortKey
+    ? [...filteredQueue].sort((a, b) => {
+        const aVal = (a as any)[sortFieldMap[sortKey] || sortKey] ?? "";
+        const bVal = (b as any)[sortFieldMap[sortKey] || sortKey] ?? "";
+        if (typeof aVal === "number" && typeof bVal === "number") return sortDir === "asc" ? aVal - bVal : bVal - aVal;
+        const aStr = String(aVal).toLowerCase();
+        const bStr = String(bVal).toLowerCase();
+        if (aStr < bStr) return sortDir === "asc" ? -1 : 1;
+        if (aStr > bStr) return sortDir === "asc" ? 1 : -1;
+        return 0;
+      })
+    : filteredQueue;
   const priorityStyle: Record<string, string> = {
     High: "bg-red-50 text-red-700",
     Medium: "bg-amber-50 text-amber-700",
     Low: "bg-emerald-50 text-emerald-700",
   };
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const pagedQueue = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
   const exportQueue = () => {
     exportRowsToXls(
       "ApprovalQueue",
       "Queue",
-      filteredQueue.map((d) => ({
+      sorted.map((d) => ({
         ID: d.id,
         Employee: d.employee,
         Department: d.department,
@@ -110,8 +136,8 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         }
       />
 
-      <Card className="mb-4 grid grid-cols-1 gap-3 border-white/70 bg-white/85 p-3 sm:grid-cols-2 xl:grid-cols-5">
-        <div className="xl:col-span-2">
+      <Card className="mb-4 grid grid-cols-1 gap-3 border-white/70 bg-white/85 p-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div>
           <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wider text-slate-600">Search</label>
           <div className="relative">
             <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -165,6 +191,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
               <option>Pending</option>
               <option>Escalated</option>
               <option>Info Requested</option>
+              <option>Returned</option>
             </select>
           </div>
         </div>
@@ -183,29 +210,31 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             </select>
           </div>
         </div>
+        <div className="flex items-end">
+          <button
+            onClick={() => setOverdueOnly((v) => !v)}
+            className={`flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
+              overdueOnly
+                ? "border-red-400 bg-red-500 text-white shadow-sm"
+                : "border-border bg-white/60 text-muted-foreground/60 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            }`}
+          >
+            <AlertTriangle size={12} />
+            {overdueOnly ? "Overdue: On" : "Overdue only"}
+          </button>
+        </div>
+        <div className="flex items-end">
+          <button
+            onClick={() => { setSearch(""); setDepartment("All"); setStatus("All"); setPriority("All"); setEmployeeFilter("All"); setOverdueOnly(false); }}
+            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+          >
+            Clear Filters
+          </button>
+        </div>
       </Card>
 
-      <div className="mb-4 flex items-center gap-3">
-        <button
-          onClick={() => setOverdueOnly((v) => !v)}
-          className={`flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors ${
-            overdueOnly
-              ? "border-red-400 bg-red-500 text-white shadow-sm"
-              : "border-border bg-white/60 text-muted-foreground/60 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-          }`}
-        >
-          <AlertTriangle size={12} />
-          {overdueOnly ? "Overdue: On" : "Overdue only"}
-        </button>
-        {overdueOnly && (
-          <span className="text-xs text-muted-foreground">
-            Showing {filteredQueue.length} overdue {filteredQueue.length === 1 ? "declaration" : "declarations"}
-          </span>
-        )}
-      </div>
-
       <Card className="space-y-3 p-3.5 md:hidden">
-        {filteredQueue.map((d) => (
+        {pagedQueue.map((d) => (
           <div key={d.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -228,11 +257,6 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
               <div>
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Submitted</p>
                   <p className="mt-1 text-foreground">{d.submitted}</p>
-                  {isOutstanding(d.submitted) && (
-                    <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-                      <AlertTriangle size={10} /> {daysSince(d.submitted)} days
-                    </span>
-                  )}
                 </div>
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">Priority</p>
@@ -254,30 +278,39 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       </Card>
 
       <Card className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[1050px] text-sm">
-          <THead cols={["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status", "Actions"]} />
+        <table className="w-full text-sm">
+          <thead>
+      <tr className="border-b border-border bg-[#F7F8FC]">
+        {["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status"].map((label) => (
+          <th
+            key={label}
+            onClick={() => {
+              if (sortKey === label) setSortDir(sortDir === "asc" ? "desc" : "asc");
+              else { setSortKey(label); setSortDir("asc"); }
+            }}
+            className="cursor-pointer px-5 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider transition-all duration-200 hover:bg-purple-50/45 hover:text-purple-700"
+          >
+            {label}{sortKey === label ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
+          </th>
+        ))}
+        <th className="px-5 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">Actions</th>
+      </tr>
+    </thead>
           <tbody className="divide-y divide-border">
-            {filteredQueue.map((d) => (
+            {pagedQueue.map((d) => (
               <tr key={d.id} className="transition-colors hover:bg-muted/20">
-                <td className="px-5 py-3.5"><span className="font-mono text-xs font-bold" style={{ color: PURPLE }}>{d.id}</span></td>
-                <td className="whitespace-nowrap px-5 py-3.5 text-sm font-medium text-foreground">{d.employee}</td>
-                <td className="px-5 py-3.5 text-xs text-muted-foreground">{d.department}</td>
-                <td className="px-5 py-3.5"><TypeBadge type={d.type} /></td>
-                <td className="px-5 py-3.5 text-sm font-medium text-foreground">{d.Counterparty}</td>
-                <td className="whitespace-nowrap px-5 py-3.5 text-sm font-semibold tabular-nums">{formatRand(d.value)}</td>
-                <td className="whitespace-nowrap px-5 py-3.5 text-xs tabular-nums text-muted-foreground">
-                  {d.submitted}
-                  {isOutstanding(d.submitted) && (
-                    <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-                      <AlertTriangle size={10} /> {daysSince(d.submitted)}d
-                    </span>
-                  )}
-                </td>
-                <td className="px-5 py-3.5">
+                <td className="whitespace-nowrap px-5 py-3"><span className="font-mono text-sm font-bold" style={{ color: PURPLE }}>{d.id}</span></td>
+                <td className="whitespace-nowrap px-5 py-3 font-medium text-foreground">{d.employee}</td>
+                <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">{d.department}</td>
+                <td className="px-5 py-3"><TypeBadge type={d.type} /></td>
+                <td className="whitespace-nowrap px-5 py-3 font-medium text-foreground">{d.Counterparty}</td>
+                <td className="whitespace-nowrap px-5 py-3 font-semibold tabular-nums">{formatRand(d.value)}</td>
+                <td className="whitespace-nowrap px-5 py-3 tabular-nums text-muted-foreground">{d.submitted}</td>
+                <td className="px-5 py-3">
                   <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${priorityStyle[d.priority]}`}>{d.priority}</span>
                 </td>
-                <td className="px-5 py-3.5"><StatusBadge status={d.status} /></td>
-                <td className="px-5 py-3.5">
+                <td className="px-5 py-3"><StatusBadge status={d.status} /></td>
+                <td className="px-5 py-3">
                   <button
                     onClick={() => onReview(d)}
                     className="h-8 rounded-lg px-3 text-xs font-semibold text-white hover:opacity-90"
@@ -290,10 +323,31 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             ))}
           </tbody>
         </table>
-        <div className="border-t border-border bg-[#F7F8FC] px-5 py-3.5">
+        <div className="flex items-center justify-between border-t border-border bg-[#F7F8FC] px-5 py-3">
           <p className="text-xs text-muted-foreground">
             Showing <span className="font-semibold text-foreground">{filteredQueue.length}</span> declarations
           </p>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <span className="text-xs text-muted-foreground">
+                Page {page + 1} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       </Card>
     </div>

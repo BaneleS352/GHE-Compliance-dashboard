@@ -23,7 +23,8 @@ export type StatusType =
   | "Approved"
   | "Declined"
   | "Escalated"
-  | "Info Requested";
+  | "Info Requested"
+  | "Returned";
 
 export type ApprovalDecision =
   | "return"

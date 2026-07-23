@@ -162,7 +162,8 @@ describe("ApprovalQueue", () => {
     const searchInput = screen.getByPlaceholderText("ID, Employee or Counterparty");
     fireEvent.change(searchInput, { target: { value: "ZZZ_NONEXISTENT" } });
     await waitFor(() => {
-      expect(screen.getByText(/Showing 0 declarations/)).toBeInTheDocument();
+      const footnote = screen.getByText(/Showing/).closest("div");
+      expect(footnote?.textContent).toMatch(/Showing.*0.*declarations/);
     });
   });
 });

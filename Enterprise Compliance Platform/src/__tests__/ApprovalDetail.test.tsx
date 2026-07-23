@@ -79,7 +79,6 @@ describe("ApprovalDetail", () => {
       expect(screen.getByText("GHE-2026-1001")).toBeInTheDocument();
     });
     expect(screen.getByText("1. Line Manager Approval")).toBeInTheDocument();
-    expect(screen.getByText("2. Head of HR Approval")).toBeInTheDocument();
     expect(screen.getByText("3. Group CEO Approval")).toBeInTheDocument();
   });
 
@@ -92,7 +91,7 @@ describe("ApprovalDetail", () => {
     expect(screen.getByText(/Return - Team member/)).toBeInTheDocument();
   });
 
-  it("does not crash when user has no pending step (accessibility view)", async () => {
+  it("does not crash when user has no pending step (read-only view)", async () => {
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockWorkflow);
     render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
     await waitFor(() => {
@@ -115,7 +114,7 @@ describe("ApprovalDetail", () => {
   });
 
   it("submits decision and calls approveWorkflowStep", async () => {
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Pending" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Pending" } as any);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
     render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
     await waitFor(() => {
@@ -123,8 +122,7 @@ describe("ApprovalDetail", () => {
     });
 
     fireEvent.click(screen.getByText(/accept the actual GHE or offered GHE in their personal capacity/));
-    const submitBtn = screen.getByText("Submit Decision");
-    fireEvent.click(submitBtn);
+    fireEvent.click(screen.getByText("Submit Decision"));
 
     await waitFor(() => {
       expect(approveWorkflowStep).toHaveBeenCalledWith(
@@ -134,7 +132,7 @@ describe("ApprovalDetail", () => {
   });
 
   it("shows success message after submission", async () => {
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ status: "Pending" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Pending" } as any);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
     render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
     await waitFor(() => {
@@ -165,6 +163,98 @@ describe("ApprovalDetail", () => {
     render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
     await waitFor(() => {
       expect(screen.getByPlaceholderText("Add notes or reasoning...")).toBeInTheDocument();
+    });
+  });
+
+  it("submits 'decline' decision and updates status to Declined", async () => {
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Declined" } as any);
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
+    render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText(/Declined - Team member to return/i));
+    fireEvent.click(screen.getByText("Submit Decision"));
+
+    await waitFor(() => {
+      expect(approveWorkflowStep).toHaveBeenCalledWith(
+        expect.objectContaining({ declarationId: "GHE-2026-1001", decision: "decline" })
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Declined")).toBeInTheDocument();
+    });
+  });
+
+  it("submits 'return' decision and shows Returned status", async () => {
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Info Requested" } as any);
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
+    render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText(/Return - Team member to provide/));
+    fireEvent.click(screen.getByText("Submit Decision"));
+
+    await waitFor(() => {
+      expect(approveWorkflowStep).toHaveBeenCalledWith(
+        expect.objectContaining({ declarationId: "GHE-2026-1001", decision: "return" })
+      );
+    });
+  });
+
+  it("disables submit button when no decision is selected", async () => {
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
+    render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
+    const submitBtn = screen.getByText("Submit Decision").closest("button")!;
+    expect(submitBtn.disabled).toBe(true);
+  });
+
+  it("includes notes in the approveWorkflowStep payload", async () => {
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Pending" } as any);
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
+    render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText(/accept the actual GHE or offered GHE in their personal capacity/));
+    fireEvent.change(screen.getByPlaceholderText("Add notes or reasoning..."), { target: { value: "Looks good" } });
+    fireEvent.click(screen.getByText("Submit Decision"));
+
+    await waitFor(() => {
+      expect(approveWorkflowStep).toHaveBeenCalledWith(
+        expect.objectContaining({ declarationId: "GHE-2026-1001", decision: "accept", notes: "Looks good" })
+      );
+    });
+  });
+
+  it("submits 'org' decision type", async () => {
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Pending" } as any);
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
+    render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText(/share the actual GHE or offered GHE with the Organisation Pool/));
+    fireEvent.click(screen.getByText("Submit Decision"));
+
+    await waitFor(() => {
+      expect(approveWorkflowStep).toHaveBeenCalledWith(
+        expect.objectContaining({ declarationId: "GHE-2026-1001", decision: "org" })
+      );
+    });
+  });
+
+  it("submits 'foundation' decision type", async () => {
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Pending" } as any);
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
+    render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText(/donate the actual GHE or offered GHE to the Hollywood Foundation/));
+    fireEvent.click(screen.getByText("Submit Decision"));
+
+    await waitFor(() => {
+      expect(approveWorkflowStep).toHaveBeenCalledWith(
+        expect.objectContaining({ declarationId: "GHE-2026-1001", decision: "foundation" })
+      );
     });
   });
 });

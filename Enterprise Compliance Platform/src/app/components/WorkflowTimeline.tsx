@@ -99,7 +99,10 @@ function Badge({ state }: { state: "completed" | "active" | "pending" | "skipped
   if (state === "skipped") {
     return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-400 inline-flex items-center gap-1 whitespace-nowrap">Not Required</span>;
   }
-  return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 inline-flex items-center gap-1 whitespace-nowrap">Pending</span>;
+  if (state === "pending") {
+    return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 inline-flex items-center gap-1 whitespace-nowrap">Pending</span>;
+  }
+  return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 inline-flex items-center gap-1 whitespace-nowrap">Returned</span>;
 }
 
 function RailLine({ steps }: { steps: StepView[] }) {
@@ -154,7 +157,7 @@ function PendingDetails() {
 function WaitingDetails({ actor }: { actor: string }) {
   return (
     <>
-      <p className="text-sm text-purple-700 font-semibold mb-3">Waiting for approval from <strong>{actor}</strong></p>
+      <p className="text-sm text-blue-700 font-semibold mb-3">Returned — awaiting additional information from <strong>{actor}</strong></p>
       <PendingDetails />
     </>
   );
@@ -207,10 +210,10 @@ export function WorkflowTimeline({
           <div key={i} className="flex gap-4">
             <div className="flex flex-col items-center flex-shrink-0">
               <Dot state={step.state} />
-              {!isLast && <div className="w-[2px] flex-1 bg-purple-200 min-h-[24px]" style={{ margin: "4px 0" }} />}
+              {!isLast && <div className="w-[2px] flex-1 bg-purple-200 min-h-[24px] my-1" />}
             </div>
 
-            <div className="flex-1" style={isLast ? {} : { paddingBottom: 28 }}>
+              <div className={`flex-1 ${isLast ? "" : "pb-7"}`}>
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <p className="text-sm font-bold text-gray-900 m-0">{step.label}</p>
@@ -292,7 +295,7 @@ export function WorkflowTimeline({
       })}
 
       {onSubmit && (
-        <div className="mt-1 bg-purple-50 rounded-[14px] p-4 text-center">
+        <div className="mt-5 bg-purple-50 rounded-[14px] p-4 text-center">
           <p className="text-xs text-purple-700 mb-3">
             {submitted ? "Decision submitted. Awaiting next approval." : "Complete the current step before proceeding."}
           </p>

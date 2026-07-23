@@ -135,7 +135,7 @@ describe("WorkflowTimeline", () => {
       { label: "HR", actor: "Lindiwe", state: "active" },
     ];
     render(<WorkflowTimeline steps={steps} />);
-    expect(screen.getByText(/Waiting for approval from/)).toBeInTheDocument();
+    expect(screen.getByText(/awaiting additional information from/)).toBeInTheDocument();
   });
 
   it("shows skipped state correctly", () => {
