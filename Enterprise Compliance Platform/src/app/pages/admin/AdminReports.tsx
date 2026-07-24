@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, FileText } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -227,6 +227,36 @@ export function AdminReports() {
         </div></Card>
       )}
 
+
+      {generatedAt && reportType === "Counterparty Concentration Report" && (
+        <Card className="overflow-x-auto p-0"><div ref={tableRef}>
+          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+            <h3 className="text-sm font-bold text-foreground">Counterparty Concentration Report</h3>
+            <span className="text-xs text-muted-foreground">Generated {generatedAt}</span>
+          </div>
+          <Table>
+            <Thead>
+              {["Counterparty", "Declarations", "Total Value", "Average Value"].map((label) => (
+                <Th key={label}>{label}</Th>
+              ))}
+            </Thead>
+            <Tbody>
+              {counterpartyData.length === 0 ? (
+                <Tr><Td colSpan={4} className="py-10 text-center">No records for the selected range.</Td></Tr>
+              ) : counterpartyData.map((row) => (
+                <Tr key={row.counterparty}>
+                  <Td className={COL.EMPLOYEE}>{row.counterparty}</Td>
+                  <Td className={COL.TABULAR_NUMS}>{row.count}</Td>
+                  <Td className={COL.VALUE}>{formatRand(row.totalValue)}</Td>
+                  <Td className={COL.TABULAR_NUMS}>{formatRand(row.avgValue)}</Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </Table>
+        </div></Card>
+      )}
     </div>
   );
 }
+
+

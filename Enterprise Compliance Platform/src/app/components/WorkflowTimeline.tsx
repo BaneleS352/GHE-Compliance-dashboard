@@ -63,7 +63,7 @@ function dotColor(step: StepView): string {
   if (step.state !== "completed") {
     if (step.state === "active") return "bg-purple-600";
     if (step.state === "skipped") return "bg-gray-100 border border-gray-300";
-    return "bg-gray-400";
+    return STATUS_COLORS.Pending.dot;
   }
   if (!step.decision?.label) return "bg-purple-600";
   return STATUS_COLORS[labelToStatus(step.decision.label)].dot;
@@ -81,6 +81,7 @@ function Dot({ step }: { step: StepView }) {
 }
 
 function getRailColor(step: StepView): string {
+  if (step.state === "pending") return STATUS_COLORS.Pending.rail;
   if (step.state !== "completed") return "bg-gray-200";
   if (!step.decision?.label) return "bg-purple-300";
   return STATUS_COLORS[labelToStatus(step.decision.label)].rail;
@@ -97,7 +98,8 @@ function Badge({ state, decision }: { state: "completed" | "active" | "pending" 
     return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-400 inline-flex items-center gap-1 whitespace-nowrap">Not Required</span>;
   }
   if (state === "pending") {
-    return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 inline-flex items-center gap-1 whitespace-nowrap">Pending</span>;
+    const c = STATUS_COLORS.Pending;
+    return <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 whitespace-nowrap ${c.bg} ${c.text}`}>Pending</span>;
   }
   return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-400 inline-flex items-center gap-1 whitespace-nowrap">Unknown</span>;
 }
@@ -310,6 +312,7 @@ export function WorkflowTimeline({
     </div>
   );
 }
+
 
 
 
