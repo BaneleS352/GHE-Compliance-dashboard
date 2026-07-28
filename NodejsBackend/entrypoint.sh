@@ -4,7 +4,7 @@ set -e
 mkdir -p /app/uploads
 
 echo "Running Prisma db push..."
-npx prisma db push --skip-generate
+./node_modules/.bin/prisma db push --skip-generate
 
 echo "Seeding database..."
 node /app/dist/seed.js
