@@ -54,29 +54,29 @@
 2026-07-28 11:20:43	Enterprise Compliance Platform	dist/assets/charts-DcpPslVN.js          514.17 kB │ gzip: 148.85 kB
 2026-07-28 11:20:43	Enterprise Compliance Platform	dist/assets/index-77gWOfft.js           878.69 kB │ gzip: 256.37 kB
 2026-07-28 11:20:43	Enterprise Compliance Platform	✓ built in 9.17s
-2026-07-28 11:48:48	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
-2026-07-28 11:48:48	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
 2026-07-28 11:48:48	NodejsBackend	[internal] load build definition from Dockerfile
 2026-07-28 11:48:48	NodejsBackend	[internal] load build definition from Dockerfile
-2026-07-28 11:48:48	Enterprise Compliance Platform	transferring (490 bytes)
+2026-07-28 11:48:48	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
+2026-07-28 11:48:48	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
 2026-07-28 11:48:48	NodejsBackend	transferring (657 bytes)
+2026-07-28 11:48:48	Enterprise Compliance Platform	transferring (490 bytes)
 2026-07-28 11:48:48	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/nginx:alpine
 2026-07-28 11:48:48	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/node:20-alpine
 2026-07-28 11:48:48	NodejsBackend	[internal] load metadata for docker.io/library/node:20-alpine
-2026-07-28 11:48:51	Enterprise Compliance Platform	[internal] load .dockerignore
-2026-07-28 11:48:51	Enterprise Compliance Platform	[internal] load .dockerignore
 2026-07-28 11:48:51	NodejsBackend	[internal] load .dockerignore
 2026-07-28 11:48:51	NodejsBackend	[internal] load .dockerignore
-2026-07-28 11:48:51	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 11:48:51	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 11:48:51	Enterprise Compliance Platform	[internal] load .dockerignore
+2026-07-28 11:48:51	Enterprise Compliance Platform	[internal] load .dockerignore
 2026-07-28 11:48:51	NodejsBackend	[internal] load build context
 2026-07-28 11:48:51	NodejsBackend	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 11:48:51	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 11:48:51	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 2026-07-28 11:48:51	Enterprise Compliance Platform	[internal] load build context
 2026-07-28 11:48:51	Enterprise Compliance Platform	[stage-1 1/6] FROM docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
-2026-07-28 11:48:51	Enterprise Compliance Platform	[internal] load build context
-2026-07-28 11:48:51	Enterprise Compliance Platform	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 2026-07-28 11:48:51	NodejsBackend	[internal] load build context
 2026-07-28 11:48:51	NodejsBackend	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 11:48:51	Enterprise Compliance Platform	[internal] load build context
+2026-07-28 11:48:51	Enterprise Compliance Platform	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 2026-07-28 11:48:51	Enterprise Compliance Platform	resolve docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
 2026-07-28 11:48:52	NodejsBackend	transferring (2581 bytes)
 2026-07-28 11:48:52	NodejsBackend	[build  5/10] COPY prisma/ ./prisma/
@@ -164,12 +164,12 @@
 2026-07-28 12:37:53	Enterprise Compliance Platform	exporting manifest list sha256:722af5dc65fd41bc34e127b289666cdf55bf60bd78d45a138fc142c595ab6a67
 2026-07-28 12:37:53	Enterprise Compliance Platform	naming to docker.io/library/ghe-compliance-dashboard-frontend:latest
 2026-07-28 12:37:53	Enterprise Compliance Platform	unpacking to docker.io/library/ghe-compliance-dashboard-frontend:latest
-2026-07-28 13:01:21	NodejsBackend	[internal] load build definition from Dockerfile
-2026-07-28 13:01:21	NodejsBackend	[internal] load build definition from Dockerfile
 2026-07-28 13:01:21	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
 2026-07-28 13:01:21	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
-2026-07-28 13:01:21	NodejsBackend	transferring (668 bytes)
+2026-07-28 13:01:21	NodejsBackend	[internal] load build definition from Dockerfile
+2026-07-28 13:01:21	NodejsBackend	[internal] load build definition from Dockerfile
 2026-07-28 13:01:21	Enterprise Compliance Platform	transferring (490 bytes)
+2026-07-28 13:01:21	NodejsBackend	transferring (668 bytes)
 2026-07-28 13:01:21	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/nginx:alpine
 2026-07-28 13:01:21	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/node:20-alpine
 2026-07-28 13:01:21	NodejsBackend	[internal] load metadata for docker.io/library/node:20-alpine
@@ -178,15 +178,15 @@
 2026-07-28 13:01:25	NodejsBackend	[internal] load .dockerignore
 2026-07-28 13:01:25	Enterprise Compliance Platform	[internal] load .dockerignore
 2026-07-28 13:01:25	NodejsBackend	[internal] load build context
+2026-07-28 13:01:25	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 13:01:25	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 2026-07-28 13:01:25	NodejsBackend	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 13:01:25	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 13:01:25	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 2026-07-28 13:01:25	Enterprise Compliance Platform	[internal] load build context
 2026-07-28 13:01:25	Enterprise Compliance Platform	[stage-1 1/6] FROM docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
-2026-07-28 13:01:25	NodejsBackend	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 2026-07-28 13:01:25	Enterprise Compliance Platform	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 13:01:25	NodejsBackend	[internal] load build context
+2026-07-28 13:01:25	NodejsBackend	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 2026-07-28 13:01:25	Enterprise Compliance Platform	[internal] load build context
+2026-07-28 13:01:25	NodejsBackend	[internal] load build context
 2026-07-28 13:01:25	Enterprise Compliance Platform	resolve docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
 2026-07-28 13:01:25	NodejsBackend	transferring (2593 bytes)
 2026-07-28 13:01:25	NodejsBackend	[build  5/10] COPY prisma/ ./prisma/
@@ -289,21 +289,112 @@
 2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.752 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
 2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.760 UTC [57] LOG:  database system was shut down at 2026-07-28 11:01:32 UTC
 2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.764 UTC [1] LOG:  database system is ready to accept connections
-2026-07-28 13:01:37	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
-2026-07-28 13:01:37	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 13:01:37	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
-2026-07-28 13:01:38	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 13:01:38	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
-2026-07-28 13:01:38	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 13:01:39	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
-2026-07-28 13:01:39	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 13:01:40	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
-2026-07-28 13:01:40	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 13:01:41	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
-2026-07-28 13:01:42	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 13:01:45	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
-2026-07-28 13:01:45	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 13:01:51	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
-2026-07-28 13:01:52	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 13:02:04	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
-2026-07-28 13:02:05	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:06:32	ghe-compliance-dashboard/db	2026-07-28 11:06:32.843 UTC [55] LOG:  checkpoint starting: time
+2026-07-28 13:06:37	ghe-compliance-dashboard/db	2026-07-28 11:06:37.080 UTC [55] LOG:  checkpoint complete: wrote 45 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=4.218 s, sync=0.008 s, total=4.237 s; sync files=12, longest=0.003 s, average=0.001 s; distance=261 kB, estimate=261 kB; lsn=0/19671D8, redo lsn=0/19671A0
+2026-07-28 13:29:46	NodejsBackend	[internal] load build definition from Dockerfile
+2026-07-28 13:29:46	NodejsBackend	[internal] load build definition from Dockerfile
+2026-07-28 13:29:46	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
+2026-07-28 13:29:46	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
+2026-07-28 13:29:46	NodejsBackend	transferring (668 bytes)
+2026-07-28 13:29:46	Enterprise Compliance Platform	transferring (490 bytes)
+2026-07-28 13:29:46	NodejsBackend	[internal] load metadata for docker.io/library/node:20-alpine
+2026-07-28 13:29:46	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/nginx:alpine
+2026-07-28 13:29:46	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/node:20-alpine
+2026-07-28 13:29:48	NodejsBackend	[internal] load .dockerignore
+2026-07-28 13:29:48	NodejsBackend	[internal] load .dockerignore
+2026-07-28 13:29:48	Enterprise Compliance Platform	[internal] load .dockerignore
+2026-07-28 13:29:48	Enterprise Compliance Platform	[internal] load .dockerignore
+2026-07-28 13:29:48	NodejsBackend	[internal] load build context
+2026-07-28 13:29:48	NodejsBackend	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 13:29:48	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 13:29:48	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 13:29:48	Enterprise Compliance Platform	[internal] load build context
+2026-07-28 13:29:48	Enterprise Compliance Platform	[stage-1 1/6] FROM docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
+2026-07-28 13:29:48	NodejsBackend	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 13:29:48	Enterprise Compliance Platform	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 13:29:48	NodejsBackend	[internal] load build context
+2026-07-28 13:29:48	Enterprise Compliance Platform	[internal] load build context
+2026-07-28 13:29:48	Enterprise Compliance Platform	resolve docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
+2026-07-28 13:29:48	NodejsBackend	transferring (2590 bytes)
+2026-07-28 13:29:48	NodejsBackend	[build  5/10] COPY prisma/ ./prisma/
+2026-07-28 13:29:48	NodejsBackend	[build  8/10] COPY tsconfig.json ./
+2026-07-28 13:29:48	NodejsBackend	[build  3/10] COPY package*.json ./
+2026-07-28 13:29:48	NodejsBackend	[build  4/10] RUN npm ci
+2026-07-28 13:29:48	NodejsBackend	[build  2/10] WORKDIR /app
+2026-07-28 13:29:48	NodejsBackend	[build  6/10] RUN sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
+2026-07-28 13:29:48	NodejsBackend	[build  7/10] RUN NODE_TLS_REJECT_UNAUTHORIZED=0 ./node_modules/.bin/prisma generate
+2026-07-28 13:29:48	NodejsBackend	[stage-1 3/8] RUN apk add --no-cache bash
+2026-07-28 13:29:48	NodejsBackend	[build  9/10] COPY src/ ./src/
+2026-07-28 13:29:48	NodejsBackend	[build 10/10] RUN npm run build
+2026-07-28 13:29:48	NodejsBackend	[stage-1 4/8] COPY --from=build /app/node_modules ./node_modules
+2026-07-28 13:29:48	NodejsBackend	[stage-1 5/8] COPY --from=build /app/prisma ./prisma
+2026-07-28 13:29:48	NodejsBackend	[stage-1 6/8] COPY --from=build /app/dist ./dist
+2026-07-28 13:29:48	NodejsBackend	[stage-1 7/8] COPY entrypoint.sh /app/entrypoint.sh
+2026-07-28 13:29:48	NodejsBackend	[stage-1 8/8] RUN chmod +x /app/entrypoint.sh
+2026-07-28 13:29:49	NodejsBackend	exporting to image
+2026-07-28 13:29:49	NodejsBackend	exporting layers
+2026-07-28 13:29:49	NodejsBackend	exporting manifest sha256:f16974cbecd85bb4a1262f67280a93e3fca9f9bd1fb0cd6a6987c092257b8e73
+2026-07-28 13:29:49	NodejsBackend	exporting config sha256:875f8a919bbbf860549ee814b37eda140672a4c9c8f0512f51434e1fb5e53c59
+2026-07-28 13:29:49	NodejsBackend	exporting attestation manifest sha256:b47e31146e909968347e8bb1fa88e5c85fd94605eb0ef04b065f14f39f7dc080
+2026-07-28 13:29:49	NodejsBackend	exporting manifest list sha256:b4c1a4aeea776439ba9fdbe46f6a3047fef8afddef8813322b83a411df23d938
+2026-07-28 13:29:49	NodejsBackend	naming to docker.io/library/ghe-compliance-dashboard-backend:latest
+2026-07-28 13:29:50	NodejsBackend	unpacking to docker.io/library/ghe-compliance-dashboard-backend:latest
+2026-07-28 13:29:52	Enterprise Compliance Platform	transferring (5514722 bytes)
+2026-07-28 13:29:52	Enterprise Compliance Platform	[stage-1 2/6] RUN apk add --no-cache gettext
+2026-07-28 13:29:52	Enterprise Compliance Platform	[build  2/10] WORKDIR /app
+2026-07-28 13:29:52	Enterprise Compliance Platform	[build 3/6] COPY package*.json ./
+2026-07-28 13:29:52	Enterprise Compliance Platform	[build 4/6] RUN NODE_TLS_REJECT_UNAUTHORIZED=0 npm_config_strict_ssl=false npm ci
+2026-07-28 13:29:52	Enterprise Compliance Platform	[build 5/6] COPY . .
+2026-07-28 13:29:52	Enterprise Compliance Platform	[build 6/6] RUN npm run build
+2026-07-28 13:29:52	Enterprise Compliance Platform	[stage-1 3/6] COPY --from=build /app/dist /usr/share/nginx/html
+2026-07-28 13:29:52	Enterprise Compliance Platform	[stage-1 4/6] COPY nginx.conf /etc/nginx/conf.d/default.conf
+2026-07-28 13:29:52	Enterprise Compliance Platform	[stage-1 5/6] COPY docker-entrypoint.sh /docker-entrypoint.sh
+2026-07-28 13:29:52	Enterprise Compliance Platform	[stage-1 6/6] RUN chmod +x /docker-entrypoint.sh
+2026-07-28 13:29:52	Enterprise Compliance Platform	exporting to image
+2026-07-28 13:29:52	Enterprise Compliance Platform	exporting layers
+2026-07-28 13:29:52	Enterprise Compliance Platform	exporting manifest sha256:4fbc60e2a8740e062b4f7dd0e0ab82ba196252fcece7d862fdc3d65dd47e3466
+2026-07-28 13:29:52	Enterprise Compliance Platform	exporting config sha256:1bc9bcf9de41ae2b87e1cd1680167514c7c2d4401a413bd3f96eef184811b8b2
+2026-07-28 13:29:52	Enterprise Compliance Platform	exporting attestation manifest sha256:d57a52d7ba3607a059719e488d4585d15be95c46b484c23f0f46eb759dd80dcb
+2026-07-28 13:29:52	Enterprise Compliance Platform	exporting manifest list sha256:d1774545c0503fe5e38fb880f65c237aea46f1a2c7160e89dbedaa93539af053
+2026-07-28 13:29:52	Enterprise Compliance Platform	naming to docker.io/library/ghe-compliance-dashboard-frontend:latest
+2026-07-28 13:29:52	Enterprise Compliance Platform	unpacking to docker.io/library/ghe-compliance-dashboard-frontend:latest
+2026-07-28 13:29:53	ghe-compliance-dashboard/backend	Running Prisma db push...
+2026-07-28 13:29:53	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:29:54	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:29:54	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	Prisma schema loaded from prisma/schema.prisma
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	Datasource "db": PostgreSQL database "ghe_compliance", schema "public" at "db:5432"
+2026-07-28 13:29:55	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	🚀  Your database is now in sync with your Prisma schema. Done in 218ms
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	Seeding database...
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	Seeding database...
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	Seeded 12 users
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	Seeded 17 declarations
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	Seeded 3 workflow rules
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	Seeded 13 workflow instances
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	Seeded system config, dropdowns, trend data, type breakdown, and approval options
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	All passwords: "password"
+2026-07-28 13:29:55	ghe-compliance-dashboard/backend	Starting server...
+2026-07-28 13:29:56	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:29:56	ghe-compliance-dashboard/backend	GHE Backend running on http://localhost:3001
+2026-07-28 13:29:58	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:30:01	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:30:07	ghe-compliance-dashboard/backend	GET / 404 10.377 ms - 21
+2026-07-28 13:30:07	ghe-compliance-dashboard/backend	GET /favicon.ico 404 0.777 ms - 21
+2026-07-28 13:30:08	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:30:21	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:30:22	ghe-compliance-dashboard/backend	GET /api/docs 301 3.822 ms - 158
+2026-07-28 13:30:22	ghe-compliance-dashboard/backend	GET /api/docs/ 200 3.842 ms - 3047
+2026-07-28 13:30:22	ghe-compliance-dashboard/backend	GET /api/docs/swagger-ui.css 200 5.734 ms - 178977
+2026-07-28 13:30:22	ghe-compliance-dashboard/backend	GET /api/docs/swagger-ui-init.js 200 2.960 ms - 41041
+2026-07-28 13:30:22	ghe-compliance-dashboard/backend	GET /api/docs/swagger-ui-standalone-preset.js 200 11.344 ms - 256694
+2026-07-28 13:30:22	ghe-compliance-dashboard/backend	GET /api/docs/swagger-ui-bundle.js 200 4.492 ms - 1537593
+2026-07-28 13:30:22	ghe-compliance-dashboard/backend	GET /api/docs/favicon-32x32.png 200 2.640 ms - 628
+2026-07-28 13:30:24	ghe-compliance-dashboard/backend	GET /api/docs/ 304 1.083 ms - -
+2026-07-28 13:30:24	ghe-compliance-dashboard/backend	GET /api/docs/swagger-ui.css 304 1.156 ms - -
+2026-07-28 13:30:24	ghe-compliance-dashboard/backend	GET /api/docs/swagger-ui-bundle.js 304 0.657 ms - -
+2026-07-28 13:30:24	ghe-compliance-dashboard/backend	GET /api/docs/swagger-ui-standalone-preset.js 304 0.611 ms - -
+2026-07-28 13:30:24	ghe-compliance-dashboard/backend	GET /api/docs/swagger-ui-init.js 304 0.255 ms - -
+2026-07-28 13:30:25	ghe-compliance-dashboard/backend	GET /api/docs/favicon-32x32.png 304 0.468 ms - -
