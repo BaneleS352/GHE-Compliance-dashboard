@@ -37,6 +37,8 @@ function isCurrentMonth(value: string): boolean {
   return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
 }
 
+const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+
 export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Screen) => void; onReview?: (d: Declaration) => void }) {
   const { user } = useUser();
   const [activeFilter, setActiveFilter] = useState<DashboardFilter>("All");
@@ -56,7 +58,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   const isAdmin = user?.role === "admin";
 
   const currentMonthDeclarations = useMemo(
-    () => declarations.filter((d) => isCurrentMonth(d.submitted || d.date)),
+    () => declarations.filter((d) => isCurrentMonth(d.submitted)),
     [declarations]
   );
 
@@ -77,7 +79,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
     approved: scopedDeclarations.filter((d) => d.status === "Approved").length,
     declined: scopedDeclarations.filter((d) => d.status === "Declined").length,
     escalated: scopedDeclarations.filter((d) => d.status === "Escalated").length,
-    totalValue: scopedDeclarations.reduce((sum, d) => sum + d.value, 0),
+    totalValue: scopedDeclarations.filter((d) => ["Pending", "Approved"].includes(d.status)).reduce((sum, d) => sum + d.value, 0),
   }), [scopedDeclarations]);
 
   const teamActivity = useMemo(() => {
@@ -110,21 +112,20 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
 
   const overdueDeclarations = useMemo(() => {
     const sevenDaysAgo = Date.now() - 7 * 86400000;
-    return declarations
+    return scopedDeclarations
       .filter((d) => {
         if (!["Pending", "Escalated", "Info Requested"].includes(d.status)) return false;
         const t = new Date(d.submitted).getTime();
         if (Number.isNaN(t) || t >= sevenDaysAgo) return false;
-        if (!isAdmin && d.approver !== user?.name) return false;
         return true;
       })
       .sort((a, b) => {
         const ta = new Date(a.submitted).getTime();
         const tb = new Date(b.submitted).getTime();
         if (Number.isNaN(ta) || Number.isNaN(tb)) return 0;
-        return ta - tb;
+        return ta - tb || (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99);
       });
-  }, [declarations, isAdmin, user]);
+  }, [scopedDeclarations]);
 
   const departmentStats = useMemo(() => {
     const map = new Map<string, { declarations: number; approved: number; declined: number; pending: number; totalValue: number }>();

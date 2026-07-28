@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { prisma } from "../config/prisma";
 import request from "supertest";
 import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } from "./helpers";
 
@@ -697,7 +698,41 @@ describe("Admin status bypass", () => {
     expect(inst.body.steps[0].status).toBe("approved");
   });
 
-  it("PATCH /api/declarations/:id/status — admin sets any valid status bypassing workflow", async () => {
+  it("PATCH /api/declarations/:id/status — admin cannot set Approved when pending step exists", async () => {
+    const create = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({ ...BASE, counterparty: "StatusBypassTest", value: 100 });
+    expect(create.status).toBe(201);
+    const id = create.body.id;
+    await request(app)
+      .patch(`/api/declarations/${id}/submit`)
+      .set("Authorization", `Bearer ${getTeamToken()}`);
+    const res = await request(app)
+      .patch(`/api/declarations/${id}/status`)
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ status: "Approved" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/pending approval step/i);
+  });
+
+  it("PATCH /api/declarations/:id/status — admin cannot set Approved when no workflow instance exists", async () => {
+    const create = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({ ...BASE, counterparty: "StatusBypassNoInstance", value: 100 });
+    expect(create.status).toBe(201);
+    const id = create.body.id;
+
+    const res = await request(app)
+      .patch(`/api/declarations/${id}/status`)
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ status: "Approved" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/workflow instance/i);
+  });
+
+  it("PATCH /api/declarations/:id/status — admin can set non-Approved/Declined statuses directly", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -705,18 +740,12 @@ describe("Admin status bypass", () => {
     expect(create.status).toBe(201);
     const id = create.body.id;
 
-    const adminSet = await request(app)
+    const res = await request(app)
       .patch(`/api/declarations/${id}/status`)
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ status: "Approved" });
-    expect(adminSet.status).toBe(200);
-    expect(adminSet.body.status).toBe("Approved");
-
-    const invalid = await request(app)
-      .patch(`/api/declarations/${id}/status`)
-      .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ status: "InvalidStatus" });
-    expect(invalid.status).toBe(400);
+      .send({ status: "Escalated" });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("Escalated");
   });
 });
 
@@ -744,7 +773,7 @@ describe("Threshold boundary conditions", () => {
     expect(inst.body.steps[0].role).toBe("lineManager");
   });
 
-  it("Value exactly at mediumThreshold boundary (250) uses rule-1", async () => {
+  it("Value exactly at mediumThreshold (250) uses rule-2 (LM + HR), not rule-1", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -759,7 +788,7 @@ describe("Threshold boundary conditions", () => {
     const inst = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst.body.steps).toHaveLength(1);
+    expect(inst.body.steps).toHaveLength(2);
   });
 
   it("Value just above mediumThreshold (251) uses rule-2 (LM + HR)", async () => {
@@ -780,7 +809,7 @@ describe("Threshold boundary conditions", () => {
     expect(inst.body.steps).toHaveLength(2);
   });
 
-  it("Value exactly at highThreshold (2000) uses rule-2 (LM + HR), not rule-3", async () => {
+  it("Value exactly at highThreshold (2000) uses rule-3 (LM + HR + CEO), not rule-2", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -795,7 +824,7 @@ describe("Threshold boundary conditions", () => {
     const inst = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst.body.steps).toHaveLength(2);
+    expect(inst.body.steps).toHaveLength(3);
   });
 
   it("Value just above highThreshold (2001) uses rule-3 (LM + HR + CEO)", async () => {
@@ -1014,6 +1043,119 @@ describe("Declaration files metadata field", () => {
       .send({ files: ["replacement.pdf"] });
     expect(edit.status).toBe(200);
     expect(edit.body.files).toEqual(["replacement.pdf"]);
+  });
+});
+
+// ── DETERMINE RULE ID BOUNDARY ──
+describe("determineRuleId threshold boundary", () => {
+  it("determineRuleId routes a value equal to highThreshold to rule-3 (not rule-2)", async () => {
+    const config = await prisma.systemConfig.findFirst();
+    expect(config).toBeTruthy();
+    const { determineRuleId } = await import("../services/workflowService");
+    const result = determineRuleId(config.highValueThreshold, config.highValueThreshold, config.mediumValueThreshold);
+    expect(result).toBe("rule-3");
+  });
+
+  it("determineRuleId routes a value equal to mediumThreshold to rule-2 (not rule-1)", async () => {
+    const config = await prisma.systemConfig.findFirst();
+    expect(config).toBeTruthy();
+    const { determineRuleId } = await import("../services/workflowService");
+    const result = determineRuleId(config.mediumValueThreshold, config.highValueThreshold, config.mediumValueThreshold);
+    expect(result).toBe("rule-2");
+  });
+
+  it("determineRuleId routes a value just below threshold to the lower rule", async () => {
+    const { determineRuleId } = await import("../services/workflowService");
+    expect(determineRuleId(1999, 2000, 250)).toBe("rule-2");
+    expect(determineRuleId(249, 2000, 250)).toBe("rule-1");
+  });
+});
+
+// ── ADMIN STATUS BYPASS PROTECTION ──
+describe("Admin status bypass protection", () => {
+  it("PATCH /api/declarations/:id/status — admin cannot set Approved if a pending step exists", async () => {
+    const create = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({ ...BASE, counterparty: "AdminBypassTest1", value: 5000 });
+    expect(create.status).toBe(201);
+    const id = create.body.id;
+    await request(app)
+      .patch(`/api/declarations/${id}/submit`)
+      .set("Authorization", `Bearer ${getTeamToken()}`);
+    const res = await request(app)
+      .patch(`/api/declarations/${id}/status`)
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ status: "Approved" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/pending approval step/i);
+  });
+
+  it("PATCH /api/declarations/:id/status — admin can set Approved if all steps are already resolved", async () => {
+    const create = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({ ...BASE, counterparty: "AdminBypassTest2", value: 5000 });
+    expect(create.status).toBe(201);
+    const id = create.body.id;
+    await request(app)
+      .patch(`/api/declarations/${id}/submit`)
+      .set("Authorization", `Bearer ${getTeamToken()}`);
+    const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
+    const steps = JSON.parse(instance!.steps);
+    for (const s of steps) {
+      s.status = "approved";
+      s.decision = "accept";
+      s.approvedAt = new Date().toISOString();
+    }
+    await prisma.workflowInstance.update({ where: { declarationId: id }, data: { steps: JSON.stringify(steps) } });
+    const res = await request(app)
+      .patch(`/api/declarations/${id}/status`)
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ status: "Approved" });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("Approved");
+  });
+});
+
+// ── WORKFLOW STEPS HIDDEN FROM NON-ADMINS ──
+describe("Workflow step visibility", () => {
+  it("GET /api/declarations/:id — approver receives full workflow steps", async () => {
+    const create = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({ ...BASE, counterparty: "StepVisApprover", value: 5000 });
+    expect(create.status).toBe(201);
+    const id = create.body.id;
+    await request(app)
+      .patch(`/api/declarations/${id}/submit`)
+      .set("Authorization", `Bearer ${getTeamToken()}`);
+    const res = await request(app)
+      .get(`/api/declarations/${id}`)
+      .set("Authorization", `Bearer ${getApproverToken()}`);
+    expect(res.status).toBe(200);
+    expect(res.body.workflowSteps).toBeDefined();
+    expect(Array.isArray(res.body.workflowSteps)).toBe(true);
+  });
+
+  it("GET /api/declarations/:id — teamMember receives stripped workflow steps (no assignee/notes)", async () => {
+    const create = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({ ...BASE, counterparty: "StepVisMember", value: 5000 });
+    expect(create.status).toBe(201);
+    const id = create.body.id;
+    await request(app)
+      .patch(`/api/declarations/${id}/submit`)
+      .set("Authorization", `Bearer ${getTeamToken()}`);
+    const res = await request(app)
+      .get(`/api/declarations/${id}`)
+      .set("Authorization", `Bearer ${getTeamToken()}`);
+    expect(res.status).toBe(200);
+    expect(res.body.workflowSteps).toBeDefined();
+    expect(Array.isArray(res.body.workflowSteps)).toBe(true);
+    expect(res.body.workflowSteps[0]).not.toHaveProperty("assigneeName");
+    expect(res.body.workflowSteps[0]).not.toHaveProperty("assignee");
   });
 });
 

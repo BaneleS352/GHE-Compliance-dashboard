@@ -20,7 +20,7 @@ function safeParseSteps(data: string): WorkflowStep[] {
 
 function safeJsonParse(val: string | null | undefined): any {
   if (!val) return null;
-  try { return JSON.parse(val); } catch { return val; }
+  try { return JSON.parse(val); } catch { return null; }
 }
 
 function declarationResponse(d: any) {
@@ -188,6 +188,7 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
     decision,
     notes: notes || "",
     decidedAt: now,
+    approvedAt: newStepStatus === "approved" ? now : freshSteps[currentStepIndex].approvedAt,
   };
 
   let newStatus: string;

@@ -508,9 +508,12 @@ describe("Submit with null lineManager", () => {
     const inst = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst.body.steps).toHaveLength(1);
-    expect(inst.body.steps[0].role).toBe("hr");
-    expect(inst.body.steps[0].assignee).toBe("user-hr");
+    // LM step is skipped (null lineManager) but recorded as "skipped"
+    expect(inst.body.steps).toHaveLength(2);
+    expect(inst.body.steps[0].status).toBe("skipped");
+    expect(inst.body.steps[0].role).toBe("lineManager");
+    expect(inst.body.steps[1].role).toBe("hr");
+    expect(inst.body.steps[1].assignee).toBe("user-hr");
   });
 });
 

@@ -80,6 +80,11 @@ const createUserSchema = z.object({
   lineManager: z.string().nullable().optional().default(null),
 });
 
+const generatePassword = (): string => {
+  const bytes = crypto.randomBytes(8);
+  return bytes.toString("hex").slice(0, 12);
+};
+
 // POST /api/admin/users
 router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = createUserSchema.safeParse(req.body);
@@ -97,7 +102,7 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
 
   const id = `USR-${Date.now()}-${crypto.randomInt(1000, 9999)}`;
 
-  const password = data.password || "password";
+  const password = data.password || generatePassword();
 
   const user = await prisma.user.create({
     data: {

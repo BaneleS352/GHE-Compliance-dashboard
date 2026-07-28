@@ -71,10 +71,25 @@ router.get("/dropdowns", authenticate, authorize("admin"), asyncHandler(async (_
   res.json(parsed);
 }));
 
+const VALID_DROPDOWN_KEYS = new Set([
+  "departments",
+  "categories",
+  "occasions",
+  "receivedGiven",
+  "biddingProcess",
+  "publicOfficial",
+  "relationships",
+  "partyTypes",
+]);
+
 // PUT /api/admin/config/dropdowns
 router.put("/dropdowns", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const data = req.body;
-  // Validate: each array must be non-empty
+  const unknownKeys = Object.keys(data).filter((k) => !VALID_DROPDOWN_KEYS.has(k));
+  if (unknownKeys.length > 0) {
+    res.status(400).json({ error: `Unknown dropdown keys: ${unknownKeys.join(", ")}` });
+    return;
+  }
   for (const [key, arr] of Object.entries(data)) {
     if (!Array.isArray(arr) || arr.length === 0) {
       res.status(400).json({ error: `Dropdown "${key}" must be a non-empty array` });

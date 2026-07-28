@@ -45,6 +45,14 @@ router.post("/rules", authenticate, authorize("admin"), async (req: AuthRequest,
   }
 
   const data = parsed.data;
+  const existing = await prisma.workflowRule.findFirst({
+    where: { name: data.name },
+  });
+  if (existing) {
+    res.status(409).json({ error: `A workflow rule named "${data.name}" already exists` });
+    return;
+  }
+
   const id = `rule-${Date.now()}`;
 
   const rule = await prisma.workflowRule.create({
@@ -82,6 +90,16 @@ router.put("/rules/:id", authenticate, authorize("admin"), async (req: AuthReque
   }
 
   const data = parsed.data;
+
+  if (data.name && data.name !== existing.name) {
+    const nameConflict = await prisma.workflowRule.findFirst({
+      where: { name: data.name },
+    });
+    if (nameConflict) {
+      res.status(409).json({ error: `A workflow rule named "${data.name}" already exists` });
+      return;
+    }
+  }
 
   if (data.steps) {
     const newRoles = data.steps.map((s) => s.role);

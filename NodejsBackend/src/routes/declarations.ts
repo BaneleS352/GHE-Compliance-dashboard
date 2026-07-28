@@ -20,7 +20,7 @@ function generateDeclarationId(): string {
 
 function safeJsonParse(val: string | null | undefined): any {
   if (!val) return null;
-  try { return JSON.parse(val); } catch { return val; }
+  try { return JSON.parse(val); } catch { return null; }
 }
 
 function sanitize(val: string): string {
@@ -116,6 +116,8 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
   res.json(declarations.map(declarationResponse));
 }));
 
+const VALID_STATUSES = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Info Requested"] as const;
+
 const createSchema = z.object({
   employee: z.string().min(1),
   employeeId: z.string().min(1),
@@ -130,7 +132,7 @@ const createSchema = z.object({
   value: z.number().nonnegative(),
   submitted: z.string(),
   approver: z.string().optional(),
-  status: z.string(),
+  status: z.enum(VALID_STATUSES).default("Draft"),
   priority: z.string(),
   description: z.string().max(10000),
   relationship: z.string(),
@@ -213,7 +215,19 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
 
   const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: declaration.id } });
-  const workflowSteps = instance ? safeJsonParse(instance.steps) : [];
+  const rawSteps = instance ? safeJsonParse(instance.steps) : [];
+
+  const workflowSteps = req.user!.role === "admin" || req.user!.role === "approver"
+    ? rawSteps
+    : rawSteps.map((s: any) => ({
+        order: s.order,
+        role: s.role,
+        label: s.label,
+        status: s.status,
+        decision: s.decision,
+        notes: s.notes,
+        decidedAt: s.decidedAt,
+      }));
 
   res.json({ ...declarationResponse(declaration), workflowSteps });
 }));
@@ -378,6 +392,20 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
   if (!existing) {
     res.status(404).json({ error: "Declaration not found" });
     return;
+  }
+
+  if (status === "Approved" || status === "Declined") {
+    const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
+    if (!instance) {
+      res.status(400).json({ error: "Cannot approve/decline a declaration with no workflow instance" });
+      return;
+    }
+    const steps: any[] = safeJsonParse(instance.steps);
+    const pendingStep = steps.find((s: any) => s.status === "pending");
+    if (pendingStep) {
+      res.status(400).json({ error: "Cannot approve/decline — pending approval step still exists" });
+      return;
+    }
   }
 
   const updated = await prisma.declaration.update({

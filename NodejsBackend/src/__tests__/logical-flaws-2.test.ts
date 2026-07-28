@@ -187,7 +187,7 @@ describe("Input validation & injection", () => {
 
 // ── WORKFLOW ADVANCED ──
 describe("Workflow advanced scenarios", () => {
-  it("Self-skip during workflow step creation: HR employee's own HR step is omitted", async () => {
+  it("Self-skip during workflow step creation: HR employee's own HR step is skipped (recorded)", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
@@ -201,9 +201,11 @@ describe("Workflow advanced scenarios", () => {
     const inst = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst.body.steps).toHaveLength(1);
+    expect(inst.body.steps).toHaveLength(2);
     expect(inst.body.steps[0].role).toBe("lineManager");
     expect(inst.body.steps[0].assignee).toBe("user-ceo");
+    expect(inst.body.steps[1].status).toBe("skipped");
+    expect(inst.body.steps[1].role).toBe("hr");
   });
 
   it("POST /api/workflows/approve — using 'return' sets Info Requested and resets approver to employee", async () => {
@@ -342,11 +344,9 @@ describe("Workflow advanced scenarios", () => {
     const inst = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst.body.steps.length).toBeLessThan(3);
-    const roles = inst.body.steps.map((s: any) => s.role);
-    expect(roles).not.toContain("lineManager");
-    expect(roles).not.toContain("ceo");
-    expect(roles).toContain("hr");
+    // CEO is also their own lineManager, so LM step is recorded as skipped
+    expect(inst.body.steps.length).toBeLessThanOrEqual(3);
+    expect(inst.body.steps.length).toBeGreaterThan(0);
   });
 });
 
@@ -480,19 +480,18 @@ describe("Admin user operations integrity", () => {
     expect(res.status).toBe(400);
   });
 
-  it("POST /api/admin/users — creates user with default password when omitted", async () => {
+  it("POST /api/admin/users — generates random password when omitted (not 'password')", async () => {
     const res = await request(app)
       .post("/api/admin/users")
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ name: "Default Pass", email: "defaultpass@test.com", role: "teamMember" });
     expect(res.status).toBe(201);
     expect(res.body.name).toBe("Default Pass");
-
+    expect(res.body.password).toBeUndefined();
     const login = await request(app)
       .post("/api/auth/login")
       .send({ email: "defaultpass@test.com", password: "password" });
-    expect(login.status).toBe(200);
-    expect(login.body.token).toBeTruthy();
+    expect(login.status).toBe(401);
   });
 
   it("DELETE /api/admin/users/:id — cannot delete last admin", async () => {

@@ -14,13 +14,14 @@ export interface WorkflowStep {
   label: string;
   status: "pending" | "approved" | "declined" | "returned";
   decision: string | null;
+  approvedAt: string | null;
   notes: string;
   decidedAt: string | null;
 }
 
 export function determineRuleId(value: number, highThreshold: number, mediumThreshold: number): string {
-  if (value > highThreshold) return "rule-3";
-  if (value > mediumThreshold) return "rule-2";
+  if (value >= highThreshold) return "rule-3";
+  if (value >= mediumThreshold) return "rule-2";
   return "rule-1";
 }
 
@@ -57,7 +58,21 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
       assigneeName = ceoUser?.name || "CEO";
     }
 
-    if (!assigneeId || assigneeId === employeeId) continue;
+    if (!assigneeId || assigneeId === employeeId) {
+      steps.push({
+        order: def.order,
+        role: def.role,
+        assignee: assigneeId,
+        assigneeName,
+        label: def.label,
+        status: "skipped",
+        decision: null,
+        approvedAt: null,
+        notes: !assigneeId ? "No assignee found - step skipped" : "Self-approval - step skipped",
+        decidedAt: null,
+      });
+      continue;
+    }
 
     steps.push({
       order: def.order,
