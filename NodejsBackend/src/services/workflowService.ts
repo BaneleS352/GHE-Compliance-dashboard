@@ -12,7 +12,7 @@ export interface WorkflowStep {
   assignee: string;
   assigneeName: string;
   label: string;
-  status: "pending" | "approved" | "declined" | "returned";
+  status: "pending" | "approved" | "declined" | "returned" | "skipped";
   decision: string | null;
   approvedAt: string | null;
   notes: string;
@@ -82,6 +82,7 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
       label: def.label,
       status: "pending",
       decision: null,
+      approvedAt: null,
       notes: "",
       decidedAt: null,
     });

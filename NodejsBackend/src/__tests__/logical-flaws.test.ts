@@ -1050,7 +1050,7 @@ describe("Declaration files metadata field", () => {
 describe("determineRuleId threshold boundary", () => {
   it("determineRuleId routes a value equal to highThreshold to rule-3 (not rule-2)", async () => {
     const config = await prisma.systemConfig.findFirst();
-    expect(config).toBeTruthy();
+    if (!config) throw new Error("System config not found");
     const { determineRuleId } = await import("../services/workflowService");
     const result = determineRuleId(config.highValueThreshold, config.highValueThreshold, config.mediumValueThreshold);
     expect(result).toBe("rule-3");
@@ -1058,7 +1058,7 @@ describe("determineRuleId threshold boundary", () => {
 
   it("determineRuleId routes a value equal to mediumThreshold to rule-2 (not rule-1)", async () => {
     const config = await prisma.systemConfig.findFirst();
-    expect(config).toBeTruthy();
+    if (!config) throw new Error("System config not found");
     const { determineRuleId } = await import("../services/workflowService");
     const result = determineRuleId(config.mediumValueThreshold, config.highValueThreshold, config.mediumValueThreshold);
     expect(result).toBe("rule-2");
