@@ -1,3 +1,6 @@
+# This file is superseded by the root docker-compose.yml.
+# See ../docker-compose.yml for the full 3-container setup (frontend + backend + db).
+# Kept here only so Docker Desktop picks up the Postgres service for local development.
 version: "3.9"
 
 services:

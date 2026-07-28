@@ -12,8 +12,9 @@ import { Table, Thead, Th, Tbody, Tr, Td, COL } from "../components/table";
 import { exportRowsToXls } from "../../utils/excel";
 
 function daysSince(dateStr: string): number {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  return Math.floor(diff / 86400000);
+  const t = new Date(dateStr).getTime();
+  if (Number.isNaN(t)) return 0;
+  return Math.floor((Date.now() - t) / 86400000);
 }
 
 function isOutstanding(dateStr: string): boolean {

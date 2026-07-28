@@ -15,13 +15,11 @@ interface StepDef {
 router.get("/rules", authenticate, authorize("admin"), async (_req: AuthRequest, res: Response): Promise<void> => {
   const rules = await prisma.workflowRule.findMany({ orderBy: { priority: "asc" } });
   res.json(
-    rules.map((r) => ({
-      id: r.id,
-      name: r.name,
-      condition: r.condition,
-      priority: r.priority,
-      steps: JSON.parse(r.steps) as StepDef[],
-    }))
+    rules.map((r) => {
+      let s: StepDef[];
+      try { s = JSON.parse(r.steps); } catch { s = []; }
+      return { id: r.id, name: r.name, condition: r.condition, priority: r.priority, steps: s };
+    })
   );
 });
 
@@ -89,7 +87,8 @@ router.put("/rules/:id", authenticate, authorize("admin"), async (req: AuthReque
     const newRoles = data.steps.map((s) => s.role);
     const instances = await prisma.workflowInstance.findMany();
     for (const inst of instances) {
-      const currentSteps: any[] = JSON.parse(inst.steps);
+      let currentSteps: any[];
+      try { currentSteps = JSON.parse(inst.steps); } catch { continue; }
       for (const role of newRoles) {
         const active = currentSteps.find((s) => s.role === role && s.status === "pending");
         if (active) {

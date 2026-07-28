@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Download, FileText } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -39,7 +39,7 @@ export function AdminReports() {
     return next;
   }, [startDate, endDate, department, status]);
 
-  const handleGenerate = async () => {
+  const handleGenerate = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -53,11 +53,11 @@ export function AdminReports() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [params]);
 
   useEffect(() => {
     handleGenerate();
-  }, []);
+  }, [handleGenerate]);
 
   const activeRows = reportType === "High-Value Gifts Report" ? highValueData : counterpartyData;
 

@@ -12,8 +12,9 @@ export function AdminWorkflows() {
   const [rules, setRules] = useState<WorkflowRule[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { fetchWorkflowRules().then(setRules); }, []);
+  useEffect(() => { fetchWorkflowRules().then(setRules).catch((err: Error) => setError(err.message)); }, []);
 
   const handleAdd = async () => {
     try {
@@ -25,9 +26,9 @@ export function AdminWorkflows() {
         steps: [{ order: 1, role: "lineManager", label: "Line Manager Review" }],
       };
       await createWorkflowRule(newRule);
-      fetchWorkflowRules().then(setRules);
+      fetchWorkflowRules().then(setRules).catch((err: Error) => setError(err.message));
     } catch (e: any) {
-      alert(e.message);
+      setError(e.message);
     }
   };
 
@@ -40,9 +41,9 @@ export function AdminWorkflows() {
     try {
       await updateWorkflowRule(id, { name: editName });
       setEditingId(null);
-      fetchWorkflowRules().then(setRules);
+      fetchWorkflowRules().then(setRules).catch((err: Error) => setError(err.message));
     } catch (e: any) {
-      alert(e.message);
+      setError(e.message);
     }
   };
 
@@ -50,9 +51,9 @@ export function AdminWorkflows() {
     if (!confirm("Delete this workflow rule?")) return;
     try {
       await deleteWorkflowRule(id);
-      fetchWorkflowRules().then(setRules);
+      fetchWorkflowRules().then(setRules).catch((err: Error) => setError(err.message));
     } catch (e: any) {
-      alert(e.message);
+      setError(e.message);
     }
   };
 
@@ -87,7 +88,7 @@ export function AdminWorkflows() {
                 <p className="mt-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Condition: {rule.condition}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {rule.steps.map((step, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
+                    <div key={`${step.order}-${step.role}`} className="flex items-center gap-2">
                       <span className="rounded-xl border border-primary/10 bg-secondary/20 px-3 py-1.5 text-sm font-medium text-foreground shadow-sm">
                         {step.order}. {step.label}
                       </span>
@@ -114,6 +115,7 @@ export function AdminWorkflows() {
           </Card>
         ))}
       </div>
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import path from "path";
 import fs from "fs";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
+import { asyncHandler } from "../middleware/asyncHandler";
 import { createWorkflowSteps } from "../services/workflowService";
 
 const router = Router();
@@ -71,7 +72,7 @@ function declarationResponse(d: any) {
   };
 }
 
-router.get("/stats", authenticate, async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get("/stats", authenticate, asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const declarations = await prisma.declaration.findMany();
 
   const kpis = {
@@ -87,9 +88,9 @@ router.get("/stats", authenticate, async (_req: AuthRequest, res: Response): Pro
   const typeItems = await prisma.typeBreakdownItem.findMany();
 
   res.json({ kpis, complianceTrend: trendItems, typeBreakdown: typeItems });
-});
+}));
 
-router.get("/", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const status = req.query.status as string | undefined;
   const search = req.query.search as string | undefined;
 
@@ -113,7 +114,7 @@ router.get("/", authenticate, async (req: AuthRequest, res: Response): Promise<v
   }
 
   res.json(declarations.map(declarationResponse));
-});
+}));
 
 const createSchema = z.object({
   employee: z.string().min(1),
@@ -146,7 +147,7 @@ const createSchema = z.object({
   files: z.any().optional(),
 });
 
-router.post("/", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   if (req.user!.role === "teamMember" && req.body.employeeId !== req.user!.id) {
     res.status(403).json({ error: "Cannot create declaration for another user" });
     return;
@@ -196,9 +197,9 @@ router.post("/", authenticate, async (req: AuthRequest, res: Response): Promise<
   });
 
   res.status(201).json(declarationResponse(declaration));
-});
+}));
 
-router.get("/:id", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const declaration = await prisma.declaration.findUnique({ where: { id } });
   if (!declaration) {
@@ -215,9 +216,9 @@ router.get("/:id", authenticate, async (req: AuthRequest, res: Response): Promis
   const workflowSteps = instance ? safeJsonParse(instance.steps) : [];
 
   res.json({ ...declarationResponse(declaration), workflowSteps });
-});
+}));
 
-router.put("/:id", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const existing = await prisma.declaration.findUnique({ where: { id } });
   if (!existing) {
@@ -271,9 +272,9 @@ router.put("/:id", authenticate, async (req: AuthRequest, res: Response): Promis
   });
 
   res.json(declarationResponse(updated));
-});
+}));
 
-router.delete("/:id", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const existing = await prisma.declaration.findUnique({ where: { id } });
   if (!existing) {
@@ -293,16 +294,16 @@ router.delete("/:id", authenticate, async (req: AuthRequest, res: Response): Pro
   const files = await prisma.uploadedFile.findMany({ where: { declarationId: id } });
   for (const f of files) {
     const fp = path.join(UPLOAD_DIR, f.path);
-    if (fs.existsSync(fp)) fs.unlinkSync(fp);
+    try { fs.unlinkSync(fp); } catch { /* file may have been deleted already */ }
   }
   await prisma.uploadedFile.deleteMany({ where: { declarationId: id } });
   await prisma.workflowInstance.deleteMany({ where: { declarationId: id } });
   await prisma.declaration.delete({ where: { id } });
 
   res.json({ message: "Declaration deleted" });
-});
+}));
 
-router.patch("/:id/submit", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const existing = await prisma.declaration.findUnique({ where: { id } });
   if (!existing) {
@@ -357,9 +358,9 @@ router.patch("/:id/submit", authenticate, async (req: AuthRequest, res: Response
   ]);
 
   res.json(declarationResponse(updated));
-});
+}));
 
-router.patch("/:id/status", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   if (req.user!.role !== "admin") {
     res.status(403).json({ error: "Only admins can change declaration status directly" });
     return;
@@ -385,7 +386,7 @@ router.patch("/:id/status", authenticate, async (req: AuthRequest, res: Response
   });
 
   res.json(declarationResponse(updated));
-});
+}));
 
 export default router;
 

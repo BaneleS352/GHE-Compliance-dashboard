@@ -28,7 +28,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         decoded.role = dbUser.role;
       }
     } catch {
-      // DB lookup failed — fall through with JWT role
+      console.error("DB lookup failed in auth middleware — falling through with JWT role");
     }
     req.user = decoded;
     next();

@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
+import { asyncHandler } from "../middleware/asyncHandler";
 import { WorkflowStep } from "../services/workflowService";
 
 const router = Router();
@@ -68,7 +69,7 @@ function findActionablePendingStep(steps: WorkflowStep[], userId: string): Workf
 }
 
 // GET /api/workflows/pending — pending approvals for current user
-router.get("/pending", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const instances = await prisma.workflowInstance.findMany();
   const userId = req.user!.id;
   const pending: any[] = [];
@@ -88,10 +89,10 @@ router.get("/pending", authenticate, async (req: AuthRequest, res: Response): Pr
   }
 
   res.json(pending);
-});
+}));
 
 // GET /api/workflows/instances/:declarationId — workflow timeline
-router.get("/instances/:declarationId", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/instances/:declarationId", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const declarationId = req.params.declarationId as string;
   const instance = await prisma.workflowInstance.findUnique({
     where: { declarationId },
@@ -111,10 +112,10 @@ router.get("/instances/:declarationId", authenticate, async (req: AuthRequest, r
   }
 
   res.json({ declarationId: instance.declarationId, steps });
-});
+}));
 
 // POST /api/workflows/approve — approve/decline a step
-router.post("/approve", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const { declarationId, decision, notes } = req.body;
   const dbOptions = await prisma.approvalOption.findMany({ select: { value: true } });
   const validDecisions = dbOptions.length > 0
@@ -225,6 +226,6 @@ router.post("/approve", authenticate, async (req: AuthRequest, res: Response): P
     currentStep: freshSteps[currentStepIndex],
     workflowSteps: freshSteps,
   });
-});
+}));
 
 export default router;

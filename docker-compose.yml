@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  frontend:
+    build:
+      context: ./Enterprise Compliance Platform
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - BACKEND_URL=http://backend:3001
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./NodejsBackend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=postgresql://ghe_user:ghe_password@db:5432/ghe_compliance?schema=public
+      - JWT_SECRET=ghe-jwt-secret-change-in-production
+      - CORS_ORIGIN=http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/uploads
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ghe_compliance
+      POSTGRES_USER: ghe_user
+      POSTGRES_PASSWORD: ghe_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "ghe_user", "-d", "ghe_compliance"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+  uploads:

@@ -53,18 +53,20 @@ export function NewDeclarationScreen({
   const [lineManagerName, setLineManagerName] = useState("");
 
   useEffect(() => {
-    fetchConfig().then(setConfig);
+    fetchConfig().then(setConfig).catch(() => {});
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
     if (user?.lineManager) {
-      fetchUserById(user.lineManager).then((u) => setLineManagerName(u?.name || ""));
+      fetchUserById(user.lineManager).then((u) => { if (!cancelled) setLineManagerName(u?.name || ""); });
     }
+    return () => { cancelled = true; };
   }, [user]);
 
   useEffect(() => {
-    if (lineManagerName && !form.lineManager) {
-      setF("lineManager", lineManagerName);
+    if (lineManagerName) {
+      setFormState((f) => f.lineManager ? f : { ...f, lineManager: lineManagerName });
     }
   }, [lineManagerName]);
 
@@ -242,15 +244,19 @@ export function NewDeclarationScreen({
       }
       setUploadError(null);
       pendingFilesRef.current = [...pendingFilesRef.current, file];
-      const reader = new FileReader();
+        const uploadId = `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        (file as any).uploadId = uploadId;
+        const reader = new FileReader();
       reader.onload = () => {
+        const url = typeof reader.result === "string" ? reader.result : URL.createObjectURL(file);
         setFiles((f) => [
           ...f,
           {
             name: file.name,
             size: file.size,
             type: file.type,
-            url: typeof reader.result === "string" ? reader.result : URL.createObjectURL(file),
+            url,
+            uploadId,
           },
         ]);
       };
@@ -331,7 +337,7 @@ export function NewDeclarationScreen({
     const priority = getPriority(value, config.highValueThreshold, config.mediumValueThreshold);
 
     return {
-      id: draft?.id || `GHE-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000).padStart(4, "0")}`,
+      id: draft?.id || `GHE-${new Date().getFullYear()}-${typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : String(Date.now()).slice(-6)}`,
       employee: form.employeeName,
       employeeId: user.id,
       teamMemberNumber: form.employeeCode,
@@ -779,8 +785,10 @@ export function NewDeclarationScreen({
           </div>
           {files.length > 0 && (
             <div className="mt-4 space-y-2">
-              {files.map((f, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/50">
+              {files.map((f) => {
+                const fileId = (f as any).uploadId || `${f.name}-${f.size}`;
+                return (
+                <div key={fileId} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/50">
                   <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
                     <Paperclip size={13} style={{ color: PURPLE }} />
                   </div>
@@ -792,13 +800,14 @@ export function NewDeclarationScreen({
                     <Download size={13} />
                   </a>
                   <button
-                    onClick={(e) => { e.stopPropagation(); pendingFilesRef.current = pendingFilesRef.current.filter((_, j) => j !== i); setFiles((fs) => fs.filter((_, j) => j !== i)); }}
+                    onClick={(e) => { e.stopPropagation(); pendingFilesRef.current = pendingFilesRef.current.filter((pf) => (pf as any).uploadId !== fileId); setFiles((fs) => fs.filter((f2) => ((f2 as any).uploadId || `${f2.name}-${f2.size}`) !== fileId)); }}
                     className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500"
                   >
                     <Trash2 size={13} />
                   </button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
           <p className="text-xs text-muted-foreground mt-3">

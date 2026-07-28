@@ -70,7 +70,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
     return scopedDeclarations.filter((d) => d.status === activeFilter);
   }, [activeFilter, scopedDeclarations]);
 
-  const daysSince = (dateStr: string) => Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  const daysSince = (dateStr: string) => { const t = new Date(dateStr).getTime(); return Number.isNaN(t) ? 0 : Math.floor((Date.now() - t) / 86400000); };
 
   const kpisData = useMemo(() => ({
     pending: scopedDeclarations.filter((d) => d.status === "Pending").length,
@@ -113,11 +113,17 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
     return declarations
       .filter((d) => {
         if (!["Pending", "Escalated", "Info Requested"].includes(d.status)) return false;
-        if (new Date(d.submitted).getTime() >= sevenDaysAgo) return false;
+        const t = new Date(d.submitted).getTime();
+        if (Number.isNaN(t) || t >= sevenDaysAgo) return false;
         if (!isAdmin && d.approver !== user?.name) return false;
         return true;
       })
-      .sort((a, b) => new Date(a.submitted).getTime() - new Date(b.submitted).getTime());
+      .sort((a, b) => {
+        const ta = new Date(a.submitted).getTime();
+        const tb = new Date(b.submitted).getTime();
+        if (Number.isNaN(ta) || Number.isNaN(tb)) return 0;
+        return ta - tb;
+      });
   }, [declarations, isAdmin, user]);
 
   const departmentStats = useMemo(() => {
@@ -240,7 +246,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {typeDistribution.map((entry) => {
-                    const percent = Math.round((entry.value / typeDistribution.reduce((sum, item) => sum + item.value, 0)) * 100);
+                    const total = typeDistribution.reduce((sum, item) => sum + item.value, 0); const percent = total > 0 ? Math.round((entry.value / total) * 100) : 0;
                     return (
                       <div key={entry.name} className="rounded-xl border border-purple-100 bg-white/60 px-3 py-2 text-center">
                         <p className="text-xs font-semibold text-foreground">{entry.name}</p>

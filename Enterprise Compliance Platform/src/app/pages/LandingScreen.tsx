@@ -30,16 +30,21 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
     setLoading(true);
     await new Promise((r) => setTimeout(r, 400));
 
-    const user = await authenticate(email, password);
-    if (!user) {
-      setError("Invalid credentials. Default password: password");
-      setLoading(false);
-      return;
-    }
+    try {
+      const user = await authenticate(email, password);
+      if (!user) {
+        setError("Invalid credentials. Default password: password");
+        setLoading(false);
+        return;
+      }
 
-    setUser(user);
-    onEnter(user.role, user.name);
-    setLoading(false);
+      setUser(user);
+      onEnter(user.role, user.name);
+    } catch {
+      setError("Authentication failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

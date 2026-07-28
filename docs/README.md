@@ -25,9 +25,10 @@ A full-stack compliance management system for tracking Gifts, Hospitality & Ente
 ## Quick Links
 
 - **Swagger UI**: `http://localhost:3001/api/docs` (start backend first)
+- **Docker Stack**: `docker compose up -d --build` (see [`DOCKER.md`](../DOCKER.md))
 - **Backend Tests**: `cd NodejsBackend && npm test` (203 tests)
-- **Frontend Tests**: `cd "Enterprise Compliance Platform" && npm test` (156 tests)
-- **Total**: 359 tests
+- **Frontend Tests**: `cd "Enterprise Compliance Platform" && npm test` (230 tests)
+- **Total**: 433 tests
 
 ## Test Data
 

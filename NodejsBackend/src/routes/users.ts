@@ -1,10 +1,11 @@
 import { Router, Response } from "express";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
+import { asyncHandler } from "../middleware/asyncHandler";
 
 const router = Router();
 
-router.get("/:id", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) {
@@ -21,6 +22,6 @@ router.get("/:id", authenticate, async (req: AuthRequest, res: Response): Promis
     position: user.position,
     lineManager: user.lineManager,
   });
-});
+}));
 
 export default router;

@@ -64,11 +64,18 @@ const server = app.listen(config.port, () => {
   console.log(`GHE Backend running on http://localhost:${config.port}`);
 });
 
-const shutdown = async () => {
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+});
+
+const shutdown = () => {
   console.log("Shutting down gracefully...");
-  server.close();
-  await prisma.$disconnect();
-  process.exit(0);
+  server.close(() => {
+    prisma.$disconnect().catch(() => {}).finally(() => process.exit(0));
+  });
 };
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);

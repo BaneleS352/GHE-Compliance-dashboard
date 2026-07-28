@@ -79,6 +79,7 @@ export const PRIORITY_COLORS: Record<string, { bg: string; text: string }> = {
 
 // ─── Formatters ─────────────────────────────────────────────────────────────────
 export function formatRand(v: number) {
+  if (typeof v !== "number" || !Number.isFinite(v)) return "R 0.00";
   return `R ${v.toLocaleString("en-ZA")}`;
 }
 

@@ -7,5 +7,6 @@ export default defineConfig({
     globalSetup: ["./src/__tests__/globalSetup.ts"],
     testTimeout: 15000,
     maxWorkers: 1,
+    exclude: ["dist/**", "node_modules/**"],
   },
 });

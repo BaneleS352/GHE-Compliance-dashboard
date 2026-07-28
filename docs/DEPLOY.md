@@ -1,27 +1,58 @@
 # Deployment Guide
 
-## Production Architecture
+This guide covers both Docker-based deployment (recommended) and manual deployment.
 
-```
-                         ┌──────────────┐
-                         │   CDN / Nginx │  Static files (frontend build)
-                         └──────┬───────┘
-                                │
-┌─────────────┐    HTTPS    ┌───▼───────────┐
-│   Browser   │────────────▶│   Node.js     │  Express API (port 3001)
-└─────────────┘             │   (PM2)       │
-                            └───┬───────────┘
-                                │
-                    ┌───────────▼───────────┐
-                    │   PostgreSQL          │
-                    └───────────────────────┘
+## Docker Deployment
+
+### Build & Run
+
+```bash
+# Build and start all services
+docker compose up -d --build
+
+# Seed database (first time only)
+docker compose exec backend npm run db:seed
 ```
 
-## Backend Deployment
+The stack starts 3 containers:
+- **Frontend** (Nginx, port 3000) — serves the built SPA
+- **Backend** (Node, port 3001) — Express API + Prisma
+- **Database** (PostgreSQL 16, port 5432)
+
+The Docker backend build automatically swaps Prisma's `provider` from `sqlite` to `postgresql` (via `sed -i` in the Dockerfile), so no manual schema edits are needed.
+
+### Environment Variables
+
+For production, create a `.env` file in the project root with:
+
+```bash
+DATABASE_URL=postgresql://user:password@postgres:5432/ghe_db
+JWT_SECRET=<generate-a-strong-random-secret>
+CORS_ORIGIN=https://your-frontend-domain.com
+```
+
+These are passed to the backend container via the `env_file` directive in `docker-compose.yml`.
+
+### File Storage
+
+Files are stored in a named Docker volume (`uploads`). For production, replace local disk storage with S3:
+
+- Modify `NodejsBackend/routes/files.ts` to use `@aws-sdk/client-s3`
+- Update `UPLOAD_DIR` to use signed URLs
+- Add S3 bucket env vars: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET`
+
+## Manual Deployment
 
 ### 1. Database — Switch to PostgreSQL
 
 Edit `prisma/schema.prisma`:
+
+```prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+```
 ```prisma
 datasource db {
   provider = "postgresql"

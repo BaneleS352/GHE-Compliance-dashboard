@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { UserProvider, useUser } from "./auth/UserContext";
 import { canAccessScreen } from "./auth/authService";
 import { AppShell } from "../shell/AppShell";
@@ -63,11 +63,11 @@ function AppInner() {
     setShowSubmittedView(false);
   };
 
-  const handleSubmitSuccess = (data: Declaration) => {
+  const handleSubmitSuccess = useCallback((data: Declaration) => {
     setSubmittedData(data);
     setShowSuccess(true);
     setShowSubmittedView(false);
-  };
+  }, []);
 
   const guardedNavigate = (s: Screen) => {
     if (s === "new-declaration") setEditingDraft(null);

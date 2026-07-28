@@ -11,19 +11,26 @@ export function AdminDropdowns() {
   const [data, setData] = useState<Record<string, string[]>>({});
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const tabs = Object.keys(data) as (keyof typeof data)[];
 
-  useEffect(() => { fetchDropdowns().then(setData); }, []);
+  useEffect(() => { fetchDropdowns().then(setData).catch((err: Error) => setError(err.message)); }, []);
 
   const currentList = data[activeTab] || [];
 
   const handleAdd = async () => {
     const item = prompt(`Add new ${activeTab.slice(0, -1)}:`);
     if (!item) return;
+    const prev = data;
     const updated = { ...data, [activeTab]: [...currentList, item] };
     setData(updated);
-    await updateDropdowns(updated);
+    try {
+      await updateDropdowns(updated);
+    } catch (err: any) {
+      setData(prev);
+      setError(err.message || "Failed to add item.");
+    }
   };
 
   const handleEdit = (idx: number) => {
@@ -33,20 +40,32 @@ export function AdminDropdowns() {
 
   const handleSaveEdit = async () => {
     if (editingIdx === null || !editValue) return;
+    const prev = data;
     const list = [...currentList];
     list[editingIdx] = editValue;
     const updated = { ...data, [activeTab]: list };
     setData(updated);
-    await updateDropdowns(updated);
-    setEditingIdx(null);
+    try {
+      await updateDropdowns(updated);
+      setEditingIdx(null);
+    } catch (err: any) {
+      setData(prev);
+      setError(err.message || "Failed to save item.");
+    }
   };
 
   const handleDelete = async (idx: number) => {
     if (!confirm("Delete this option?")) return;
+    const prev = data;
     const list = currentList.filter((_, i) => i !== idx);
     const updated = { ...data, [activeTab]: list };
     setData(updated);
-    await updateDropdowns(updated);
+    try {
+      await updateDropdowns(updated);
+    } catch (err: any) {
+      setData(prev);
+      setError(err.message || "Failed to delete item.");
+    }
   };
 
   return (
@@ -90,7 +109,7 @@ export function AdminDropdowns() {
             <THead cols={["Option Name", "Actions"]} />
             <tbody className="divide-y divide-border">
               {currentList.map((item, idx) => (
-                <tr key={idx} className="transition-all hover:bg-purple-50/45">
+                <tr key={`${item}-${idx}`} className="transition-all hover:bg-purple-50/45">
                   <td className="px-5 py-3">
                     {editingIdx === idx ? (
                       <input value={editValue} onChange={(e) => setEditValue(e.target.value)} className="rounded border px-2 py-1 text-sm w-full" />
@@ -115,7 +134,7 @@ export function AdminDropdowns() {
         <div className="space-y-2 p-4 md:hidden">
           {currentList.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No items in this list.</p>}
           {currentList.map((item, idx) => (
-            <div key={idx} className="group rounded-xl border border-primary/10 bg-white/95 p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-purple-200/70">
+            <div key={`${item}-${idx}`} className="group rounded-xl border border-primary/10 bg-white/95 p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-purple-200/70">
               <div className="flex items-center justify-between gap-3">
                 {editingIdx === idx ? (
                   <input value={editValue} onChange={(e) => setEditValue(e.target.value)} className="flex-1 rounded border px-2 py-1 text-sm" autoFocus />
@@ -135,6 +154,7 @@ export function AdminDropdowns() {
           ))}
         </div>
       </Card>
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
     </div>
   );
 }

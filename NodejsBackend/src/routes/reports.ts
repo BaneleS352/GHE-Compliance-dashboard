@@ -2,7 +2,9 @@ import { Router, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
+import { asyncHandler } from "../middleware/asyncHandler";
 import { generateExcelBuffer, ColumnDef } from "../services/excelService";
+import { getStatusBreakdown, getSLABreakdown, getHighValueDeclarations } from "../services/reports";
 
 const router = Router();
 
@@ -24,7 +26,7 @@ function buildWhere(req: AuthRequest): Prisma.DeclarationWhereInput {
   return where;
 }
 
-router.get("/counterparty-concentration", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/counterparty-concentration", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const declarations = await prisma.declaration.findMany({ where, select: { counterparty: true, value: true } });
 
@@ -46,74 +48,26 @@ router.get("/counterparty-concentration", authenticate, async (req: AuthRequest,
     .sort((a, b) => b.totalValue - a.totalValue);
 
   res.json(result);
-});
+}));
 
-router.get("/high-value", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
-  const threshold = 2000;
-  const where = buildWhere(req);
-  where.value = { gte: threshold };
+router.get("/status-breakdown", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const data = await getStatusBreakdown(req);
+  res.json(data);
+}));
 
-  const declarations = await prisma.declaration.findMany({
-    where,
-    orderBy: { value: "desc" },
-    select: {
-      employee: true,
-      lineManager: true,
-      type: true,
-      counterparty: true,
-      value: true,
-    },
-  });
+router.get("/sla", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const data = await getSLABreakdown(req);
+  res.json(data);
+}));
 
-  const groups = new Map<string, {
-    employee: string;
-    lineManager: string;
-    declarationCount: number;
-    totalValue: number;
-    typeTotals: Record<string, number>;
-    suppliers: Record<string, number>;
-  }>();
+router.get("/high-value", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const config = await prisma.systemConfig.findFirst();
+  const threshold = config?.highValueThreshold ?? 2000;
+  const data = await getHighValueDeclarations(req, { highValueThreshold: threshold });
+  res.json(data);
+}));
 
-  for (const d of declarations) {
-    if (!groups.has(d.employee)) {
-      groups.set(d.employee, {
-        employee: d.employee,
-        lineManager: d.lineManager,
-        declarationCount: 0,
-        totalValue: 0,
-        typeTotals: { Gift: 0, Hospitality: 0, Entertainment: 0 },
-        suppliers: {},
-      });
-    }
-
-    const row = groups.get(d.employee)!;
-    row.declarationCount += 1;
-    row.totalValue += d.value;
-    row.typeTotals[d.type] = (row.typeTotals[d.type] || 0) + 1;
-    row.suppliers[d.counterparty] = (row.suppliers[d.counterparty] || 0) + 1;
-  }
-
-  const result = Array.from(groups.values())
-    .map((row) => {
-      const mostFrequentSupplier = Object.entries(row.suppliers).sort((a, b) => b[1] - a[1])[0]?.[0] || "—";
-      return {
-        employee: row.employee,
-        lineManager: row.lineManager,
-        declarationCount: row.declarationCount,
-        totalValue: Math.round(row.totalValue * 100) / 100,
-        averageValue: Math.round((row.totalValue / row.declarationCount) * 100) / 100,
-        totalGift: row.typeTotals.Gift || 0,
-        totalHospitality: row.typeTotals.Hospitality || 0,
-        totalEntertainment: row.typeTotals.Entertainment || 0,
-        mostFrequentSupplier,
-      };
-    })
-    .sort((a, b) => b.totalValue - a.totalValue);
-
-  res.json(result);
-});
-
-router.get("/list", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/list", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const search = req.query.search as string | undefined;
 
@@ -133,9 +87,9 @@ router.get("/list", authenticate, async (req: AuthRequest, res: Response): Promi
   }
 
   res.json(result);
-});
+}));
 
-router.get("/export", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/export", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const { reportType } = req.query;
 
@@ -175,6 +129,6 @@ router.get("/export", authenticate, async (req: AuthRequest, res: Response): Pro
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
   res.send(buffer);
-});
+}));
 
 export default router;

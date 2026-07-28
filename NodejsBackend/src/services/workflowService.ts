@@ -32,7 +32,8 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
   const rule = await prisma.workflowRule.findUnique({ where: { id: ruleId } });
   if (!rule) throw new Error(`Workflow rule ${ruleId} not found`);
 
-  const stepDefs: WorkflowStepDef[] = JSON.parse(rule.steps);
+  let stepDefs: WorkflowStepDef[];
+  try { stepDefs = JSON.parse(rule.steps); } catch { throw new Error(`Corrupt workflow rule steps for rule ${ruleId}`); }
   const employee = await prisma.user.findUnique({ where: { id: employeeId } });
   if (!employee) throw new Error("Employee not found");
 
@@ -77,7 +78,8 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
 export async function getCurrentStep(declarationId: string): Promise<WorkflowStep | null> {
   const instance = await prisma.workflowInstance.findUnique({ where: { declarationId } });
   if (!instance) return null;
-  const steps: WorkflowStep[] = JSON.parse(instance.steps);
+  let steps: WorkflowStep[];
+  try { steps = JSON.parse(instance.steps); } catch { return null; }
   return steps.find((s) => s.status === "pending") || null;
 }
 

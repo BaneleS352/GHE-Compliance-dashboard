@@ -43,7 +43,8 @@ export function exportToExcel(opts: ExportOptions) {
 
   ws["!cols"] = opts.columns.map((c) => ({ wch: c.width ?? 20 }));
 
-  const range = XLSX.utils.decode_range(ws["!ref"] as string);
+  if (!ws["!ref"]) return;
+  const range = XLSX.utils.decode_range(ws["!ref"]);
   for (let c = range.s.c; c <= range.e.c; c++) {
     const cell = ws[XLSX.utils.encode_cell({ r: headerRow - 1, c })];
     if (cell) {

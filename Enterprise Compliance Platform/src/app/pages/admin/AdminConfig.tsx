@@ -15,13 +15,19 @@ export function AdminConfig() {
     emailTemplate: "",
   });
   const [saved, setSaved] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  useEffect(() => { fetchConfig().then(setConfig); }, []);
+  useEffect(() => { fetchConfig().then(setConfig).catch((err: Error) => setFetchError(err.message)); }, []);
 
   const handleSave = async () => {
-    await saveConfig(config);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    try {
+      await saveConfig(config);
+      setSaved(true);
+      const t = setTimeout(() => setSaved(false), 2000);
+      return () => clearTimeout(t);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to save configuration.");
+    }
   };
 
   return (
@@ -39,6 +45,11 @@ export function AdminConfig() {
         }
       />
 
+      {fetchError && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          {fetchError}
+        </div>
+      )}
       {saved && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
           Configuration saved successfully.
