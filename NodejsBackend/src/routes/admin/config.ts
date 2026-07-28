@@ -99,7 +99,7 @@ router.put("/dropdowns", authenticate, authorize("admin"), asyncHandler(async (r
 // GET /api/admin/config/approval-options
 router.get("/approval-options", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const options = await prisma.approvalOption.findMany({ orderBy: { id: "asc" } });
-  res.json(options.map((o) => ({ value: o.value, label: o.label })));
+  res.json(options.map((o) => ({ id: o.id, value: o.value, label: o.label })));
 }));
 
 // POST /api/admin/config/approval-options
