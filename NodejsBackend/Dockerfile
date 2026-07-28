@@ -13,7 +13,8 @@ FROM node:20-alpine
 WORKDIR /app
 RUN apk add --no-cache bash
 COPY package*.json ./
-RUN npm ci --only=production
+COPY --from=build /app/node_modules ./node_modules
+RUN npm prune --omit=dev
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build /app/dist ./dist
