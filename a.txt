@@ -1,122 +1,3 @@
-2026-07-28 10:22:33	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
-2026-07-28 10:22:33	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
-2026-07-28 10:22:33	NodejsBackend	[internal] load build definition from Dockerfile
-2026-07-28 10:22:33	NodejsBackend	[internal] load build definition from Dockerfile
-2026-07-28 10:22:34	Enterprise Compliance Platform	transferring (431 bytes)
-2026-07-28 10:22:34	NodejsBackend	transferring (679 bytes)
-2026-07-28 10:22:34	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/nginx:alpine
-2026-07-28 10:22:34	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/node:20-alpine
-2026-07-28 10:22:34	NodejsBackend	[internal] load metadata for docker.io/library/node:20-alpine
-2026-07-28 10:22:41	Enterprise Compliance Platform	[internal] load .dockerignore
-2026-07-28 10:22:41	Enterprise Compliance Platform	[internal] load .dockerignore
-2026-07-28 10:22:41	NodejsBackend	[internal] load .dockerignore
-2026-07-28 10:22:41	NodejsBackend	[internal] load .dockerignore
-2026-07-28 10:22:41	Enterprise Compliance Platform	[internal] load build context
-2026-07-28 10:22:41	Enterprise Compliance Platform	[build 1/6] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 10:22:41	Enterprise Compliance Platform	[stage-1 1/6] FROM docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
-2026-07-28 10:22:41	NodejsBackend	[build 1/6] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 10:22:41	NodejsBackend	[build 1/6] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 10:22:41	NodejsBackend	[internal] load build context
-2026-07-28 10:22:41	Enterprise Compliance Platform	[stage-1 1/6] FROM docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
-2026-07-28 10:22:41	Enterprise Compliance Platform	[stage-1 1/6] FROM docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
-2026-07-28 10:22:41	Enterprise Compliance Platform	resolve docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
-2026-07-28 10:22:41	Enterprise Compliance Platform	[build 1/6] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 10:22:41	Enterprise Compliance Platform	[build 1/6] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 10:22:41	Enterprise Compliance Platform	[internal] load build context
-2026-07-28 10:22:41	Enterprise Compliance Platform	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 10:22:41	NodejsBackend	[build 1/6] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 10:22:41	NodejsBackend	[internal] load build context
-2026-07-28 10:22:41	NodejsBackend	[build 1/6] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 10:22:41	NodejsBackend	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 10:22:41	Enterprise Compliance Platform	[build 1/6] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 10:22:41	NodejsBackend	[build 1/6] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 10:22:42	Enterprise Compliance Platform	[stage-1 1/6] FROM docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
-2026-07-28 10:22:42	NodejsBackend	transferring (839132 bytes)
-2026-07-28 10:22:42	Enterprise Compliance Platform	sha256:fff4e2c1b189bf87d63ad8bd07f7f4eb288d6f2b6a07a8bb44c60e8c075d2096 (445/445)
-2026-07-28 10:22:42	NodejsBackend	sha256:fff4e2c1b189bf87d63ad8bd07f7f4eb288d6f2b6a07a8bb44c60e8c075d2096 (445/445)
-2026-07-28 10:22:54	Enterprise Compliance Platform	sha256:6a0ac1617861a677b045b7ff88545213ec31c0ff08763195a70a4a5adda577bb
-2026-07-28 10:22:54	Enterprise Compliance Platform	sha256:46519e7231d2eb5604df229beb44d59719a489eaa7aca52982535a010b07a9ed (1048576/20313073)
-2026-07-28 10:22:54	Enterprise Compliance Platform	transferring (59151045 bytes)
-2026-07-28 10:22:54	Enterprise Compliance Platform	sha256:b2cbbfe903b0821005780971ddc5892edcc4ce74c5a48d82e1d2b382edac3122
-2026-07-28 10:22:54	Enterprise Compliance Platform	sha256:4feea04c154301db6f4a496efa397b3db96603b1c009c797cfdde77bea8b3287
-2026-07-28 10:22:55	NodejsBackend	sha256:b2cbbfe903b0821005780971ddc5892edcc4ce74c5a48d82e1d2b382edac3122 (1262126/1262126)
-2026-07-28 10:23:01	NodejsBackend	sha256:4feea04c154301db6f4a496efa397b3db96603b1c009c797cfdde77bea8b3287 (1048576/43229397)
-2026-07-28 10:23:01	NodejsBackend	sha256:6a0ac1617861a677b045b7ff88545213ec31c0ff08763195a70a4a5adda577bb (1048576/3864189)
-2026-07-28 10:25:07	Enterprise Compliance Platform	(1/3) Installing libgomp (15.2.0-r5)
-2026-07-28 10:25:08	Enterprise Compliance Platform	(2/3) Installing gettext-libs (1.0-r0)
-2026-07-28 10:25:10	Enterprise Compliance Platform	(3/3) Installing gettext (1.0-r0)
-2026-07-28 10:25:19	Enterprise Compliance Platform	Executing busybox-1.37.0-r31.trigger
-2026-07-28 10:25:19	Enterprise Compliance Platform	OK: 74.8 MiB in 74 packages
-2026-07-28 10:26:17	NodejsBackend	(1/4) Installing ncurses-terminfo-base (6.5_p20251123-r0)
-2026-07-28 10:26:18	NodejsBackend	(2/4) Installing libncursesw (6.5_p20251123-r0)
-2026-07-28 10:26:19	NodejsBackend	(3/4) Installing readline (8.3.1-r0)
-2026-07-28 10:26:19	NodejsBackend	(4/4) Installing bash (5.3.3-r1)
-2026-07-28 10:26:21	NodejsBackend	Executing bash-5.3.3-r1.post-install
-2026-07-28 10:26:21	NodejsBackend	Executing busybox-1.37.0-r30.trigger
-2026-07-28 10:26:21	NodejsBackend	OK: 12.9 MiB in 22 packages
-2026-07-28 10:26:21	NodejsBackend	npm warn config only Use `--omit=dev` to omit dev dependencies from the install.
-2026-07-28 10:26:33	NodejsBackend	npm warn deprecated glob@11.1.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
-2026-07-28 10:26:42	NodejsBackend	npm warn deprecated glob@11.1.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
-2026-07-28 10:26:56	Enterprise Compliance Platform	npm warn deprecated recharts@2.15.2: 1.x and 2.x branches are no longer active. Bump to Recharts v3 to receive latest features and bugfixes. See https://github.com/recharts/recharts/wiki/3.0-migration-guide
-2026-07-28 10:27:08	NodejsBackend	npm error code ECONNRESET
-2026-07-28 10:27:08	NodejsBackend	npm error network aborted
-2026-07-28 10:27:08	NodejsBackend	npm error network This is a problem related to network connectivity.
-2026-07-28 10:27:08	NodejsBackend	npm error network In most cases you are behind a proxy or have bad network settings.
-2026-07-28 10:27:08	NodejsBackend	npm error network
-2026-07-28 10:27:08	NodejsBackend	npm error network If you are behind a proxy, please make sure that the
-2026-07-28 10:27:08	NodejsBackend	npm error network 'proxy' config is set properly.  See: 'npm help config'
-2026-07-28 10:27:08	NodejsBackend	npm notice
-2026-07-28 10:27:08	NodejsBackend	npm notice New major version of npm available! 10.8.2 -> 12.0.1
-2026-07-28 10:27:08	NodejsBackend	npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.1
-2026-07-28 10:27:08	NodejsBackend	npm notice To update run: npm install -g npm@12.0.1
-2026-07-28 10:27:08	NodejsBackend	npm notice
-2026-07-28 10:27:08	NodejsBackend	npm error A complete log of this run can be found in: /root/.npm/_logs/2026-07-28T08_26_21_652Z-debug-0.log
-2026-07-28 10:50:29	NodejsBackend	npm warn deprecated glob@11.1.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
-2026-07-28 10:51:10	Enterprise Compliance Platform	npm warn deprecated recharts@2.15.2: 1.x and 2.x branches are no longer active. Bump to Recharts v3 to receive latest features and bugfixes. See https://github.com/recharts/recharts/wiki/3.0-migration-guide
-2026-07-28 10:51:34	NodejsBackend	
-2026-07-28 10:51:34	NodejsBackend	added 283 packages, and audited 284 packages in 2m
-2026-07-28 10:51:34	NodejsBackend	
-2026-07-28 10:51:34	NodejsBackend	58 packages are looking for funding
-2026-07-28 10:51:34	NodejsBackend	run `npm fund` for details
-2026-07-28 10:51:34	NodejsBackend	
-2026-07-28 10:51:34	NodejsBackend	3 high severity vulnerabilities
-2026-07-28 10:51:34	NodejsBackend	
-2026-07-28 10:51:34	NodejsBackend	To address issues that do not require attention, run:
-2026-07-28 10:51:34	NodejsBackend	npm audit fix
-2026-07-28 10:51:34	NodejsBackend	
-2026-07-28 10:51:34	NodejsBackend	Some issues need review, and may require choosing
-2026-07-28 10:51:34	NodejsBackend	a different dependency.
-2026-07-28 10:51:34	NodejsBackend	
-2026-07-28 10:51:34	NodejsBackend	Run `npm audit` for details.
-2026-07-28 10:51:34	NodejsBackend	npm notice
-2026-07-28 10:51:34	NodejsBackend	npm notice New major version of npm available! 10.8.2 -> 12.0.1
-2026-07-28 10:51:34	NodejsBackend	npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.1
-2026-07-28 10:51:34	NodejsBackend	npm notice To update run: npm install -g npm@12.0.1
-2026-07-28 10:51:34	NodejsBackend	npm notice
-2026-07-28 10:51:38	Enterprise Compliance Platform	
-2026-07-28 10:51:38	Enterprise Compliance Platform	added 410 packages, and audited 411 packages in 2m
-2026-07-28 10:51:38	Enterprise Compliance Platform	
-2026-07-28 10:51:38	Enterprise Compliance Platform	55 packages are looking for funding
-2026-07-28 10:51:38	Enterprise Compliance Platform	run `npm fund` for details
-2026-07-28 10:51:38	Enterprise Compliance Platform	
-2026-07-28 10:51:38	Enterprise Compliance Platform	5 vulnerabilities (1 moderate, 4 high)
-2026-07-28 10:51:38	Enterprise Compliance Platform	
-2026-07-28 10:51:38	Enterprise Compliance Platform	To address issues that do not require attention, run:
-2026-07-28 10:51:38	Enterprise Compliance Platform	npm audit fix
-2026-07-28 10:51:38	Enterprise Compliance Platform	
-2026-07-28 10:51:38	Enterprise Compliance Platform	To address all issues possible, run:
-2026-07-28 10:51:38	Enterprise Compliance Platform	npm audit fix --force
-2026-07-28 10:51:38	Enterprise Compliance Platform	
-2026-07-28 10:51:38	Enterprise Compliance Platform	Some issues need review, and may require choosing
-2026-07-28 10:51:38	Enterprise Compliance Platform	a different dependency.
-2026-07-28 10:51:38	Enterprise Compliance Platform	
-2026-07-28 10:51:38	Enterprise Compliance Platform	Run `npm audit` for details.
-2026-07-28 10:51:38	Enterprise Compliance Platform	npm notice
-2026-07-28 10:51:38	Enterprise Compliance Platform	npm notice New major version of npm available! 10.8.2 -> 12.0.1
-2026-07-28 10:51:38	Enterprise Compliance Platform	npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.1
-2026-07-28 10:51:38	Enterprise Compliance Platform	npm notice To update run: npm install -g npm@12.0.1
-2026-07-28 10:51:38	Enterprise Compliance Platform	npm notice
-2026-07-28 10:51:39	NodejsBackend	Error: request to https://binaries.prisma.sh/all_commits/c2990dca591cba766e3b7ef5d9e8a84796e47ab7/linux-musl-openssl-3.0.x/libquery_engine.so.node.gz.sha256 failed, reason: self-signed certificate in certificate chain
 2026-07-28 11:19:02	Enterprise Compliance Platform	(node:1) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
 2026-07-28 11:19:02	Enterprise Compliance Platform	(Use `node --trace-warnings ...` to show where the warning was created)
 2026-07-28 11:19:09	NodejsBackend	Prisma schema loaded from prisma/schema.prisma
@@ -173,89 +54,29 @@
 2026-07-28 11:20:43	Enterprise Compliance Platform	dist/assets/charts-DcpPslVN.js          514.17 kB │ gzip: 148.85 kB
 2026-07-28 11:20:43	Enterprise Compliance Platform	dist/assets/index-77gWOfft.js           878.69 kB │ gzip: 256.37 kB
 2026-07-28 11:20:43	Enterprise Compliance Platform	✓ built in 9.17s
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	The files belonging to this database system will be owned by user "postgres".
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	This user must also own the server process.
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	The database cluster will be initialized with locale "en_US.utf8".
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	The default database encoding has accordingly been set to "UTF8".
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	The default text search configuration will be set to "english".
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	Data page checksums are disabled.
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	fixing permissions on existing directory /var/lib/postgresql/data ... ok
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	creating subdirectories ... ok
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	selecting dynamic shared memory implementation ... posix
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	selecting default max_connections ... 100
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	selecting default shared_buffers ... 128MB
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	selecting default time zone ... UTC
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	creating configuration files ... ok
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	running bootstrap script ... ok
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	sh: locale: not found
-2026-07-28 11:20:47	ghe-compliance-dashboard/db	2026-07-28 09:20:47.836 UTC [35] WARNING:  no usable system locales were found
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	performing post-bootstrap initialization ... ok
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	syncing data to disk ... ok
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	Success. You can now start the database server using:
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	initdb: warning: enabling "trust" authentication for local connections
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	    pg_ctl -D /var/lib/postgresql/data -l logfile start
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	waiting for server to start....2026-07-28 09:20:48.297 UTC [41] LOG:  starting PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.300 UTC [41] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.305 UTC [44] LOG:  database system was shut down at 2026-07-28 09:20:48 UTC
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.309 UTC [41] LOG:  database system is ready to accept connections
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	 done
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	server started
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	CREATE DATABASE
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	/usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	waiting for server to shut down....2026-07-28 09:20:48.449 UTC [41] LOG:  received fast shutdown request
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.452 UTC [41] LOG:  aborting any active transactions
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.454 UTC [41] LOG:  background worker "logical replication launcher" (PID 47) exited with exit code 1
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.455 UTC [42] LOG:  shutting down
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.457 UTC [42] LOG:  checkpoint starting: shutdown immediate
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.507 UTC [42] LOG:  checkpoint complete: wrote 926 buffers (5.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.010 s, sync=0.034 s, total=0.053 s; sync files=301, longest=0.005 s, average=0.001 s; distance=4283 kB, estimate=4283 kB; lsn=0/1925D68, redo lsn=0/1925D68
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.511 UTC [41] LOG:  database system is shut down
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	 done
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	server stopped
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	PostgreSQL init process complete; ready for start up.
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.573 UTC [1] LOG:  starting PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.573 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.573 UTC [1] LOG:  listening on IPv6 address "::", port 5432
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.579 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.587 UTC [57] LOG:  database system was shut down at 2026-07-28 09:20:48 UTC
-2026-07-28 11:20:48	ghe-compliance-dashboard/db	2026-07-28 09:20:48.593 UTC [1] LOG:  database system is ready to accept connections
-2026-07-28 11:25:48	ghe-compliance-dashboard/db	2026-07-28 09:25:48.590 UTC [55] LOG:  checkpoint starting: time
-2026-07-28 11:25:52	ghe-compliance-dashboard/db	2026-07-28 09:25:52.861 UTC [55] LOG:  checkpoint complete: wrote 45 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=4.227 s, sync=0.022 s, total=4.271 s; sync files=12, longest=0.009 s, average=0.002 s; distance=261 kB, estimate=261 kB; lsn=0/19671D8, redo lsn=0/19671A0
-2026-07-28 11:48:48	NodejsBackend	[internal] load build definition from Dockerfile
-2026-07-28 11:48:48	NodejsBackend	[internal] load build definition from Dockerfile
 2026-07-28 11:48:48	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
 2026-07-28 11:48:48	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
-2026-07-28 11:48:48	NodejsBackend	transferring (657 bytes)
+2026-07-28 11:48:48	NodejsBackend	[internal] load build definition from Dockerfile
+2026-07-28 11:48:48	NodejsBackend	[internal] load build definition from Dockerfile
 2026-07-28 11:48:48	Enterprise Compliance Platform	transferring (490 bytes)
+2026-07-28 11:48:48	NodejsBackend	transferring (657 bytes)
 2026-07-28 11:48:48	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/nginx:alpine
 2026-07-28 11:48:48	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/node:20-alpine
 2026-07-28 11:48:48	NodejsBackend	[internal] load metadata for docker.io/library/node:20-alpine
-2026-07-28 11:48:51	NodejsBackend	[internal] load .dockerignore
-2026-07-28 11:48:51	NodejsBackend	[internal] load .dockerignore
 2026-07-28 11:48:51	Enterprise Compliance Platform	[internal] load .dockerignore
 2026-07-28 11:48:51	Enterprise Compliance Platform	[internal] load .dockerignore
+2026-07-28 11:48:51	NodejsBackend	[internal] load .dockerignore
+2026-07-28 11:48:51	NodejsBackend	[internal] load .dockerignore
+2026-07-28 11:48:51	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 11:48:51	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 2026-07-28 11:48:51	NodejsBackend	[internal] load build context
 2026-07-28 11:48:51	NodejsBackend	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 11:48:51	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 11:48:51	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 2026-07-28 11:48:51	Enterprise Compliance Platform	[internal] load build context
 2026-07-28 11:48:51	Enterprise Compliance Platform	[stage-1 1/6] FROM docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
-2026-07-28 11:48:51	NodejsBackend	[internal] load build context
-2026-07-28 11:48:51	NodejsBackend	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 2026-07-28 11:48:51	Enterprise Compliance Platform	[internal] load build context
 2026-07-28 11:48:51	Enterprise Compliance Platform	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 11:48:51	NodejsBackend	[internal] load build context
+2026-07-28 11:48:51	NodejsBackend	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
 2026-07-28 11:48:51	Enterprise Compliance Platform	resolve docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
 2026-07-28 11:48:52	NodejsBackend	transferring (2581 bytes)
 2026-07-28 11:48:52	NodejsBackend	[build  5/10] COPY prisma/ ./prisma/
@@ -300,72 +121,6 @@
 2026-07-28 11:48:55	Enterprise Compliance Platform	exporting manifest list sha256:33c51e3c1c9870be2a5e2e475ce004744b90168a9c880eac549350cb35cf7100
 2026-07-28 11:48:55	Enterprise Compliance Platform	naming to docker.io/library/ghe-compliance-dashboard-frontend:latest
 2026-07-28 11:48:55	Enterprise Compliance Platform	unpacking to docker.io/library/ghe-compliance-dashboard-frontend:latest
-2026-07-28 11:59:32	elastic_hypatia	Error: Database is uninitialized and superuser password is not specified.
-2026-07-28 11:59:32	elastic_hypatia	       You must specify POSTGRES_PASSWORD to a non-empty value for the
-2026-07-28 11:59:32	elastic_hypatia	       superuser. For example, "-e POSTGRES_PASSWORD=password" on "docker run".
-2026-07-28 11:59:32	elastic_hypatia	
-2026-07-28 11:59:32	elastic_hypatia	       You may also use "POSTGRES_HOST_AUTH_METHOD=trust" to allow all
-2026-07-28 11:59:32	elastic_hypatia	       connections without a password. This is *not* recommended.
-2026-07-28 11:59:32	elastic_hypatia	
-2026-07-28 11:59:32	elastic_hypatia	       See PostgreSQL documentation about "trust":
-2026-07-28 11:59:32	elastic_hypatia	       https://www.postgresql.org/docs/current/auth-trust.html
-2026-07-28 11:59:53	ghe-compliance-dashboard/db	2026-07-28 09:59:53.119 UTC [1] LOG:  received fast shutdown request
-2026-07-28 11:59:53	ghe-compliance-dashboard/db	2026-07-28 09:59:53.123 UTC [1] LOG:  aborting any active transactions
-2026-07-28 11:59:53	ghe-compliance-dashboard/db	2026-07-28 09:59:53.128 UTC [1] LOG:  background worker "logical replication launcher" (PID 60) exited with exit code 1
-2026-07-28 11:59:53	ghe-compliance-dashboard/db	2026-07-28 09:59:53.128 UTC [55] LOG:  shutting down
-2026-07-28 11:59:53	ghe-compliance-dashboard/db	2026-07-28 09:59:53.131 UTC [55] LOG:  checkpoint starting: shutdown immediate
-2026-07-28 11:59:53	ghe-compliance-dashboard/db	2026-07-28 09:59:53.147 UTC [55] LOG:  checkpoint complete: wrote 0 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.005 s, sync=0.001 s, total=0.019 s; sync files=0, longest=0.000 s, average=0.000 s; distance=0 kB, estimate=234 kB; lsn=0/1967288, redo lsn=0/1967288
-2026-07-28 11:59:53	ghe-compliance-dashboard/db	2026-07-28 09:59:53.152 UTC [1] LOG:  database system is shut down
-2026-07-28 11:59:56	ghe-compliance-dashboard/db	
-2026-07-28 11:59:56	ghe-compliance-dashboard/db	PostgreSQL Database directory appears to contain a database; Skipping initialization
-2026-07-28 11:59:56	ghe-compliance-dashboard/db	
-2026-07-28 11:59:56	ghe-compliance-dashboard/db	2026-07-28 09:59:56.828 UTC [1] LOG:  starting PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
-2026-07-28 11:59:56	ghe-compliance-dashboard/db	2026-07-28 09:59:56.828 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
-2026-07-28 11:59:56	ghe-compliance-dashboard/db	2026-07-28 09:59:56.828 UTC [1] LOG:  listening on IPv6 address "::", port 5432
-2026-07-28 11:59:56	ghe-compliance-dashboard/db	2026-07-28 09:59:56.831 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
-2026-07-28 11:59:56	ghe-compliance-dashboard/db	2026-07-28 09:59:56.837 UTC [29] LOG:  database system was shut down at 2026-07-28 09:59:53 UTC
-2026-07-28 11:59:56	ghe-compliance-dashboard/db	2026-07-28 09:59:56.845 UTC [1] LOG:  database system is ready to accept connections
-2026-07-28 12:04:56	ghe-compliance-dashboard/db	2026-07-28 10:04:56.917 UTC [27] LOG:  checkpoint starting: time
-2026-07-28 12:04:56	ghe-compliance-dashboard/db	2026-07-28 10:04:56.947 UTC [27] LOG:  checkpoint complete: wrote 3 buffers (0.0%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.005 s, sync=0.009 s, total=0.031 s; sync files=2, longest=0.006 s, average=0.005 s; distance=0 kB, estimate=0 kB; lsn=0/1967370, redo lsn=0/1967338
-2026-07-28 12:16:16	NodejsBackend	[internal] load build definition from Dockerfile
-2026-07-28 12:16:16	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
-2026-07-28 12:16:16	NodejsBackend	[internal] load build definition from Dockerfile
-2026-07-28 12:16:16	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
-2026-07-28 12:16:17	Enterprise Compliance Platform	transferring (504 bytes)
-2026-07-28 12:16:17	NodejsBackend	transferring (650 bytes)
-2026-07-28 12:16:17	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/node:20-alpine
-2026-07-28 12:16:17	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/nginx:alpine
-2026-07-28 12:16:17	NodejsBackend	[internal] load metadata for docker.io/library/node:20-alpine
-2026-07-28 12:16:19	NodejsBackend	[internal] load .dockerignore
-2026-07-28 12:16:19	NodejsBackend	[internal] load .dockerignore
-2026-07-28 12:16:19	Enterprise Compliance Platform	[internal] load .dockerignore
-2026-07-28 12:16:19	Enterprise Compliance Platform	[internal] load .dockerignore
-2026-07-28 12:16:19	NodejsBackend	[internal] load build context
-2026-07-28 12:16:19	NodejsBackend	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 12:16:19	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 12:16:19	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 12:16:19	Enterprise Compliance Platform	[internal] load build context
-2026-07-28 12:16:19	Enterprise Compliance Platform	[stage-1 1/6] FROM docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
-2026-07-28 12:16:19	NodejsBackend	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 12:16:19	Enterprise Compliance Platform	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
-2026-07-28 12:16:19	NodejsBackend	[internal] load build context
-2026-07-28 12:16:19	Enterprise Compliance Platform	[internal] load build context
-2026-07-28 12:16:20	Enterprise Compliance Platform	resolve docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
-2026-07-28 12:16:20	NodejsBackend	transferring (2308 bytes)
-2026-07-28 12:16:20	NodejsBackend	[build  4/10] RUN npm ci
-2026-07-28 12:16:20	NodejsBackend	[build  3/10] COPY package*.json ./
-2026-07-28 12:16:20	NodejsBackend	[build  2/10] WORKDIR /app
-2026-07-28 12:16:20	NodejsBackend	[build  5/10] COPY prisma/ ./prisma/
-2026-07-28 12:16:20	NodejsBackend	[build  6/10] RUN sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
-2026-07-28 12:16:20	NodejsBackend	[build  7/10] RUN NODE_TLS_REJECT_UNAUTHORIZED=0 ./node_modules/.bin/prisma generate
-2026-07-28 12:16:20	NodejsBackend	[build  8/10] COPY tsconfig.json ./
-2026-07-28 12:16:20	NodejsBackend	[build  9/10] COPY src/ ./src/
-2026-07-28 12:16:20	NodejsBackend	[build 10/10] RUN npm run build
-2026-07-28 12:16:20	NodejsBackend	[stage-1 3/7] RUN apk add --no-cache bash
-2026-07-28 12:16:20	NodejsBackend	[stage-1 4/7] COPY --from=build /app/node_modules ./node_modules
-2026-07-28 12:16:20	NodejsBackend	[stage-1 5/7] COPY --from=build /app/prisma ./prisma
-2026-07-28 12:16:20	NodejsBackend	[stage-1 6/7] COPY --from=build /app/entrypoint.sh /app/entrypoint.sh
-2026-07-28 12:16:20	Enterprise Compliance Platform	transferring (1028355 bytes)
 2026-07-28 12:36:49	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
 2026-07-28 12:36:49	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
 2026-07-28 12:36:49	Enterprise Compliance Platform	transferring (490 bytes)
@@ -409,23 +164,146 @@
 2026-07-28 12:37:53	Enterprise Compliance Platform	exporting manifest list sha256:722af5dc65fd41bc34e127b289666cdf55bf60bd78d45a138fc142c595ab6a67
 2026-07-28 12:37:53	Enterprise Compliance Platform	naming to docker.io/library/ghe-compliance-dashboard-frontend:latest
 2026-07-28 12:37:53	Enterprise Compliance Platform	unpacking to docker.io/library/ghe-compliance-dashboard-frontend:latest
-2026-07-28 12:37:55	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: no such file or directory
-2026-07-28 12:37:55	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 12:37:55	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: no such file or directory
-2026-07-28 12:37:56	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 12:37:56	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: no such file or directory
-2026-07-28 12:37:56	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 12:37:57	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: no such file or directory
-2026-07-28 12:37:57	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 12:37:58	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: no such file or directory
-2026-07-28 12:37:58	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 12:38:00	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: no such file or directory
-2026-07-28 12:38:00	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 12:38:03	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: no such file or directory
-2026-07-28 12:38:03	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 12:38:10	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: no such file or directory
-2026-07-28 12:38:10	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 12:38:23	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: no such file or directory
-2026-07-28 12:38:23	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
-2026-07-28 12:38:49	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: no such file or directory
-2026-07-28 12:38:49	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:01:21	NodejsBackend	[internal] load build definition from Dockerfile
+2026-07-28 13:01:21	NodejsBackend	[internal] load build definition from Dockerfile
+2026-07-28 13:01:21	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
+2026-07-28 13:01:21	Enterprise Compliance Platform	[internal] load build definition from Dockerfile
+2026-07-28 13:01:21	NodejsBackend	transferring (668 bytes)
+2026-07-28 13:01:21	Enterprise Compliance Platform	transferring (490 bytes)
+2026-07-28 13:01:21	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/nginx:alpine
+2026-07-28 13:01:21	Enterprise Compliance Platform	[internal] load metadata for docker.io/library/node:20-alpine
+2026-07-28 13:01:21	NodejsBackend	[internal] load metadata for docker.io/library/node:20-alpine
+2026-07-28 13:01:25	Enterprise Compliance Platform	[internal] load .dockerignore
+2026-07-28 13:01:25	NodejsBackend	[internal] load .dockerignore
+2026-07-28 13:01:25	NodejsBackend	[internal] load .dockerignore
+2026-07-28 13:01:25	Enterprise Compliance Platform	[internal] load .dockerignore
+2026-07-28 13:01:25	NodejsBackend	[internal] load build context
+2026-07-28 13:01:25	NodejsBackend	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 13:01:25	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 13:01:25	Enterprise Compliance Platform	[build  1/10] FROM docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 13:01:25	Enterprise Compliance Platform	[internal] load build context
+2026-07-28 13:01:25	Enterprise Compliance Platform	[stage-1 1/6] FROM docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
+2026-07-28 13:01:25	NodejsBackend	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 13:01:25	Enterprise Compliance Platform	resolve docker.io/library/node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+2026-07-28 13:01:25	NodejsBackend	[internal] load build context
+2026-07-28 13:01:25	Enterprise Compliance Platform	[internal] load build context
+2026-07-28 13:01:25	Enterprise Compliance Platform	resolve docker.io/library/nginx:alpine@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752
+2026-07-28 13:01:25	NodejsBackend	transferring (2593 bytes)
+2026-07-28 13:01:25	NodejsBackend	[build  5/10] COPY prisma/ ./prisma/
+2026-07-28 13:01:25	NodejsBackend	[build  8/10] COPY tsconfig.json ./
+2026-07-28 13:01:25	NodejsBackend	[build  3/10] COPY package*.json ./
+2026-07-28 13:01:25	NodejsBackend	[build  4/10] RUN npm ci
+2026-07-28 13:01:25	NodejsBackend	[build  2/10] WORKDIR /app
+2026-07-28 13:01:25	NodejsBackend	[build  6/10] RUN sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
+2026-07-28 13:01:25	NodejsBackend	[build  7/10] RUN NODE_TLS_REJECT_UNAUTHORIZED=0 ./node_modules/.bin/prisma generate
+2026-07-28 13:01:25	NodejsBackend	[stage-1 3/8] RUN apk add --no-cache bash
+2026-07-28 13:01:25	NodejsBackend	[build  9/10] COPY src/ ./src/
+2026-07-28 13:01:25	NodejsBackend	[build 10/10] RUN npm run build
+2026-07-28 13:01:25	NodejsBackend	[stage-1 4/8] COPY --from=build /app/node_modules ./node_modules
+2026-07-28 13:01:25	NodejsBackend	[stage-1 5/8] COPY --from=build /app/prisma ./prisma
+2026-07-28 13:01:25	NodejsBackend	[stage-1 6/8] COPY --from=build /app/dist ./dist
+2026-07-28 13:01:25	NodejsBackend	[stage-1 7/8] COPY entrypoint.sh /app/entrypoint.sh
+2026-07-28 13:01:26	NodejsBackend	[stage-1 8/8] RUN chmod +x /app/entrypoint.sh
+2026-07-28 13:01:26	NodejsBackend	exporting to image
+2026-07-28 13:01:26	NodejsBackend	exporting layers
+2026-07-28 13:01:26	NodejsBackend	exporting manifest sha256:a57a155e8b858cd38a9f4b0c69f3155a96c52a09d373b02b6074ab8491602de9
+2026-07-28 13:01:26	NodejsBackend	exporting config sha256:ceb14d599b419f28e2ce444da12f5b164f5d5564745c5140a86bbe2c42814353
+2026-07-28 13:01:26	NodejsBackend	exporting attestation manifest sha256:2a44b9d5214b3a5c009102e7fb04018333e4d449dee7cdbe04294abd199ae2fe
+2026-07-28 13:01:26	NodejsBackend	exporting manifest list sha256:ac96dbace65508725d5a086b2f6ce5643909c86028a4410ecf83024cd94b72c4
+2026-07-28 13:01:26	NodejsBackend	naming to docker.io/library/ghe-compliance-dashboard-backend:latest
+2026-07-28 13:01:29	Enterprise Compliance Platform	transferring (5514722 bytes)
+2026-07-28 13:01:29	Enterprise Compliance Platform	[stage-1 2/6] RUN apk add --no-cache gettext
+2026-07-28 13:01:29	Enterprise Compliance Platform	[build  2/10] WORKDIR /app
+2026-07-28 13:01:29	Enterprise Compliance Platform	[build 3/6] COPY package*.json ./
+2026-07-28 13:01:29	Enterprise Compliance Platform	[build 4/6] RUN NODE_TLS_REJECT_UNAUTHORIZED=0 npm_config_strict_ssl=false npm ci
+2026-07-28 13:01:29	Enterprise Compliance Platform	[build 5/6] COPY . .
+2026-07-28 13:01:29	Enterprise Compliance Platform	[build 6/6] RUN npm run build
+2026-07-28 13:01:29	Enterprise Compliance Platform	[stage-1 3/6] COPY --from=build /app/dist /usr/share/nginx/html
+2026-07-28 13:01:29	Enterprise Compliance Platform	[stage-1 4/6] COPY nginx.conf /etc/nginx/conf.d/default.conf
+2026-07-28 13:01:29	Enterprise Compliance Platform	[stage-1 5/6] COPY docker-entrypoint.sh /docker-entrypoint.sh
+2026-07-28 13:01:29	Enterprise Compliance Platform	[stage-1 6/6] RUN chmod +x /docker-entrypoint.sh
+2026-07-28 13:01:29	Enterprise Compliance Platform	exporting to image
+2026-07-28 13:01:29	Enterprise Compliance Platform	exporting layers
+2026-07-28 13:01:29	Enterprise Compliance Platform	exporting manifest sha256:4fbc60e2a8740e062b4f7dd0e0ab82ba196252fcece7d862fdc3d65dd47e3466
+2026-07-28 13:01:29	Enterprise Compliance Platform	exporting config sha256:1bc9bcf9de41ae2b87e1cd1680167514c7c2d4401a413bd3f96eef184811b8b2
+2026-07-28 13:01:29	Enterprise Compliance Platform	exporting attestation manifest sha256:d16132f4414d6b8dcb01b547ba379f4c16a3cfbccce3a9c327891595f2882157
+2026-07-28 13:01:29	Enterprise Compliance Platform	exporting manifest list sha256:376a99d46c86b4c53fa9276a075098a9d0d424973d02b4fd1c365975645f50c9
+2026-07-28 13:01:29	Enterprise Compliance Platform	naming to docker.io/library/ghe-compliance-dashboard-frontend:latest
+2026-07-28 13:01:29	Enterprise Compliance Platform	unpacking to docker.io/library/ghe-compliance-dashboard-frontend:latest
+2026-07-28 13:01:30	NodejsBackend	unpacking to docker.io/library/ghe-compliance-dashboard-backend:latest
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	The files belonging to this database system will be owned by user "postgres".
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	This user must also own the server process.
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	The database cluster will be initialized with locale "en_US.utf8".
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	The default database encoding has accordingly been set to "UTF8".
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	The default text search configuration will be set to "english".
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	Data page checksums are disabled.
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	fixing permissions on existing directory /var/lib/postgresql/data ... ok
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	creating subdirectories ... ok
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	selecting dynamic shared memory implementation ... posix
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	selecting default max_connections ... 100
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	selecting default shared_buffers ... 128MB
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	selecting default time zone ... UTC
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	creating configuration files ... ok
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	running bootstrap script ... ok
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	sh: locale: not found
+2026-07-28 13:01:31	ghe-compliance-dashboard/db	2026-07-28 11:01:31.988 UTC [35] WARNING:  no usable system locales were found
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	performing post-bootstrap initialization ... ok
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	syncing data to disk ... ok
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	Success. You can now start the database server using:
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	    pg_ctl -D /var/lib/postgresql/data -l logfile start
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	initdb: warning: enabling "trust" authentication for local connections
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	initdb: hint: You can change this by editing pg_hba.conf or using the option -A, or --auth-local and --auth-host, the next time you run initdb.
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	waiting for server to start....2026-07-28 11:01:32.486 UTC [41] LOG:  starting PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.489 UTC [41] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.494 UTC [44] LOG:  database system was shut down at 2026-07-28 11:01:32 UTC
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.498 UTC [41] LOG:  database system is ready to accept connections
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	 done
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	server started
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	CREATE DATABASE
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	/usr/local/bin/docker-entrypoint.sh: ignoring /docker-entrypoint-initdb.d/*
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	waiting for server to shut down....2026-07-28 11:01:32.630 UTC [41] LOG:  received fast shutdown request
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.631 UTC [41] LOG:  aborting any active transactions
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.633 UTC [41] LOG:  background worker "logical replication launcher" (PID 47) exited with exit code 1
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.634 UTC [42] LOG:  shutting down
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.635 UTC [42] LOG:  checkpoint starting: shutdown immediate
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.708 UTC [42] LOG:  checkpoint complete: wrote 926 buffers (5.7%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.012 s, sync=0.055 s, total=0.075 s; sync files=301, longest=0.012 s, average=0.001 s; distance=4283 kB, estimate=4283 kB; lsn=0/1925D68, redo lsn=0/1925D68
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.712 UTC [41] LOG:  database system is shut down
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	 done
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	server stopped
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	PostgreSQL init process complete; ready for start up.
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.748 UTC [1] LOG:  starting PostgreSQL 16.14 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.748 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.748 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.752 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.760 UTC [57] LOG:  database system was shut down at 2026-07-28 11:01:32 UTC
+2026-07-28 13:01:32	ghe-compliance-dashboard/db	2026-07-28 11:01:32.764 UTC [1] LOG:  database system is ready to accept connections
+2026-07-28 13:01:37	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
+2026-07-28 13:01:37	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:01:37	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
+2026-07-28 13:01:38	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:01:38	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
+2026-07-28 13:01:38	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:01:39	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
+2026-07-28 13:01:39	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:01:40	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
+2026-07-28 13:01:40	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:01:41	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
+2026-07-28 13:01:42	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:01:45	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
+2026-07-28 13:01:45	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:01:51	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
+2026-07-28 13:01:52	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
+2026-07-28 13:02:04	ghe-compliance-dashboard/backend	exec /app/entrypoint.sh: exec format error
+2026-07-28 13:02:05	ghe-compliance-dashboard/frontend	exec /docker-entrypoint.sh: no such file or directory
