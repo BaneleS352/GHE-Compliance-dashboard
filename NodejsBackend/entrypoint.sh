@@ -1,13 +1,13 @@
 #!/bin/sh
 set -e
 
-mkdir -p /app/uploads
+mkdir -p uploads
 
 echo "Running Prisma db push..."
 ./node_modules/.bin/prisma db push --skip-generate
 
 echo "Seeding database..."
-node /app/dist/seed.js
+node dist/seed.js
 
 echo "Starting server..."
 node dist/index.js
