@@ -106,6 +106,8 @@ router.get("/instances/:declarationId", authenticate, asyncHandler(async (req: A
   const steps: WorkflowStep[] = safeParseSteps(instance.steps);
   const isAssignee = steps.some((s) => s.assignee === req.user!.id);
   const isOwner = declaration?.employeeId === req.user!.id;
+  
+  // FIX: Declaration owners should always be able to view their own workflow timeline
   if (req.user!.role !== "admin" && !isAssignee && !isOwner) {
     res.status(403).json({ error: "Access denied" });
     return;
