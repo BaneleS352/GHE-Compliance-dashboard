@@ -22,3 +22,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+# Test upload artifacts
+NodejsBackend/uploads/

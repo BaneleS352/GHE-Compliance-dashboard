@@ -9,9 +9,10 @@ import { fetchAdminDashboard } from "../../../services/api";
 
 export function AdminDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   const [stats, setStats] = useState({ users: 0, declarations: 0, workflows: 0, threshold: 2000 });
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchAdminDashboard().then(setStats).catch(() => {});
+    fetchAdminDashboard().then(setStats).catch((err: Error) => setLoadError(err.message));
   }, []);
 
   return (

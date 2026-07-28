@@ -5,6 +5,7 @@ import fs from "fs";
 import crypto from "crypto";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
+import { asyncHandler } from "../middleware/asyncHandler";
 
 const router = Router();
 
@@ -32,7 +33,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 20 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_MIMES.includes(file.mimetype)) {
       cb(null, true);
@@ -45,7 +46,7 @@ const upload = multer({
 function handleMulterError(err: Error, _req: AuthRequest, res: Response, next: NextFunction): void {
   if (err instanceof MulterError) {
     if (err.code === "LIMIT_FILE_SIZE") {
-      res.status(413).json({ error: "File too large. Maximum size is 20MB" });
+      res.status(413).json({ error: "File too large. Maximum size is 10MB" });
       return;
     }
     res.status(400).json({ error: err.message });
@@ -68,7 +69,7 @@ router.post(
       next();
     });
   },
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
     if (!req.file) {
       res.status(400).json({ error: "No file provided" });
       return;
@@ -76,14 +77,12 @@ router.post(
 
     const declarationId = req.body.declarationId as string | undefined;
 
-    // FK validation: if declarationId provided, it must exist
     if (declarationId) {
       const decl = await prisma.declaration.findUnique({ where: { id: declarationId } });
       if (!decl) {
         res.status(400).json({ error: "Declaration not found" });
         return;
       }
-      // Ownership scoping: non-admin users can only upload to their own declarations
       if (req.user!.role !== "admin" && decl.employeeId !== req.user!.id) {
         res.status(403).json({ error: "Cannot upload to another user's declaration" });
         return;
@@ -108,11 +107,11 @@ router.post(
       url: `/api/files/${file.id}`,
       uploadedAt: file.uploadedAt,
     });
-  }
+  })
 );
 
 // GET /api/files/:id
-router.get("/:id", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const file = await prisma.uploadedFile.findUnique({ where: { id } });
   if (!file) {
@@ -138,10 +137,10 @@ router.get("/:id", authenticate, async (req: AuthRequest, res: Response): Promis
   res.setHeader("Content-Type", file.mimeType);
   res.setHeader("Content-Disposition", `attachment; filename="${file.originalName}"`);
   res.sendFile(filePath);
-});
+}));
 
 // DELETE /api/files/:id
-router.delete("/:id", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const file = await prisma.uploadedFile.findUnique({ where: { id } });
   if (!file) {
@@ -159,13 +158,11 @@ router.delete("/:id", authenticate, async (req: AuthRequest, res: Response): Pro
   }
 
   const filePath = path.join(UPLOAD_DIR, file.path);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
-  }
+  try { fs.unlinkSync(filePath); } catch { /* file may have been deleted already */ }
 
   await prisma.uploadedFile.delete({ where: { id } });
   res.json({ message: "File deleted" });
-});
+}));
 
 export default router;
 

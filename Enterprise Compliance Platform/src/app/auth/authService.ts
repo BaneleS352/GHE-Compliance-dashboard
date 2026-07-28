@@ -20,10 +20,6 @@ export async function fetchCurrentUser(): Promise<User | null> {
   }
 }
 
-export function getUserRole(user: User): "teamMember" | "approver" | "admin" {
-  return user.role;
-}
-
 export function canAccessScreen(user: User | null, screen: string): boolean {
   if (!user) return screen === "landing" || screen === "login";
   const role = user.role;

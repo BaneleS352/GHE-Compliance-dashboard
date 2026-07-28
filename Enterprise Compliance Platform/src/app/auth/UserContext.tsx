@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from "react";
 import { User } from "../../types/declaration";
 import { clearToken } from "../../services/httpClient";
 import { fetchCurrentUser } from "./authService";
@@ -30,7 +30,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
     const cached = localStorage.getItem("ghe.auth.user");
     if (cached) {
-      try { setUser(JSON.parse(cached)); } catch { /* ignore */ }
+      try { setUser(JSON.parse(cached)); setLoading(false); } catch { /* ignore */ }
     }
     fetchCurrentUser().then((u) => {
       if (u) {
@@ -41,8 +41,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
         clearToken();
         localStorage.removeItem("ghe.auth.user");
       }
-      setLoading(false);
-    });
+    }).catch(() => {
+      clearToken();
+      localStorage.removeItem("ghe.auth.user");
+      setUser(null);
+    }).finally(() => setLoading(false));
   }, []);
 
   const login = useCallback((u: User | null) => {
@@ -60,6 +63,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("ghe.auth.user");
   }, []);
 
+  const ctxValue = useMemo(() => ({ user, setUser: login, isAuthenticated: !!user, logout }), [user, login, logout]);
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center text-muted-foreground">
@@ -69,7 +74,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <UserContext.Provider value={{ user, setUser: login, isAuthenticated: !!user, logout }}>
+    <UserContext.Provider value={ctxValue}>
       {children}
     </UserContext.Provider>
   );

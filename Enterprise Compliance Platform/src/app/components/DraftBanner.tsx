@@ -1,12 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Check, X } from "lucide-react";
 import { DEEP, PURPLE, F } from "../../config/theme";
 
 export function DraftBanner({ onDismiss }: { onDismiss: () => void }) {
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
   useEffect(() => {
-    const t = setTimeout(onDismiss, 4000);
+    const t = setTimeout(() => onDismissRef.current(), 4000);
     return () => clearTimeout(t);
-  }, [onDismiss]);
+  }, []);
 
   return (
     <div

@@ -15,7 +15,7 @@ export async function fetchDeclarationById(id: string): Promise<Declaration> {
   return mapDeclaration(raw);
 }
 
-export async function createDeclaration(declaration: Declaration): Promise<Declaration> {
+export async function createDeclaration(declaration: Partial<Declaration>): Promise<Declaration> {
   const raw = await api.post<any>("/api/declarations", toApiDeclaration(declaration));
   return mapDeclaration(raw);
 }

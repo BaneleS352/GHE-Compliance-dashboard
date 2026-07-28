@@ -4,8 +4,9 @@
 
 - Node.js 18+
 - npm
+- Docker & Docker Compose (optional, for containerized setup)
 
-## Quick Start
+## Quick Start (Local)
 
 ```bash
 # 1. Clone and install backend dependencies
@@ -26,6 +27,21 @@ cd "Enterprise Compliance Platform"
 npm install
 npx vite
 # Frontend starts on http://localhost:5173
+```
+
+## Quick Start (Docker)
+
+```bash
+# Build and start all 3 containers
+docker compose up -d --build
+
+# First time only — seed the database
+docker compose exec backend npm run db:seed
+
+# Open http://localhost:3000
+```
+
+See [`DOCKER.md`](../DOCKER.md) for full Docker instructions.
 ```
 
 ## Environment Variables
@@ -71,7 +87,7 @@ npm test                         # Full suite
 npx vitest run src/__tests__/break.test.ts   # Single file
 npx vitest                       # Watch mode
 
-# Frontend (156 tests)
+# Frontend (230 tests)
 cd "Enterprise Compliance Platform"
 npm test
 npx vitest run -t "login"        # By test name pattern

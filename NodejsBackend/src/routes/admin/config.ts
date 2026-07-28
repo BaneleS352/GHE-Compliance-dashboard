@@ -2,11 +2,12 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
+import { asyncHandler } from "../../middleware/asyncHandler";
 
 const router = Router();
 
 // GET /api/admin/config
-router.get("/", authenticate, authorize("admin"), async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const config = await prisma.systemConfig.findFirst();
   if (!config) {
     res.status(404).json({ error: "System config not found" });
@@ -19,7 +20,7 @@ router.get("/", authenticate, authorize("admin"), async (_req: AuthRequest, res:
     maxDeclarationsPerCounterparty: config.maxDeclarationsPerCounterparty,
     emailTemplate: config.emailTemplate,
   });
-});
+}));
 
 const configSchema = z.object({
   highValueThreshold: z.number().nonnegative(),
@@ -30,7 +31,7 @@ const configSchema = z.object({
 });
 
 // PUT /api/admin/config
-router.put("/", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = configSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request" });
@@ -56,22 +57,39 @@ router.put("/", authenticate, authorize("admin"), async (req: AuthRequest, res: 
     maxDeclarationsPerCounterparty: updated.maxDeclarationsPerCounterparty,
     emailTemplate: updated.emailTemplate,
   });
-});
+}));
 
 // GET /api/admin/config/dropdowns
-router.get("/dropdowns", authenticate, authorize("admin"), async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get("/dropdowns", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const dropdowns = await prisma.dropdowns.findFirst();
   if (!dropdowns) {
     res.status(404).json({ error: "Dropdowns not found" });
     return;
   }
-  res.json(JSON.parse(dropdowns.data));
-});
+  let parsed: any;
+  try { parsed = JSON.parse(dropdowns.data); } catch { res.status(500).json({ error: "Corrupt dropdowns data" }); return; }
+  res.json(parsed);
+}));
+
+const VALID_DROPDOWN_KEYS = new Set([
+  "departments",
+  "categories",
+  "occasions",
+  "receivedGiven",
+  "biddingProcess",
+  "publicOfficial",
+  "relationships",
+  "partyTypes",
+]);
 
 // PUT /api/admin/config/dropdowns
-router.put("/dropdowns", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.put("/dropdowns", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const data = req.body;
-  // Validate: each array must be non-empty
+  const unknownKeys = Object.keys(data).filter((k) => !VALID_DROPDOWN_KEYS.has(k));
+  if (unknownKeys.length > 0) {
+    res.status(400).json({ error: `Unknown dropdown keys: ${unknownKeys.join(", ")}` });
+    return;
+  }
   for (const [key, arr] of Object.entries(data)) {
     if (!Array.isArray(arr) || arr.length === 0) {
       res.status(400).json({ error: `Dropdown "${key}" must be a non-empty array` });
@@ -91,16 +109,16 @@ router.put("/dropdowns", authenticate, authorize("admin"), async (req: AuthReque
   });
 
   res.json(data);
-});
+}));
 
 // GET /api/admin/config/approval-options
-router.get("/approval-options", authenticate, authorize("admin"), async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get("/approval-options", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const options = await prisma.approvalOption.findMany({ orderBy: { id: "asc" } });
-  res.json(options.map((o) => ({ value: o.value, label: o.label })));
-});
+  res.json(options.map((o) => ({ id: o.id, value: o.value, label: o.label })));
+}));
 
 // POST /api/admin/config/approval-options
-router.post("/approval-options", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/approval-options", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const { id, value, label } = req.body;
   if (!id || !value || !label) {
     res.status(400).json({ error: "id, value, and label are required" });
@@ -113,10 +131,10 @@ router.post("/approval-options", authenticate, authorize("admin"), async (req: A
   }
   const option = await prisma.approvalOption.create({ data: { id, value, label } });
   res.status(201).json({ value: option.value, label: option.label });
-});
+}));
 
 // PUT /api/admin/config/approval-options/:id
-router.put("/approval-options/:id", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.put("/approval-options/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const { value, label } = req.body;
   if (!value || !label) {
@@ -130,10 +148,10 @@ router.put("/approval-options/:id", authenticate, authorize("admin"), async (req
   }
   const option = await prisma.approvalOption.update({ where: { id }, data: { value, label } });
   res.json({ value: option.value, label: option.label });
-});
+}));
 
 // DELETE /api/admin/config/approval-options/:id
-router.delete("/approval-options/:id", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete("/approval-options/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const existing = await prisma.approvalOption.findUnique({ where: { id } });
   if (!existing) {
@@ -142,6 +160,6 @@ router.delete("/approval-options/:id", authenticate, authorize("admin"), async (
   }
   await prisma.approvalOption.delete({ where: { id } });
   res.json({ message: "Approval option deleted" });
-});
+}));
 
 export default router;

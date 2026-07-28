@@ -12,15 +12,16 @@ export interface WorkflowStep {
   assignee: string;
   assigneeName: string;
   label: string;
-  status: "pending" | "approved" | "declined" | "returned";
+  status: "pending" | "approved" | "declined" | "returned" | "skipped";
   decision: string | null;
+  approvedAt: string | null;
   notes: string;
   decidedAt: string | null;
 }
 
 export function determineRuleId(value: number, highThreshold: number, mediumThreshold: number): string {
-  if (value > highThreshold) return "rule-3";
-  if (value > mediumThreshold) return "rule-2";
+  if (value >= highThreshold) return "rule-3";
+  if (value >= mediumThreshold) return "rule-2";
   return "rule-1";
 }
 
@@ -32,7 +33,8 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
   const rule = await prisma.workflowRule.findUnique({ where: { id: ruleId } });
   if (!rule) throw new Error(`Workflow rule ${ruleId} not found`);
 
-  const stepDefs: WorkflowStepDef[] = JSON.parse(rule.steps);
+  let stepDefs: WorkflowStepDef[];
+  try { stepDefs = JSON.parse(rule.steps); } catch { throw new Error(`Corrupt workflow rule steps for rule ${ruleId}`); }
   const employee = await prisma.user.findUnique({ where: { id: employeeId } });
   if (!employee) throw new Error("Employee not found");
 
@@ -56,7 +58,21 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
       assigneeName = ceoUser?.name || "CEO";
     }
 
-    if (!assigneeId || assigneeId === employeeId) continue;
+    if (!assigneeId || assigneeId === employeeId) {
+      steps.push({
+        order: def.order,
+        role: def.role,
+        assignee: assigneeId,
+        assigneeName,
+        label: def.label,
+        status: "skipped",
+        decision: null,
+        approvedAt: null,
+        notes: !assigneeId ? "No assignee found - step skipped" : "Self-approval - step skipped",
+        decidedAt: null,
+      });
+      continue;
+    }
 
     steps.push({
       order: def.order,
@@ -66,6 +82,7 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
       label: def.label,
       status: "pending",
       decision: null,
+      approvedAt: null,
       notes: "",
       decidedAt: null,
     });
@@ -77,7 +94,8 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
 export async function getCurrentStep(declarationId: string): Promise<WorkflowStep | null> {
   const instance = await prisma.workflowInstance.findUnique({ where: { declarationId } });
   if (!instance) return null;
-  const steps: WorkflowStep[] = JSON.parse(instance.steps);
+  let steps: WorkflowStep[];
+  try { steps = JSON.parse(instance.steps); } catch { return null; }
   return steps.find((s) => s.status === "pending") || null;
 }
 

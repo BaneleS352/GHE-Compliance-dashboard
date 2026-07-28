@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "../config/prisma";
 import { config } from "../config/env";
 import { authenticate, AuthRequest } from "../middleware/auth";
+import { asyncHandler } from "../middleware/asyncHandler";
 
 const router = Router();
 
@@ -22,7 +23,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-router.post("/login", loginLimiter, async (req: Request, res: Response): Promise<void> => {
+router.post("/login", loginLimiter, asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request" });
@@ -63,7 +64,7 @@ router.post("/login", loginLimiter, async (req: Request, res: Response): Promise
       lineManager: user.lineManager,
     },
   });
-});
+}));
 
 const PRESET_USERS = [
   { label: "Team Member — Nomvula Dlamini", email: "nomvula@hb.co.za", role: "teamMember" },
@@ -77,7 +78,7 @@ router.get("/preset-users", (_req: Request, res: Response): void => {
   res.json(PRESET_USERS);
 });
 
-router.get("/me", authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/me", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
@@ -94,6 +95,6 @@ router.get("/me", authenticate, async (req: AuthRequest, res: Response): Promise
     position: user.position,
     lineManager: user.lineManager,
   });
-});
+}));
 
 export default router;

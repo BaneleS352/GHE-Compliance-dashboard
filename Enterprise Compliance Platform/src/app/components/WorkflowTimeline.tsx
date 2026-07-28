@@ -174,9 +174,11 @@ export function WorkflowTimeline({
 
   useEffect(() => {
     if (!declarationId) return;
+    let cancelled = false;
     fetchWorkflowInstance(declarationId)
-      .then(setWf)
-      .catch(() => setWf(null));
+      .then((wf) => { if (!cancelled) setWf(wf); })
+      .catch(() => { if (!cancelled) setWf(null); });
+    return () => { cancelled = true; };
   }, [declarationId]);
 
   const steps = externalSteps || buildStepsFromWorkflow(wf, employee);
@@ -205,7 +207,7 @@ export function WorkflowTimeline({
           const isSkipped = step.state === "skipped";
 
           return (
-            <div key={i} className="flex gap-4">
+            <div key={step.label} className="flex gap-4">
               <div className="flex flex-col items-center flex-shrink-0">
                 <Dot step={step} />
                 {!isLast && <div className={`w-[2px] flex-1 ${getRailColor(step)} min-h-[24px] my-1`} />}

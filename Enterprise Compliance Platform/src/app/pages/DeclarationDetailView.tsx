@@ -23,7 +23,7 @@ export function DeclarationDetailView({
   const [config, setConfig] = useState({ highValueThreshold: 2000, mediumValueThreshold: 500, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
 
   useEffect(() => {
-    fetchConfig().then(setConfig);
+    fetchConfig().then(setConfig).catch(() => { /* config defaults are used as fallback */ });
   }, []);
 
   const safe = (v: unknown) => (v != null ? String(v) : "—");
@@ -131,16 +131,28 @@ export function DeclarationDetailView({
 }
 
 async function downloadFile(file: UploadedFile) {
-  const response = await fetch(file.url);
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = file.name;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  try {
+    if (!file.url || file.url.startsWith("data:")) {
+      const a = document.createElement("a");
+      a.href = file.url;
+      a.download = file.name;
+      a.click();
+      return;
+    }
+    const response = await fetch(file.url);
+    if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  } catch (err) {
+    console.error("Download failed:", err);
+  }
 }
 
 async function viewFile(file: UploadedFile) {

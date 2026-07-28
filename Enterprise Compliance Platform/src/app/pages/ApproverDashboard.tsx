@@ -37,6 +37,8 @@ function isCurrentMonth(value: string): boolean {
   return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
 }
 
+const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+
 export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Screen) => void; onReview?: (d: Declaration) => void }) {
   const { user } = useUser();
   const [activeFilter, setActiveFilter] = useState<DashboardFilter>("All");
@@ -56,7 +58,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   const isAdmin = user?.role === "admin";
 
   const currentMonthDeclarations = useMemo(
-    () => declarations.filter((d) => isCurrentMonth(d.submitted || d.date)),
+    () => declarations.filter((d) => isCurrentMonth(d.submitted)),
     [declarations]
   );
 
@@ -70,14 +72,14 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
     return scopedDeclarations.filter((d) => d.status === activeFilter);
   }, [activeFilter, scopedDeclarations]);
 
-  const daysSince = (dateStr: string) => Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+  const daysSince = (dateStr: string) => { const t = new Date(dateStr).getTime(); return Number.isNaN(t) ? 0 : Math.floor((Date.now() - t) / 86400000); };
 
   const kpisData = useMemo(() => ({
     pending: scopedDeclarations.filter((d) => d.status === "Pending").length,
     approved: scopedDeclarations.filter((d) => d.status === "Approved").length,
     declined: scopedDeclarations.filter((d) => d.status === "Declined").length,
     escalated: scopedDeclarations.filter((d) => d.status === "Escalated").length,
-    totalValue: scopedDeclarations.reduce((sum, d) => sum + d.value, 0),
+    totalValue: scopedDeclarations.filter((d) => ["Pending", "Approved"].includes(d.status)).reduce((sum, d) => sum + d.value, 0),
   }), [scopedDeclarations]);
 
   const teamActivity = useMemo(() => {
@@ -110,15 +112,20 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
 
   const overdueDeclarations = useMemo(() => {
     const sevenDaysAgo = Date.now() - 7 * 86400000;
-    return declarations
+    return scopedDeclarations
       .filter((d) => {
         if (!["Pending", "Escalated", "Info Requested"].includes(d.status)) return false;
-        if (new Date(d.submitted).getTime() >= sevenDaysAgo) return false;
-        if (!isAdmin && d.approver !== user?.name) return false;
+        const t = new Date(d.submitted).getTime();
+        if (Number.isNaN(t) || t >= sevenDaysAgo) return false;
         return true;
       })
-      .sort((a, b) => new Date(a.submitted).getTime() - new Date(b.submitted).getTime());
-  }, [declarations, isAdmin, user]);
+      .sort((a, b) => {
+        const ta = new Date(a.submitted).getTime();
+        const tb = new Date(b.submitted).getTime();
+        if (Number.isNaN(ta) || Number.isNaN(tb)) return 0;
+        return ta - tb || (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99);
+      });
+  }, [scopedDeclarations]);
 
   const departmentStats = useMemo(() => {
     const map = new Map<string, { declarations: number; approved: number; declined: number; pending: number; totalValue: number }>();
@@ -240,7 +247,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {typeDistribution.map((entry) => {
-                    const percent = Math.round((entry.value / typeDistribution.reduce((sum, item) => sum + item.value, 0)) * 100);
+                    const total = typeDistribution.reduce((sum, item) => sum + item.value, 0); const percent = total > 0 ? Math.round((entry.value / total) * 100) : 0;
                     return (
                       <div key={entry.name} className="rounded-xl border border-purple-100 bg-white/60 px-3 py-2 text-center">
                         <p className="text-xs font-semibold text-foreground">{entry.name}</p>

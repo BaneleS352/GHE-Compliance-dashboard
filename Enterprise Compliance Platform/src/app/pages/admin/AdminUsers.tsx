@@ -21,12 +21,13 @@ export function AdminUsers() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All Roles");
   const [users, setUsers] = useState<User[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchUsers().then(setUsers);
+    fetchUsers().then(setUsers).catch((err: Error) => setError(err.message));
   }, []);
 
-  const refresh = () => fetchUsers().then(setUsers);
+  const refresh = () => fetchUsers().then(setUsers).catch((err: Error) => setError(err.message));
 
   const filtered = useMemo(() => {
     let list = users;
@@ -73,7 +74,7 @@ export function AdminUsers() {
       });
       refresh();
     } catch (e: any) {
-      alert(e.message);
+      setError(e.message);
     }
   };
 
@@ -90,7 +91,7 @@ export function AdminUsers() {
       await updateUser(user.id, { name, email, role: roleLabel as User["role"], department });
       refresh();
     } catch (e: any) {
-      alert(e.message);
+      setError(e.message);
     }
   };
 
@@ -100,7 +101,7 @@ export function AdminUsers() {
       await deleteUser(user.id);
       refresh();
     } catch (e: any) {
-      alert(e.message);
+      setError(e.message);
     }
   };
 
@@ -219,6 +220,7 @@ export function AdminUsers() {
           <p className="py-8 text-center text-sm text-muted-foreground">No users found.</p>
         )}
       </Card>
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
     </div>
   );
 }

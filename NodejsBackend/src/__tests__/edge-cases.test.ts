@@ -919,11 +919,12 @@ describe("Edge-Case Tests", () => {
         .set("Authorization", `Bearer ${getAdminToken()}`);
       expect(submitRes.status).toBe(200);
 
-      // LM step is skipped — no unreviewable orphan step with empty assignee
-      const inst = await request(app)
-        .get(`/api/workflows/instances/${declRes.body.id}`)
-        .set("Authorization", `Bearer ${getAdminToken()}`);
-      expect(inst.body.steps).toHaveLength(0);
+// LM step is skipped (self-approval) — recorded as "skipped" status
+       const inst = await request(app)
+         .get(`/api/workflows/instances/${declRes.body.id}`)
+         .set("Authorization", `Bearer ${getAdminToken()}`);
+       expect(inst.body.steps).toHaveLength(1);
+       expect(inst.body.steps[0].status).toBe("skipped");
 
       // Cleanup: delete the test user
       await request(app)

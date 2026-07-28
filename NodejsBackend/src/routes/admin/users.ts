@@ -4,12 +4,13 @@ import crypto from "crypto";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
+import { asyncHandler } from "../../middleware/asyncHandler";
 
 const router = Router();
 const SALT_ROUNDS = 10;
 
 // GET /api/admin/users
-router.get("/", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const { search, role } = req.query;
 
   const where: any = {};
@@ -46,10 +47,10 @@ router.get("/", authenticate, authorize("admin"), async (req: AuthRequest, res: 
       lineManager: u.lineManager,
     }))
   );
-});
+}));
 
 // GET /api/admin/users/:id
-router.get("/:id", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) {
@@ -66,7 +67,7 @@ router.get("/:id", authenticate, authorize("admin"), async (req: AuthRequest, re
     position: user.position,
     lineManager: user.lineManager,
   });
-});
+}));
 
 const createUserSchema = z.object({
   name: z.string().min(1),
@@ -79,8 +80,13 @@ const createUserSchema = z.object({
   lineManager: z.string().nullable().optional().default(null),
 });
 
+const generatePassword = (): string => {
+  const bytes = crypto.randomBytes(8);
+  return bytes.toString("hex").slice(0, 12);
+};
+
 // POST /api/admin/users
-router.post("/", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = createUserSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request" });
@@ -96,7 +102,7 @@ router.post("/", authenticate, authorize("admin"), async (req: AuthRequest, res:
 
   const id = `USR-${Date.now()}-${crypto.randomInt(1000, 9999)}`;
 
-  const password = data.password || "password";
+  const password = data.password || generatePassword();
 
   const user = await prisma.user.create({
     data: {
@@ -122,7 +128,7 @@ router.post("/", authenticate, authorize("admin"), async (req: AuthRequest, res:
     position: user.position,
     lineManager: user.lineManager,
   });
-});
+}));
 
 const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
@@ -135,7 +141,7 @@ const updateUserSchema = z.object({
 });
 
 // PUT /api/admin/users/:id
-router.put("/:id", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) {
@@ -179,10 +185,10 @@ router.put("/:id", authenticate, authorize("admin"), async (req: AuthRequest, re
     position: user.position,
     lineManager: user.lineManager,
   });
-});
+}));
 
 // DELETE /api/admin/users/:id
-router.delete("/:id", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete("/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const user = await prisma.user.findUnique({ where: { id } });
   if (!user) {
@@ -200,7 +206,8 @@ router.delete("/:id", authenticate, authorize("admin"), async (req: AuthRequest,
 
   const activeWorkflows = await prisma.workflowInstance.findMany();
   const hasActive = activeWorkflows.some((w) => {
-    const steps: any[] = JSON.parse(w.steps);
+    let steps: any[];
+    try { steps = JSON.parse(w.steps); } catch { return false; }
     return steps.some((s) => s.assignee === id && s.status === "pending");
   });
   if (hasActive) {
@@ -210,6 +217,6 @@ router.delete("/:id", authenticate, authorize("admin"), async (req: AuthRequest,
 
   await prisma.user.delete({ where: { id } });
   res.json({ message: "User deleted" });
-});
+}));
 
 export default router;

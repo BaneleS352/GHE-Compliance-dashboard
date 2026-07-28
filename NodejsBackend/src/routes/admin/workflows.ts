@@ -15,13 +15,11 @@ interface StepDef {
 router.get("/rules", authenticate, authorize("admin"), async (_req: AuthRequest, res: Response): Promise<void> => {
   const rules = await prisma.workflowRule.findMany({ orderBy: { priority: "asc" } });
   res.json(
-    rules.map((r) => ({
-      id: r.id,
-      name: r.name,
-      condition: r.condition,
-      priority: r.priority,
-      steps: JSON.parse(r.steps) as StepDef[],
-    }))
+    rules.map((r) => {
+      let s: StepDef[];
+      try { s = JSON.parse(r.steps); } catch { s = []; }
+      return { id: r.id, name: r.name, condition: r.condition, priority: r.priority, steps: s };
+    })
   );
 });
 
@@ -47,6 +45,14 @@ router.post("/rules", authenticate, authorize("admin"), async (req: AuthRequest,
   }
 
   const data = parsed.data;
+  const existing = await prisma.workflowRule.findFirst({
+    where: { name: data.name },
+  });
+  if (existing) {
+    res.status(409).json({ error: `A workflow rule named "${data.name}" already exists` });
+    return;
+  }
+
   const id = `rule-${Date.now()}`;
 
   const rule = await prisma.workflowRule.create({
@@ -85,11 +91,22 @@ router.put("/rules/:id", authenticate, authorize("admin"), async (req: AuthReque
 
   const data = parsed.data;
 
+  if (data.name && data.name !== existing.name) {
+    const nameConflict = await prisma.workflowRule.findFirst({
+      where: { name: data.name },
+    });
+    if (nameConflict) {
+      res.status(409).json({ error: `A workflow rule named "${data.name}" already exists` });
+      return;
+    }
+  }
+
   if (data.steps) {
     const newRoles = data.steps.map((s) => s.role);
     const instances = await prisma.workflowInstance.findMany();
     for (const inst of instances) {
-      const currentSteps: any[] = JSON.parse(inst.steps);
+      let currentSteps: any[];
+      try { currentSteps = JSON.parse(inst.steps); } catch { continue; }
       for (const role of newRoles) {
         const active = currentSteps.find((s) => s.role === role && s.status === "pending");
         if (active) {

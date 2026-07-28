@@ -37,6 +37,7 @@ async function request<T>(
   method: string,
   path: string,
   body?: unknown,
+  timeoutMs = 30000,
 ): Promise<T> {
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const headers: Record<string, string> = isFormData ? {} : { "Content-Type": "application/json" };
@@ -45,11 +46,20 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(path, {
-    method,
-    headers,
-    body: body ? (isFormData ? body as FormData : JSON.stringify(body)) : undefined,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      method,
+      headers,
+      body: body ? (isFormData ? body as FormData : JSON.stringify(body)) : undefined,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!res.ok) {
     let errorBody: ApiError | null = null;
@@ -62,7 +72,8 @@ async function request<T>(
     );
   }
 
-  if (res.status === 204) return undefined as T;
+  // 204 No Content — return null cast as T (callers must handle)
+  if (res.status === 204) return null as T;
   return res.json();
 }
 

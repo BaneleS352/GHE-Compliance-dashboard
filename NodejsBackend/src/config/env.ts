@@ -7,7 +7,7 @@ function requireEnv(name: string): string {
 }
 
 export const config = {
-  port: parseInt(process.env.PORT || "3001", 10),
+  port: (() => { const p = parseInt(process.env.PORT || "3001", 10); return Number.isFinite(p) ? p : 3001; })(),
   jwtSecret: requireEnv("JWT_SECRET"),
   jwtExpiresIn: "7d",
 };

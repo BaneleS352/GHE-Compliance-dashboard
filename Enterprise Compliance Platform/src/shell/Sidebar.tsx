@@ -83,9 +83,7 @@ export function Sidebar({
         )}
         <div className="space-y-0.5">
           {links.map((link) => {
-            const active =
-              screen === link.screen ||
-              (screen === "declaration-detail" && link.screen === "my-declarations");
+            const active = screen === link.screen;
             return (
               <button
                 key={link.screen}
@@ -108,9 +106,7 @@ export function Sidebar({
     <nav className="md:hidden fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-white/15 bg-[#16062f]/95 p-2 shadow-[0_18px_50px_rgba(15,2,37,0.35)] backdrop-blur-xl">
       <div className="flex items-center justify-around gap-1">
         {links.map((link) => {
-          const active =
-            screen === link.screen ||
-            (screen === "declaration-detail" && link.screen === "my-declarations");
+          const active = screen === link.screen;
           return (
             <button
               key={link.screen}

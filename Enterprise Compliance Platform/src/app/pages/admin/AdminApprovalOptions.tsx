@@ -16,18 +16,23 @@ export function AdminApprovalOptions() {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editValue, setEditValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { fetchApprovalOptions().then(setOptions); }, []);
+  useEffect(() => { fetchApprovalOptions().then(setOptions).catch((err: Error) => setError(err.message)); }, []);
 
   const handleAdd = async () => {
-    const id = prompt("Enter a unique ID for this option:");
-    if (!id) return;
-    const value = prompt("Enter the value (sent to API):");
-    if (!value) return;
-    const label = prompt("Enter the display label:");
-    if (!label) return;
-    await createApprovalOption({ id, value, label });
-    setOptions(await fetchApprovalOptions());
+    try {
+      const id = prompt("Enter a unique ID for this option:");
+      if (!id) return;
+      const value = prompt("Enter the value (sent to API):");
+      if (!value) return;
+      const label = prompt("Enter the display label:");
+      if (!label) return;
+      await createApprovalOption({ id, value, label });
+      setOptions(await fetchApprovalOptions());
+    } catch (err: any) {
+      setError(err.message || "Failed to add approval option.");
+    }
   };
 
   const handleEdit = (idx: number) => {
@@ -78,7 +83,7 @@ export function AdminApprovalOptions() {
             <THead cols={["Value", "Label", "Actions"]} />
             <tbody className="divide-y divide-border">
               {options.map((opt, idx) => (
-                <tr key={idx} className="transition-all hover:bg-purple-50/45">
+                <tr key={opt.value} className="transition-all hover:bg-purple-50/45">
                   <td className="px-5 py-3">
                     {editingIdx === idx ? (
                       <input value={editValue} onChange={(e) => setEditValue(e.target.value)} className="rounded border px-2 py-1 text-sm w-full" />
@@ -108,7 +113,7 @@ export function AdminApprovalOptions() {
         <div className="space-y-2 p-4 md:hidden">
           {options.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No approval options configured.</p>}
           {options.map((opt, idx) => (
-            <div key={idx} className="group rounded-xl border border-primary/10 bg-white/95 p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-purple-200/70">
+            <div key={opt.value} className="group rounded-xl border border-primary/10 bg-white/95 p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-purple-200/70">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex-1">
                   {editingIdx === idx ? (
@@ -136,6 +141,7 @@ export function AdminApprovalOptions() {
           ))}
         </div>
       </Card>
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
     </div>
   );
 }
