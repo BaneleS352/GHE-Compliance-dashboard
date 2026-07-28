@@ -14,7 +14,8 @@ WORKDIR /app
 RUN apk add --no-cache bash
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/entrypoint.sh /app/entrypoint.sh
+COPY --from=build /app/dist ./dist
+COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 EXPOSE 3001
 ENTRYPOINT ["/app/entrypoint.sh"]

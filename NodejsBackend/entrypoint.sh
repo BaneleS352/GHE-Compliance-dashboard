@@ -4,7 +4,7 @@ set -e
 mkdir -p uploads
 
 echo "Running Prisma db push..."
-./node_modules/.bin/prisma db push --skip-generate
+NODE_TLS_REJECT_UNAUTHORIZED=0 ./node_modules/.bin/prisma db push --skip-generate
 
 echo "Seeding database..."
 node dist/seed.js
