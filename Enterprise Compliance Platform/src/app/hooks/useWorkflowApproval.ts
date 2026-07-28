@@ -22,28 +22,34 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
   const [wfMessage, setWfMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
 
-  useEffect(() => {
-    if (!declarationId) { setWfInstance(null); return; }
-    let cancelled = false;
+  const loadWorkflowInstance = useCallback(async () => {
+    if (!declarationId) {
+      setWfInstance(null);
+      return;
+    }
     setWfLoading(true);
-    fetchWorkflowInstance(declarationId)
-      .then((wf) => {
-        if (cancelled) return;
-        setWfInstance(wf);
-        if (wf) {
-          const getStep = (role: string) => wf.steps.find((s: any) => s.role === role);
-          setLmDecision(getStep("lineManager")?.decision ?? null);
-          setHrDecision(getStep("hr")?.decision ?? null);
-          setCeoDecision(getStep("ceo")?.decision ?? null);
-          setLmNotes(getStep("lineManager")?.notes ?? "");
-          setHrNotes(getStep("hr")?.notes ?? "");
-          setCeoNotes(getStep("ceo")?.notes ?? "");
-        }
-      })
-      .catch(() => { if (!cancelled) setSubmitError("Failed to load workflow instance."); })
-      .finally(() => { if (!cancelled) setWfLoading(false); });
-    return () => { cancelled = true; };
+    try {
+      const wf = await fetchWorkflowInstance(declarationId);
+      setWfInstance(wf);
+      if (wf) {
+        const getStep = (role: string) => wf.steps.find((s: any) => s.role === role);
+        setLmDecision(getStep("lineManager")?.decision ?? null);
+        setHrDecision(getStep("hr")?.decision ?? null);
+        setCeoDecision(getStep("ceo")?.decision ?? null);
+        setLmNotes(getStep("lineManager")?.notes ?? "");
+        setHrNotes(getStep("hr")?.notes ?? "");
+        setCeoNotes(getStep("ceo")?.notes ?? "");
+      }
+    } catch {
+      setSubmitError("Failed to load workflow instance.");
+    } finally {
+      setWfLoading(false);
+    }
   }, [declarationId]);
+
+  useEffect(() => {
+    loadWorkflowInstance();
+  }, [loadWorkflowInstance]);
 
   const steps = wfInstance?.steps ?? [];
   const lmStep = steps.find((s: any) => s.role === "lineManager");
@@ -60,31 +66,43 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
 
   const allRoles = useMemo(() => [
     {
-      roleKey: "lineManager" as const, title: "1. Line Manager Approval", defaultActor: "Line Manager",
+      roleKey: "lineManager" as const,
+      title: "1. Line Manager Approval",
+      defaultActor: "Line Manager",
       get decision() { return lmStep?.status !== "pending" ? (lmStep?.decision ?? null) : lmDecision; },
       setDecision: setLmDecision,
-      get notes() { return lmNotes; }, setNotes: setLmNotes,
-      get step() { return lmStep; }, get exists() { return hasLm; },
+      get notes() { return lmNotes; },
+      setNotes: setLmNotes,
+      get step() { return lmStep; },
+      get exists() { return hasLm; },
       get enabled() { return lmStep?.status === "pending"; },
       get completed() { return lmStep && lmStep.status !== "pending"; },
       get decidedAt() { return lmStep?.decidedAt || null; },
     },
     {
-      roleKey: "hr" as const, title: "2. Head of HR Approval", defaultActor: "Head of HR",
+      roleKey: "hr" as const,
+      title: "2. Head of HR Approval",
+      defaultActor: "Head of HR",
       get decision() { return hrStep?.status !== "pending" ? (hrStep?.decision ?? null) : hrDecision; },
       setDecision: setHrDecision,
-      get notes() { return hrNotes; }, setNotes: setHrNotes,
-      get step() { return hrStep; }, get exists() { return hasHr; },
+      get notes() { return hrNotes; },
+      setNotes: setHrNotes,
+      get step() { return hrStep; },
+      get exists() { return hasHr; },
       get enabled() { return isHrEnabled && hrStep?.status === "pending"; },
       get completed() { return hrStep && hrStep.status !== "pending"; },
       get decidedAt() { return hrStep?.decidedAt || null; },
     },
     {
-      roleKey: "ceo" as const, title: "3. Group CEO Approval", defaultActor: "Group CEO",
+      roleKey: "ceo" as const,
+      title: "3. Group CEO Approval",
+      defaultActor: "Group CEO",
       get decision() { return ceoStep?.status !== "pending" ? (ceoStep?.decision ?? null) : ceoDecision; },
       setDecision: setCeoDecision,
-      get notes() { return ceoNotes; }, setNotes: setCeoNotes,
-      get step() { return ceoStep; }, get exists() { return hasCeo; },
+      get notes() { return ceoNotes; },
+      setNotes: setCeoNotes,
+      get step() { return ceoStep; },
+      get exists() { return hasCeo; },
       get enabled() { return isCeoEnabled && ceoStep?.status === "pending"; },
       get completed() { return ceoStep && ceoStep.status !== "pending"; },
       get decidedAt() { return ceoStep?.decidedAt || null; },
@@ -123,9 +141,12 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
         if (decision && step.assignee === userId && step.status === "pending") {
           const res = await approveWorkflowStep({ declarationId, decision, notes });
           if (res?.newStatus) onStatusUpdate?.(res.newStatus);
+          if (res?.workflowSteps) {
+            setWfInstance({ ...wfInstance, steps: res.workflowSteps });
+          }
         }
       }
-      setWfInstance((current: any) => current ? { ...current } : current);
+      await loadWorkflowInstance();
       setWfMessage("Decision submitted successfully.");
       setTimeout(() => { setWfMessage(""); }, 1500);
     } catch (err: any) {
