@@ -1,4 +1,4 @@
-BET QA Questionnaire
+QA Questionnaire
 Please complete the responses in the spaces provided below.
 1. Number of users for the application?
 
