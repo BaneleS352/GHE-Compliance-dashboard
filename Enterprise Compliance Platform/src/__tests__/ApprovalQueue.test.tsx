@@ -8,7 +8,7 @@ const mockQueueItems = [
   {
     declaration: {
       id: "GHE-2026-1001", employee: "Alice", employeeId: "user-1", department: "IT",
-      type: "Gift", Counterparty: "CorpA", value: 500, submitted: "2026-07-01",
+      type: "Gift", counterparty: "CorpA", value: 500, submitted: "2026-07-01",
       approver: "Bob", status: "Pending" as const, priority: "High" as const,
       description: "Test", relationship: "Yes", teamMemberNumber: "TM-001",
       lineManager: "Bob", position: "Dev", receivedGiven: "Received",
@@ -21,7 +21,7 @@ const mockQueueItems = [
   {
     declaration: {
       id: "GHE-2026-1002", employee: "Charlie", employeeId: "user-2", department: "Marketing",
-      type: "Hospitality", Counterparty: "CorpB", value: 200, submitted: "2026-06-15",
+      type: "Hospitality", counterparty: "CorpB", value: 200, submitted: "2026-06-15",
       approver: "Bob", status: "Escalated" as const, priority: "Medium" as const,
       description: "Lunch", relationship: "No", teamMemberNumber: "TM-002",
       lineManager: "Dave", position: "Mgr", receivedGiven: "Given",
@@ -34,7 +34,7 @@ const mockQueueItems = [
   {
     declaration: {
       id: "GHE-2026-1003", employee: "Eve", employeeId: "user-3", department: "Sales",
-      type: "Entertainment", Counterparty: "CorpC", value: 1500, submitted: "2026-07-10",
+      type: "Entertainment", counterparty: "CorpC", value: 1500, submitted: "2026-07-10",
       approver: "Bob", status: "Pending" as const, priority: "Low" as const,
       description: "Event", relationship: "Yes", teamMemberNumber: "TM-003",
       lineManager: "Frank", position: "Mgr", receivedGiven: "Received",

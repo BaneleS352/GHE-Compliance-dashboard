@@ -43,7 +43,7 @@ describe("Workflow regressions", () => {
     expect(hrAfterLm.body.some((item: any) => item.declaration.id === id)).toBe(true);
   });
 
-  it("preserves completed approvals when an info-requested declaration is resubmitted", async () => {
+  it("preserves completed approvals when a returned declaration is resubmitted", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)

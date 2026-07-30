@@ -155,7 +155,7 @@ describe("NewDeclarationScreen", () => {
 
     await waitFor(() => {
       expect(createDeclaration).toHaveBeenCalledWith(
-        expect.objectContaining({ teamMemberNumber: "HB-10001", Counterparty: "Partial Corp" })
+        expect.objectContaining({ teamMemberNumber: "HB-10001", counterparty: "Partial Corp" })
       );
       expect(onDraftSaved).toHaveBeenCalled();
     });

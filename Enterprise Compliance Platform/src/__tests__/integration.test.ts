@@ -21,7 +21,7 @@ const sampleDeclaration: Declaration = {
   id: "GHE-2026-INT-1", employee: "Nomvula", employeeId: "u1",
   teamMemberNumber: "TM-001", lineManager: "Sipho Nkosi",
   position: "Brand Manager", department: "Marketing",
-  type: "Gift", Counterparty: "Acme Corp", value: 500,
+  type: "Gift", counterparty: "Acme Corp", value: 500,
   submitted: "2026-07-15", approver: "Sipho Nkosi", status: "Pending",
   priority: "Medium", description: "Integration test gift",
   relationship: "Yes", receivedGiven: "Received", from: "Supplier",
@@ -217,16 +217,16 @@ describe("Integration — Journey 6: Approve (J6.1 / J6.2 / J6.6 / J6.9)", () =>
 
 describe("Integration — Journey 7: Return (J7.1 / J7.2)", () => {
   it("returns declaration with notes (J7.1)", async () => {
-    const spy = mockFetch(200, { status: "Info Requested" });
+    const spy = mockFetch(200, { status: "Returned" });
     const res = await approveWorkflowStep({ declarationId: "GHE-INT-1", decision: "return", notes: "Missing receipt" });
-    expect(res.status).toBe("Info Requested");
+    expect(res.status).toBe("Returned");
     const body = JSON.parse((spy.mock.calls[0][1] as any).body as string);
     expect(body.decision).toBe("return");
     expect(body.notes).toBe("Missing receipt");
   });
 
   it("returns declaration without notes (J7.2)", async () => {
-    const spy = mockFetch(200, { status: "Info Requested" });
+    const spy = mockFetch(200, { status: "Returned" });
     await approveWorkflowStep({ declarationId: "GHE-INT-1", decision: "return" });
     const body = JSON.parse((spy.mock.calls[0][1] as any).body as string);
     expect(body.decision).toBe("return");

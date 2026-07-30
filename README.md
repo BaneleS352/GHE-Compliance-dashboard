@@ -54,14 +54,66 @@ All status, priority, and brand colours are centralized in `src/config/theme.ts`
 ## Testing
 
 ```bash
-# Backend (203+ tests)
+# Backend (360 tests, Vitest)
 cd NodejsBackend && npm test
 
-# Frontend (230 tests)
+# Frontend (Vitest + Testing Library)
 cd "Enterprise Compliance Platform" && npm test
+
+# E2E (Playwright)
+cd "Enterprise Compliance Platform"
+npx playwright install chromium
+npx playwright test
 ```
 
-The backend includes **72 breaking tests** covering auth bypass, injection, oversized payloads, unicode attacks, and rapid-fire requests. The frontend includes **27 HTTP-layer breaking tests** covering error codes, network failure, malformed responses, and header validation.
+Backend: 360/360 passing. Frontend: build clean.
+
+### Playwright E2E Tests
+
+The E2E test suite covers key user flows:
+
+- Full approval workflows (LM → HR → CEO)
+- Rejections and returns with resubmit
+- Declaration creation and submission
+- Admin user management
+- Dashboard and KPIs
+- Reports access
+- Edge cases and error handling
+
+Tests run against the dev server (frontend at `:5173`, backend at `:3001`).
+The `global-setup.ts` seeds the database before running E2E tests.
+
+### E2E Test Commands
+
+```bash
+# Run all E2E tests (headed)
+npx playwright test --headed
+
+# Run specific test file
+npx playwright test e2e/approval-flows.spec.ts
+
+# Run mobile viewport tests
+npx playwright test --project=mobile
+
+# Debug a specific test
+npx playwright test --debug
+
+# Show test trace
+npx playwright show-trace
+```
+
+## Audit Status
+
+All 42 audit findings across 6 severity levels have been resolved:
+
+| Severity | Count | Status |
+|----------|-------|--------|
+| CRITICAL | 7 | ✅ All fixed |
+| HIGH | 8 | ✅ All fixed |
+| MEDIUM | 15 | ✅ All fixed |
+| LOW | 12 | ✅ All fixed |
+
+See [`docs/SECURITY.md`](./docs/SECURITY.md) for the detailed fix log.
 
 ## Documentation
 
@@ -71,5 +123,7 @@ The backend includes **72 breaking tests** covering auth bypass, injection, over
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture |
 | [`docs/SETUP.md`](docs/SETUP.md) | Development setup |
 | [`docs/DEPLOY.md`](docs/DEPLOY.md) | Production deployment |
-| [`DOCKER.md`](DOCKER.md) | Docker setup |
-| [`docs/SECURITY.md`](docs/SECURITY.md) | Security vulnerabilities |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | Security audit fix log |
+| [`docs/API.md`](docs/API.md) | API reference |
+| [`docs/SCHEMA.md`](docs/SCHEMA.md) | Database schema |
+| [`AGENTS.md`](AGENTS.md) | Agent memory & known patterns |

@@ -192,7 +192,7 @@ describe("Workflow decision paths", () => {
       expect(resHr.body.currentStep.decision).toBe("decline");
     });
 
-    it("LM accepts → HR returns → Info Requested", async () => {
+    it("LM accepts → HR returns → Returned", async () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -213,7 +213,7 @@ describe("Workflow decision paths", () => {
         .set("Authorization", `Bearer ${getHrToken()}`)
         .send({ declarationId: id, decision: "return" });
       expect(resHr.status).toBe(200);
-      expect(resHr.body.newStatus).toBe("Info Requested");
+      expect(resHr.body.newStatus).toBe("Returned");
       expect(resHr.body.currentStep.decision).toBe("return");
     });
   });
@@ -366,7 +366,7 @@ describe("Workflow decision paths", () => {
       expect(inst.body.steps[2].status).toBe("pending");
     });
 
-    it("LM accepts → HR returns → Info Requested (terminal at HR)", async () => {
+    it("LM accepts → HR returns → Returned (terminal at HR)", async () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -387,10 +387,10 @@ describe("Workflow decision paths", () => {
         .set("Authorization", `Bearer ${getHrToken()}`)
         .send({ declarationId: id, decision: "return" });
       expect(resHr.status).toBe(200);
-      expect(resHr.body.newStatus).toBe("Info Requested");
+      expect(resHr.body.newStatus).toBe("Returned");
     });
 
-    it("LM returns → Info Requested (terminal at LM)", async () => {
+    it("LM returns → Returned (terminal at LM)", async () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -406,7 +406,7 @@ describe("Workflow decision paths", () => {
         .set("Authorization", `Bearer ${getApproverToken()}`)
         .send({ declarationId: id, decision: "return" });
       expect(resLm.status).toBe(200);
-      expect(resLm.body.newStatus).toBe("Info Requested");
+      expect(resLm.body.newStatus).toBe("Returned");
 
       const inst = await request(app)
         .get(`/api/workflows/instances/${id}`)

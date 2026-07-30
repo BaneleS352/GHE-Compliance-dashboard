@@ -24,6 +24,10 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([department])
+  @@index([role])
+  @@index([lineManager])
 }
 
 model Declaration {
@@ -41,6 +45,7 @@ model Declaration {
   value               Float
   submitted           String
   approver            String
+  approverId          String?
   status              String
   priority            String
   description         String
@@ -59,6 +64,14 @@ model Declaration {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([department])
+  @@index([approverId])
+  @@index([position])
+  @@index([lineManager])
+  @@index([counterparty])
 }
 
 model WorkflowRule {
@@ -122,4 +135,6 @@ model UploadedFile {
   path          String
   declarationId String?
   uploadedAt    DateTime @default(now())
+
+  @@index([declarationId])
 }

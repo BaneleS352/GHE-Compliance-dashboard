@@ -72,8 +72,8 @@ async function request<T>(
     );
   }
 
-  // 204 No Content — return null cast as T (callers must handle)
-  if (res.status === 204) return null as T;
+  // 204 No Content — return undefined (callers must handle)
+  if (res.status === 204) return undefined as T;
   return res.json();
 }
 

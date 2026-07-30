@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { WorkflowTimeline, StepView, APPROVAL_OPTIONS, DECISION_LABELS } from "../app/components/WorkflowTimeline";
+import { WorkflowTimeline, StepView } from "../app/components/WorkflowTimeline";
+import { APPROVAL_OPTIONS, DECISION_LABELS } from "../config/theme";
 
 vi.mock("../services/api", () => ({
   fetchWorkflowInstance: vi.fn(),

@@ -37,6 +37,7 @@ describe("Edge-Case Tests", () => {
       const res = await request(app)
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getAdminToken()}`)
+        .field("declarationId", "GHE-TEST-001")
         .attach("file", Buffer.from("hello world"), "test.txt");
       expect(res.status).toBe(201);
       expect(res.body.id).toBeDefined();
@@ -87,6 +88,7 @@ describe("Edge-Case Tests", () => {
       const res = await request(app)
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getTeamToken()}`)
+        .field("declarationId", "GHE-TEST-001")
         .attach("file", Buffer.from("team file"), "team.txt");
       expect(res.status).toBe(201);
     });
@@ -239,7 +241,7 @@ describe("Edge-Case Tests", () => {
       await prisma.workflowInstance.create({
         data: {
           declarationId: declId,
-          steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null }]),
+          steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null }]),
         },
       });
 
@@ -279,8 +281,8 @@ describe("Edge-Case Tests", () => {
         data: {
           declarationId: declId,
           steps: JSON.stringify([
-            { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null },
-            { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "pending", decision: null, notes: "", decidedAt: null },
+            { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+            { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
           ]),
         },
       });
@@ -320,7 +322,7 @@ describe("Edge-Case Tests", () => {
       await prisma.workflowInstance.create({
         data: {
           declarationId: declId,
-          steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null }]),
+          steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null }]),
         },
       });
 
@@ -487,11 +489,10 @@ describe("Edge-Case Tests", () => {
       expect(res.headers["content-type"]).toMatch(/spreadsheetml/);
     });
 
-    it("GET /api/reports/export — team member can export (no admin guard)", async () => {
+    it("GET /api/reports/export — approver can export", async () => {
       const res = await request(app)
         .get("/api/reports/export")
-        .set("Authorization", `Bearer ${getTeamToken()}`);
-      // Export uses authenticate only, no authorize("admin")
+        .set("Authorization", `Bearer ${getApproverToken()}`);
       expect(res.status).toBe(200);
     });
   });
@@ -520,25 +521,43 @@ describe("Edge-Case Tests", () => {
   // ── FILE UPLOAD IDOR ──
   describe("File upload IDOR", () => {
     it("POST /api/files/upload — upload then download as different user", async () => {
-      // Upload as team member
+      // Create a declaration as team member first
+      const declRes = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({
+          employee: "Team Member", employeeId: "user-team", teamMemberNumber: "TM-002",
+          lineManager: "Sipho Approver", position: "BM", department: "Marketing",
+          type: "Gift", counterparty: "IDORTest", value: 100,
+          submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
+          description: "idor test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      expect(declRes.status).toBe(201);
+      const declId = declRes.body.id;
+      cleanupDeclIds.push(declId);
+
+      // Upload as team member, linked to their declaration
       const uploadRes = await request(app)
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getTeamToken()}`)
+        .field("declarationId", declId)
         .attach("file", Buffer.from("idor test"), "idor.txt");
       expect(uploadRes.status).toBe(201);
       const fileId = uploadRes.body.id;
 
-      // Download as different user (any authenticated user can download)
+      // Download as different user — should be rejected (security fix)
       const downloadRes = await request(app)
         .get(`/api/files/${fileId}`)
         .set("Authorization", `Bearer ${getHrToken()}`);
-      expect(downloadRes.status).toBe(200);
-      expect(downloadRes.text).toBe("idor test");
+      expect(downloadRes.status).toBe(403);
 
       // Cleanup
       await request(app)
         .delete(`/api/files/${fileId}`)
-        .set("Authorization", `Bearer ${getAdminToken()}`);
+        .set("Authorization", `Bearer ${getTeamToken()}`);
     });
   });
 
@@ -582,7 +601,7 @@ describe("Edge-Case Tests", () => {
       await prisma.workflowInstance.create({
         data: {
           declarationId: createRes.body.id,
-          steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-admin", assigneeName: "Admin", label: "Admin Review", status: "pending", decision: null, notes: "", decidedAt: null }]),
+          steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-admin", assigneeName: "Admin", label: "Admin Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null }]),
         },
       });
 

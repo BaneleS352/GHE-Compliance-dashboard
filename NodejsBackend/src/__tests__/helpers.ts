@@ -42,25 +42,25 @@ export function buildApp() {
 
 export function getAdminToken(): string {
   const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: "user-admin", email: "admin@test.com", role: "admin" }, "test-secret", { expiresIn: "1h" });
+  return jwt.sign({ id: "user-admin", email: "admin@test.com", role: "admin", department: "IT", position: "System Administrator" }, "test-secret", { expiresIn: "1h" });
 }
 
 export function getApproverToken(): string {
   const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: "user-approver", email: "sipho@test.com", role: "approver" }, "test-secret", { expiresIn: "1h" });
+  return jwt.sign({ id: "user-approver", email: "sipho@test.com", role: "approver", department: "Marketing", position: "Line Manager" }, "test-secret", { expiresIn: "1h" });
 }
 
 export function getTeamToken(): string {
   const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: "user-team", email: "nomvula@test.com", role: "teamMember" }, "test-secret", { expiresIn: "1h" });
+  return jwt.sign({ id: "user-team", email: "nomvula@test.com", role: "teamMember", department: "Marketing", position: "Senior Brand Manager" }, "test-secret", { expiresIn: "1h" });
 }
 
 export function getHrToken(): string {
   const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: "user-hr", email: "lindiwe@test.com", role: "approver" }, "test-secret", { expiresIn: "1h" });
+  return jwt.sign({ id: "user-hr", email: "lindiwe@test.com", role: "approver", department: "HR", position: "Head of HR" }, "test-secret", { expiresIn: "1h" });
 }
 
 export function getCeoToken(): string {
   const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: "user-ceo", email: "sandile@test.com", role: "approver" }, "test-secret", { expiresIn: "1h" });
+  return jwt.sign({ id: "user-ceo", email: "sandile@test.com", role: "approver", department: "Executive", position: "Group CEO" }, "test-secret", { expiresIn: "1h" });
 }

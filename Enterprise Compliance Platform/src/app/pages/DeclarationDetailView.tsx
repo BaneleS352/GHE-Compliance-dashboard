@@ -38,8 +38,8 @@ export function DeclarationDetailView({
         ["Position",               safe(d.position)],
         ["GHE Received/Given",     safe(d.receivedGiven)],
         ["Category",               safe(d.type)],
-        ["Counter Party",     safe(d.Counterparty)],
-        ["Counter Party Name",     safe(d.Counterparty)],
+        ["Counter Party",     safe(d.counterparty)],
+        ["Counter Party Name",     safe(d.counterparty)],
         ["Name Of Counter Person", safe(d.contactPerson)],
         ["Date",                   safe(d.date)],
         ["Value",                  formatRand(d.value)],
@@ -62,8 +62,8 @@ export function DeclarationDetailView({
         ["Position",               safe(record?.position)],
         ["GHE Received/Given",     safe(record?.receivedGiven)],
         ["Category",               safe(record?.type)],
-        ["Counter Party",     safe(record?.Counterparty)],
-        ["Counter Party Name",     safe(record?.Counterparty)],
+        ["Counter Party",     safe(record?.counterparty)],
+        ["Counter Party Name",     safe(record?.counterparty)],
         ["Name Of Counter Person", safe(record?.contactPerson)],
         ["Date",                   safe(record?.date)],
         ["Value",                  safe(record?.value)],
@@ -156,11 +156,20 @@ async function downloadFile(file: UploadedFile) {
 }
 
 async function viewFile(file: UploadedFile) {
-  const response = await fetch(file.url);
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank", "noopener,noreferrer");
-  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  try {
+    if (!file.url || file.url.startsWith("data:")) {
+      window.open(file.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    const response = await fetch(file.url);
+    if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  } catch (err) {
+    console.error("View file failed:", err);
+  }
 }
 
 function parseFiles(data: Record<string, string> | Declaration): UploadedFile[] {

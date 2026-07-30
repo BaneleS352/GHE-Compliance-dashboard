@@ -53,13 +53,13 @@ export function NewDeclarationScreen({
   const [lineManagerName, setLineManagerName] = useState("");
 
   useEffect(() => {
-    fetchConfig().then(setConfig).catch(() => {});
+    fetchConfig().then(setConfig).catch((err: Error) => console.error("Failed to fetch config:", err));
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     if (user?.lineManager) {
-      fetchUserById(user.lineManager).then((u) => { if (!cancelled) setLineManagerName(u?.name || ""); });
+      fetchUserById(user.lineManager).then((u) => { if (!cancelled) setLineManagerName(u?.name || ""); }).catch((err: Error) => console.error("Failed to fetch line manager:", err));
     }
     return () => { cancelled = true; };
   }, [user]);
@@ -82,7 +82,7 @@ export function NewDeclarationScreen({
       team: draft.team || "",
       position: draft.position || "",
       partyType: draft.from || "",
-      Counterparty: draft.Counterparty || "",
+      Counterparty: draft.counterparty || "",
       contactPerson: draft.contactPerson || "",
       existingRelationship: draft.relationship || "",
       contractNegotiation: draft.contractNegotiation || "",
@@ -283,7 +283,7 @@ export function NewDeclarationScreen({
     if (!form.department.trim())         errs.department = "Required";
     if (!form.position.trim())           errs.position = "Required";
     if (!form.partyType)                 errs.partyType = "Required";
-    if (!form.Counterparty.trim())       errs.Counterparty = "Required";
+     if (!form.Counterparty.trim())       errs.counterparty = "Required";
     if (!form.contactPerson.trim())      errs.contactPerson = "Required";
     if (!form.existingRelationship)      errs.existingRelationship = "Required";
     if (!form.contractNegotiation)       errs.contractNegotiation = "Required";
@@ -348,7 +348,7 @@ export function NewDeclarationScreen({
       position: form.position,
       receivedGiven,
       from: form.partyType,
-      Counterparty: form.Counterparty,
+      counterparty: form.Counterparty,
       contactPerson: form.contactPerson,
       relationship: form.existingRelationship,
       contractNegotiation: form.contractNegotiation,
@@ -363,7 +363,7 @@ export function NewDeclarationScreen({
       publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
       substantiation: requiresSubstantiation ? form.substantiation : "",
       approver: "",
-      status: "Draft",
+      status: draft?.status || "Draft",
       priority,
       files,
     };
@@ -595,13 +595,13 @@ export function NewDeclarationScreen({
               </div>
             </div>
             <div>
-              <FL required hint="Full name of the organisation or individual." error={errors.Counterparty}>
+              <FL required hint="Full name of the organisation or individual." error={errors.counterparty}>
                 Name of the Supplier, Customer, Team Member or Public Official
               </FL>
               <input
-                className={`${inp} ${errors.Counterparty ? "border-red-400" : ""}`}
-                value={form.Counterparty}
-                onChange={(e) => setF("Counterparty", e.target.value)}
+                className={`${inp} ${errors.counterparty ? "border-red-400" : ""}`}
+                 value={form.Counterparty}
+                 onChange={(e) => setF("Counterparty", e.target.value)}
                 placeholder="Full legal name"
                 maxLength={200}
               />

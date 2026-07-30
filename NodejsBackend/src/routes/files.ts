@@ -49,11 +49,11 @@ function handleMulterError(err: Error, _req: AuthRequest, res: Response, next: N
       res.status(413).json({ error: "File too large. Maximum size is 10MB" });
       return;
     }
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: "File upload error" });
     return;
   }
   if (err.message && err.message.startsWith("File type")) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: "File type not allowed" });
     return;
   }
   next(err);
@@ -75,18 +75,21 @@ router.post(
       return;
     }
 
-    const declarationId = req.body.declarationId as string | undefined;
+    const declarationId = req.body.declarationId as string;
 
-    if (declarationId) {
-      const decl = await prisma.declaration.findUnique({ where: { id: declarationId } });
-      if (!decl) {
-        res.status(400).json({ error: "Declaration not found" });
-        return;
-      }
-      if (req.user!.role !== "admin" && decl.employeeId !== req.user!.id) {
-        res.status(403).json({ error: "Cannot upload to another user's declaration" });
-        return;
-      }
+    if (!declarationId) {
+      res.status(400).json({ error: "declarationId is required" });
+      return;
+    }
+
+    const decl = await prisma.declaration.findUnique({ where: { id: declarationId } });
+    if (!decl) {
+      res.status(400).json({ error: "Declaration not found" });
+      return;
+    }
+    if (req.user!.role !== "admin" && decl.employeeId !== req.user!.id) {
+      res.status(403).json({ error: "Cannot upload to another user's declaration" });
+      return;
     }
 
     const file = await prisma.uploadedFile.create({

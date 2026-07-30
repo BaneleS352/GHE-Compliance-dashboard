@@ -36,7 +36,7 @@ UploadedFile ──(N:1)──> Declaration  (via declarationId, optional, no FK
 | id | String @id | Auto-generated: `GHE-YYYY-NNNNNN` |
 | employee | String | Employee name |
 | employeeId | String | FK to User.id (loose — no constraint) |
-| status | String | Draft, Pending, Approved, Declined, Escalated, Info Requested |
+| status | String | Draft, Pending, Approved, Declined, Escalated, Returned |
 | value | Float | Declaration monetary value |
 | files | String? | JSON array of file references |
 | fromField | String | Mapped from `from` (Prisma `@map("from_field")`) |

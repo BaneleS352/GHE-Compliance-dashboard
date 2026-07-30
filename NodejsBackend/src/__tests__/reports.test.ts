@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getTeamToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken } from "./helpers";
 
 const app = buildApp();
 
@@ -72,10 +72,10 @@ describe("Reports", () => {
     expect(res.headers["content-disposition"]).toContain(".xlsx");
   });
 
-  it("Reports endpoints — non-admin can access", async () => {
+  it("Reports endpoints — approver can access", async () => {
     const res = await request(app)
       .get("/api/reports/status-breakdown")
-      .set("Authorization", `Bearer ${getTeamToken()}`);
+      .set("Authorization", `Bearer ${getApproverToken()}`);
     expect(res.status).toBe(200);
   });
 });

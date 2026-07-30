@@ -48,7 +48,7 @@ const options: swaggerJsdoc.Options = {
             type: { type: "string", description: "Gift | Hospitality | Entertainment" },
             counterparty: { type: "string" }, value: { type: "number", minimum: 0 },
             submitted: { type: "string" }, approver: { type: "string" },
-            status: { type: "string", enum: ["Draft", "Pending", "Approved", "Declined", "Info Requested", "Escalated"] },
+            status: { type: "string", enum: ["Draft", "Pending", "Approved", "Declined", "Returned", "Escalated"] },
             priority: { type: "string", enum: ["Low", "Medium", "High"] },
             description: { type: "string" }, relationship: { type: "string" },
             receivedGiven: { type: "string" }, from: { type: "string" },
@@ -202,7 +202,7 @@ const options: swaggerJsdoc.Options = {
         },
         put: {
           tags: ["Declarations"],
-          summary: "Update declaration (draft or info-requested only)",
+          summary: "Update declaration (draft or returned only)",
           security: [{ bearerAuth: [] }],
           parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
           requestBody: { content: { "application/json": { schema: { type: "object", additionalProperties: true } } } },
@@ -222,7 +222,7 @@ const options: swaggerJsdoc.Options = {
           summary: "Submit declaration — creates workflow steps, sets status to Pending",
           security: [{ bearerAuth: [] }],
           parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
-          responses: { 200: { description: "Submitted — status now Pending" }, 400: { description: "Only drafts can be submitted" } },
+          responses: { 200: { description: "Submitted — status now Pending" }, 400: { description: "Only drafts or returned declarations can be submitted" } },
         },
       },
       "/api/declarations/{id}/status": {

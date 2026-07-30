@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { ApprovalDecision } from "../../types/declaration";
-import { StepView } from "../components/WorkflowTimeline";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import type { ApprovalDecision } from "../../types/declaration";
 import { fetchWorkflowInstance, approveWorkflowStep } from "../../services/api";
 import { DECISION_LABELS } from "../../config/theme";
+import type { StepView } from "../../components/WorkflowTimeline";
 
 interface UseWorkflowApprovalOptions {
   declarationId: string | null;
@@ -123,29 +123,24 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
   }), [allRoles]);
 
   const currentUserStep = useMemo(() => steps.find(
-    (s: any, i: number) => s.status === "pending" && steps.slice(0, i).every((p: any) => p.status === "approved")
+    (s: any, i: number) => s.status === "pending" && steps.slice(0, i).every((p: any) => p.status === "approved" || p.status === "skipped")
   ), [steps]);
   const canApprove = !!(currentUserStep?.assignee === userId && currentUserStep);
   const currentUserStepRole = canApprove ? currentUserStep?.role : undefined;
   const activeRole = useMemo(() => allRoles.find((r) => r.enabled && r.roleKey === currentUserStepRole), [allRoles, currentUserStepRole]);
 
+  const decisionsByRole: Record<string, ApprovalDecision> = { lineManager: lmDecision, hr: hrDecision, ceo: ceoDecision };
+  const notesByRole: Record<string, string> = { lineManager: lmNotes, hr: hrNotes, ceo: ceoNotes };
+
   const handleSubmit = async () => {
-    if (!userId || !wfInstance) return;
+    if (!userId || !wfInstance || !currentUserStep) return;
     setSubmitError("");
-    const decisionsByRole: Record<string, ApprovalDecision> = { lineManager: lmDecision, hr: hrDecision, ceo: ceoDecision };
-    const notesByRole: Record<string, string> = { lineManager: lmNotes, hr: hrNotes, ceo: ceoNotes };
+    const decision = decisionsByRole[currentUserStep.role];
+    const notes = notesByRole[currentUserStep.role];
+    if (!decision) return;
     try {
-      for (const step of wfInstance.steps) {
-        const decision = decisionsByRole[step.role];
-        const notes = notesByRole[step.role];
-        if (decision && step.assignee === userId && step.status === "pending") {
-          const res = await approveWorkflowStep({ declarationId, decision, notes });
-          if (res?.newStatus) onStatusUpdate?.(res.newStatus);
-          if (res?.workflowSteps) {
-            setWfInstance({ ...wfInstance, steps: res.workflowSteps });
-          }
-        }
-      }
+      const res = await approveWorkflowStep({ declarationId, decision, notes });
+      if (res?.newStatus) onStatusUpdate?.(res.newStatus);
       await loadWorkflowInstance();
       setWfMessage("Decision submitted successfully.");
       setTimeout(() => { setWfMessage(""); }, 1500);

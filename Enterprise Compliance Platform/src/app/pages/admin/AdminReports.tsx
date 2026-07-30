@@ -181,7 +181,7 @@ export function AdminReports() {
               <option>Approved</option>
               <option>Declined</option>
               <option>Escalated</option>
-              <option>Info Requested</option>
+              <option>Returned</option>
             </select>
           </div>
           <div className="flex items-end">

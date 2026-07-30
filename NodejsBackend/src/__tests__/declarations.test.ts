@@ -160,9 +160,9 @@ describe("Declarations", () => {
     const res = await request(app)
       .patch("/api/declarations/GHE-TEST-001/status")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ status: "Info Requested" });
+      .send({ status: "Returned" });
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe("Info Requested");
+    expect(res.body.status).toBe("Returned");
 
     // Restore
     await request(app)

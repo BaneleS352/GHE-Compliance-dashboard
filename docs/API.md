@@ -90,7 +90,7 @@ Get single declaration with workflow steps.
 **Errors:** 404
 
 ### `PUT /api/declarations/:id`
-Update declaration fields. Only drafts or info-requested declarations can be edited.
+Update declaration fields. Only drafts or returned declarations can be edited.
 
 **Note:** No field whitelist — `status`, `employeeId`, and all other fields can be changed by the owner. Team members cannot edit other users' declarations.
 
@@ -112,7 +112,7 @@ Submit a draft — creates workflow steps and sets status to Pending.
 Directly set declaration status. **Admin only.**
 
 **Request:** `{ "status": "Approved" }`  
-**Valid statuses:** Draft, Pending, Approved, Declined, Escalated, Info Requested
+**Valid statuses:** Draft, Pending, Approved, Declined, Escalated, Returned
 
 ---
 

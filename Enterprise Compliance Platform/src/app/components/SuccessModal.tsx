@@ -80,7 +80,7 @@ export function SuccessModal({
           {[
             ["Declaration ID", data.id],
             ["Type", data.type],
-            ["Counterparty", data.Counterparty],
+            ["Counterparty", data.counterparty],
             ["Submitted", new Date().toLocaleDateString("en-ZA")],
             ["Status", "Pending Approval"],
           ].map(([k, v]) => (
