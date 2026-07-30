@@ -56,6 +56,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   }, []);
 
   const isAdmin = user?.role === "admin";
+  const isTeamMember = user?.role === "teamMember";
   const isCEO = user?.position === "Group CEO";
 
   const currentMonthDeclarations = useMemo(
@@ -64,9 +65,9 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   );
 
   const scopedDeclarations = useMemo(() => {
-    if (isAdmin || isCEO) return currentMonthDeclarations;
-    return currentMonthDeclarations.filter((d) => d.approverId === user?.id || d.employeeId === user?.id || d.employee === user?.name);
-  }, [currentMonthDeclarations, isAdmin, isCEO, user]);
+    if (isTeamMember) return currentMonthDeclarations.filter((d) => d.employeeId === user?.id);
+    return currentMonthDeclarations;
+  }, [currentMonthDeclarations, isTeamMember, user]);
 
   const filteredDeclarations = useMemo(() => {
     if (activeFilter === "All" || activeFilter === "Total Value") return scopedDeclarations;

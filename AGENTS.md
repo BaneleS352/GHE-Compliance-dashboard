@@ -101,6 +101,12 @@ All audit findings (7 CRITICAL, 8 HIGH, 15 MEDIUM, 12 LOW) have been resolved:
 - CEO dashboard (`ApproverDashboard.tsx`) treats CEO like admin for scoped declarations view
 - `getCeoToken()` test helper updated to include `department: "Executive"` and `position: "Group CEO"`
 - All test tokens now include `department` and `position` fields to match production JWTs
+
+### Dashboard/Declarations Scoping Fix (all roles)
+- Backend `GET /api/declarations` department scoping now only applies to `position === "Line Manager"` — HR and CEO see all declarations, LM sees only their dept
+- `AuthRequest` type and JWT `auth.ts` now include `position` field to distinguish CEO/LM/HR
+- `ApproverDashboard.tsx` scopedDeclarations simplified — teamMembers see own only; all other roles see all backend-returned declarations (backend already scoping to department for LMs)
+- Test helper tokens updated to include `department` and `position` fields matching production JWTs
 - Dead `hasApprovedPredecessors` function removed
 - `useWorkflowApproval.ts` cleaned up (removed erroneous backend code, restored React imports + correct paths)
 - Test fixes for intentional security changes (file upload IDOR, report role guards)
