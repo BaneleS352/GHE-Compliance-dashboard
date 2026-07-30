@@ -31,8 +31,6 @@ function findActionablePendingStep(steps: WorkflowStep[], userId: string): Workf
 // GET /api/workflows/pending — pending approvals for current user
 router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
-  const userRole = req.user!.role;
-  const userDept = req.user!.department;
   const pending: any[] = [];
 
   const instances = await prisma.workflowInstance.findMany();
@@ -48,7 +46,6 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
     if (pendingStep) {
       const declaration = declMap.get(inst.declarationId);
       if (declaration) {
-        if (userRole === "approver" && userDept && declaration.department !== userDept) continue;
         pending.push({
           declaration: declarationResponse(declaration),
           step: pendingStep,
