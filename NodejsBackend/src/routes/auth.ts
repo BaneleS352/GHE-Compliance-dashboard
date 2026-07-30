@@ -46,7 +46,7 @@ router.post("/login", loginLimiter, asyncHandler(async (req: Request, res: Respo
   }
 
   const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, name: user.name },
+    { id: user.id, email: user.email, role: user.role, name: user.name, department: user.department },
     config.jwtSecret,
     { expiresIn: config.jwtExpiresIn as any }
   );
