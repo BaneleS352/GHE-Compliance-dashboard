@@ -42,17 +42,25 @@ export function AdminApprovalOptions() {
   };
 
   const handleSaveEdit = async () => {
-    if (editingIdx === null || !editValue || !editLabel) return;
-    const option = options[editingIdx];
-    await updateApprovalOption(option.value, { value: editValue, label: editLabel });
-    setOptions(await fetchApprovalOptions());
-    setEditingIdx(null);
+    try {
+      if (editingIdx === null || !editValue || !editLabel) return;
+      const option = options[editingIdx];
+      await updateApprovalOption(option.value, { value: editValue, label: editLabel });
+      setOptions(await fetchApprovalOptions());
+      setEditingIdx(null);
+    } catch (err: any) {
+      setError(err.message || "Failed to save approval option.");
+    }
   };
 
   const handleDelete = async (idx: number) => {
-    if (!confirm("Delete this option?")) return;
-    await deleteApprovalOption(options[idx].value);
-    setOptions(await fetchApprovalOptions());
+    try {
+      if (!confirm("Delete this option?")) return;
+      await deleteApprovalOption(options[idx].value);
+      setOptions(await fetchApprovalOptions());
+    } catch (err: any) {
+      setError(err.message || "Failed to delete approval option.");
+    }
   };
 
   return (

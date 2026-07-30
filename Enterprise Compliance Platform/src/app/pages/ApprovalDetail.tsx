@@ -7,7 +7,7 @@ import { WorkflowTimeline } from "../components/WorkflowTimeline";
 import { useUser } from "../auth/UserContext";
 import { useWorkflowApproval } from "../hooks/useWorkflowApproval";
 
-export function ApprovalDetail({ declaration, onBack }: { declaration: Declaration; onBack: () => void }) {
+export function ApprovalDetail({ declaration, onBack, readOnly }: { declaration: Declaration; onBack: () => void; readOnly?: boolean }) {
   const { user } = useUser();
   const [declarationStatus, setDeclarationStatus] = useState(declaration.status);
 
@@ -53,11 +53,11 @@ export function ApprovalDetail({ declaration, onBack }: { declaration: Declarati
 
           <WorkflowTimeline
             steps={wfSteps}
-            decision={canApprove ? activeDecision : undefined}
-            onDecision={canApprove && setActiveDecision ? setActiveDecision : undefined}
-            notes={canApprove ? activeNotes : undefined}
-            onNotesChange={canApprove && setActiveNotes ? setActiveNotes : undefined}
-            onSubmit={canApprove ? handleSubmit : undefined}
+            decision={canApprove && !readOnly ? activeDecision : undefined}
+            onDecision={canApprove && !readOnly && setActiveDecision ? setActiveDecision : undefined}
+            notes={canApprove && !readOnly ? activeNotes : undefined}
+            onNotesChange={canApprove && !readOnly && setActiveNotes ? setActiveNotes : undefined}
+            onSubmit={canApprove && !readOnly ? handleSubmit : undefined}
             submitDisabled={submitDisabled}
           />
         </div>

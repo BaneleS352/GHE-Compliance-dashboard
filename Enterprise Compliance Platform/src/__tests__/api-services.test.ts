@@ -34,7 +34,7 @@ function mockFetch(status: number, body: unknown) {
 function mockDeclaration(id = "GHE-2026-1000"): Declaration {
   return {
     id, employee: "Test User", employeeId: "user-1", department: "IT",
-    type: "Gift", Counterparty: "TestCorp", value: 500, submitted: "2026-07-01",
+    type: "Gift", counterparty: "TestCorp", value: 500, submitted: "2026-07-01",
     approver: "Sipho Nkosi", status: "Draft", priority: "Medium",
     description: "Test", relationship: "Yes", teamMemberNumber: "TM-001",
     lineManager: "Sipho Nkosi", position: "Dev", receivedGiven: "Received",
@@ -270,7 +270,7 @@ describe("workflow operations", () => {
     }]);
     const result = await fetchPendingWorkflows();
     expect(result).toHaveLength(1);
-    expect(result[0].declaration.Counterparty).toBe("B");
+    expect(result[0].declaration.counterparty).toBe("B");
     expect(result[0].declaration.contactPerson).toBe("Jane");
   });
 

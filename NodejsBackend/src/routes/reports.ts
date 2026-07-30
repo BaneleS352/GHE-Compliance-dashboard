@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
-import { authenticate, AuthRequest } from "../middleware/auth";
+import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { generateExcelBuffer, ColumnDef } from "../services/excelService";
 import { getStatusBreakdown, getSLABreakdown, getHighValueDeclarations } from "../services/reports";
@@ -26,7 +26,7 @@ function buildWhere(req: AuthRequest): Prisma.DeclarationWhereInput {
   return where;
 }
 
-router.get("/counterparty-concentration", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/counterparty-concentration", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const declarations = await prisma.declaration.findMany({ where, select: { counterparty: true, value: true } });
 
@@ -50,24 +50,24 @@ router.get("/counterparty-concentration", authenticate, asyncHandler(async (req:
   res.json(result);
 }));
 
-router.get("/status-breakdown", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/status-breakdown", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const data = await getStatusBreakdown(req);
   res.json(data);
 }));
 
-router.get("/sla", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/sla", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const data = await getSLABreakdown(req);
   res.json(data);
 }));
 
-router.get("/high-value", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/high-value", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const config = await prisma.systemConfig.findFirst();
   const threshold = config?.highValueThreshold ?? 2000;
   const data = await getHighValueDeclarations(req, { highValueThreshold: threshold });
   res.json(data);
 }));
 
-router.get("/list", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/list", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const search = req.query.search as string | undefined;
 
@@ -89,7 +89,7 @@ router.get("/list", authenticate, asyncHandler(async (req: AuthRequest, res: Res
   res.json(result);
 }));
 
-router.get("/export", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/export", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildWhere(req);
   const { reportType } = req.query;
 

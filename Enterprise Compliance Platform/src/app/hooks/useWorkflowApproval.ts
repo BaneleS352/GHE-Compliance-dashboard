@@ -1,36 +1,15 @@
-// Issue #1: "Failed to load workflow instance" error
-// The API endpoint /api/workflows/instances/:declarationId was checking if user is an assignee, 
-// but declaration owners (submitters) are not assignees, so they couldn't view their own workflow timeline.
+import { useState, useCallback, useEffect, useMemo } from "react";
+import type { ApprovalDecision } from "../../types/declaration";
+import { fetchWorkflowInstance, approveWorkflowStep } from "../../services/api";
+import { DECISION_LABELS } from "../../config/theme";
+import type { StepView } from "../../components/WorkflowTimeline";
 
-// SOLUTION: Allow declaration owners full access to their workflow
-router.get("/instances/:declarationId", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const declarationId = req.params.declarationId as string;
-  const instance = await prisma.workflowInstance.findUnique({ where: { declarationId } });
+interface UseWorkflowApprovalOptions {
+  declarationId: string | null;
+  userId: string | null;
+  onStatusUpdate?: (status: string) => void;
+}
 
-  if (!instance) {
-    res.status(404).json({ error: "Workflow instance not found" });
-    return;
-  }
-
-  const declaration = await prisma.declaration.findUnique({ where: { id: declarationId } });
-  const steps: WorkflowStep[] = safeParseSteps(instance.steps);
-  const isAssignee = steps.some((s) => s.assignee === req.user!.id);
-  const isOwner = declaration?.employeeId === req.user!.id;
-  
-  // FIX: Declaration owners should always be able to view their own workflow
-  if (req.user!.role !== "admin" && !isAssignee && !isOwner) {
-    res.status(403).json({ error: "Access denied" });
-    return;
-  }
-
-  res.json({ declarationId: instance.declarationId, steps });
-}));
-
-// Issue #2: Multi-role approver logic (e.g., CEO is both LM and HR)
-// The workflow approval logic has race conditions and state synchronization issues
-// when a user holds multiple approver roles for the same declaration.
-
-// SOLUTION: Improved useWorkflowApproval hook with proper loading and state updates
 export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: UseWorkflowApprovalOptions) {
   const [wfInstance, setWfInstance] = useState<any>(null);
   const [wfLoading, setWfLoading] = useState(!!declarationId);
@@ -144,29 +123,24 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
   }), [allRoles]);
 
   const currentUserStep = useMemo(() => steps.find(
-    (s: any, i: number) => s.status === "pending" && steps.slice(0, i).every((p: any) => p.status === "approved")
+    (s: any, i: number) => s.status === "pending" && steps.slice(0, i).every((p: any) => p.status === "approved" || p.status === "skipped")
   ), [steps]);
   const canApprove = !!(currentUserStep?.assignee === userId && currentUserStep);
   const currentUserStepRole = canApprove ? currentUserStep?.role : undefined;
   const activeRole = useMemo(() => allRoles.find((r) => r.enabled && r.roleKey === currentUserStepRole), [allRoles, currentUserStepRole]);
 
+  const decisionsByRole: Record<string, ApprovalDecision> = { lineManager: lmDecision, hr: hrDecision, ceo: ceoDecision };
+  const notesByRole: Record<string, string> = { lineManager: lmNotes, hr: hrNotes, ceo: ceoNotes };
+
   const handleSubmit = async () => {
-    if (!userId || !wfInstance) return;
+    if (!userId || !wfInstance || !currentUserStep) return;
     setSubmitError("");
-    const decisionsByRole: Record<string, ApprovalDecision> = { lineManager: lmDecision, hr: hrDecision, ceo: ceoDecision };
-    const notesByRole: Record<string, string> = { lineManager: lmNotes, hr: hrNotes, ceo: ceoNotes };
+    const decision = decisionsByRole[currentUserStep.role];
+    const notes = notesByRole[currentUserStep.role];
+    if (!decision) return;
     try {
-      for (const step of wfInstance.steps) {
-        const decision = decisionsByRole[step.role];
-        const notes = notesByRole[step.role];
-        if (decision && step.assignee === userId && step.status === "pending") {
-          const res = await approveWorkflowStep({ declarationId, decision, notes });
-          if (res?.newStatus) onStatusUpdate?.(res.newStatus);
-          if (res?.workflowSteps) {
-            setWfInstance({ ...wfInstance, steps: res.workflowSteps });
-          }
-        }
-      }
+      const res = await approveWorkflowStep({ declarationId, decision, notes });
+      if (res?.newStatus) onStatusUpdate?.(res.newStatus);
       await loadWorkflowInstance();
       setWfMessage("Decision submitted successfully.");
       setTimeout(() => { setWfMessage(""); }, 1500);

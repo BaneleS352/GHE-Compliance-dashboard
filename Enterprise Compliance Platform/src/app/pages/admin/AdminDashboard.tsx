@@ -10,13 +10,19 @@ import { fetchAdminDashboard } from "../../../services/api";
 export function AdminDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   const [stats, setStats] = useState({ users: 0, declarations: 0, workflows: 0, threshold: 2000 });
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAdminDashboard().then(setStats).catch((err: Error) => setLoadError(err.message));
+    fetchAdminDashboard().then(setStats).catch((err: Error) => setLoadError(err.message)).finally(() => setLoading(false));
   }, []);
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-20"><div className="text-sm text-muted-foreground animate-pulse">Loading dashboard…</div></div>;
+  }
 
   return (
     <div className="space-y-6">
+      {loadError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{loadError}</div>}
       <PageHeader
         title="Admin Dashboard"
         subtitle="System Management Overview"

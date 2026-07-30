@@ -5,7 +5,7 @@ import { fetchWorkflowInstance, approveWorkflowStep, fetchConfig } from "../serv
 
 const mockDeclaration = {
   id: "GHE-2026-1001", employee: "Alice", employeeId: "user-1", department: "IT",
-  type: "Gift", Counterparty: "CorpA", value: 5000, submitted: "2026-07-01",
+  type: "Gift", counterparty: "CorpA", value: 5000, submitted: "2026-07-01",
   approver: "Sipho Nkosi", status: "Pending" as const, priority: "High" as const,
   description: "Test", relationship: "Yes", teamMemberNumber: "TM-001",
   lineManager: "Sipho Nkosi", position: "Dev", receivedGiven: "Received",
@@ -186,7 +186,7 @@ describe("ApprovalDetail", () => {
   });
 
   it("submits 'return' decision and shows Returned status", async () => {
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Info Requested" } as any);
+    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Returned" } as any);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
     render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
     await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());

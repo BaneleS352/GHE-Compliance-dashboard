@@ -86,7 +86,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
     (d) =>
       (!search ||
         d.id.toLowerCase().includes(search.toLowerCase()) ||
-        d.Counterparty.toLowerCase().includes(search.toLowerCase()) ||
+        d.counterparty.toLowerCase().includes(search.toLowerCase()) ||
         d.employee.toLowerCase().includes(search.toLowerCase()) ||
         (d.approver || "").toLowerCase().includes(search.toLowerCase())) &&
       (typeFilter === "All" || d.type === typeFilter) &&
@@ -127,7 +127,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
       ID: d.id,
       Employee: d.employee,
       Type: d.type,
-      Counterparty: d.Counterparty,
+      Counterparty: d.counterparty,
       Value: d.value,
       Submitted: d.submitted,
       Status: d.status,
@@ -143,7 +143,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
         Employee: d.employee,
         Department: d.department,
         Type: d.type,
-        Counterparty: d.Counterparty,
+        Counterparty: d.counterparty,
         Value: d.value,
         Submitted: d.submitted,
         Status: d.status,
@@ -307,7 +307,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-mono text-xs font-bold text-primary">{d.id}</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{d.Counterparty}</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{d.counterparty}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{d.approver}</p>
                 </div>
                 <StatusBadge status={d.status} />
@@ -333,9 +333,9 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
               </div>
 
               <div className="mt-4 flex flex-col gap-2">
-                {d.status === "Draft" && onEditDraft ? (
+                {(d.status === "Draft" || d.status === "Returned") && onEditDraft ? (
                   <button onClick={() => onEditDraft(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
-                    <Edit size={12} /> Continue
+                    <Edit size={12} /> {d.status === "Returned" ? "Edit & Resubmit" : "Continue"}
                   </button>
                 ) : (
                   <button onClick={() => setViewDecl(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
@@ -381,16 +381,16 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
                 <Tr key={d.id}>
                   <Td><span className={COL.ID} style={{ color: PURPLE }}>{d.id}</span></Td>
                   <Td><TypeBadge type={d.type} /></Td>
-                  <Td className={COL.COUNTERPARTY}>{d.Counterparty}</Td>
+                  <Td className={COL.COUNTERPARTY}>{d.counterparty}</Td>
                   <Td className={COL.VALUE}>{formatRand(d.value)}</Td>
                   <Td className={COL.SUBMITTED}>{d.submitted}</Td>
                   <Td className={COL.APPROVER}>{d.approver}</Td>
                   <Td><StatusBadge status={d.status} /></Td>
                   <Td>
                     <div className="flex gap-2">
-                      {d.status === "Draft" && onEditDraft ? (
+                      {["Draft", "Returned"].includes(d.status) && onEditDraft ? (
                         <button onClick={() => onEditDraft(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
-                          <Edit size={12} /> Edit
+                          <Edit size={12} /> {d.status === "Returned" ? "Edit & Resubmit" : "Edit"}
                         </button>
                       ) : (
                         <button onClick={() => setViewDecl(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">

@@ -5,9 +5,9 @@ import crypto from "crypto";
 import path from "path";
 import fs from "fs";
 import { prisma } from "../config/prisma";
-import { authenticate, AuthRequest } from "../middleware/auth";
+import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { createWorkflowSteps } from "../services/workflowService";
+import { createWorkflowSteps, safeJsonParse, declarationResponse } from "../services/workflowService";
 
 const router = Router();
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
@@ -16,11 +16,6 @@ function generateDeclarationId(): string {
   const year = new Date().getFullYear();
   const rand = crypto.randomInt(100000, 999999);
   return `GHE-${year}-${rand}`;
-}
-
-function safeJsonParse(val: string | null | undefined): any {
-  if (!val) return null;
-  try { return JSON.parse(val); } catch { return null; }
 }
 
 function sanitize(val: string): string {
@@ -37,55 +32,22 @@ function safeParseWorkflowSteps(data: string | null | undefined): any[] {
   }
 }
 
-function declarationResponse(d: any) {
-  const parsed = safeJsonParse(d.files);
-  return {
-    id: d.id,
-    employee: d.employee,
-    employeeId: d.employeeId,
-    teamMemberNumber: d.teamMemberNumber,
-    lineManager: d.lineManager,
-    position: d.position,
-    department: d.department,
-    company: d.company,
-    team: d.team,
-    type: d.type,
-    counterparty: d.counterparty,
-    value: d.value,
-    submitted: d.submitted,
-    approver: d.approver,
-    status: d.status,
-    priority: d.priority,
-    description: d.description,
-    relationship: d.relationship,
-    receivedGiven: d.receivedGiven,
-    from: d.fromField,
-    contactPerson: d.contactPerson,
-    biddingProcess: d.biddingProcess,
-    contractNegotiation: d.contractNegotiation,
-    occasion: d.occasion,
-    date: d.date,
-    instances: d.instances,
-    publicOfficial: d.publicOfficial,
-    substantiation: d.substantiation,
-    files: parsed || [],
-  };
-}
-
-router.get("/stats", authenticate, asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
-  const declarations = await prisma.declaration.findMany();
+router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
+  const [declarations, trendItems, typeItems] = await Promise.all([
+    prisma.declaration.findMany(),
+    prisma.complianceTrendPoint.findMany({ orderBy: { id: "asc" } }),
+    prisma.typeBreakdownItem.findMany(),
+  ]);
 
   const kpis = {
     total: declarations.length,
     pending: declarations.filter((d) => d.status === "Pending").length,
     approved: declarations.filter((d) => d.status === "Approved").length,
     declined: declarations.filter((d) => d.status === "Declined").length,
+    returned: declarations.filter((d) => d.status === "Returned").length,
     escalated: declarations.filter((d) => d.status === "Escalated").length,
     totalValue: declarations.reduce((sum, d) => sum + d.value, 0),
   };
-
-  const trendItems = await prisma.complianceTrendPoint.findMany({ orderBy: { id: "asc" } });
-  const typeItems = await prisma.typeBreakdownItem.findMany();
 
   res.json({ kpis, complianceTrend: trendItems, typeBreakdown: typeItems });
 }));
@@ -98,6 +60,8 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
   if (status) where.status = status;
   if (req.user!.role === "teamMember") {
     where.employeeId = req.user!.id;
+  } else if (req.user!.role === "approver" && req.user!.department) {
+    where.department = req.user!.department;
   }
 
   let declarations = await prisma.declaration.findMany({ where, orderBy: { submitted: "desc" } });
@@ -116,7 +80,7 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
   res.json(declarations.map(declarationResponse));
 }));
 
-const VALID_STATUSES = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Info Requested"] as const;
+const VALID_STATUSES = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"] as const;
 
 const createSchema = z.object({
   employee: z.string().min(1),
@@ -132,6 +96,7 @@ const createSchema = z.object({
   value: z.number().nonnegative(),
   submitted: z.string(),
   approver: z.string().optional(),
+  approverId: z.string().optional(),
   status: z.enum(VALID_STATUSES).default("Draft"),
   priority: z.string(),
   description: z.string().max(10000),
@@ -179,7 +144,8 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
       counterparty: data.counterparty,
       value: data.value,
       submitted: data.submitted,
-      approver: "",
+      approver: data.approver || "",
+      approverId: data.approverId || null,
       status: "Draft",
       priority: data.priority,
       description: sanitize(data.description),
@@ -239,8 +205,8 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(404).json({ error: "Declaration not found" });
     return;
   }
-  if (existing.status !== "Draft" && existing.status !== "Info Requested") {
-    res.status(400).json({ error: "Only drafts or info-requested declarations can be edited" });
+  if (existing.status !== "Draft" && existing.status !== "Returned") {
+    res.status(400).json({ error: "Only drafts or returned declarations can be edited" });
     return;
   }
   if (req.user!.role === "teamMember" && existing.employeeId !== req.user!.id) {
@@ -268,6 +234,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     biddingProcess: "biddingProcess", contractNegotiation: "contractNegotiation",
     occasion: "occasion", date: "date", instances: "instances",
     publicOfficial: "publicOfficial", substantiation: "substantiation",
+    approverId: "approverId",
   };
 
   for (const [key, dbField] of Object.entries(fieldMap)) {
@@ -310,9 +277,11 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     const fp = path.join(UPLOAD_DIR, f.path);
     try { fs.unlinkSync(fp); } catch { /* file may have been deleted already */ }
   }
-  await prisma.uploadedFile.deleteMany({ where: { declarationId: id } });
-  await prisma.workflowInstance.deleteMany({ where: { declarationId: id } });
-  await prisma.declaration.delete({ where: { id } });
+  await Promise.all([
+    prisma.uploadedFile.deleteMany({ where: { declarationId: id } }),
+    prisma.workflowInstance.deleteMany({ where: { declarationId: id } }),
+    prisma.declaration.delete({ where: { id } }),
+  ]);
 
   res.json({ message: "Declaration deleted" });
 }));
@@ -324,8 +293,8 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     res.status(404).json({ error: "Declaration not found" });
     return;
   }
-  if (existing.status !== "Draft" && existing.status !== "Info Requested") {
-    res.status(400).json({ error: "Only drafts can be submitted" });
+  if (existing.status !== "Draft" && existing.status !== "Returned") {
+    res.status(400).json({ error: "Only drafts or returned declarations can be submitted" });
     return;
   }
   if (req.user!.role === "teamMember" && existing.employeeId !== req.user!.id) {
@@ -337,7 +306,7 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
 
   let workflowSteps = await createWorkflowSteps(existing.id, existing.employeeId, existing.value);
 
-  if (existing.status === "Info Requested" && existingInstance) {
+  if (existing.status === "Returned" && existingInstance) {
     const savedSteps = safeParseWorkflowSteps(existingInstance.steps);
     const hasReturnedStep = savedSteps.some((step) => step.status === "returned");
 
@@ -350,6 +319,8 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
               decision: null,
               notes: "",
               decidedAt: null,
+              decidedById: null,
+              decidedByName: null,
             }
           : step
       );
@@ -358,11 +329,12 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
 
   const nextApprover = workflowSteps.find((step) => step.status === "pending");
   const approverName = nextApprover ? nextApprover.assigneeName : existing.approver;
+  const approverIdValue = nextApprover ? nextApprover.assignee : existing.approverId;
 
   const [updated] = await prisma.$transaction([
     prisma.declaration.update({
       where: { id: existing.id },
-      data: { status: "Pending", approver: approverName },
+      data: { status: "Pending", approver: approverName, approverId: approverIdValue },
     }),
     prisma.workflowInstance.upsert({
       where: { declarationId: existing.id },
@@ -382,7 +354,7 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
 
   const id = req.params.id as string;
   const { status } = req.body;
-  const validStatuses = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Info Requested"];
+  const validStatuses = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"];
   if (!validStatuses.includes(status)) {
     res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` });
     return;

@@ -208,7 +208,7 @@ describe("Workflow advanced scenarios", () => {
     expect(inst.body.steps[1].role).toBe("hr");
   });
 
-  it("POST /api/workflows/approve — using 'return' sets Info Requested and resets approver to employee", async () => {
+  it("POST /api/workflows/approve — using 'return' sets Returned and resets approver to employee", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -224,16 +224,16 @@ describe("Workflow advanced scenarios", () => {
       .set("Authorization", `Bearer ${getApproverToken()}`)
       .send({ declarationId: id, decision: "return", notes: "Need more info" });
     expect(ret.status).toBe(200);
-    expect(ret.body.newStatus).toBe("Info Requested");
+    expect(ret.body.newStatus).toBe("Returned");
 
     const decl = await request(app)
       .get(`/api/declarations/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(decl.body.status).toBe("Info Requested");
+    expect(decl.body.status).toBe("Returned");
     expect(decl.body.approver).toBe("Nomvula Team");
   });
 
-  it("PATCH /api/declarations/:id/submit — resubmit from Info Requested preserves prior approved steps", async () => {
+  it("PATCH /api/declarations/:id/submit — resubmit from Returned preserves prior approved steps", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -358,7 +358,7 @@ describe("Declaration CRUD limits", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ description: "trying to edit pending" });
     expect(res.status).toBe(400);
-    expect(res.body.error).toMatch(/draft|info requested/i);
+    expect(res.body.error).toMatch(/draft|returned/i);
   });
 
   it("PUT /api/declarations/:id — cannot edit while Approved", async () => {

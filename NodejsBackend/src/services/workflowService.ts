@@ -17,6 +17,8 @@ export interface WorkflowStep {
   approvedAt: string | null;
   notes: string;
   decidedAt: string | null;
+  decidedById: string | null;
+  decidedByName: string | null;
 }
 
 export function determineRuleId(value: number, highThreshold: number, mediumThreshold: number): string {
@@ -42,13 +44,18 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
   const ceoUser = await prisma.user.findFirst({ where: { position: "Group CEO" } });
 
   const steps: WorkflowStep[] = [];
+
+  const lmIds = stepDefs.filter((d) => d.role === "lineManager" && employee.lineManager).map(() => employee.lineManager!);
+  const lmUsers = lmIds.length > 0 ? await prisma.user.findMany({ where: { id: { in: lmIds } } }) : [];
+  const lmMap = new Map(lmUsers.map((u) => [u.id, u]));
+
   for (const def of stepDefs) {
     let assigneeId = "";
     let assigneeName = "";
 
     if (def.role === "lineManager") {
       assigneeId = employee.lineManager || "";
-      const lm = assigneeId ? await prisma.user.findUnique({ where: { id: assigneeId } }) : null;
+      const lm = assigneeId ? lmMap.get(assigneeId) : null;
       assigneeName = lm?.name || "Unknown";
     } else if (def.role === "hr") {
       assigneeId = hrUser?.id || "";
@@ -70,6 +77,8 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
         approvedAt: null,
         notes: !assigneeId ? "No assignee found - step skipped" : "Self-approval - step skipped",
         decidedAt: null,
+        decidedById: null,
+        decidedByName: null,
       });
       continue;
     }
@@ -85,6 +94,8 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
       approvedAt: null,
       notes: "",
       decidedAt: null,
+      decidedById: null,
+      decidedByName: null,
     });
   }
 
@@ -105,4 +116,46 @@ export async function getFirstPendingStep(declarationId: string): Promise<Workfl
 
 export function isApprovalDecision(decision: string): boolean {
   return ["accept", "org", "foundation"].includes(decision);
+}
+
+// ─── Shared helpers for route response formatting ──────────────────────────────
+export function safeJsonParse(val: string | null | undefined): any {
+  if (!val) return null;
+  try { return JSON.parse(val); } catch { return null; }
+}
+
+export function declarationResponse(d: any) {
+  const parsed = safeJsonParse(d.files);
+  return {
+    id: d.id,
+    employee: d.employee,
+    employeeId: d.employeeId,
+    teamMemberNumber: d.teamMemberNumber,
+    lineManager: d.lineManager,
+    position: d.position,
+    department: d.department,
+    company: d.company,
+    team: d.team,
+    type: d.type,
+    counterparty: d.counterparty,
+    value: d.value,
+    submitted: d.submitted,
+    approver: d.approver,
+    approverId: d.approverId || null,
+    status: d.status,
+    priority: d.priority,
+    description: d.description,
+    relationship: d.relationship,
+    receivedGiven: d.receivedGiven,
+    from: d.fromField,
+    contactPerson: d.contactPerson,
+    biddingProcess: d.biddingProcess,
+    contractNegotiation: d.contractNegotiation,
+    occasion: d.occasion,
+    date: d.date,
+    instances: d.instances,
+    publicOfficial: d.publicOfficial,
+    substantiation: d.substantiation,
+    files: parsed || [],
+  };
 }

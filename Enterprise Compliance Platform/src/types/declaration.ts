@@ -23,7 +23,6 @@ export type StatusType =
   | "Approved"
   | "Declined"
   | "Escalated"
-  | "Info Requested"
   | "Returned";
 
 export type ApprovalDecision =
@@ -49,13 +48,14 @@ export interface User {
 export interface Declaration {
   id: string;
   employee: string;
-  employeeId?: string;
+  employeeId: string;
   department: string;
   type: string;
-  Counterparty: string;
+  counterparty: string;
   value: number;
   submitted: string;
   approver: string;
+  approverId?: string;
   status: StatusType;
   priority: "High" | "Medium" | "Low";
   description: string;
@@ -88,6 +88,8 @@ export interface WorkflowStep {
   decision: ApprovalDecision;
   notes: string;
   decidedAt: string | null;
+  decidedById: string | null;
+  decidedByName: string | null;
 }
 
 export interface WorkflowInstance {

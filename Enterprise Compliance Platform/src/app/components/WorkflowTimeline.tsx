@@ -9,6 +9,7 @@ export interface StepView {
   state: "completed" | "active" | "pending" | "skipped";
   decision?: { label: string } | null;
   decidedAt?: string | null;
+  decidedByName?: string | null;
   notes?: string;
 }
 
@@ -48,6 +49,7 @@ function buildStepsFromWorkflow(wf: any, employee?: string): StepView[] {
         state: "completed",
         decision: step.decision ? { label: DECISION_LABELS[step.decision] || step.decision } : null,
         decidedAt: step.decidedAt || null,
+        decidedByName: step.decidedByName || null,
         notes: step.notes || "",
       });
     }
@@ -122,6 +124,12 @@ function CompletedDetails({ step }: { step: StepView }) {
         <span className="text-gray-500">Time</span>
         <span className="font-semibold text-gray-900">{step.decidedAt ? step.decidedAt.slice(11, 16) : "-"}</span>
       </div>
+      {step.decidedByName && (
+        <div className="wf-detail-row flex justify-between py-1 text-sm">
+          <span className="text-gray-500">Decided By</span>
+          <span className="font-semibold text-gray-900">{step.decidedByName}</span>
+        </div>
+      )}
       {fullLabel && (
         <p className="mt-2 text-xs italic text-gray-500 border-t border-gray-200 pt-2">"{fullLabel}"</p>
       )}
@@ -173,13 +181,13 @@ export function WorkflowTimeline({
   const [wf, setWf] = useState<any>(undefined);
 
   useEffect(() => {
-    if (!declarationId) return;
+    if (!declarationId || externalSteps) return;
     let cancelled = false;
     fetchWorkflowInstance(declarationId)
       .then((wf) => { if (!cancelled) setWf(wf); })
       .catch(() => { if (!cancelled) setWf(null); });
     return () => { cancelled = true; };
-  }, [declarationId]);
+  }, [declarationId, externalSteps]);
 
   const steps = externalSteps || buildStepsFromWorkflow(wf, employee);
 

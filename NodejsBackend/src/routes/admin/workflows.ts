@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
+import { asyncHandler } from "../../middleware/asyncHandler";
 
 const router = Router();
 
@@ -12,7 +13,7 @@ interface StepDef {
 }
 
 // GET /api/admin/workflows/rules
-router.get("/rules", authenticate, authorize("admin"), async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get("/rules", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const rules = await prisma.workflowRule.findMany({ orderBy: { priority: "asc" } });
   res.json(
     rules.map((r) => {
@@ -21,7 +22,7 @@ router.get("/rules", authenticate, authorize("admin"), async (_req: AuthRequest,
       return { id: r.id, name: r.name, condition: r.condition, priority: r.priority, steps: s };
     })
   );
-});
+}));
 
 const ruleSchema = z.object({
   name: z.string().min(1),
@@ -37,7 +38,7 @@ const ruleSchema = z.object({
 });
 
 // POST /api/admin/workflows/rules
-router.post("/rules", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/rules", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = ruleSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request" });
@@ -72,10 +73,10 @@ router.post("/rules", authenticate, authorize("admin"), async (req: AuthRequest,
     priority: rule.priority,
     steps: data.steps,
   });
-});
+}));
 
 // PUT /api/admin/workflows/rules/:id
-router.put("/rules/:id", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const existing = await prisma.workflowRule.findUnique({ where: { id } });
   if (!existing) {
@@ -137,10 +138,10 @@ router.put("/rules/:id", authenticate, authorize("admin"), async (req: AuthReque
     priority: rule.priority,
     steps: data.steps ? data.steps : JSON.parse(existing.steps),
   });
-});
+}));
 
 // DELETE /api/admin/workflows/rules/:id
-router.delete("/rules/:id", authenticate, authorize("admin"), async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const existing = await prisma.workflowRule.findUnique({ where: { id } });
   if (!existing) {
@@ -150,6 +151,6 @@ router.delete("/rules/:id", authenticate, authorize("admin"), async (req: AuthRe
 
   await prisma.workflowRule.delete({ where: { id } });
   res.json({ message: "Workflow rule deleted" });
-});
+}));
 
 export default router;

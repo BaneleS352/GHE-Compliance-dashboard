@@ -32,7 +32,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
     if (cached) {
       try { setUser(JSON.parse(cached)); setLoading(false); } catch { /* ignore */ }
     }
-    fetchCurrentUser().then((u) => {
+    const fetchUserWithTimeout = Promise.race([
+      fetchCurrentUser(),
+      new Promise<null>((_, reject) => setTimeout(() => reject(new Error("Timeout")), 8000)),
+    ]);
+    fetchUserWithTimeout.then((u) => {
       if (u) {
         setUser(u);
         localStorage.setItem("ghe.auth.user", JSON.stringify(u));

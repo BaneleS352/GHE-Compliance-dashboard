@@ -64,7 +64,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
 
   const scopedDeclarations = useMemo(() => {
     if (isAdmin) return currentMonthDeclarations;
-    return currentMonthDeclarations.filter((d) => d.approver === user?.name || d.employeeId === user?.id || d.employee === user?.name);
+    return currentMonthDeclarations.filter((d) => d.approverId === user?.id || d.employeeId === user?.id || d.employee === user?.name);
   }, [currentMonthDeclarations, isAdmin, user]);
 
   const filteredDeclarations = useMemo(() => {
@@ -114,7 +114,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
     const sevenDaysAgo = Date.now() - 7 * 86400000;
     return scopedDeclarations
       .filter((d) => {
-        if (!["Pending", "Escalated", "Info Requested"].includes(d.status)) return false;
+        if (!["Pending", "Escalated"].includes(d.status)) return false;
         const t = new Date(d.submitted).getTime();
         if (Number.isNaN(t) || t >= sevenDaysAgo) return false;
         return true;
@@ -136,7 +136,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
       row.totalValue += d.value;
       if (d.status === "Approved") row.approved += 1;
       else if (d.status === "Declined") row.declined += 1;
-      else if (["Pending", "Escalated", "Info Requested"].includes(d.status)) row.pending += 1;
+      else if (["Pending", "Escalated"].includes(d.status)) row.pending += 1;
     });
     return Array.from(map.entries()).map(([name, row]) => ({ name, ...row })).sort((a, b) => b.totalValue - a.totalValue);
   }, [filteredDeclarations]);
@@ -149,7 +149,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
     return <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700"><strong>Failed to load dashboard:</strong> {error}</div>;
   }
 
-  const queueCount = scopedDeclarations.filter((d) => ["Pending", "Escalated", "Info Requested"].includes(d.status)).length;
+  const queueCount = scopedDeclarations.filter((d) => ["Pending", "Escalated"].includes(d.status)).length;
   const monthLabel = new Date().toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
 
   const kpiDefs = [

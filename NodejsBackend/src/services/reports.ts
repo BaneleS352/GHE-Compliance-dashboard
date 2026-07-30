@@ -35,6 +35,7 @@ export async function getStatusBreakdown(req: AuthRequest): Promise<Record<strin
 export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
   const where = buildWhere(req);
   const declarations = await prisma.declaration.findMany({ where, select: { id: true, date: true } });
+  if (declarations.length === 0) return [];
 
   const roleMap: Record<string, string> = {
     lineManager: "Line Manager",
@@ -42,11 +43,18 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
     ceo: "CEO",
   };
 
-  const byRole: Record<string, number[]> = {};
+  const declarationIds = declarations.map((d) => d.id);
+  const instances = await prisma.workflowInstance.findMany({
+    where: { declarationId: { in: declarationIds } },
+  });
+  const instanceMap = new Map(instances.map((inst) => [inst.declarationId, inst]));
 
-  for (const d of declarations) {
-    const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: d.id } });
-    if (!instance) continue;
+  const byRole: Record<string, number[]> = {};
+  const declMap = new Map(declarations.map((d) => [d.id, d]));
+
+  for (const [declId, instance] of instanceMap) {
+    const d = declMap.get(declId);
+    if (!d || !d.date) continue;
     let steps: any[];
     try { steps = JSON.parse(instance.steps); } catch { continue; }
     for (const step of steps) {

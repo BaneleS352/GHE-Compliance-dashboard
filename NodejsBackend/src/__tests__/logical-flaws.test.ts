@@ -102,7 +102,7 @@ describe("State machine violations", () => {
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({ description: "attempted edit after decline" });
     expect(edit.status).toBe(400);
-    expect(edit.body.error).toMatch(/draft|info.requested/i);
+    expect(edit.body.error).toMatch(/draft|returned/i);
   });
 
   it("PUT /api/declarations/:id — editing an Escalated declaration returns 400", async () => {
@@ -594,16 +594,8 @@ describe("File access control", () => {
       .post("/api/files/upload")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .attach("file", Buffer.from("orphan file content"), "orphan.txt");
-    expect(upload.status).toBe(201);
-    const fileId = upload.body.id;
-
-    const otherToken = require("jsonwebtoken").sign(
-      { id: "user-approver", email: "sipho@test.com", role: "approver" }, "test-secret", { expiresIn: "1h" }
-    );
-    const access = await request(app)
-      .get(`/api/files/${fileId}`)
-      .set("Authorization", `Bearer ${otherToken}`);
-    expect(access.status).toBe(200);
+    // Orphan uploads are now rejected — declarationId is required
+    expect(upload.status).toBe(400);
   });
 
   it("POST /api/files/upload — upload to own declaration, other user cannot download", async () => {

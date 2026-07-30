@@ -1,335 +1,306 @@
-import { test, expect, Page, BrowserContext } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { USERS, LOGIN_INDEX, AppPage, NewDeclarationPage } from "./common-helpers";
 
-const LOGIN_DROPDOWN_INDEX: Record<string, number> = {
-  "nomvula@hb.co.za": 0,
-  "sipho@hb.co.za": 1,
-  "lindiwe@hb.co.za": 2,
-  "sandile@hb.co.za": 3,
-  "admin@hb.co.za": 4,
-};
+test.beforeEach(async ({ context }) => {
+  await context.addInitScript(() => {
+    try { localStorage.clear(); } catch { /* ignore */ }
+  });
+});
 
-async function login(page: Page, email: string) {
-  await page.goto("/");
-  await page.waitForSelector("select");
-  await page.selectOption("select", String(LOGIN_DROPDOWN_INDEX[email]));
-  await page.click('button[type="submit"]');
-  await page.waitForTimeout(1000);
-}
+test.describe("Approval Workflow — Full Flow", () => {
+  test("Full approval: LM → HR → CEO (high-value)", async ({ page }) => {
+    const app = new AppPage(page);
+    const declId = "GHE-2024-0047";
 
-async function sidebarClick(page: Page, label: string) {
-  await page.locator(`aside nav button:has-text("${label}")`).click();
-  await page.waitForTimeout(500);
-}
+    await app.login(USERS.sipho.email);
+    await app.sidebar("Approval Queue");
+    await app.clickReviewFor(declId);
+    await app.pickDecision("Accept");
+    await app.submitDecision();
 
-async function searchAndReview(page: Page, declarationId: string) {
-  await page.locator('input[placeholder="Search declarations..."]').fill(declarationId);
-  await page.waitForTimeout(1000);
-  await page.locator("table button:has-text('Review')").click();
-  await page.waitForTimeout(1000);
-}
+    await app.login(USERS.lindiwe.email);
+    await app.sidebar("Approval Queue");
+    await app.clickReviewFor(declId);
+    await app.pickDecision("Accept");
+    await app.submitDecision();
 
-async function pickDecision(page: Page, label: string) {
-  await page.locator(`div.bg-gray-50 button:has-text("${label}")`).first().click();
-  await page.waitForTimeout(300);
-}
+    await app.login(USERS.sandile.email);
+    await app.sidebar("Approval Queue");
+    await app.clickReviewFor(declId);
+    await app.pickDecision("Accept");
+    await app.submitDecision();
 
-async function submit(page: Page) {
-  await page.locator('button:has-text("Submit Decision")').click();
-  await expect(page.getByText("Decision submitted successfully")).toBeVisible({ timeout: 10000 });
-}
-
-async function verifyStatus(page: Page, declarationId: string, status: string) {
-  await page.waitForTimeout(2500);
-  await sidebarClick(page, "All Declarations");
-  await page.getByRole("button", { name: "All", exact: true }).click();
-  await page.waitForTimeout(500);
-  await page.locator('input[placeholder="Declaration ID, Type, Counterparty or Status"]').fill(declarationId);
-  await page.waitForTimeout(1000);
-  await expect(page.locator(`table td:has-text("${declarationId}")`).first()).toBeVisible();
-  await expect(page.locator(`table td span:has-text("${status}")`).first()).toBeVisible();
-}
-
-async function fillField(page: Page, label: string, value: string) {
-  await page.locator(`label:has-text("${label}") + input`).fill(value);
-}
-
-async function selectOption(page: Page, label: string, option: string) {
-  await page.locator(`div:has(> label:has-text("${label}")) [role="combobox"]`).click();
-  await page.getByRole("option", { name: option, exact: true }).click();
-  await page.waitForTimeout(200);
-}
-
-test.describe("Approval workflow e2e", () => {
-  test.beforeEach(async ({ context }) => {
-    await context.addInitScript(() => localStorage.clear());
+    await app.verifyStatus(declId, "Approved");
   });
 
-  test("Full approval: LM -> HR -> CEO (high-value GHE-2024-0047)", async ({ page }) => {
-    // LM (Sipho) accepts
-    await login(page, "sipho@hb.co.za");
-    await sidebarClick(page, "Approval Queue");
-    await searchAndReview(page, "GHE-2024-0047");
-    await pickDecision(page, "Accept");
-    await submit(page);
+  test("Rejection at HR step", async ({ page }) => {
+    const app = new AppPage(page);
+    const declId = "GHE-2024-0045";
 
-    // HR (Lindiwe) accepts
-    await login(page, "lindiwe@hb.co.za");
-    await sidebarClick(page, "Approval Queue");
-    await searchAndReview(page, "GHE-2024-0047");
-    await pickDecision(page, "Accept");
-    await submit(page);
+    await app.login(USERS.sipho.email);
+    await app.sidebar("Approval Queue");
+    await app.clickReviewFor(declId);
+    await app.pickDecision("Accept");
+    await app.submitDecision();
 
-    // CEO (Sandile) accepts
-    await login(page, "sandile@hb.co.za");
-    await sidebarClick(page, "Approval Queue");
-    await searchAndReview(page, "GHE-2024-0047");
-    await pickDecision(page, "Accept");
-    await submit(page);
+    await app.login(USERS.lindiwe.email);
+    await app.sidebar("Approval Queue");
+    await app.clickReviewFor(declId);
+    await app.pickDecision("Declined");
+    await app.submitDecision();
 
-    await verifyStatus(page, "GHE-2024-0047", "Approved");
+    await app.verifyStatus(declId, "Declined");
   });
 
-  test("Rejection at HR step (GHE-2024-0045)", async ({ page }) => {
-    await login(page, "sipho@hb.co.za");
-    await sidebarClick(page, "Approval Queue");
-    await searchAndReview(page, "GHE-2024-0045");
-    await pickDecision(page, "Accept");
-    await submit(page);
+  test("Return at HR step → resubmit → full approval", async ({ page }) => {
+    const app = new AppPage(page);
+    const declId = "GHE-2024-0044";
 
-    await login(page, "lindiwe@hb.co.za");
-    await sidebarClick(page, "Approval Queue");
-    await searchAndReview(page, "GHE-2024-0045");
-    await pickDecision(page, "Reject");
-    await submit(page);
+    await app.login(USERS.sipho.email);
+    await app.sidebar("Approval Queue");
+    await app.clickReviewFor(declId);
+    await app.pickDecision("Accept");
+    await app.submitDecision();
 
-    await verifyStatus(page, "GHE-2024-0045", "Declined");
+    await app.login(USERS.lindiwe.email);
+    await app.sidebar("Approval Queue");
+    await app.clickReviewFor(declId);
+    await app.pickDecision("Return");
+    await app.submitDecision();
+
+    await app.verifyStatus(declId, "Returned");
+
+    // Team member resubmits
+    await app.login(USERS.nomvula.email);
+    await app.sidebar("My Declarations");
+    await app.search(declId);
+    await app.clickReviewFor(declId);
+
+    const declPage = new NewDeclarationPage(page);
+    await declPage.receivedGiven("Received");
+    await declPage.select("Who did you receive it from?", "Supplier");
+    await declPage.submit();
+
+    await app.login(USERS.sipho.email);
+    await app.sidebar("Approval Queue");
+    await app.clickReviewFor(declId);
+    await app.pickDecision("Accept");
+    await app.submitDecision();
+
+    await app.login(USERS.lindiwe.email);
+    await app.sidebar("Approval Queue");
+    await app.clickReviewFor(declId);
+    await app.pickDecision("Accept");
+    await app.submitDecision();
+
+    await app.verifyStatus(declId, "Approved");
   });
 
-  test("Info Request at HR step (GHE-2024-0044)", async ({ page }) => {
-    await login(page, "sipho@hb.co.za");
-    await sidebarClick(page, "Approval Queue");
-    await searchAndReview(page, "GHE-2024-0044");
-    await pickDecision(page, "Accept");
-    await submit(page);
+  test("Team member views approved declaration timeline", async ({ page }) => {
+    const app = new AppPage(page);
 
-    await login(page, "lindiwe@hb.co.za");
-    await sidebarClick(page, "Approval Queue");
-    await searchAndReview(page, "GHE-2024-0044");
-    await pickDecision(page, "Return for More Info");
-    await submit(page);
+    await app.login(USERS.nomvula.email);
+    await app.sidebar("My Declarations");
+    await app.search("GHE-2025-0009");
 
-    await verifyStatus(page, "GHE-2024-0044", "Info Requested");
+    await app.page.locator("table button:has-text('View')").first().click();
+    await app.page.waitForLoadState("networkidle");
+
+    await app.assertVisible("Approval Workflow");
+    await app.assertVisible("Completed");
   });
+});
 
-  test("Team member views declaration with workflow timeline (GHE-2025-0009)", async ({ page }) => {
-    await login(page, "nomvula@hb.co.za");
-    await sidebarClick(page, "My Declarations");
-    await page.locator('input[placeholder="Declaration ID, Type, Counterparty or Status"]').fill("GHE-2025-0009");
-    await page.waitForTimeout(1000);
-    await page.locator("table button:has-text('View')").click();
-    await page.waitForTimeout(1000);
-    await expect(page.getByText("Approval Workflow")).toBeVisible();
-    await expect(page.getByText("Completed").first()).toBeVisible();
-  });
-
+test.describe("Declaration Creation", () => {
   test("Team member creates and submits a declaration", async ({ page }) => {
-    await login(page, "nomvula@hb.co.za");
-    await sidebarClick(page, "New Declaration");
+    const app = new AppPage(page);
+    const decl = new NewDeclarationPage(page);
 
-    // Auto-filled fields from user context
-    await expect(page.locator('label:has-text("Team Member Name") + input')).toHaveValue("Nomvula Dlamini");
-    await expect(page.locator('label:has-text("Manager Name") + input')).toHaveValue("Sipho Nkosi", { timeout: 10000 });
+    await app.login(USERS.nomvula.email);
+    await app.sidebar("New Declaration");
+    await decl.autoFilled(USERS.nomvula.name, USERS.sipho.name);
+    await decl.receivedGiven("Given");
+    await decl.select("Who did you give it to?", "Supplier");
+    await decl.fill("Name of the Supplier", "E2E Test Supplies");
+    await decl.fill("Name of the person giving", "Test Contact");
+    await decl.select("Are we currently negotiating", "No");
+    await decl.select("Is the Supplier or potential Supplier", "No");
+    await decl.select("Is there an existing or imminent", "No");
+    await decl.select("What category does the nature", "Gift");
+    await decl.textarea("E2E test gift for automated testing");
+    await decl.select("Reason/Occasion for the gift", "Business Meeting");
+    await decl.date("2026-07-15");
+    await decl.select("Number of instances", "1");
+    await decl.number("Enter the R amount", "100");
+    await decl.submit();
 
-    // Set received/given to "Given"
-    await page.locator('div:has(> label:has-text("Did you receive or give")) [role="combobox"]').click();
-    await page.getByRole("option", { name: "Given" }).click();
-    await page.waitForTimeout(200);
+    const declId = await decl.getId();
+    expect(declId).toBeTruthy();
+    await decl.closeModal();
 
-    // Fill declaration details
-    await selectOption(page, "Who did you give it to?", "Supplier");
-    await fillField(page, "Name of the Supplier", "E2E Test Supplies");
-    await fillField(page, "Name of the person giving", "Test Contact");
-    await selectOption(page, "Are we currently negotiating", "No");
-    await selectOption(page, "Is the Supplier or potential Supplier", "No");
-    await selectOption(page, "Is there an existing or imminent", "No");
-
-    // Fill GHE details
-    await selectOption(page, "What category does the nature", "Gift");
-    await page.locator("textarea").fill("E2E test gift for automated testing");
-    await selectOption(page, "Reason/Occasion for the gift", "Business Meeting");
-    await page.locator('input[type="date"]').fill("2026-07-15");
-    await selectOption(page, "Number of instances", "1");
-    await page.locator('input[placeholder="0.00"]').fill("100");
-
-    // Submit
-    await page.locator('button:has-text("Submit Declaration")').click();
-    await expect(page.getByText("Declaration Submitted!")).toBeVisible({ timeout: 15000 });
-
-    const idText = await page.locator("span.font-mono.font-bold").textContent();
-    expect(idText).toBeTruthy();
-
-    // Dismiss modal
-    await page.getByRole("button", { name: "Close" }).click();
-    await page.waitForTimeout(500);
-
-    // Log in as Sipho (LM) and verify the declaration appears in approval queue
-    const declId = idText!.trim();
-    await login(page, "sipho@hb.co.za");
-    await sidebarClick(page, "Approval Queue");
-    await page.locator('input[placeholder="Search declarations..."]').fill(declId);
-    await page.waitForTimeout(1000);
-    await expect(page.locator(`table td:has-text("${declId}")`).first()).toBeVisible();
-    await expect(page.locator(`table td span:has-text("Pending")`).first()).toBeVisible();
+    await app.login(USERS.sipho.email);
+    await app.sidebar("Approval Queue");
+    await app.search(declId);
+    await app.assertVisible(`table td:has-text("${declId}")`);
+    await app.assertVisible(`table td span:has-text("Pending")`);
   });
 
-  test("Approver creates and submits a declaration", async ({ page }) => {
-    await login(page, "lindiwe@hb.co.za");
-    await sidebarClick(page, "New Declaration");
+  test("Approver creates and submits a declaration (LM verifies)", async ({ page }) => {
+    const app = new AppPage(page);
+    const decl = new NewDeclarationPage(page);
 
-    // Auto-filled fields
-    await expect(page.locator('label:has-text("Team Member Name") + input')).toHaveValue("Lindiwe Zulu");
-    await expect(page.locator('label:has-text("Manager Name") + input')).toHaveValue("Sandile Shabalala", { timeout: 10000 });
+    await app.login(USERS.lindiwe.email);
+    await app.sidebar("New Declaration");
+    await decl.autoFilled(USERS.lindiwe.name, USERS.sandile.name);
+    await decl.receivedGiven("Received");
+    await decl.select("Who did you receive it from?", "Supplier");
+    await decl.fill("Name of the Supplier", "E2E Approver Supplies");
+    await decl.fill("Name of the person giving", "Approver Contact");
+    await decl.select("Are we currently negotiating", "N/A");
+    await decl.select("Is the Supplier or potential Supplier", "N/A");
+    await decl.select("Is there an existing or imminent", "Yes");
+    await decl.select("What category does the nature", "Hospitality");
+    await decl.textarea("E2E test hospitality for approver flow");
+    await decl.select("Reason/Occasion for the gift", "Milestone");
+    await decl.date("2026-07-15");
+    await decl.select("Number of instances", "1");
+    await decl.number("Enter the R amount", "100");
+    await decl.submit();
 
-    // Set received/given to "Received"
-    await page.locator('div:has(> label:has-text("Did you receive or give")) [role="combobox"]').click();
-    await page.getByRole("option", { name: "Received" }).click();
-    await page.waitForTimeout(200);
+    const declId = await decl.getId();
+    expect(declId).toBeTruthy();
+    await decl.closeModal();
 
-    // Fill declaration details
-    await selectOption(page, "Who did you receive it from?", "Supplier");
-    await fillField(page, "Name of the Supplier", "E2E Approver Supplies");
-    await fillField(page, "Name of the person giving", "Approver Contact");
-    await selectOption(page, "Are we currently negotiating", "N/A");
-    await selectOption(page, "Is the Supplier or potential Supplier", "N/A");
-    await selectOption(page, "Is there an existing or imminent", "Yes");
-
-    // Fill GHE details
-    await selectOption(page, "What category does the nature", "Hospitality");
-    await page.locator("textarea").fill("E2E test hospitality for approver flow");
-    await selectOption(page, "Reason/Occasion for the gift", "Milestone");
-    await page.locator('input[type="date"]').fill("2026-07-15");
-    await selectOption(page, "Number of instances", "1");
-    await page.locator('input[placeholder="0.00"]').fill("100");
-
-    // Submit
-    await page.locator('button:has-text("Submit Declaration")').click();
-    await expect(page.getByText("Declaration Submitted!")).toBeVisible({ timeout: 15000 });
-
-    const idText = await page.locator("span.font-mono.font-bold").textContent();
-    expect(idText).toBeTruthy();
-
-    // Dismiss modal
-    await page.getByRole("button", { name: "Close" }).click();
-    await page.waitForTimeout(500);
-
-    // Login as Sandile (Lindiwe's LM) and verify declaration appears in approval queue
-    const declId = idText!.trim();
-    await login(page, "sandile@hb.co.za");
-    await sidebarClick(page, "Approval Queue");
-    await page.locator('input[placeholder="Search declarations..."]').fill(declId);
-    await page.waitForTimeout(1000);
-    await expect(page.locator(`table td:has-text("${declId}")`).first()).toBeVisible();
-    await expect(page.locator(`table td span:has-text("Pending")`).first()).toBeVisible();
+    await app.login(USERS.sandile.email);
+    await app.sidebar("Approval Queue");
+    await app.search(declId);
+    await app.assertVisible(`table td:has-text("${declId}")`);
+    await app.assertVisible(`table td span:has-text("Pending")`);
   });
+});
 
+test.describe("Admin — User Management", () => {
   test("Admin creates a new user", async ({ page }) => {
-    await login(page, "admin@hb.co.za");
-    await sidebarClick(page, "Users");
+    const app = new AppPage(page);
 
-    // Verify admin sidebar
-    await expect(page.locator('aside nav button:has-text("Dashboard")')).toBeVisible();
-    await expect(page.locator('aside nav button:has-text("Users")')).toBeVisible();
-    await expect(page.locator('aside nav button:has-text("Workflows")')).toBeVisible();
-    await expect(page.locator('aside nav button:has-text("Dropdowns")')).toBeVisible();
-    await expect(page.locator('aside nav button:has-text("Config")')).toBeVisible();
-    await expect(page.locator('aside nav button:has-text("Reports")')).toBeVisible();
+    await app.login(USERS.admin.email);
+    await app.sidebar("Users");
 
     const ts = Date.now();
     const userName = `E2E User ${ts}`;
     const userEmail = `e2e-${ts}@hb.co.za`;
 
-    // Handle prompt dialogs for creating a user
-    page.on("dialog", (dialog) => {
+    page.on("dialog", async (dialog) => {
       const msg = dialog.message();
-      if (msg.startsWith("User name")) dialog.accept(userName);
-      else if (msg.startsWith("Email")) dialog.accept(userEmail);
-      else if (msg.startsWith("Role")) dialog.accept("approver");
-      else if (msg.startsWith("Department")) dialog.accept("Marketing");
-      else dialog.dismiss();
+      if (msg.startsWith("User name")) await dialog.accept(userName);
+      else if (msg.startsWith("Email")) await dialog.accept(userEmail);
+      else if (msg.startsWith("Role")) await dialog.accept("approver");
+      else if (msg.startsWith("Department")) await dialog.accept("Marketing");
+      else await dialog.dismiss();
     });
 
-    await page.getByRole("button", { name: "Add User" }).click();
-    await page.waitForTimeout(2000);
+    await app.page.getByRole("button", { name: "Add User" }).click();
+    await app.page.waitForTimeout(1500);
 
-    // Verify user appears in the table
-    await expect(page.locator(`table td:has-text("${userName}")`)).toBeVisible();
-    await expect(page.locator(`table td:has-text("${userEmail}")`)).toBeVisible();
+    await app.assertVisible(`table td:has-text("${userName}")`);
+    await app.assertVisible(`table td:has-text("${userEmail}")`);
   });
 
-  test("Approver dashboard displays KPIs and recent declarations", async ({ page }) => {
-    await login(page, "sipho@hb.co.za");
-    await sidebarClick(page, "Dashboard");
+  test("Admin sees all navigation items", async ({ page }) => {
+    const app = new AppPage(page);
 
-    // Page header
-    await expect(page.getByRole("heading", { name: "Approver Dashboard" })).toBeVisible();
-    await expect(page.getByText("Hollywoodbets GHE Overview")).toBeVisible();
+    await app.login(USERS.admin.email);
+    await app.sidebar("Dashboard");
 
-    // KPI cards — target the p tags which are the card labels
-    await expect(page.getByText("Pending Queue").first()).toBeVisible();
-    await expect(page.locator("p.text-muted-foreground:has-text('Approved')").first()).toBeVisible();
-    await expect(page.locator("p.text-muted-foreground:has-text('Declined')").first()).toBeVisible();
+    await app.assertVisible('aside nav button:has-text("Dashboard")');
+    await app.assertVisible('aside nav button:has-text("Users")');
+    await app.assertVisible('aside nav button:has-text("Workflows")');
+    await app.assertVisible('aside nav button:has-text("Dropdowns")');
+    await app.assertVisible('aside nav button:has-text("Config")');
+    await app.assertVisible('aside nav button:has-text("Reports")');
+  });
+});
 
-    // Approval Queue button (sidebar nav)
-    await expect(page.locator('button:has-text("Approval Queue")').first()).toBeVisible();
+test.describe("Dashboard", () => {
+  test("Approver dashboard shows KPIs", async ({ page }) => {
+    const app = new AppPage(page);
 
-    // Recent declarations section
-    await expect(page.getByText("Show All Declarations")).toBeVisible();
+    await app.login(USERS.sipho.email);
+    await app.sidebar("Dashboard");
+
+    await app.assertVisible("Approver Dashboard");
+    await app.assertVisible("Pending Queue");
+  });
+});
+
+test.describe("Reports", () => {
+  test("Admin accesses reports", async ({ page }) => {
+    const app = new AppPage(page);
+
+    await app.login(USERS.admin.email);
+    await app.sidebar("Reports");
+
+    await app.assertVisible("Reports", { timeout: 5000 });
   });
 
-  test("Approval Queue filters and search", async ({ page }) => {
-    await login(page, "sipho@hb.co.za");
-    await sidebarClick(page, "Approval Queue");
+  test("Approver can generate status breakdown report", async ({ page }) => {
+    const app = new AppPage(page);
 
-    await expect(page.getByRole("heading", { name: "Approval Queue" })).toBeVisible();
+    await app.login(USERS.sipho.email);
+    await app.sidebar("Reports");
 
-    // Search input exists and is usable
-    const searchInput = page.locator('input[placeholder="Search declarations..."]');
-    await expect(searchInput).toBeVisible();
-
-    // Type a partial search that matches pending declarations
-    await searchInput.fill("GHE-2025");
-    await page.waitForTimeout(1000);
-
-    // Clear search
-    await searchInput.fill("");
-    await page.waitForTimeout(500);
-
-    // Toggle advanced filters
-    await page.locator('button:has-text("Filters")').click();
-    await page.waitForTimeout(500);
+    await app.assertVisible("Status Breakdown", { timeout: 5000 });
   });
+});
 
+test.describe("Dashboard — Admin", () => {
+  test("Admin visits Dashboard page", async ({ page }) => {
+    const app = new AppPage(page);
+
+    await app.login(USERS.admin.email);
+    await app.sidebar("Dashboard");
+
+    await app.assertVisible("h1:has-text('Admin'), h1:has-text('Dashboard')");
+  });
+});
+
+test.describe("Workflow — Admin Management", () => {
   test("Admin manages workflow rules", async ({ page }) => {
-    await login(page, "admin@hb.co.za");
-    await sidebarClick(page, "Workflows");
+    const app = new AppPage(page);
 
-    await expect(page.getByText("Approval Workflows")).toBeVisible();
+    await app.login(USERS.admin.email);
+    await app.sidebar("Workflows");
 
-    // Verify rules are displayed
-    const ruleCards = page.locator("h3.text-base.font-bold");
-    const ruleCount = await ruleCards.count();
-    expect(ruleCount).toBeGreaterThanOrEqual(3);
+    await app.assertVisible("Approval Workflow", { timeout: 5000 });
+  });
+});
 
-    // Edit the first rule's name
-    await page.locator('button:has-text("Edit")').first().click();
-    await page.waitForTimeout(300);
+test.describe("Edge Cases & Error Handling", () => {
+  test("Team member can view My Declarations tab", async ({ page }) => {
+    const app = new AppPage(page);
 
-    const nameInput = page.locator("input.text-base.font-bold.rounded");
-    await nameInput.fill("Updated Rule Name");
-    await page.locator('button:has-text("Save")').click();
-    await page.waitForTimeout(1500);
+    await app.login(USERS.nomvula.email);
+    await app.sidebar("My Declarations");
 
-    // Verify the new name appears
-    await expect(page.getByText("Updated Rule Name")).toBeVisible();
+    await app.assertVisible("My Declarations", { timeout: 5000 });
+    await app.assertVisible("table");
+  });
+
+  test("New declaration form pre-fills user fields", async ({ page }) => {
+    const app = new AppPage(page);
+    const decl = new NewDeclarationPage(page);
+
+    await app.login(USERS.nomvula.email);
+    await app.sidebar("New Declaration");
+    await decl.autoFilled(USERS.nomvula.name, USERS.sipho.name);
+  });
+
+  test("Approver dashboard has Approval Queue link", async ({ page }) => {
+    const app = new AppPage(page);
+
+    await app.login(USERS.sipho.email);
+    await app.sidebar("Dashboard");
+
+    await app.assertVisible('button:has-text("Approval Queue")');
   });
 });

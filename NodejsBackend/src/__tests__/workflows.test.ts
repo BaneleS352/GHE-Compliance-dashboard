@@ -52,7 +52,7 @@ describe("Workflows", () => {
     expect(res.body.newStatus).toBe("Declined");
   });
 
-  it("POST /api/workflows/approve — return sets Info Requested", async () => {
+  it("POST /api/workflows/approve — return sets Returned", async () => {
     // Create and submit a fresh declaration to test return (value 1000 maps to rule-2)
     const create = await request(app)
       .post("/api/declarations")
@@ -77,7 +77,7 @@ describe("Workflows", () => {
       .set("Authorization", `Bearer ${getApproverToken()}`)
       .send({ declarationId: id, decision: "return", notes: "Need more info" });
     expect(res.status).toBe(200);
-    expect(res.body.newStatus).toBe("Info Requested");
+    expect(res.body.newStatus).toBe("Returned");
   });
 
   it("POST /api/workflows/approve — rejects unauthorized user", async () => {
@@ -124,7 +124,7 @@ describe("Workflows", () => {
     expect(res.body.currentStep.decision).toBe("decline");
   });
 
-  it("POST /api/workflows/approve — 'return' decision maps to Info Requested", async () => {
+  it("POST /api/workflows/approve — 'return' decision maps to Returned", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -148,7 +148,7 @@ describe("Workflows", () => {
       .set("Authorization", `Bearer ${getApproverToken()}`)
       .send({ declarationId: id, decision: "return", notes: "Need more info" });
     expect(res.status).toBe(200);
-    expect(res.body.newStatus).toBe("Info Requested");
+    expect(res.body.newStatus).toBe("Returned");
     expect(res.body.currentStep.decision).toBe("return");
   });
 

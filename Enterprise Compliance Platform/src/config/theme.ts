@@ -42,7 +42,6 @@ export const STATUS_COLORS: Record<StatusType, { bg: string; text: string; ring:
   Approved:         { bg: "bg-emerald-50", text: "text-emerald-700", ring: "bg-emerald-500", hex: "#10b981", dot: "bg-emerald-500", rail: "bg-emerald-300" },
   Declined:         { bg: "bg-red-50",     text: "text-red-700",     ring: "bg-red-500", hex: "#ef4444", dot: "bg-red-500", rail: "bg-red-300" },
   Escalated:        { bg: "bg-orange-50",  text: "text-orange-700",  ring: "bg-orange-500", hex: "#f97316", dot: "bg-orange-500", rail: "bg-orange-300" },
-  "Info Requested": { bg: "bg-blue-50",    text: "text-blue-700",    ring: "bg-blue-500", hex: "#3b82f6", dot: "bg-blue-500", rail: "bg-blue-300" },
   Returned:         { bg: "bg-sky-50",     text: "text-sky-700",     ring: "bg-sky-500", hex: "#06b6d4", dot: "bg-sky-500", rail: "bg-sky-300" },
 };
 

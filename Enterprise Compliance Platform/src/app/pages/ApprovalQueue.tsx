@@ -23,6 +23,7 @@ function isOutstanding(dateStr: string): boolean {
 
 export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void }) {
   const [allDeclarations, setAllDeclarations] = useState<Declaration[]>([]);
+  const [stepsMap, setStepsMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -38,7 +39,12 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
 
   useEffect(() => {
     fetchPendingWorkflows()
-      .then((items) => setAllDeclarations(items.map((item) => item.declaration)))
+      .then((items) => {
+        setAllDeclarations(items.map((item) => item.declaration));
+        const map: Record<string, string> = {};
+        items.forEach((item) => { if (item.step) map[item.declaration.id] = item.step.label; });
+        setStepsMap(map);
+      })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
@@ -54,7 +60,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       (!query ||
         d.id.toLowerCase().includes(query) ||
         d.employee.toLowerCase().includes(query) ||
-        d.Counterparty.toLowerCase().includes(query)) &&
+        d.counterparty.toLowerCase().includes(query)) &&
       (department === "All" || d.department === department) &&
       (status === "All" || d.status === status) &&
       (priority === "All" || d.priority === priority) &&
@@ -64,8 +70,8 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   });
   const sortFieldMap: Record<string, string> = {
     "Declaration ID": "id", Employee: "employee", Dept: "department", Type: "type",
-    Counterparty: "Counterparty", Value: "value", Submitted: "submitted",
-    Priority: "priority", Status: "status",
+    Counterparty: "counterparty", Value: "value", Submitted: "submitted",
+    Priority: "priority", Status: "status", Step: "step",
   };
   const sorted = sortKey
     ? [...filteredQueue].sort((a, b) => {
@@ -91,11 +97,12 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         Employee: d.employee,
         Department: d.department,
         Type: d.type,
-        Counterparty: d.Counterparty,
+        Counterparty: d.counterparty,
         Value: d.value,
         Submitted: d.submitted,
         Priority: d.priority,
         Status: d.status,
+        Step: stepsMap[d.id] || "-",
       }))
     );
   };
@@ -193,7 +200,6 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
               <option value="All">All Statuses</option>
               <option>Pending</option>
               <option>Escalated</option>
-              <option>Info Requested</option>
               <option>Returned</option>
             </select>
           </div>
@@ -228,8 +234,16 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
         </div>
       </Card>
 
+      {allDeclarations.length === 0 && !loading && (
+        <div className="rounded-xl border border-dashed border-border bg-white/50 p-10 text-center text-sm text-muted-foreground">
+          No declarations awaiting your review.
+        </div>
+      )}
       <Card className="space-y-3 p-3.5 md:hidden">
-        {pagedQueue.map((d) => (
+        {pagedQueue.length === 0 && !loading ? (
+          <div className="py-10 text-center text-sm text-muted-foreground">No declarations match your filters.</div>
+        ) : null}
+        {pagedQueue.length > 0 && pagedQueue.map((d) => (
           <div key={d.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -275,7 +289,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       <Card className="hidden overflow-x-auto md:block">
         <Table>
           <Thead>
-            {["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status"].map((label) => (
+            {["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status", "Step"].map((label) => (
               <Th
                 key={label}
                 sortable
@@ -292,19 +306,22 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
             <Th>Actions</Th>
           </Thead>
           <Tbody>
-            {pagedQueue.map((d) => (
+            {pagedQueue.length === 0 ? (
+              <Tr><Td colSpan={11} className="py-10 text-center text-sm text-muted-foreground">No declarations match your filters.</Td></Tr>
+            ) : pagedQueue.map((d) => (
               <Tr key={d.id}>
                 <Td><span className={COL.ID} style={{ color: PURPLE }}>{d.id}</span></Td>
                 <Td className={COL.EMPLOYEE}>{d.employee}</Td>
                 <Td className={COL.DEPARTMENT}>{d.department}</Td>
                 <Td><TypeBadge type={d.type} /></Td>
-                <Td className={COL.COUNTERPARTY}>{d.Counterparty}</Td>
+                <Td className={COL.COUNTERPARTY}>{d.counterparty}</Td>
                 <Td className={COL.VALUE}>{formatRand(d.value)}</Td>
                 <Td className={COL.SUBMITTED}>{d.submitted}</Td>
                 <Td>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${PRIORITY_COLORS[d.priority]?.bg || ""} ${PRIORITY_COLORS[d.priority]?.text || ""}`}>{d.priority}</span>
                 </Td>
                 <Td><StatusBadge status={d.status} /></Td>
+                <Td><span className="text-xs text-gray-500">{stepsMap[d.id] || "-"}</span></Td>
                 <Td>
                   <button
                     onClick={() => onReview(d)}

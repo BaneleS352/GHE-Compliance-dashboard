@@ -121,8 +121,8 @@ When an approver submits a decision via `POST /api/workflows/approve`, the `deci
 | `accept` | `approved` | "Pending" (if more steps) or "Approved" (if final step) |
 | `reject` | `declined` | "Declined" |
 | `decline` | `declined` | "Declined" |
-| `info` | `returned` | "Info Requested" |
-| `return` | `returned` | "Info Requested" |
+| `info` | `returned` | "Returned" |
+| `return` | `returned` | "Returned" |
 | `escalate` | `approved` | Preserves next pending step (does not advance to final) |
 | `org` | `approved` | Legacy — still accepted |
 | `foundation` | `approved` | Legacy — still accepted |

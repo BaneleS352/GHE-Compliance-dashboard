@@ -46,9 +46,6 @@ app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/admin/config", adminConfigRoutes);
 app.use("/api/admin/workflows", adminWorkflowRoutes);
 
-// Serve uploaded files statically
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
-
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
