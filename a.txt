@@ -1,0 +1,62 @@
+BET QA Questionnaire
+Please complete the responses in the spaces provided below.
+1. Number of users for the application?
+
+
+
+
+2. Number of images sent?
+
+
+
+
+3. What storage is being used?
+
+
+
+
+4. Who will the app be used by (internally or externally)?
+
+
+
+
+5. What security measures did you take?
+
+
+
+
+6. Language the app is built with?
+
+
+
+
+7. Detailed system overview, including architecture, data storage locations, and integration points
+
+
+
+
+8. Confirm timelines and expectations
+
+
+
+
+9. Data archiving processes
+
+
+
+
+10. User verification and fraud prevention controls
+
+
+
+
+11. Expected deployment date
+
+
+
+
+12. Date for the app to be used
+
+
+
+
