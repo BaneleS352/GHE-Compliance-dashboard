@@ -60,7 +60,7 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
   if (status) where.status = status;
   if (req.user!.role === "teamMember") {
     where.employeeId = req.user!.id;
-  } else if (req.user!.role === "approver" && req.user!.department) {
+  } else if (req.user!.role === "approver" && req.user!.department && req.user!.position === "Line Manager") {
     where.department = req.user!.department;
   }
 

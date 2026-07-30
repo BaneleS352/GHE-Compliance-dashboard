@@ -10,6 +10,7 @@ export interface AuthRequest extends Request {
     role: string;
     name: string;
     department?: string;
+    position?: string;
   };
 }
 
@@ -23,7 +24,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, config.jwtSecret) as { id: string; email: string; role: string; name: string; department?: string };
+    const decoded = jwt.verify(token, config.jwtSecret) as { id: string; email: string; role: string; name: string; department?: string; position?: string };
     try {
       const dbUser = await prisma.user.findUnique({ where: { id: decoded.id }, select: { role: true } });
       if (dbUser && dbUser.role !== decoded.role) {

@@ -54,7 +54,6 @@ Form state uses PascalCase keys (`Counterparty`, `employeeName`, etc.) mapped vi
 Maps column header labels to data field names (lowercase camelCase). Example: `"Counterparty" → "counterparty"`. Field names must match the `Declaration` type property names exactly.
 
 ### Auth tokens in tests
-Test helpers (`getAdminToken`, `getApproverToken`, `getTeamToken`, `getHrToken`) return JWTs with roles: `admin`, `approver`, `teamMember`, `approver` respectively. Approvers see department-scoped declarations. Team members see only their own declarations.
 
 ## Recent Session Changes
 
@@ -90,7 +89,18 @@ All audit findings (7 CRITICAL, 8 HIGH, 15 MEDIUM, 12 LOW) have been resolved:
 - `fetchCurrentUser()` has 8s timeout
 - `httpClient` 204 returns `undefined` (not `null`)
 
-### Code Quality
+### Auth & JWT
+- JWT payload now includes `department` and `position` fields alongside `id`, `email`, `role`, `name`
+- `AuthRequest.user` type in `middleware/auth.ts` includes `department?: string` and `position?: string`
+- `GET /api/users/:id` now allows any authenticated user (removed admin-or-self restriction; needed for CEO/managers to look up user names)
+- `GET /api/workflows/pending` removed department scoping (per-user pending assignments handle scope already)
+- `GET /api/declarations` department scoping now only applies to `position === "Line Manager"` — HR and CEO see all declarations
+
+### CEO Flow Fixes
+- CEO (`position: "Group CEO"`) now sees all declarations on "All Declarations" tab (same as admin)
+- CEO dashboard (`ApproverDashboard.tsx`) treats CEO like admin for scoped declarations view
+- `getCeoToken()` test helper updated to include `department: "Executive"` and `position: "Group CEO"`
+- All test tokens now include `department` and `position` fields to match production JWTs
 - Dead `hasApprovedPredecessors` function removed
 - `useWorkflowApproval.ts` cleaned up (removed erroneous backend code, restored React imports + correct paths)
 - Test fixes for intentional security changes (file upload IDOR, report role guards)
