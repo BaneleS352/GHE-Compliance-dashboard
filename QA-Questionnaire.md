@@ -4,7 +4,7 @@
 
 12 seed users in the database (expandable via admin UI). 5 distinct roles: `teamMember` (7 users), `approver` (3 users: 1 Line Manager, 1 Head of HR, 1 Group CEO), `admin` (1 user). No hard limit on user count — new users can be created through the admin interface.
 
-### 2. Number of images sent?
+### 2. Number of images used? (in the app)
 
 Not applicable. The application handles file uploads (declaration supporting documents), not images specifically. Uploads are stored as files on disk under `uploads/` and served exclusively through authenticated API endpoints. No image-specific processing or image-sending functionality.
 
@@ -54,7 +54,7 @@ Not applicable. The application handles file uploads (declaration supporting doc
 │  Frontend           │      │  Backend             │      │  Database    │
 │  React 18 + Vite    │ ───▶ │  Express + Prisma    │ ───▶ │  PostgreSQL  │
 │  (port 80 / 5173)   │      │  (port 3001)         │      │  (internal)  │
-│  NGINX (prod)       │ �-�─── │  JWT Auth Middleware │      └──────────────┘
+│  NGINX (prod)       │ �-�─── │  JWT Auth Middleware │      └──────────────┘
 └─────────────────────┘      └─────────────────────┘
 ```
 
