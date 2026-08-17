@@ -289,7 +289,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       <Card className="hidden overflow-x-auto md:block">
         <Table>
           <Thead>
-            {["Declaration ID", "Employee", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status", "Step"].map((label) => (
+            {["Declaration ID", "TeamMember", "Dept", "Type", "Counterparty", "Value", "Submitted", "Priority", "Status", "Step"].map((label) => (
               <Th
                 key={label}
                 sortable

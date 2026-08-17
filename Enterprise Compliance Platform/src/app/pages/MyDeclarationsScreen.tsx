@@ -152,6 +152,10 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
       },
     ]);
   };
+  const totalValue = visibleDeclarations.reduce(
+    (sum, d) => sum + d.value,
+    0
+  );
 
   if (viewDecl) {
     const displayStatus = viewDeclStatus || viewDecl.status;
@@ -242,7 +246,11 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
           return (
             <KpiCard
               key={def.key}
-              label={def.label}
+              label={
+                k === "Total"
+                  ? `${def.label}\n${formatRand(totalValue)}`
+                  : def.label
+              }
               value={String(count)}
               icon={def.icon}
               color={def.color}
