@@ -3,15 +3,15 @@ import {
   FileText, Upload, Download, Check, AlertCircle,
   Paperclip, Trash2, Send, X,
 } from "lucide-react";
-import { Sel } from "../components/Sel";
-import { FL } from "../components/FL";
-import { FS, FORM_SECTIONS } from "../components/FS";
-import { Card } from "../components/Card";
-import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG } from "../../config/theme";
-import { Declaration, UploadedFile } from "../../types/declaration";
-import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "../../services/api";
-import { useUser } from "../auth/UserContext";
-import { fetchConfig, fetchUserById, updateDeclaration } from "../../services/api";
+import { Sel } from "@/app/components/Sel"
+import { FL } from "@/app/components/FL";
+import { FS, FORM_SECTIONS } from "@/app/components/FS";
+import { Card } from "@/app/components/Card";
+import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG } from "@/config/theme";
+import { Declaration, UploadedFile } from "@/types/declaration";
+import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "@/services/api";
+import { useUser } from "@/app/auth/UserContext";
+import { fetchConfig, fetchUserById, updateDeclaration } from "@/services/api";
 
 const determineRuleId = (value: number, highThreshold: number, mediumThreshold: number): string => {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "rule-1";

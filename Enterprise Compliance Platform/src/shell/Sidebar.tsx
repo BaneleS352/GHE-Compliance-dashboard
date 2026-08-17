@@ -1,9 +1,9 @@
 import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, Activity, List, BarChart3, CheckCircle2 } from "lucide-react";
-import { ImageWithFallback } from "../app/components/ImageWithFallback";
-import logoImg from "../assets/HB-Logo-NO-BG.png";
-import { YELLOW, GRADIENT_SIDEBAR } from "../config/theme";
-import { Role, Screen, User } from "../types/declaration";
-import { canAccessScreen } from "../app/auth/authService";
+import { ImageWithFallback } from "@/app/components/ImageWithFallback";
+import logoImg from "@/assets/HB-Logo-NO-BG.png";
+import { YELLOW, GRADIENT_SIDEBAR } from "@/config/theme";
+import { Role, Screen, User } from "@/types/declaration";
+import { canAccessScreen } from "@/app/auth/authService";
 
 export function Sidebar({
   role,

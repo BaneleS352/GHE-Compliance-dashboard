@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from "react";
-import { User } from "../../types/declaration";
-import { clearToken } from "../../services/httpClient";
+import { User } from "@/types/declaration";
+import { clearToken } from "@/services/httpClient";
 import { fetchCurrentUser } from "./authService";
 
 interface UserContextValue {

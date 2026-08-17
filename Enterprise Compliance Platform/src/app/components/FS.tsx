@@ -1,6 +1,6 @@
 import React from "react";
 import { Card } from "./Card";
-import { PURPLE, GRADIENT_PRIMARY } from "../../config/theme";
+import { PURPLE, GRADIENT_PRIMARY } from "@/config/theme";
 
 export const FORM_SECTIONS = [
   { id: "sec-team",        num: "1", label: "Team Member Details" },

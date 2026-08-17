@@ -1,6 +1,6 @@
 import React, { useId } from "react";
 import { FileText, Clock, Check, Undo, X, ArrowUp } from "lucide-react";
-import { STATUS_COLORS } from "../../config/theme";
+import { STATUS_COLORS } from "@/config/theme";
 
 export interface KpiDef {
   key: string;
@@ -171,6 +171,7 @@ function getDecor(keyOrLabel: string): React.FC<{ id: string }> {
 export function KpiCard({
   label,
   value,
+   secondaryValue,
   icon: Icon,
   color,
   active,
@@ -180,6 +181,7 @@ export function KpiCard({
 }: {
   label: string;
   value: string;
+  secondaryValue?: string;
   icon: React.ElementType;
   color: string;
   active?: boolean;
@@ -238,11 +240,19 @@ export function KpiCard({
         </div>
 
         <div
-          className="mt-[10px] text-[40px] font-bold leading-none tracking-[-0.02em] text-white"
-          style={{ textShadow: "0 2px 12px rgba(0,0,0,0.25)" }}
-        >
-          {value}
-        </div>
+  className="mt-[10px] flex items-baseline justify-between gap-4"
+  style={{ textShadow: "0 2px 12px rgba(0,0,0,0.25)" }}
+    >
+      <span className="text-[40px] font-bold leading-none tracking-[-0.02em] text-white">
+        {value}
+      </span>
+
+      {secondaryValue && (
+        <span className="text-[40px] font-bold leading-none tracking-[-0.02em] text-white whitespace-nowrap">
+          {secondaryValue}
+        </span>
+      )}
+    </div>
 
         {delta && (
           <span

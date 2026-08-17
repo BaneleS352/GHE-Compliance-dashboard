@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
-import { Declaration } from "../../types/declaration";
-import { StatusBadge } from "../components/StatusBadge";
-import { DeclarationDetailView, SupportingDocuments } from "../pages/DeclarationDetailView";
-import { WorkflowTimeline } from "../components/WorkflowTimeline";
-import { useUser } from "../auth/UserContext";
-import { useWorkflowApproval } from "../hooks/useWorkflowApproval";
+import { Declaration } from "@/types/declaration";
+import { StatusBadge } from "@/app/components/StatusBadge";
+import { DeclarationDetailView, SupportingDocuments } from "@/app/pages/DeclarationDetailView";
+import { WorkflowTimeline } from "@/app/components/WorkflowTimeline";
+import { useUser } from "@/app/auth/UserContext";
+import { useWorkflowApproval } from "@/app/hooks/useWorkflowApproval";
 
 export function ApprovalDetail({ declaration, onBack, readOnly }: { declaration: Declaration; onBack: () => void; readOnly?: boolean }) {
   const { user } = useUser();
@@ -44,7 +44,7 @@ export function ApprovalDetail({ declaration, onBack, readOnly }: { declaration:
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
         <div className="xl:col-span-3">
-          <DeclarationDetailView data={declaration} onBack={() => {}} hideBackButton hideDocuments hideTitle />
+          <DeclarationDetailView data={declaration} onBack={() => {}} hideBackButton hideDocuments />
         </div>
 
         <div className="xl:col-span-2 space-y-5">

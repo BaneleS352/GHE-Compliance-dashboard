@@ -1,6 +1,6 @@
 import { LogOut } from "lucide-react";
-import { PURPLE, GRADIENT_PRIMARY } from "../config/theme";
-import { Role } from "../types/declaration";
+import { PURPLE, GRADIENT_PRIMARY } from "@/config/theme";
+import { Role } from "@/types/declaration";
 
 export function TopBar({
   userName,

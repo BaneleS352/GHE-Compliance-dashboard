@@ -1,13 +1,17 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import type { ApprovalDecision } from "../../types/declaration";
-import { fetchWorkflowInstance, approveWorkflowStep } from "../../services/api";
-import { DECISION_LABELS } from "../../config/theme";
-import type { StepView } from "../../components/WorkflowTimeline";
+import { fetchWorkflowInstance, approveWorkflowStep } from "@/services/api";
+import { DECISION_LABELS } from "@/config/theme";
+// import type { StepView } from "@/../components/WorkflowTimeline";
+import type { StepView } from "@/app/components/WorkflowTimeline"
+import type {
+    ApprovalDecision,
+    StatusType,
+} from "@/types/declaration";
 
 interface UseWorkflowApprovalOptions {
-  declarationId: string | null;
-  userId: string | null;
-  onStatusUpdate?: (status: string) => void;
+    declarationId: string | null;
+    userId: string | null;
+    onStatusUpdate?: (status: StatusType) => void;
 }
 
 export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: UseWorkflowApprovalOptions) {
@@ -139,6 +143,7 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
     const notes = notesByRole[currentUserStep.role];
     if (!decision) return;
     try {
+      if (!declarationId) return;
       const res = await approveWorkflowStep({ declarationId, decision, notes });
       if (res?.newStatus) onStatusUpdate?.(res.newStatus);
       await loadWorkflowInstance();

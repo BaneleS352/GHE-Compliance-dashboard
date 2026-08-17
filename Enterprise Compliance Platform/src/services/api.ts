@@ -1,5 +1,5 @@
-import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile } from "../types/declaration";
-import { api } from "./httpClient";
+import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile } from"@/types/declaration" 
+import { api } from "@/services/httpClient" 
 
 export async function fetchDeclarations(status?: string, search?: string): Promise<Declaration[]> {
   const params = new URLSearchParams();

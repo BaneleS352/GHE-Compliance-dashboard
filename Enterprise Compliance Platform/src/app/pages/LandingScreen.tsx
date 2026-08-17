@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { ImageWithFallback } from "../components/ImageWithFallback";
-import logoImg from "../../assets/Logo.png";
-import bannerImg from "../../assets/Button.png";
-import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_LANDING } from "../../config/theme";
-import { Role } from "../../types/declaration";
-import { useUser } from "../auth/UserContext";
-import { authenticate } from "../auth/authService";
+import { ImageWithFallback } from "@/app/components/ImageWithFallback";
+import logoImg from "@/assets/Logo.png";
+import bannerImg from "@/assets/Button.png";
+import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_LANDING } from "@/config/theme";
+import { Role } from "@/types/declaration";
+import { useUser } from "@/app/auth/UserContext";
+import { authenticate } from "@/app/auth/authService";
 
 const QUICK_LOGIN_USERS = [
   { label: "Team Member — Nomvula Dlamini",  email: "nomvula@hb.co.za",  role: "teamMember" as const },

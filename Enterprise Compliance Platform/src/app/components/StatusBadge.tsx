@@ -1,5 +1,5 @@
-import { STATUS_COLORS } from "../../config/theme";
-import { StatusType } from "../../types/declaration";
+import { STATUS_COLORS } from "@/config/theme";
+import { StatusType } from "@/types/declaration";
 
 export function StatusBadge({ status }: { status: StatusType }) {
   const fallback = { bg: "bg-slate-100", text: "text-slate-600", ring: "bg-slate-400" };
