@@ -65,9 +65,11 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   );
 
   const scopedDeclarations = useMemo(() => {
-    if (isTeamMember) return currentMonthDeclarations.filter((d) => d.employeeId === user?.id);
-    return currentMonthDeclarations;
-  }, [currentMonthDeclarations, isTeamMember, user]);
+    if (isTeamMember) {
+      return declarations.filter((d) => d.employeeId === user?.id);
+    }
+    return declarations;
+  }, [declarations, isTeamMember, user]);
 
   const filteredDeclarations = useMemo(() => {
     if (activeFilter === "All" || activeFilter === "Total Value") return scopedDeclarations;
@@ -165,7 +167,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
     <div className="space-y-6">
       <PageHeader
         title="Approver Dashboard"
-        subtitle={`Current month view — ${monthLabel}`}
+        subtitle="Inception to Date"
         actions={
           <button
             onClick={() => onNavigate("approval-queue")}
@@ -207,7 +209,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
           </div>
           <div className="mt-3 flex-1 space-y-2">
             {teamActivity.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No current-month activity yet</p>
+              <p className="text-xs text-muted-foreground">No activity available</p>
             ) : (
               teamActivity.map((row) => (
                 <div key={row.name} className="rounded-xl bg-purple-50/40 p-3 ring-1 ring-purple-500/8 transition-all hover:bg-purple-50/70">
@@ -232,7 +234,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
           </div>
           <div className="mt-3 flex-1">
             {typeDistribution.length === 0 ? (
-              <div className="flex h-full min-h-48 items-center justify-center text-xs text-muted-foreground">No current-month data yet</div>
+              <div className="flex h-full min-h-48 items-center justify-center text-xs text-muted-foreground">No data available</div>
             ) : (
               <>
                 <div className="h-56">
@@ -272,7 +274,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
             {overdueDeclarations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-6 text-center">
                 <p className="text-xs font-semibold text-emerald-600">All caught up!</p>
-                <p className="text-[10px] text-muted-foreground">No declarations overdue this month</p>
+                <p className="text-[10px] text-muted-foreground">No overdue declarations</p>
               </div>
             ) : (
               overdueDeclarations.slice(0, 5).map((d) => (
@@ -299,7 +301,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
         <div className="flex items-center justify-between border-b border-purple-100 px-5 py-4">
           <h3 className="text-sm font-bold text-foreground">Department Insights</h3>
           <p className="text-xs text-muted-foreground">
-            <strong className="text-foreground">{departmentStats.reduce((sum, row) => sum + row.declarations, 0)}</strong> current-month declarations
+            <strong className="text-foreground">{departmentStats.reduce((sum, row) => sum + row.declarations, 0)}</strong> total declarations
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -307,7 +309,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
             <THead cols={["Department", "Declarations", "Pending", "Approved", "Declined", "Total Value"]} />
             <Tbody>
               {departmentStats.length === 0 ? (
-                <Tr><Td colSpan={6} className="py-10 text-center">No current-month data available</Td></Tr>
+                <Tr><Td colSpan={6} className="py-10 text-center">No data available</Td></Tr>
               ) : (
                 departmentStats.slice(deptPage * DEPT_PAGE_SIZE, (deptPage + 1) * DEPT_PAGE_SIZE).map((row) => (
                   <Tr key={row.name}>

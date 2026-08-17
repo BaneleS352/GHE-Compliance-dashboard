@@ -608,7 +608,7 @@ export function NewDeclarationScreen({
             </div>
             <div>
               <FL required error={errors.contactPerson}>
-                Name of the person giving or receiving the gift at the Supplier or Customer, or name of the Public Official
+                Name of the person giving or receiving the GHE at the Supplier or Customer, or name of the Public Official
               </FL>
               <input
                 className={`${inp} ${errors.contactPerson ? "border-red-400" : ""}`}
@@ -647,7 +647,7 @@ export function NewDeclarationScreen({
         <FS id="sec-ghe" num="3" title="Gift, Hospitality or Entertainment Details">
           <div className="space-y-5">
             <div>
-              <FL required error={errors.category}>What category does the nature of the gift fall into?</FL>
+              <FL required error={errors.category}>What category does the nature of the GHE fall into?</FL>
               <Sel
                 value={category}
                 onChange={(v) => { setCategory(v); setErrors((e) => ({ ...e, category: "" })); }}
@@ -668,7 +668,7 @@ export function NewDeclarationScreen({
               )}
             </div>
             <div>
-              <FL required error={errors.description}>Please describe the nature of the gift in detail</FL>
+              <FL required error={errors.description}>Please describe the nature of the GHE in detail</FL>
               <textarea
                 className={`${inp} h-auto resize-none ${errors.description ? "border-red-400" : ""}`}
                 rows={4}
@@ -681,7 +681,7 @@ export function NewDeclarationScreen({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
               <div className="flex flex-col">
-                  <FL error={errors.occasionOther}>Reason/Occasion for the gift</FL>
+                  <FL error={errors.occasionOther}>Reason/Occasion for the GHE</FL>
                 <Sel value={form.occasion} onChange={(v) => setF("occasion", v)}>
                   <option value="">Select reason…</option>
                   {OCCASION_OPTIONS.map((o) => <option key={o}>{o}</option>)}
@@ -697,7 +697,7 @@ export function NewDeclarationScreen({
                 )}
               </div>
               <div className="flex flex-col">
-                  <FL required error={errors.date}>Date of Gift</FL>
+                  <FL required error={errors.date}>Date of GHE</FL>
                 <input
                   type="date"
                   className={`${inp} ${errors.date ? "border-red-400" : ""}`}
@@ -709,7 +709,7 @@ export function NewDeclarationScreen({
             </div>
             <div>
               <FL required error={errors.instances}>
-                Number of instances a gift has been given/received between you and this party in the past 12 months
+                Number of instances a GHE has been given/received between you and this party in the past 12 months
               </FL>
               <Sel value={form.instances} onChange={(v) => setF("instances", v)} className={errors.instances ? "border-red-400" : ""}>
                 <option value="">Select…</option>
