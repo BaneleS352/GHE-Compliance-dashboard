@@ -248,10 +248,17 @@ export function KpiCard({
       </span>
 
       {secondaryValue && (
-        <span className="text-[40px] font-bold leading-none tracking-[-0.02em] text-white whitespace-nowrap">
+        <span
+          className="whitespace-nowrap text-[20px] font-semibold leading-none"
+          style={{
+            color: "#fdb5df", // light purple
+            textShadow: "0 1px 6px rgba(0,0,0,0.2)",
+          }}
+        >
           {secondaryValue}
         </span>
       )}
+      
     </div>
 
         {delta && (
