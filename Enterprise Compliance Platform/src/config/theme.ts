@@ -1,4 +1,4 @@
-import { StatusType } from "../types/declaration";
+import { StatusType } from "@/types/declaration";
 
 // ─── Brand tokens ───────────────────────────────────────────────────────────────
 export const PURPLE     = "#4F1D95";

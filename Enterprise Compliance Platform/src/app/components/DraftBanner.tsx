@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Check, X } from "lucide-react";
-import { DEEP, PURPLE, F } from "../../config/theme";
+import { DEEP, PURPLE, F } from "@/config/theme";
 
 export function DraftBanner({ onDismiss }: { onDismiss: () => void }) {
   const onDismissRef = useRef(onDismiss);

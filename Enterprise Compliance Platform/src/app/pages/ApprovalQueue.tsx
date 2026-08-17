@@ -1,15 +1,15 @@
 ﻿import { useState, useEffect } from "react";
 import { Download, Search, AlertTriangle } from "lucide-react";
-import { fetchPendingWorkflows } from "../../services/api";
-import { Declaration } from "../../types/declaration";
-import { PURPLE, formatRand, PRIORITY_COLORS } from "../../config/theme";
-import { Card } from "../components/Card";
-import { PageHeader } from "../components/PageHeader";
+import { fetchPendingWorkflows } from "@/services/api";
+import { Declaration } from "@/types/declaration";
+import { PURPLE, formatRand, PRIORITY_COLORS } from "@/config/theme";
+import { Card } from "@/app/components/Card";
+import { PageHeader } from "@/app/components/PageHeader";
 
-import { StatusBadge } from "../components/StatusBadge";
-import { TypeBadge } from "../components/TypeBadge";
-import { Table, Thead, Th, Tbody, Tr, Td, COL } from "../components/table";
-import { exportRowsToXls } from "../../utils/excel";
+import { StatusBadge } from "@/app/components/StatusBadge";
+import { TypeBadge } from "@/app/components/TypeBadge";
+import { Table, Thead, Th, Tbody, Tr, Td, COL } from "@/app/components/table";
+import { exportRowsToXls } from "@/utils/excel";
 
 function daysSince(dateStr: string): number {
   const t = new Date(dateStr).getTime();

@@ -1,4 +1,4 @@
-import { typeCfg } from "../../config/theme";
+import { typeCfg } from "@/config/theme";
 
 export function TypeBadge({ type }: { type: string }) {
   const cfg = typeCfg[type] ?? { bg: "#f3f4f6", text: "#374151" };

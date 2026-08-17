@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect } from "react";
-import { fetchWorkflowInstance } from "../../services/api";
-import { ApprovalDecision } from "../../types/declaration";
-import { DECISION_LABELS, APPROVAL_OPTIONS, STATUS_COLORS, labelToStatus } from "../../config/theme";
+import { fetchWorkflowInstance } from "@/services/api";
+import { ApprovalDecision } from "@/types/declaration";
+import { DECISION_LABELS, APPROVAL_OPTIONS, STATUS_COLORS, labelToStatus } from "@/config/theme";
 
 export interface StepView {
   label: string;

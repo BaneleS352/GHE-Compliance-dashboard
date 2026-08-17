@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft, Download, Eye, FileText } from "lucide-react";
-import { Card } from "../components/ui/card";
-import { formatRand } from "../../config/theme";
-import { Declaration, UploadedFile } from "../../types/declaration";
-import { fetchConfig } from "../../services/api";
+import { Card } from "@/app/components/ui/card";
+import { formatRand } from "@/config/theme";
+import { Declaration, UploadedFile } from "@/types/declaration";
+import { fetchConfig } from "@/services/api";
 import { motion } from "framer-motion";
 
 export function DeclarationDetailView({

@@ -1,5 +1,5 @@
-import { User } from "../../types/declaration";
-import { api, setToken } from "../../services/httpClient";
+import { User } from "@/types/declaration";
+import { api, setToken } from "@/services/httpClient";
 
 export async function authenticate(email: string, password: string): Promise<User | null> {
   if (typeof email !== "string" || typeof password !== "string") return null;

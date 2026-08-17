@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { Sidebar } from "../shell/Sidebar";
-import { TopBar } from "../shell/TopBar";
-import { F } from "../config/theme";
-import { Role, Screen, User } from "../types/declaration";
+import { Sidebar } from "@/shell/Sidebar";
+import { TopBar } from "@/shell/TopBar";
+import { F } from "@/config/theme";
+import { Role, Screen, User } from "@/types/declaration";
 
 export function AppShell({
   role,

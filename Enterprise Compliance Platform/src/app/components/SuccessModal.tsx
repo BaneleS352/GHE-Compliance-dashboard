@@ -1,6 +1,6 @@
 import { Check, Sparkles, X } from "lucide-react";
-import { PURPLE, YELLOW, F, GRADIENT_PRIMARY, INFO_BG } from "../../config/theme";
-import { Declaration } from "../../types/declaration";
+import { PURPLE, YELLOW, F, GRADIENT_PRIMARY, INFO_BG } from "@/config/theme";
+import { Declaration } from "@/types/declaration";
 
 export function SuccessModal({
   data,

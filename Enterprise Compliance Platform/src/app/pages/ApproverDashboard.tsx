@@ -6,14 +6,14 @@ import {
   FileText,
 } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { fetchDeclarations } from "../../services/api";
-import { Screen, Declaration } from "../../types/declaration";
-import { PURPLE, YELLOW, formatRand, PRIORITY_COLORS, STATUS_COLORS, GRADIENT_PRIMARY, TYPE_COLORS } from "../../config/theme";
-import { useUser } from "../auth/UserContext";
-import { PageHeader } from "../components/PageHeader";
-import { THead } from "../components/THead";
-import { Table, Tbody, Tr, Td, COL } from "../components/table";
-import { KpiCard, STATUS_KPI } from "../components/KpiCard";
+import { fetchDeclarations } from "@/services/api";
+import { Screen, Declaration } from "@/types/declaration";
+import { PURPLE, YELLOW, formatRand, PRIORITY_COLORS, STATUS_COLORS, GRADIENT_PRIMARY, TYPE_COLORS } from "@/config/theme";
+import { useUser } from "@/app/auth/UserContext";
+import { PageHeader } from "@/app/components/PageHeader";
+import { THead } from "@/app/components/THead";
+import { Table, Tbody, Tr, Td, COL } from "@/app/components/table";
+import { KpiCard, STATUS_KPI } from "@/app/components/KpiCard";
 
 function ModernCard({ children, className = "", style, accent }: { children: ReactNode; className?: string; style?: React.CSSProperties; accent?: string }) {
   return (

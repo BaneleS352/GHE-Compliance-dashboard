@@ -1,20 +1,24 @@
 ﻿import { useState, useEffect } from "react";
 import { ArrowLeft, Download, Eye, Edit } from "lucide-react";
-import { Declaration } from "../../types/declaration";
-import { fetchDeclarations } from "../../services/api";
-import { formatRand } from "../../config/theme";
-import { useUser } from "../auth/UserContext";
-import { Card } from "../components/Card";
-import { PageHeader } from "../components/PageHeader";
-import { KpiCard, STATUS_KPI } from "../components/KpiCard";
-import { StatusBadge } from "../components/StatusBadge";
-import { TypeBadge } from "../components/TypeBadge";
-import { DeclarationDetailView, SupportingDocuments } from "../pages/DeclarationDetailView";
-import { WorkflowTimeline } from "../components/WorkflowTimeline";
-import { Table, Thead, Th, Tbody, Tr, Td, COL } from "../components/table";
-import { PURPLE } from "../../config/theme";
-import { exportRowsToXls } from "../../utils/excel";
-import { useWorkflowApproval } from "../hooks/useWorkflowApproval";
+import { Declaration } from "@/types/declaration";
+import { fetchDeclarations } from "@/services/api";
+import { formatRand } from "@/config/theme";
+import { useUser } from "@/app/auth/UserContext";
+import { Card } from "@/app/components/Card";
+import { PageHeader } from "@/app/components/PageHeader";
+import { KpiCard, STATUS_KPI } from "@/app/components/KpiCard";
+import { StatusBadge } from "@/app/components/StatusBadge";
+import { TypeBadge } from "@/app/components/TypeBadge";
+import { DeclarationDetailView, SupportingDocuments } from "@/app/pages/DeclarationDetailView";
+import { WorkflowTimeline } from "@/app/components/WorkflowTimeline";
+import { Table, Thead, Th, Tbody, Tr, Td, COL } from "@/app/components/table";
+import { PURPLE } from "@/config/theme";
+import { exportRowsToXls } from "@/utils/excel";
+import { useWorkflowApproval } from "@/app/hooks/useWorkflowApproval";
+import type {
+    ApprovalDecision,
+    StatusType,
+} from "@/types/declaration";
 
 export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declaration) => void }) {
   const { user } = useUser();
@@ -44,7 +48,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 10;
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
-  const [viewDeclStatus, setViewDeclStatus] = useState<string | null>(null);
+  const [viewDeclStatus, setViewDeclStatus] = useState<StatusType | null>(null);
 
   const {
     wfSteps, wfMessage, canApprove, submitError,
@@ -246,12 +250,13 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
           return (
             <KpiCard
               key={def.key}
-              label={
-                k === "Total"
-                  ? `${def.label}\n${formatRand(totalValue)}`
-                  : def.label
-              }
+              label={def.label}
               value={String(count)}
+              secondaryValue={
+                  k === "Total"
+                      ? formatRand(totalValue)
+                      : undefined
+              }
               icon={def.icon}
               color={def.color}
               active={activeKpi === def.filterValue}
