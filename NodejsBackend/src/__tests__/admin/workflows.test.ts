@@ -10,7 +10,7 @@ describe("Admin Workflow Rules", () => {
       .get("/api/admin/workflows/rules")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(3);
+    expect(res.body).toHaveLength(2);
     expect(res.body[0].steps).toBeDefined();
     expect(res.body[0].steps).toBeInstanceOf(Array);
   });

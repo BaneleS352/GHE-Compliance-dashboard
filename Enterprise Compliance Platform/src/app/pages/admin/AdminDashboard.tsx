@@ -8,7 +8,7 @@ import { Screen } from "../../../types/declaration";
 import { fetchAdminDashboard } from "../../../services/api";
 
 export function AdminDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) {
-  const [stats, setStats] = useState({ users: 0, declarations: 0, workflows: 0, threshold: 2000 });
+  const [stats, setStats] = useState({ users: 0, declarations: 0, workflows: 0, threshold: 1000 });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 

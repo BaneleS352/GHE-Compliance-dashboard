@@ -1,23 +1,65 @@
 import { useState, useEffect } from "react";
-import { Save, Shield, Mail } from "lucide-react";
+import { Save, Shield, Mail, ChevronDown, ChevronRight } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
 import { fetchConfig, saveConfig } from "../../../services/api";
-import { SystemConfig } from "../../../types/declaration";
+import { SystemConfig, NotificationTemplates } from "../../../types/declaration";
+
+const DEFAULT_NOTIFICATION_TEMPLATES: NotificationTemplates = {
+  managerApproval: {
+    subject: "GHE Declaration – Approval Required - [Declaration ID]",
+    body: "Hi [Approving Manager Name],\n\nA new Gift, Hospitality and Entertainment (GHE) declaration has been submitted by [Team Member Name] and requires your attention.\n\nPlease access the GHE Declaration App using the link below to review and action the declaration.\n\n[Review Declaration]\n\nKind regards,\nGHE Declaration System\n\nThis is an automated notification. Please do not reply to this email.",
+  },
+  hrApproval: {
+    subject: "GHE Declaration – HR Approval Required - [Declaration ID]",
+    body: "Hi [HR Approver Name],\n\nA Gift, Hospitality and Entertainment (GHE) declaration has been submitted for HR approval and requires your attention.\n\nPlease access the GHE Declaration App using the link below to review and action the declaration.\n\n[Review Declaration]\n\nKind regards,\nGHE Declaration System\n\nThis is an automated notification. Please do not reply to this email.",
+  },
+  declarationReturned: {
+    subject: "GHE Declaration – Action Required - [Declaration ID]",
+    body: "Hi [Team Member Name],\n\nYour Gift, Hospitality and Entertainment (GHE) declaration has been returned and requires your attention.\n\nPlease access the GHE Declaration App using the link below to review the feedback, make the required changes and resubmit your declaration.\n\n[Review Declaration]\n\nKind regards,\nGHE Declaration System\n\nThis is an automated notification. Please do not reply to this email.",
+  },
+  declarationDeclined: {
+    subject: "GHE Declaration – Declined - [Declaration ID]",
+    body: "Hi [Team Member Name],\n\nYour Gift, Hospitality and Entertainment (GHE) declaration has been reviewed and declined.\n\nPlease access the GHE Declaration App using the link below to view the outcome and any relevant feedback.\n\n[View Declaration]\n\nKind regards,\nGHE Declaration System\n\nThis is an automated notification. Please do not reply to this email.",
+  },
+  declarationApproved: {
+    subject: "GHE Declaration – Approved - [Declaration ID]",
+    body: "Hi [Team Member Name],\n\nYour Gift, Hospitality and Entertainment (GHE) declaration has completed the required approval process and has been [Manager Approval Option].\n\nPlease access the GHE Declaration App using the link below to view your declaration.\n\n[View Declaration]\n\nKind regards,\nGHE Declaration System\n\nThis is an automated notification. Please do not reply to this email.",
+  },
+};
+
+const TEMPLATE_LABELS: Record<string, string> = {
+  managerApproval: "1. Manager Approval Required",
+  hrApproval: "2. HR Approval Required",
+  declarationReturned: "3. Declaration Returned",
+  declarationDeclined: "4. Declaration Declined",
+  declarationApproved: "5. Declaration Approved",
+};
 
 export function AdminConfig() {
   const [config, setConfig] = useState<SystemConfig>({
-    highValueThreshold: 2000,
-    mediumValueThreshold: 500,
+    highValueThreshold: 1000,
+    mediumValueThreshold: 1000,
     slaEscalationDays: 7,
     maxDeclarationsPerCounterparty: 10,
     emailTemplate: "",
+    notificationTemplates: JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES),
   });
   const [saved, setSaved] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
 
   useEffect(() => { fetchConfig().then(setConfig).catch((err: Error) => setFetchError(err.message)); }, []);
+
+  const parsedTemplates: NotificationTemplates = (() => {
+    try { return JSON.parse(config.notificationTemplates); } catch { return DEFAULT_NOTIFICATION_TEMPLATES; }
+  })();
+
+  const updateTemplate = (key: keyof NotificationTemplates, field: "subject" | "body", value: string) => {
+    const updated = { ...parsedTemplates, [key]: { ...parsedTemplates[key], [field]: value } };
+    setConfig({ ...config, notificationTemplates: JSON.stringify(updated) });
+  };
 
   const handleSave = async () => {
     try {
@@ -71,7 +113,7 @@ export function AdminConfig() {
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-foreground">High Value Gift Threshold (ZAR)</label>
               <input type="number" value={config.highValueThreshold} onChange={(e) => setConfig({ ...config, highValueThreshold: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
-              <p className="mt-1 text-xs text-muted-foreground">Declarations above this value require CEO approval.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Declarations above this value require HR approval.</p>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-foreground">SLA Escalation Time (Days)</label>
@@ -91,19 +133,47 @@ export function AdminConfig() {
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Communications</p>
-              <h3 className="text-base font-bold">Email Templates</h3>
+              <h3 className="text-base font-bold">Email Notification Templates</h3>
             </div>
           </div>
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold text-foreground">Approval Request Template</label>
-              <textarea
-                rows={5}
-                value={config.emailTemplate}
-                onChange={(e) => setConfig({ ...config, emailTemplate: e.target.value })}
-                className="w-full rounded-2xl border border-border bg-white/90 p-4 font-mono text-xs transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10"
-              />
-            </div>
+          <div className="space-y-3">
+            {(Object.keys(TEMPLATE_LABELS) as (keyof NotificationTemplates)[]).map((key) => {
+              const isExpanded = expandedTemplate === key;
+              const tmpl = parsedTemplates[key] || DEFAULT_NOTIFICATION_TEMPLATES[key];
+              return (
+                <div key={key} className="rounded-xl border border-border overflow-hidden">
+                  <button
+                    onClick={() => setExpandedTemplate(isExpanded ? null : key)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/50 transition-colors"
+                  >
+                    {isExpanded ? <ChevronDown size={16} className="text-muted-foreground" /> : <ChevronRight size={16} className="text-muted-foreground" />}
+                    <span className="text-sm font-semibold text-foreground">{TEMPLATE_LABELS[key]}</span>
+                  </button>
+                  {isExpanded && (
+                    <div className="px-4 pb-4 space-y-3 border-t border-border/50">
+                      <div className="pt-3">
+                        <label className="mb-1 block text-xs font-semibold text-muted-foreground">Subject</label>
+                        <input
+                          type="text"
+                          value={tmpl.subject}
+                          onChange={(e) => updateTemplate(key, "subject", e.target.value)}
+                          className="h-10 w-full rounded-xl border border-border bg-white/90 px-4 text-sm transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-muted-foreground">Body</label>
+                        <textarea
+                          rows={8}
+                          value={tmpl.body}
+                          onChange={(e) => updateTemplate(key, "body", e.target.value)}
+                          className="w-full rounded-2xl border border-border bg-white/90 p-4 font-mono text-xs transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Card>
       </div>

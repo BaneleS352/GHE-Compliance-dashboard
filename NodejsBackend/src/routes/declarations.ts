@@ -93,7 +93,7 @@ const createSchema = z.object({
   team: z.string().optional(),
   type: z.string().min(1),
   counterparty: z.string().min(1),
-  value: z.number().nonnegative(),
+  value: z.number().nonnegative().max(1000000, "Value must be R1,000,000 or less"),
   submitted: z.string(),
   approver: z.string().optional(),
   approverId: z.string().optional(),

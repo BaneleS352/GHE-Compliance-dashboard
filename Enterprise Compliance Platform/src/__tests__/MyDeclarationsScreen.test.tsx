@@ -49,7 +49,7 @@ vi.mock("../services/api", () => ({
   fetchDeclarations: vi.fn(),
   fetchWorkflowInstance: vi.fn(),
   fetchConfig: vi.fn(() => Promise.resolve({
-    highValueThreshold: 2000, mediumValueThreshold: 250,
+    highValueThreshold: 1000, mediumValueThreshold: 1000,
     slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "",
   })),
 }));

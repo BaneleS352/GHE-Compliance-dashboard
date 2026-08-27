@@ -134,7 +134,7 @@ describe("Declarations", () => {
   });
 
   it("PATCH /api/declarations/:id/submit — submits draft and creates workflow", async () => {
-    // Use a high value (>2000) to trigger rule-3 which won't have been deleted
+    // Use a high value (>1000) to trigger rule-2 which won't have been deleted
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)

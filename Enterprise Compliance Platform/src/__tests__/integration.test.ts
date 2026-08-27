@@ -174,7 +174,7 @@ describe("Integration — Journey 5: Fetch workflow (J5.1 / J5.2)", () => {
   });
 
   it("fetchConfig returns threshold settings", async () => {
-    mockFetch(200, { highValueThreshold: 2000, mediumValueThreshold: 250 });
+    mockFetch(200, { highValueThreshold: 1000, mediumValueThreshold: 1000 });
     const cfg = await fetchConfig();
     expect(cfg.highValueThreshold).toBe(2000);
   });

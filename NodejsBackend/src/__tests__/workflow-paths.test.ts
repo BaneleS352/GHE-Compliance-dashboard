@@ -79,12 +79,12 @@ describe("Workflow decision paths", () => {
     });
   });
 
-  describe("Medium-value (rule-2, LM → HR) — mixed approval decisions", () => {
-    it("LM uses 'org' → HR uses 'accept' → fully approved", async () => {
+  describe("Medium-value (rule-1, LM only) — mixed approval decisions", () => {
+    it("LM uses 'org' → fully approved", async () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
-        .send(declBody({ counterparty: "PathOrgAccMed", value: 500, priority: "Medium" }));
+        .send(declBody({ counterparty: "PathOrgMed", value: 500, priority: "Medium" }));
       const id = create.body.id;
 
       await request(app)
@@ -96,22 +96,15 @@ describe("Workflow decision paths", () => {
         .set("Authorization", `Bearer ${getApproverToken()}`)
         .send({ declarationId: id, decision: "org" });
       expect(resLm.status).toBe(200);
-      expect(resLm.body.newStatus).toBe("Pending");
-
-      const resHr = await request(app)
-        .post("/api/workflows/approve")
-        .set("Authorization", `Bearer ${getHrToken()}`)
-        .send({ declarationId: id, decision: "accept" });
-      expect(resHr.status).toBe(200);
-      expect(resHr.body.newStatus).toBe("Approved");
-      expect(resHr.body.currentStep.decision).toBe("accept");
+      expect(resLm.body.newStatus).toBe("Approved");
+      expect(resLm.body.currentStep.decision).toBe("org");
     });
 
-    it("LM uses 'foundation' → HR uses 'escalate' → fully approved", async () => {
+    it("LM uses 'foundation' → fully approved", async () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
-        .send(declBody({ counterparty: "PathFndEscMed", value: 500, priority: "Medium" }));
+        .send(declBody({ counterparty: "PathFndMed", value: 500, priority: "Medium" }));
       const id = create.body.id;
 
       await request(app)
@@ -123,13 +116,8 @@ describe("Workflow decision paths", () => {
         .set("Authorization", `Bearer ${getApproverToken()}`)
         .send({ declarationId: id, decision: "foundation" });
       expect(resLm.status).toBe(200);
-
-      const resHr = await request(app)
-        .post("/api/workflows/approve")
-        .set("Authorization", `Bearer ${getHrToken()}`)
-        .send({ declarationId: id, decision: "org" });
-      expect(resHr.status).toBe(200);
-      expect(resHr.body.currentStep.decision).toBe("org");
+      expect(resLm.body.newStatus).toBe("Approved");
+      expect(resLm.body.currentStep.decision).toBe("foundation");
     });
   });
 
@@ -138,7 +126,7 @@ describe("Workflow decision paths", () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
-        .send(declBody({ counterparty: "PathAccDecMed", value: 500, priority: "Medium" }));
+        .send(declBody({ counterparty: "PathAccDecMed", value: 1500, priority: "Medium" }));
       const id = create.body.id;
 
       await request(app)
@@ -171,7 +159,7 @@ describe("Workflow decision paths", () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
-        .send(declBody({ counterparty: "PathAccRejMed", value: 500, priority: "Medium" }));
+        .send(declBody({ counterparty: "PathAccRejMed", value: 1500, priority: "Medium" }));
       const id = create.body.id;
 
       await request(app)
@@ -196,7 +184,7 @@ describe("Workflow decision paths", () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
-        .send(declBody({ counterparty: "PathAccRetMed", value: 500, priority: "Medium" }));
+        .send(declBody({ counterparty: "PathAccRetMed", value: 1500, priority: "Medium" }));
       const id = create.body.id;
 
       await request(app)
@@ -218,8 +206,8 @@ describe("Workflow decision paths", () => {
     });
   });
 
-  describe("High-value (rule-3, LM → HR → CEO) — mixed approval decisions", () => {
-    it("LM 'org' → HR 'foundation' → CEO 'accept' → fully approved", async () => {
+  describe("High-value (rule-2, LM → HR) — mixed approval decisions", () => {
+    it("LM 'org' → HR 'foundation' → fully approved", async () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -233,7 +221,7 @@ describe("Workflow decision paths", () => {
       const inst1 = await request(app)
         .get(`/api/workflows/instances/${id}`)
         .set("Authorization", `Bearer ${getTeamToken()}`);
-      expect(inst1.body.steps).toHaveLength(3);
+      expect(inst1.body.steps).toHaveLength(2);
 
       const resLm = await request(app)
         .post("/api/workflows/approve")
@@ -247,14 +235,7 @@ describe("Workflow decision paths", () => {
         .set("Authorization", `Bearer ${getHrToken()}`)
         .send({ declarationId: id, decision: "foundation" });
       expect(resHr.status).toBe(200);
-      expect(resHr.body.newStatus).toBe("Pending");
-
-      const resCeo = await request(app)
-        .post("/api/workflows/approve")
-        .set("Authorization", `Bearer ${getCeoToken()}`)
-        .send({ declarationId: id, decision: "accept" });
-      expect(resCeo.status).toBe(200);
-      expect(resCeo.body.newStatus).toBe("Approved");
+      expect(resHr.body.newStatus).toBe("Approved");
 
       const inst = await request(app)
         .get(`/api/workflows/instances/${id}`)
@@ -263,11 +244,9 @@ describe("Workflow decision paths", () => {
       expect(inst.body.steps[0].status).toBe("approved");
       expect(inst.body.steps[1].decision).toBe("foundation");
       expect(inst.body.steps[1].status).toBe("approved");
-      expect(inst.body.steps[2].decision).toBe("accept");
-      expect(inst.body.steps[2].status).toBe("approved");
     });
 
-    it("LM 'accept' → HR 'org' → CEO 'foundation' → fully approved", async () => {
+    it("LM 'accept' → HR 'org' → fully approved", async () => {
       const create = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -283,58 +262,17 @@ describe("Workflow decision paths", () => {
         .set("Authorization", `Bearer ${getApproverToken()}`)
         .send({ declarationId: id, decision: "accept" });
 
-      await request(app)
+      const resHr = await request(app)
         .post("/api/workflows/approve")
         .set("Authorization", `Bearer ${getHrToken()}`)
         .send({ declarationId: id, decision: "org" });
-
-      const resCeo = await request(app)
-        .post("/api/workflows/approve")
-        .set("Authorization", `Bearer ${getCeoToken()}`)
-        .send({ declarationId: id, decision: "foundation" });
-      expect(resCeo.status).toBe(200);
-      expect(resCeo.body.newStatus).toBe("Approved");
-      expect(resCeo.body.currentStep.decision).toBe("foundation");
+      expect(resHr.status).toBe(200);
+      expect(resHr.body.newStatus).toBe("Approved");
+      expect(resHr.body.currentStep.decision).toBe("org");
     });
   });
 
-  describe("High-value (rule-3, LM → HR → CEO) — terminal decisions at different levels", () => {
-    it("LM accepts → HR accepts → CEO declines → Declined", async () => {
-      const create = await request(app)
-        .post("/api/declarations")
-        .set("Authorization", `Bearer ${getTeamToken()}`)
-        .send(declBody({ counterparty: "Path3DecCEO", value: 3000, priority: "High" }));
-      const id = create.body.id;
-
-      await request(app)
-        .patch(`/api/declarations/${id}/submit`)
-        .set("Authorization", `Bearer ${getTeamToken()}`);
-
-      await request(app)
-        .post("/api/workflows/approve")
-        .set("Authorization", `Bearer ${getApproverToken()}`)
-        .send({ declarationId: id, decision: "accept" });
-
-      await request(app)
-        .post("/api/workflows/approve")
-        .set("Authorization", `Bearer ${getHrToken()}`)
-        .send({ declarationId: id, decision: "accept" });
-
-      const resCeo = await request(app)
-        .post("/api/workflows/approve")
-        .set("Authorization", `Bearer ${getCeoToken()}`)
-        .send({ declarationId: id, decision: "decline" });
-      expect(resCeo.status).toBe(200);
-      expect(resCeo.body.newStatus).toBe("Declined");
-
-      const inst = await request(app)
-        .get(`/api/workflows/instances/${id}`)
-        .set("Authorization", `Bearer ${getTeamToken()}`);
-      expect(inst.body.steps[0].status).toBe("approved");
-      expect(inst.body.steps[1].status).toBe("approved");
-      expect(inst.body.steps[2].status).toBe("declined");
-    });
-
+  describe("High-value (rule-2, LM → HR) — terminal decisions at different levels", () => {
     it("LM accepts → HR declines → Declined (terminal at HR)", async () => {
       const create = await request(app)
         .post("/api/declarations")
@@ -363,7 +301,6 @@ describe("Workflow decision paths", () => {
         .set("Authorization", `Bearer ${getTeamToken()}`);
       expect(inst.body.steps[0].status).toBe("approved");
       expect(inst.body.steps[1].status).toBe("declined");
-      expect(inst.body.steps[2].status).toBe("pending");
     });
 
     it("LM accepts → HR returns → Returned (terminal at HR)", async () => {
@@ -413,7 +350,6 @@ describe("Workflow decision paths", () => {
         .set("Authorization", `Bearer ${getTeamToken()}`);
       expect(inst.body.steps[0].status).toBe("returned");
       expect(inst.body.steps[1].status).toBe("pending");
-      expect(inst.body.steps[2].status).toBe("pending");
     });
 
     it("LM declines → Declined (terminal at LM)", async () => {

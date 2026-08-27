@@ -40,7 +40,6 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
   const roleMap: Record<string, string> = {
     lineManager: "Line Manager",
     hr: "HR",
-    ceo: "CEO",
   };
 
   const declarationIds = declarations.map((d) => d.id);

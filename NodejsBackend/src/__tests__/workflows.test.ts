@@ -29,7 +29,7 @@ describe("Workflows", () => {
       .get("/api/workflows/instances/GHE-TEST-003")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
-    expect(res.body.steps).toHaveLength(3);
+    expect(res.body.steps).toHaveLength(2);
     expect(res.body.steps[0].status).toBe("approved");
   });
 
@@ -228,7 +228,7 @@ describe("Workflows", () => {
       .send({
         employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
-        type: "Gift", counterparty: "ProgMed", value: 500,
+        type: "Gift", counterparty: "ProgMed", value: 1500,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
         description: "Progression medium", relationship: "Test",
         receivedGiven: "Received", from: "Supplier", contactPerson: "T",
@@ -282,7 +282,7 @@ describe("Workflows", () => {
     expect(inst3.body.steps[1].status).toBe("approved");
   });
 
-  it("High-value declaration (rule-3): LM approve → HR approved → CEO approve → fully approved", async () => {
+  it("High-value declaration (rule-2): LM approve → HR approve → fully approved", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -298,22 +298,21 @@ describe("Workflows", () => {
       });
     const id = create.body.id;
 
-    // Submit → triggers rule-3 (3 steps: LM, HR, CEO)
+    // Submit → triggers rule-2 (2 steps: LM, HR)
     const submit = await request(app)
       .patch(`/api/declarations/${id}/submit`)
       .set("Authorization", `Bearer ${getTeamToken()}`);
     expect(submit.status).toBe(200);
 
-    // Check initial workflow has exactly 3 steps
+    // Check initial workflow has exactly 2 steps
     const inst1 = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst1.body.steps).toHaveLength(3);
+    expect(inst1.body.steps).toHaveLength(2);
     expect(inst1.body.steps[0].role).toBe("lineManager");
     expect(inst1.body.steps[1].role).toBe("hr");
-    expect(inst1.body.steps[2].role).toBe("ceo");
 
-    // LM approves → LM: approved, HR: pending, CEO: pending
+    // LM approves → LM: approved, HR: pending
     const lmApprove = await request(app)
       .post("/api/workflows/approve")
       .set("Authorization", `Bearer ${getApproverToken()}`)
@@ -326,36 +325,19 @@ describe("Workflows", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(inst2.body.steps[0].status).toBe("approved");
     expect(inst2.body.steps[1].status).toBe("pending");
-    expect(inst2.body.steps[2].status).toBe("pending");
 
-    // HR approves → LM: approved, HR: approved, CEO: pending
+    // HR approves → all approved
     const hrApprove = await request(app)
       .post("/api/workflows/approve")
       .set("Authorization", `Bearer ${getHrToken()}`)
       .send({ declarationId: id, decision: "accept" });
     expect(hrApprove.status).toBe(200);
-    expect(hrApprove.body.newStatus).toBe("Pending");
+    expect(hrApprove.body.newStatus).toBe("Approved");
 
     const inst3 = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(inst3.body.steps[0].status).toBe("approved");
     expect(inst3.body.steps[1].status).toBe("approved");
-    expect(inst3.body.steps[2].status).toBe("pending");
-
-    // CEO approves → all approved
-    const ceoApprove = await request(app)
-      .post("/api/workflows/approve")
-      .set("Authorization", `Bearer ${getCeoToken()}`)
-      .send({ declarationId: id, decision: "accept" });
-    expect(ceoApprove.status).toBe(200);
-    expect(ceoApprove.body.newStatus).toBe("Approved");
-
-    const inst4 = await request(app)
-      .get(`/api/workflows/instances/${id}`)
-      .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst4.body.steps[0].status).toBe("approved");
-    expect(inst4.body.steps[1].status).toBe("approved");
-    expect(inst4.body.steps[2].status).toBe("approved");
   });
 });

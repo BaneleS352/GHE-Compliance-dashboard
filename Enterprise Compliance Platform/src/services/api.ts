@@ -106,6 +106,10 @@ export async function fetchUserById(id: string): Promise<any> {
   return api.get<any>(`/api/users/${id}`);
 }
 
+export async function fetchManagers(): Promise<any[]> {
+  return api.get<any[]>("/api/users/managers");
+}
+
 export async function createUser(data: any): Promise<any> {
   return api.post<any>("/api/admin/users", data);
 }

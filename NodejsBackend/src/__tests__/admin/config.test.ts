@@ -10,7 +10,7 @@ describe("Admin Config", () => {
       .get("/api/admin/config")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
-    expect(res.body.highValueThreshold).toBe(2000);
+    expect(res.body.highValueThreshold).toBe(1000);
     expect(res.body.slaEscalationDays).toBe(3);
   });
 

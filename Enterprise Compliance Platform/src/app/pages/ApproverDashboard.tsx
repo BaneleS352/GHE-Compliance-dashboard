@@ -57,7 +57,6 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
 
   const isAdmin = user?.role === "admin";
   const isTeamMember = user?.role === "teamMember";
-  const isCEO = user?.position === "Group CEO";
 
   const currentMonthDeclarations = useMemo(
     () => declarations.filter((d) => isCurrentMonth(d.submitted)),

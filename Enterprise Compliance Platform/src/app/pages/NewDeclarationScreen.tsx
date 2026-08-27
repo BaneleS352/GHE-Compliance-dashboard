@@ -11,7 +11,7 @@ import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG } from "@/co
 import { Declaration, UploadedFile } from "@/types/declaration";
 import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "@/services/api";
 import { useUser } from "@/app/auth/UserContext";
-import { fetchConfig, fetchUserById, updateDeclaration } from "@/services/api";
+import { fetchConfig, fetchUserById, updateDeclaration, fetchDropdowns, fetchManagers } from "@/services/api";
 
 const determineRuleId = (value: number, highThreshold: number, mediumThreshold: number): string => {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "rule-1";
@@ -49,11 +49,17 @@ export function NewDeclarationScreen({
   draft?: Declaration | null;
 }) {
   const { user } = useUser();
-  const [config, setConfig] = useState({ highValueThreshold: 2000, mediumValueThreshold: 500, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
+  const [config, setConfig] = useState({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
   const [lineManagerName, setLineManagerName] = useState("");
+  const [managers, setManagers] = useState<{ id: string; name: string; email: string; position: string; department: string }[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [managerSearch, setManagerSearch] = useState("");
+  const [showManagerDropdown, setShowManagerDropdown] = useState(false);
 
   useEffect(() => {
     fetchConfig().then(setConfig).catch((err: Error) => console.error("Failed to fetch config:", err));
+    fetchManagers().then(setManagers).catch((err: Error) => console.error("Failed to fetch managers:", err));
+    fetchDropdowns().then((d) => setDepartments(d?.departments || [])).catch((err: Error) => console.error("Failed to fetch departments:", err));
   }, []);
 
   useEffect(() => {
@@ -140,6 +146,7 @@ export function NewDeclarationScreen({
   const [submitting, setSubmitting] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isValueFocused, setIsValueFocused] = useState(false);
+  const [showMaxValueModal, setShowMaxValueModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFilesRef = useRef<File[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -201,6 +208,18 @@ export function NewDeclarationScreen({
     const t = setTimeout(() => setUploadError(null), 5000);
     return () => clearTimeout(t);
   }, [uploadError]);
+
+  useEffect(() => {
+    if (!showManagerDropdown) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-manager-dropdown]")) {
+        setShowManagerDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showManagerDropdown]);
 
   const jumpTo = (id: string) => {
     const node = scrollRef.current?.querySelector(`#${id}`) as HTMLElement | null;
@@ -540,6 +559,63 @@ export function NewDeclarationScreen({
         <FS id="sec-team" num="1" title="Team Member Details">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-5">
             <div>
+              <FL required error={errors.company}>Company</FL>
+              <Sel value={form.company} onChange={(v) => setF("company", v)} className={errors.company ? "border-red-500 bg-red-50" : ""}>
+                <option value="">Select company…</option>
+                <option>Hollywoodbets Group</option>
+              </Sel>
+            </div>
+            <div>
+              <FL required error={errors.department}>Department</FL>
+              <Sel value={form.department} onChange={(v) => setF("department", v)} className={errors.department ? "border-red-500 bg-red-50" : ""}>
+                <option value="">Select department…</option>
+                {departments.map((d) => <option key={d}>{d}</option>)}
+              </Sel>
+            </div>
+            <div>
+              <FL required error={errors.lineManager}>Approving Manager Name</FL>
+              <div className="relative" data-manager-dropdown>
+                <input
+                  type="text"
+                  className={`${inp} ${errors.lineManager ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`}
+                  value={managerSearch || form.lineManager}
+                  onChange={(e) => {
+                    setManagerSearch(e.target.value);
+                    setShowManagerDropdown(true);
+                    setF("lineManager", e.target.value);
+                  }}
+                  onFocus={() => { setManagerSearch(""); setShowManagerDropdown(true); }}
+                  placeholder="Search for manager…"
+                  maxLength={100}
+                />
+                {showManagerDropdown && managers.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-white shadow-lg">
+                    {managers
+                      .filter((m) => !managerSearch || m.name.toLowerCase().includes(managerSearch.toLowerCase()))
+                      .map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-purple-50 transition-colors border-b border-border/50 last:border-0"
+                          onClick={() => {
+                            setFormState((f) => ({ ...f, lineManager: m.name }));
+                            setManagerSearch("");
+                            setShowManagerDropdown(false);
+                            setErrors((e) => ({ ...e, lineManager: "" }));
+                          }}
+                        >
+                          <span className="font-semibold">{m.name}</span>
+                          <span className="text-xs text-muted-foreground ml-2">({m.position})</span>
+                        </button>
+                      ))}
+                    {managers.filter((m) => !managerSearch || m.name.toLowerCase().includes(managerSearch.toLowerCase())).length === 0 && (
+                      <div className="px-4 py-2.5 text-sm text-muted-foreground">No managers found</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div>
               <FL required error={errors.employeeName}>Team Member Name</FL>
               <ErrInp errors={errors} field="employeeName" value={form.employeeName} onChange={(e) => setF("employeeName", e.target.value)} maxLength={100} />
             </div>
@@ -548,19 +624,7 @@ export function NewDeclarationScreen({
               <ErrInp errors={errors} field="employeeCode" value={form.employeeCode} onChange={(e) => setF("employeeCode", e.target.value)} placeholder="e.g. HB-204478" maxLength={50} />
             </div>
             <div>
-              <FL required error={errors.lineManager}>Manager Name</FL>
-              <ErrInp errors={errors} field="lineManager" value={form.lineManager} onChange={(e) => setF("lineManager", e.target.value)} maxLength={100} />
-            </div>
-            <div>
-              <FL required error={errors.company}>Company</FL>
-              <ErrInp errors={errors} field="company" value={form.company} onChange={(e) => setF("company", e.target.value)} maxLength={100} />
-            </div>
-            <div>
-              <FL required error={errors.department}>Department</FL>
-              <ErrInp errors={errors} field="department" value={form.department} onChange={(e) => setF("department", e.target.value)} maxLength={100} />
-            </div>
-            <div>
-              <FL required error={errors.position}>Role / Position</FL>
+              <FL required error={errors.position}>Team Member Role / Position</FL>
               <ErrInp errors={errors} field="position" value={form.position} onChange={(e) => setF("position", e.target.value)} maxLength={100} />
             </div>
           </div>
@@ -729,7 +793,15 @@ export function NewDeclarationScreen({
                   value={form.value ? formatRandValue(form.value, !isValueFocused) : ""}
                   onFocus={() => setIsValueFocused(true)}
                   onBlur={() => setIsValueFocused(false)}
-                  onChange={(e) => setF("value", parseRandInput(e.target.value))}
+                  onChange={(e) => {
+                    const parsed = parseRandInput(e.target.value);
+                    const numVal = Number(parsed);
+                    if (Number.isFinite(numVal) && numVal > 1000000) {
+                      setShowMaxValueModal(true);
+                      return;
+                    }
+                    setF("value", parsed);
+                  }}
                   placeholder="0.00"
                 />
               </div>
@@ -739,7 +811,7 @@ export function NewDeclarationScreen({
               <div className="flex items-start gap-2.5 mb-3">
                 <AlertCircle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-800 leading-relaxed">
-                  If the Rand Value including VAT exceeds <strong>R2,000.00</strong>, please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.
+                  If the Rand Value including VAT exceeds <strong>R1,000.00</strong>, please substantiate why this Gift, Hospitality or Entertainment should be accepted or given.
                 </p>
               </div>
               <textarea
@@ -748,7 +820,7 @@ export function NewDeclarationScreen({
                 }`}
                 value={form.substantiation}
                 onChange={(e) => setF("substantiation", e.target.value)}
-                placeholder="Substantiation for value exceeding R2,000.00 (if applicable)…"
+                placeholder="Substantiation for value exceeding R1,000.00 (if applicable)…"
                 maxLength={2000}
               />
               <p className="mt-1 text-right text-xs text-amber-700/80">{form.substantiation.length}/2000</p>
@@ -892,6 +964,28 @@ export function NewDeclarationScreen({
           </div>
         </FS>
       </div>
+
+      {showMaxValueModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-sm rounded-2xl border border-border bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, #ef4444, #dc2626)" }}>
+                <AlertCircle size={20} className="text-white" />
+              </div>
+              <p className="text-sm font-bold text-foreground">Maximum Value Exceeded</p>
+            </div>
+            <p className="text-sm text-muted-foreground mb-5">
+              Maximum value exceeded. Please enter an amount of R1 000 000 or less to continue.
+            </p>
+            <button
+              onClick={() => { setShowMaxValueModal(false); setF("value", ""); }}
+              className="h-10 w-full rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

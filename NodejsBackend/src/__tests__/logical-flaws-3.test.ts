@@ -46,7 +46,7 @@ describe("Admin dashboard", () => {
     expect(res.body).toHaveProperty("threshold");
     expect(res.body.users).toBeGreaterThanOrEqual(5);
     expect(res.body.declarations).toBeGreaterThanOrEqual(3);
-    expect(res.body.workflows).toBeGreaterThanOrEqual(3);
+    expect(res.body.workflows).toBeGreaterThanOrEqual(2);
   });
 
   it("GET /api/admin/dashboard — non-admin gets 403", async () => {
@@ -180,13 +180,10 @@ describe("Admin workflow rules correspond to submission steps", () => {
     expect(res.status).toBe(200);
     const rule1 = res.body.find((r: any) => r.id === "rule-1");
     const rule2 = res.body.find((r: any) => r.id === "rule-2");
-    const rule3 = res.body.find((r: any) => r.id === "rule-3");
     expect(rule1).toBeDefined();
     expect(rule2).toBeDefined();
-    expect(rule3).toBeDefined();
     expect(rule1.steps).toHaveLength(1);
     expect(rule2.steps).toHaveLength(2);
-    expect(rule3.steps).toHaveLength(3);
   });
 
   it("Submission with value 100 (rule-1) creates 1 step matching rule-1", async () => {
@@ -208,11 +205,11 @@ describe("Admin workflow rules correspond to submission steps", () => {
     expect(inst.body.steps[0].role).toBe("lineManager");
   });
 
-  it("Submission with value 500 (rule-2) creates 2 steps matching rule-2", async () => {
+  it("Submission with value 500 (rule-1) creates 1 step matching rule-1", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ ...BASE, counterparty: "Rule2Match", value: 500 });
+      .send({ ...BASE, counterparty: "Rule1Match500", value: 500 });
     expect(create.status).toBe(201);
     const id = create.body.id;
 
@@ -223,9 +220,8 @@ describe("Admin workflow rules correspond to submission steps", () => {
     const inst = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst.body.steps).toHaveLength(2);
+    expect(inst.body.steps).toHaveLength(1);
     expect(inst.body.steps[0].role).toBe("lineManager");
-    expect(inst.body.steps[1].role).toBe("hr");
   });
 });
 
@@ -434,7 +430,7 @@ describe("Approver field tracking through workflow", () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ ...BASE, counterparty: "ApproverTrack", value: 500 });
+      .send({ ...BASE, counterparty: "ApproverTrack", value: 1500 });
     expect(create.status).toBe(201);
     const id = create.body.id;
 
@@ -497,7 +493,7 @@ describe("Submit with null lineManager", () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ ...BASE, employeeId: "user-admin", counterparty: "NullLM", value: 500 });
+      .send({ ...BASE, employeeId: "user-admin", counterparty: "NullLM", value: 1500 });
     expect(create.status).toBe(201);
     const id = create.body.id;
 
@@ -720,8 +716,8 @@ describe("Counterparty with special characters", () => {
 afterAll(async () => {
   await prisma.systemConfig.upsert({
     where: { id: "default" },
-    update: { highValueThreshold: 2000, mediumValueThreshold: 250, slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "Test {{ApproverName}}" },
-    create: { id: "default", highValueThreshold: 2000, mediumValueThreshold: 250, slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "Test {{ApproverName}}" },
+    update: { highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "Test {{ApproverName}}", notificationTemplates: "{}" },
+    create: { id: "default", highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "Test {{ApproverName}}", notificationTemplates: "{}" },
   });
   await prisma.workflowRule.upsert({
     where: { id: "rule-1" },

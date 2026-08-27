@@ -29,7 +29,6 @@ interface WorkflowTimelineProps {
 const ALL_ROLES = [
   { role: "lineManager", label: "Line Manager Review", defaultActor: "Line Manager" },
   { role: "hr",          label: "HR Review",           defaultActor: "Head of HR" },
-  { role: "ceo",         label: "CEO Approval",         defaultActor: "Group CEO" },
 ];
 
 function buildStepsFromWorkflow(wf: any, employee?: string): StepView[] {

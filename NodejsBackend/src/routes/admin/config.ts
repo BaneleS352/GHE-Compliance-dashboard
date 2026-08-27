@@ -19,6 +19,7 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: Auth
     slaEscalationDays: config.slaEscalationDays,
     maxDeclarationsPerCounterparty: config.maxDeclarationsPerCounterparty,
     emailTemplate: config.emailTemplate,
+    notificationTemplates: config.notificationTemplates,
   });
 }));
 
@@ -28,6 +29,7 @@ const configSchema = z.object({
   slaEscalationDays: z.number().int().nonnegative(),
   maxDeclarationsPerCounterparty: z.number().int().nonnegative(),
   emailTemplate: z.string(),
+  notificationTemplates: z.string().optional(),
 });
 
 // PUT /api/admin/config
@@ -56,6 +58,7 @@ router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
     slaEscalationDays: updated.slaEscalationDays,
     maxDeclarationsPerCounterparty: updated.maxDeclarationsPerCounterparty,
     emailTemplate: updated.emailTemplate,
+    notificationTemplates: updated.notificationTemplates,
   });
 }));
 

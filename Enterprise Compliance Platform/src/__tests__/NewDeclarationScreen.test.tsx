@@ -4,7 +4,7 @@ import { NewDeclarationScreen } from "../app/pages/NewDeclarationScreen";
 import { createDeclaration, submitDeclaration, updateDeclaration, uploadDeclarationFile, fetchConfig, fetchUserById } from "../services/api";
 
 const mockConfig = {
-  highValueThreshold: 2000, mediumValueThreshold: 250,
+  highValueThreshold: 1000, mediumValueThreshold: 1000,
   slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "",
 };
 

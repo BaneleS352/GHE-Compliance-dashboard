@@ -93,6 +93,7 @@ const options: swaggerJsdoc.Options = {
             highValueThreshold: { type: "number" }, mediumValueThreshold: { type: "number" },
             slaEscalationDays: { type: "integer" }, maxDeclarationsPerCounterparty: { type: "integer" },
             emailTemplate: { type: "string" },
+            notificationTemplates: { type: "string" },
           },
         },
         Dropdowns: {

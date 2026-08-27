@@ -765,11 +765,29 @@ describe("Threshold boundary conditions", () => {
     expect(inst.body.steps[0].role).toBe("lineManager");
   });
 
-  it("Value exactly at mediumThreshold (250) uses rule-2 (LM + HR), not rule-1", async () => {
+  it("Value just below threshold (999) uses rule-1 (LM only)", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
-      .send({ ...BASE, counterparty: "Boundary250", value: 250 });
+      .send({ ...BASE, counterparty: "Boundary999", value: 999 });
+    expect(create.status).toBe(201);
+    const id = create.body.id;
+
+    await request(app)
+      .patch(`/api/declarations/${id}/submit`)
+      .set("Authorization", `Bearer ${getTeamToken()}`);
+
+    const inst = await request(app)
+      .get(`/api/workflows/instances/${id}`)
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(inst.body.steps).toHaveLength(1);
+  });
+
+  it("Value at threshold (1000) uses rule-2 (LM + HR)", async () => {
+    const create = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({ ...BASE, counterparty: "Boundary1000", value: 1000 });
     expect(create.status).toBe(201);
     const id = create.body.id;
 
@@ -783,59 +801,6 @@ describe("Threshold boundary conditions", () => {
     expect(inst.body.steps).toHaveLength(2);
   });
 
-  it("Value just above mediumThreshold (251) uses rule-2 (LM + HR)", async () => {
-    const create = await request(app)
-      .post("/api/declarations")
-      .set("Authorization", `Bearer ${getTeamToken()}`)
-      .send({ ...BASE, counterparty: "Boundary251", value: 251 });
-    expect(create.status).toBe(201);
-    const id = create.body.id;
-
-    await request(app)
-      .patch(`/api/declarations/${id}/submit`)
-      .set("Authorization", `Bearer ${getTeamToken()}`);
-
-    const inst = await request(app)
-      .get(`/api/workflows/instances/${id}`)
-      .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst.body.steps).toHaveLength(2);
-  });
-
-  it("Value exactly at highThreshold (2000) uses rule-3 (LM + HR + CEO), not rule-2", async () => {
-    const create = await request(app)
-      .post("/api/declarations")
-      .set("Authorization", `Bearer ${getTeamToken()}`)
-      .send({ ...BASE, counterparty: "Boundary2000", value: 2000 });
-    expect(create.status).toBe(201);
-    const id = create.body.id;
-
-    await request(app)
-      .patch(`/api/declarations/${id}/submit`)
-      .set("Authorization", `Bearer ${getTeamToken()}`);
-
-    const inst = await request(app)
-      .get(`/api/workflows/instances/${id}`)
-      .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst.body.steps).toHaveLength(3);
-  });
-
-  it("Value just above highThreshold (2001) uses rule-3 (LM + HR + CEO)", async () => {
-    const create = await request(app)
-      .post("/api/declarations")
-      .set("Authorization", `Bearer ${getTeamToken()}`)
-      .send({ ...BASE, counterparty: "Boundary2001", value: 2001 });
-    expect(create.status).toBe(201);
-    const id = create.body.id;
-
-    await request(app)
-      .patch(`/api/declarations/${id}/submit`)
-      .set("Authorization", `Bearer ${getTeamToken()}`);
-
-    const inst = await request(app)
-      .get(`/api/workflows/instances/${id}`)
-      .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst.body.steps).toHaveLength(3);
-  });
 });
 
 // ── APPROVAL OPTIONS CRUD INTEGRITY ──
@@ -994,7 +959,7 @@ describe("Config threshold change effect", () => {
     const inst = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst.body.steps).toHaveLength(3);
+    expect(inst.body.steps).toHaveLength(2);
 
     await request(app)
       .put("/api/admin/config")
@@ -1040,26 +1005,18 @@ describe("Declaration files metadata field", () => {
 
 // ── DETERMINE RULE ID BOUNDARY ──
 describe("determineRuleId threshold boundary", () => {
-  it("determineRuleId routes a value equal to highThreshold to rule-3 (not rule-2)", async () => {
+  it("determineRuleId routes a value equal to highThreshold to rule-2 (not rule-1)", async () => {
     const config = await prisma.systemConfig.findFirst();
     if (!config) throw new Error("System config not found");
     const { determineRuleId } = await import("../services/workflowService");
     const result = determineRuleId(config.highValueThreshold, config.highValueThreshold, config.mediumValueThreshold);
-    expect(result).toBe("rule-3");
-  });
-
-  it("determineRuleId routes a value equal to mediumThreshold to rule-2 (not rule-1)", async () => {
-    const config = await prisma.systemConfig.findFirst();
-    if (!config) throw new Error("System config not found");
-    const { determineRuleId } = await import("../services/workflowService");
-    const result = determineRuleId(config.mediumValueThreshold, config.highValueThreshold, config.mediumValueThreshold);
     expect(result).toBe("rule-2");
   });
 
   it("determineRuleId routes a value just below threshold to the lower rule", async () => {
     const { determineRuleId } = await import("../services/workflowService");
-    expect(determineRuleId(1999, 2000, 250)).toBe("rule-2");
-    expect(determineRuleId(249, 2000, 250)).toBe("rule-1");
+    expect(determineRuleId(999, 1000, 1000)).toBe("rule-1");
+    expect(determineRuleId(1000, 1000, 1000)).toBe("rule-2");
   });
 });
 

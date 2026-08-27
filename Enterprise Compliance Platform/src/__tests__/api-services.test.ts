@@ -171,7 +171,7 @@ describe("deleteUser", () => {
 
 describe("fetchConfig", () => {
   it("returns config", async () => {
-    mockFetch(200, { highValueThreshold: 2000 });
+    mockFetch(200, { highValueThreshold: 1000 });
     const result = await fetchConfig();
     expect(result.highValueThreshold).toBe(2000);
   });

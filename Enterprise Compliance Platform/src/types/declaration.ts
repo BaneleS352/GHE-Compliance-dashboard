@@ -80,7 +80,7 @@ export interface Declaration {
 
 export interface WorkflowStep {
   order: number;
-  role: "lineManager" | "hr" | "ceo";
+  role: "lineManager" | "hr";
   assignee: string;
   assigneeName: string;
   label: string;
@@ -102,7 +102,15 @@ export interface WorkflowRule {
   name: string;
   condition: string;
   priority: number;
-  steps: { order: number; role: "lineManager" | "hr" | "ceo"; label: string }[];
+  steps: { order: number; role: "lineManager" | "hr"; label: string }[];
+}
+
+export interface NotificationTemplates {
+  managerApproval: { subject: string; body: string };
+  hrApproval: { subject: string; body: string };
+  declarationReturned: { subject: string; body: string };
+  declarationDeclined: { subject: string; body: string };
+  declarationApproved: { subject: string; body: string };
 }
 
 export interface SystemConfig {
@@ -111,6 +119,7 @@ export interface SystemConfig {
   slaEscalationDays: number;
   maxDeclarationsPerCounterparty: number;
   emailTemplate: string;
+  notificationTemplates: string;
 }
 
 export interface Dropdowns {

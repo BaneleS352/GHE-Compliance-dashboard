@@ -2,13 +2,13 @@ import { prisma } from "../config/prisma";
 
 export interface WorkflowStepDef {
   order: number;
-  role: "lineManager" | "hr" | "ceo";
+  role: "lineManager" | "hr";
   label: string;
 }
 
 export interface WorkflowStep {
   order: number;
-  role: "lineManager" | "hr" | "ceo";
+  role: "lineManager" | "hr";
   assignee: string;
   assigneeName: string;
   label: string;
@@ -22,8 +22,7 @@ export interface WorkflowStep {
 }
 
 export function determineRuleId(value: number, highThreshold: number, mediumThreshold: number): string {
-  if (value >= highThreshold) return "rule-3";
-  if (value >= mediumThreshold) return "rule-2";
+  if (value >= highThreshold) return "rule-2";
   return "rule-1";
 }
 
@@ -41,7 +40,6 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
   if (!employee) throw new Error("Employee not found");
 
   const hrUser = await prisma.user.findFirst({ where: { role: "approver", department: "HR" } });
-  const ceoUser = await prisma.user.findFirst({ where: { position: "Group CEO" } });
 
   const steps: WorkflowStep[] = [];
 
@@ -60,9 +58,6 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
     } else if (def.role === "hr") {
       assigneeId = hrUser?.id || "";
       assigneeName = hrUser?.name || "HR";
-    } else if (def.role === "ceo") {
-      assigneeId = ceoUser?.id || "";
-      assigneeName = ceoUser?.name || "CEO";
     }
 
     if (!assigneeId || assigneeId === employeeId) {

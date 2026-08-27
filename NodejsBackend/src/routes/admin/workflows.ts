@@ -8,7 +8,7 @@ const router = Router();
 
 interface StepDef {
   order: number;
-  role: "lineManager" | "hr" | "ceo";
+  role: "lineManager" | "hr";
   label: string;
 }
 
@@ -31,7 +31,7 @@ const ruleSchema = z.object({
   steps: z.array(
     z.object({
       order: z.number().int(),
-      role: z.enum(["lineManager", "hr", "ceo"]),
+      role: z.enum(["lineManager", "hr"]),
       label: z.string().min(1),
     })
   ),
