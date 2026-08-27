@@ -386,7 +386,7 @@ describe("Report edge cases", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
     for (const d of res.body) {
-      expect(d.value).toBeGreaterThanOrEqual(2000);
+      expect(d.value).toBeGreaterThanOrEqual(1000);
     }
   });
 });

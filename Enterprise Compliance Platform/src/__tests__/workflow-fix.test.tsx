@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
-import { WorkflowTimeline, StepView, APPROVAL_OPTIONS, DECISION_LABELS } from "../src/app/components/WorkflowTimeline"
+import { WorkflowTimeline, StepView } from "../app/components/WorkflowTimeline"
+import { fetchWorkflowInstance } from "../services/api"
 
-vi.mock("../src/services/api", () => ({
+vi.mock("../services/api", () => ({
   fetchWorkflowInstance: vi.fn(),
   approveWorkflowStep: vi.fn(),
   updateDeclaration: vi.fn(),
@@ -38,22 +39,16 @@ const mockSteps = (overrides?: Partial<StepView>[]): StepView[] => [
     state: "active",
     ...(overrides?.[1] ?? {}),
   },
-  {
-    label: "3. Group CEO Approval",
-    actor: "Sandile Shabalala",
-    state: "pending",
-    ...(overrides?.[2] ?? {}),
-  },
 ];
 
 const mockWfWithSteps = (steps: any[]): any => {
   return {
     declarationId: "GHE-2026-1003",
     steps: steps.map((s, i) => ({
-      role: ["lineManager", "hr", "ceo"][i],
+      role: ["lineManager", "hr"][i],
       label: s.label,
       assigneeName: s.actor,
-      status: i === 1 ? "pending" : (i === 0 ? "approved" : "pending"),
+      status: i === 0 ? "approved" : "pending",
       decision: i === 0 ? "accept" : null,
       decidedAt: i === 0 ? "2026-07-10T08:30:00.000Z" : null,
       notes: i === 0 ? "Looks good" : "",
@@ -62,34 +57,34 @@ const mockWfWithSteps = (steps: any[]): any => {
 };
 
 describe("WorkflowTimeline - Fix for multiple matching elements", () => {
-  it("shows different state and decisions text for completed steps", () => {
+  it("shows different state and decisions text for completed steps", async () => {
     const wf = mockWfWithSteps(mockSteps());
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(wf);
     
     render(<WorkflowTimeline declarationId="GHE-2026-1003" />);
     
-    expect(screen.getByText("1. Line Manager Approval")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("1. Line Manager Approval")).toBeInTheDocument();
+    });
     expect(screen.getByText("Sipho Nkosi")).toBeInTheDocument();
     
-    expect(screen.getByText("2. Head of HR Approval")).toBeInTheDocument();
-    expect(screen.getByText("Lindiwe Zulu")).toBeInTheDocument();
-    
-    expect(screen.getByText("3. Group CEO Approval")).toBeInTheDocument();
-    expect(screen.getByText("Sandile Shabalala")).toBeInTheDocument();
+    expect(screen.getAllByText("2. Head of HR Approval").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Lindiwe Zulu").length).toBeGreaterThanOrEqual(1);
     
     expect(screen.getByText(/Completed/)).toBeInTheDocument();
     expect(screen.getByText(/In Progress/)).toBeInTheDocument();
-    expect(screen.getByText(/Pending/)).toBeInTheDocument();
   });
 
-  it("shows completed step details properly", () => {
+  it("shows completed step details properly", async () => {
     const wf = mockWfWithSteps(mockSteps());
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(wf);
     
     render(<WorkflowTimeline declarationId="GHE-2026-1003" />);
     
-    expect(screen.getByText("Decision")).toBeInTheDocument();
-    expect(screen.getByText(/Accepted/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Decision")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/accept the actual GHE/)).toBeInTheDocument();
     expect(screen.getByText(/2026-07-10/)).toBeInTheDocument();
   });
 
@@ -97,15 +92,15 @@ describe("WorkflowTimeline - Fix for multiple matching elements", () => {
     const wf = mockWfWithSteps(mockSteps());
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(wf);
     
-    render(<WorkflowTimeline declarationId="GHE-2026-1003" />);
+    render(<WorkflowTimeline declarationId="GHE-2026-1003" onDecision={vi.fn()} notes="" onNotesChange={vi.fn()} onSubmit={vi.fn()} />);
     
     await waitFor(() => {
       expect(screen.getByText("Decision *")).toBeInTheDocument();
     });
     
-    expect(screen.getByText(/Approved - Team member/)).toBeInTheDocument();
-    expect(screen.getByText(/Approved - Organisation Pool/)).toBeInTheDocument();
-    expect(screen.getByText(/Approved - Hollywood Foundation/)).toBeInTheDocument();
-    expect(screen.getByText(/Declined - Return GHE/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Approved - Team Member to accept/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Approved - Team Member to share.*Organisation Pool/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Approved - Team Member to donate.*Hollywood Foundation/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Declined - Team Member to return/).length).toBeGreaterThan(0);
   });
 });

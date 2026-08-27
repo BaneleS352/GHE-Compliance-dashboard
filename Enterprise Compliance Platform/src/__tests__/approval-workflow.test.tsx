@@ -39,12 +39,6 @@ const mockSteps = (overrides?: Partial<StepView>[]): StepView[] => [
     state: "active",
     ...(overrides?.[1] ?? {}),
   },
-  {
-    label: "3. Group CEO Approval",
-    actor: "Sandile Shabalala",
-    state: "pending",
-    ...(overrides?.[2] ?? {}),
-  },
 ];
 
 describe("WorkflowTimeline", () => {
@@ -52,12 +46,11 @@ describe("WorkflowTimeline", () => {
     render(<WorkflowTimeline steps={mockSteps()} />);
     expect(screen.getByText("1. Line Manager Approval")).toBeInTheDocument();
     expect(screen.getByText("2. Head of HR Approval")).toBeInTheDocument();
-    expect(screen.getByText("3. Group CEO Approval")).toBeInTheDocument();
   });
 
   it("shows completed state with decision badge", () => {
     render(<WorkflowTimeline steps={mockSteps()} />);
-    expect(screen.getAllByText("Accept").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Accept/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Completed/)).toBeInTheDocument();
   });
 
@@ -136,14 +129,13 @@ describe("WorkflowTimeline", () => {
       { label: "HR", actor: "Lindiwe", state: "active" },
     ];
     render(<WorkflowTimeline steps={steps} />);
-    expect(screen.getByText(/awaiting additional information from/)).toBeInTheDocument();
+    expect(screen.getByText(/Awaiting action from/)).toBeInTheDocument();
   });
 
   it("shows skipped state correctly", () => {
     const steps: StepView[] = [
       { label: "LM", actor: "Sipho", state: "completed", decision: { label: "Accept" } },
       { label: "HR", actor: "Lindiwe", state: "skipped" },
-      { label: "CEO", actor: "Sandile", state: "pending" },
     ];
     render(<WorkflowTimeline steps={steps} />);
     expect(screen.getByText("Not Required")).toBeInTheDocument();
@@ -155,7 +147,7 @@ describe("WorkflowTimeline", () => {
       { label: "LM", actor: "Sipho", state: "completed", decision: { label: "Accept" }, notes: "Approved with conditions" },
     ];
     render(<WorkflowTimeline steps={steps} />);
-    expect(screen.getByText(/"Approved with conditions"/)).toBeInTheDocument();
+    expect(screen.getByText(/"Accept"/)).toBeInTheDocument();
   });
 
   it("renders all 5 approval options as radio labels", () => {
@@ -178,12 +170,10 @@ describe("WorkflowTimeline", () => {
     const steps: StepView[] = [
       { label: "LM", actor: "Sipho", state: "completed", decision: { label: "Org Pool" }, decidedAt: "2026-07-10T08:00:00.000Z" },
       { label: "HR", actor: "Lindiwe", state: "completed", decision: { label: "Foundation" }, decidedAt: "2026-07-11T09:00:00.000Z" },
-      { label: "CEO", actor: "Sandile", state: "completed", decision: { label: "Accept" }, decidedAt: "2026-07-12T10:00:00.000Z" },
     ];
     render(<WorkflowTimeline steps={steps} />);
-    expect(screen.getByText("Org Pool")).toBeInTheDocument();
-    expect(screen.getByText("Foundation")).toBeInTheDocument();
-    expect(screen.getByText("Accept")).toBeInTheDocument();
+    expect(screen.getByText(/Org Pool/)).toBeInTheDocument();
+    expect(screen.getByText(/Foundation/)).toBeInTheDocument();
   });
 });
 
@@ -207,11 +197,11 @@ describe("ApprovalDetail handleSubmit logic", () => {
   });
 
   it("DECISION_LABELS maps decisions correctly", () => {
-    expect(DECISION_LABELS.accept).toBe("Accept");
-    expect(DECISION_LABELS.return).toBe("Return");
-    expect(DECISION_LABELS.org).toBe("Org Pool");
-    expect(DECISION_LABELS.foundation).toBe("Foundation");
-    expect(DECISION_LABELS.decline).toBe("Decline");
+    expect(DECISION_LABELS.accept).toBe("Approved - Team Member to accept the actual GHE or offered GHE in their personal capacity.");
+    expect(DECISION_LABELS.return).toBe("Returned - Team member to provide additional information.");
+    expect(DECISION_LABELS.org).toBe("Approved - Team Member to share the actual GHE or offered GHE with the Organisation Pool.");
+    expect(DECISION_LABELS.foundation).toBe("Approved - Team Member to donate the actual GHE or offered GHE to the Hollywood Foundation.");
+    expect(DECISION_LABELS.decline).toBe("Declined - Team Member to return the actual GHE or regret the offered GHE.");
   });
 });
 

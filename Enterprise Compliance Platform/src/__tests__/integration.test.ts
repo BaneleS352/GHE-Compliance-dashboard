@@ -176,7 +176,7 @@ describe("Integration — Journey 5: Fetch workflow (J5.1 / J5.2)", () => {
   it("fetchConfig returns threshold settings", async () => {
     mockFetch(200, { highValueThreshold: 1000, mediumValueThreshold: 1000 });
     const cfg = await fetchConfig();
-    expect(cfg.highValueThreshold).toBe(2000);
+    expect(cfg.highValueThreshold).toBe(1000);
   });
 });
 
@@ -272,16 +272,13 @@ describe("Integration — Journey 9: Complete workflow (J9.8 / J9.6)", () => {
           decidedAt: "2026-07-15T10:00:00Z", notes: "OK" },
         { order: 2, role: "hr", assignee: "user-hr", status: "approved", decision: "org",
           decidedAt: "2026-07-16T10:00:00Z", notes: "Approved" },
-        { order: 3, role: "ceo", assignee: "user-ceo", status: "approved", decision: "accept",
-          decidedAt: "2026-07-17T10:00:00Z", notes: "Done" },
       ],
     });
     const wf = await fetchWorkflowInstance("GHE-INT-1");
-    expect(wf.steps).toHaveLength(3);
+    expect(wf.steps).toHaveLength(2);
     wf.steps.forEach((s: any) => expect(s.status).toBe("approved"));
     expect(wf.steps[0].decision).toBe("accept");
     expect(wf.steps[1].decision).toBe("org");
-    expect(wf.steps[2].decision).toBe("accept");
   });
 });
 
