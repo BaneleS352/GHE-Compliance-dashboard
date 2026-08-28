@@ -2,11 +2,11 @@ import { useState } from "react";
 import { ImageWithFallback } from "@/app/components/ImageWithFallback";
 import logoImg from "@/assets/Logo.png";
 import bannerImg from "@/assets/Button.png";
-import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_LANDING } from "@/config/theme";
+import { F, inp, GRADIENT_PRIMARY } from "@/config/theme";
 import { Role } from "@/types/declaration";
 import { useUser } from "@/app/auth/UserContext";
 import { authenticate } from "@/app/auth/authService";
-
+ 
 const QUICK_LOGIN_USERS = [
   { label: "Team Member — Nomvula Dlamini",  email: "nomvula@hb.co.za",  role: "teamMember" as const },
   { label: "Line Manager — Sipho Nkosi",     email: "sipho@hb.co.za",    role: "approver" as const },
@@ -47,38 +47,39 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
   };
 
   return (
-    <div className="min-h-screen w-full flex" style={F}>
-      <div className="hidden lg:flex w-[58%] flex-col relative overflow-hidden"
-        style={{ background: GRADIENT_LANDING }}
-      >
+    <div className="relative min-h-screen w-full overflow-hidden bg-[#0f0225]" style={F}>
+      <div className="absolute inset-0 z-0">
+        <ImageWithFallback src={bannerImg} alt="GHE Declaration" className="block w-full h-full object-cover object-center" />
+      </div>
+      <div className="absolute inset-0 z-10 pointer-events-none">
         <div className="absolute inset-0 pointer-events-none" aria-hidden>
-          <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full opacity-20"
+          <div className="absolute -top-40 -left-32 w-[620px] h-[620px] rounded-full opacity-20"
             style={{ background: `radial-gradient(circle, #F8D74A, transparent 70%)` }} />
-          <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full opacity-15"
+          <div className="absolute bottom-[-180px] right-[-100px] w-[700px] h-[700px] rounded-full opacity-25"
             style={{ background: "radial-gradient(circle, #a78bfa, transparent 70%)", transform: "translate(20%,20%)" }} />
+          <div className="absolute inset-0 opacity-40" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, rgba(255,255,255,.35) 0 1px, transparent 1.5px)", backgroundSize: "115px 115px" }} />
           <svg className="absolute bottom-0 left-0 w-full opacity-10" viewBox="0 0 800 120" preserveAspectRatio="none">
             <path d="M0,40 C200,90 400,0 600,50 C700,75 760,30 800,40 L800,120 L0,120 Z" fill="#EDE8FF" />
           </svg>
         </div>
-        <div className="relative z-10 p-8 pb-0" />
-        <div className="relative z-10 flex-1 flex flex-col justify-center px-10 py-8">
-          <div className="rounded-2xl overflow-hidden mb-8" style={{ boxShadow: "0 20px 60px rgb(0 0 0 / 0.5)" }}>
-            <ImageWithFallback src={bannerImg} alt="GHE Declaration" className="w-full object-cover" />
-          </div>
+        <div className="relative z-10 p-10 pb-0">
+          <ImageWithFallback src={logoImg} alt="Hollywoodbets" className="h-14 w-auto object-contain object-left" />
         </div>
+        <div className="relative z-10 flex-1" aria-hidden />
         <div className="relative z-10 px-10 pb-6">
           <p className="text-xs" style={{ color: "rgb(237 232 255 / 0.35)" }}>© 2024 Hollywoodbets Group. Authorised employees only.</p>
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center bg-background px-5 py-8 sm:px-8 sm:py-10">
-        <div className="w-full max-w-[380px]">
+      <div className="relative z-20 ml-auto min-h-screen w-full lg:w-[38%] xl:w-[36%] flex items-center justify-center overflow-hidden bg-[#f4f6fb] px-5 py-8 sm:px-8 sm:py-10 lg:rounded-l-[3.5rem] lg:border-l-4 lg:border-t-2 lg:border-b-2 lg:border-[#ff9f43] lg:shadow-[-18px_0_45px_rgba(15,2,37,.22)]">
+        <div className="absolute inset-0 opacity-50 pointer-events-none" aria-hidden style={{ backgroundImage: "linear-gradient(135deg, transparent 0 30%, rgba(79,29,149,.035) 30% 45%, transparent 45% 65%, rgba(79,29,149,.025) 65% 80%, transparent 80%)" }} />
+        <div className="relative z-10 w-full max-w-[430px] rounded-[2rem] bg-white/45 px-1 py-2 sm:px-3 sm:py-5 lg:bg-transparent lg:px-0">
           <div className="lg:hidden mb-8">
-            <ImageWithFallback src={logoImg} alt="Hollywoodbets" className="h-9 w-auto object-contain" />
+            <ImageWithFallback src={logoImg} alt="Hollywoodbets" className="h-10 w-auto object-contain" />
           </div>
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
-            <p className="text-sm text-muted-foreground mt-1">Sign in to the Gift, Hospitality and Entertainment Declaration Portal</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Welcome back</h1>
+            <p className="text-sm text-slate-600 mt-2 leading-6">Sign in to the Gift, Hospitality and Entertainment Declaration Portal</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

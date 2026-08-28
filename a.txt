@@ -14,4 +14,3 @@ when in the New Declaration -> Team Member Details "when I pick a company I need
 New Declaration -> Team Member Details -> Department "drop down is not populated"
 
 Returned Declaration the edit option seems to appear even for people who don't need to edit the Declaration
-
