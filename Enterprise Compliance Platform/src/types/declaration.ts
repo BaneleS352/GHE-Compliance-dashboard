@@ -43,6 +43,7 @@ export interface User {
   department: string;
   position: string;
   lineManager: string | null;
+  organizationId?: string;
 }
 
 export interface Declaration {
@@ -76,6 +77,7 @@ export interface Declaration {
   team?: string;
   substantiation?: string;
   files?: UploadedFile[];
+  organizationId?: string;
 }
 
 export interface WorkflowStep {

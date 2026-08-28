@@ -20,9 +20,8 @@ export async function setup() {
   await prisma.user.createMany({
     data: [
       { id: "user-admin", name: "Admin User", email: "admin@test.com", passwordHash: hash, role: "admin", teamMemberNumber: "ADM-001", department: "IT", position: "System Admin", lineManager: null },
-      { id: "user-approver", name: "Sipho Approver", email: "sipho@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: "user-ceo" },
-      { id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-ceo" },
-      { id: "user-ceo", name: "Sandile CEO", email: "sandile@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-003", department: "Executive", position: "Group CEO", lineManager: "user-ceo" },
+      { id: "user-approver", name: "Sipho Approver", email: "sipho@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: null },
+      { id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: null },
       { id: "user-team", name: "Nomvula Team", email: "nomvula@test.com", passwordHash: hash, role: "teamMember", teamMemberNumber: "TM-001", department: "Marketing", position: "Brand Manager", lineManager: "user-approver" },
     ],
   });
@@ -42,7 +41,7 @@ export async function setup() {
     data: [
       { id: "GHE-TEST-001", employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing", company: "Test Corp", team: "Brand", type: "Gift", counterparty: "Supplier A", value: 100, submitted: "2026-01-15", approver: "Sipho Approver", approverId: "user-approver", status: "Pending", priority: "Low", description: "Test declaration", relationship: "Test", receivedGiven: "Received", fromField: "Supplier", contactPerson: "John", biddingProcess: "No", occasion: "Business Meeting", date: "2026-01-14", instances: "1", publicOfficial: "No" },
       { id: "GHE-TEST-002", employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing", company: "Test Corp", team: "Brand", type: "Gift", counterparty: "Supplier B", value: 500, submitted: "2026-02-01", approver: "Lindiwe HR", approverId: "user-hr", status: "Pending", priority: "Medium", description: "Second test", relationship: "Test", receivedGiven: "Given", fromField: "Customer", contactPerson: "Jane", biddingProcess: "No", occasion: "Milestone", date: "2026-01-30", instances: "1", publicOfficial: "No" },
-      { id: "GHE-TEST-003", employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing", company: "Test Corp", team: "Brand", type: "Hospitality", counterparty: "Supplier C", value: 3000, submitted: "2026-03-01", approver: "Sandile CEO", approverId: "user-ceo", status: "Approved", priority: "High", description: "High value", relationship: "Test", receivedGiven: "Received", fromField: "Supplier", contactPerson: "Bob", biddingProcess: "Yes", occasion: "Other", date: "2026-02-28", instances: "2", publicOfficial: "No" },
+      { id: "GHE-TEST-003", employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing", company: "Test Corp", team: "Brand", type: "Hospitality", counterparty: "Supplier C", value: 3000, submitted: "2026-03-01", approver: "Lindiwe HR", approverId: "user-hr", status: "Approved", priority: "High", description: "High value", relationship: "Test", receivedGiven: "Received", fromField: "Supplier", contactPerson: "Bob", biddingProcess: "Yes", occasion: "Other", date: "2026-02-28", instances: "2", publicOfficial: "No" },
     ],
   });
 

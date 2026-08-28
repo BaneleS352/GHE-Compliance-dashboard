@@ -23,6 +23,7 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
   const [hrNotes, setHrNotes] = useState("");
   const [wfMessage, setWfMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadWorkflowInstance = useCallback(async () => {
     if (!declarationId) {
@@ -116,20 +117,29 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
   const notesByRole: Record<string, string> = { lineManager: lmNotes, hr: hrNotes };
 
   const handleSubmit = async () => {
-    if (!userId || !wfInstance || !currentUserStep) return;
+    if (!userId || !wfInstance || !currentUserStep || isSubmitting) return;
     setSubmitError("");
     const decision = decisionsByRole[currentUserStep.role];
     const notes = notesByRole[currentUserStep.role];
     if (!decision) return;
+    setIsSubmitting(true);
     try {
       if (!declarationId) return;
-      const res = await approveWorkflowStep({ declarationId, decision, notes });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const res: any = await approveWorkflowStep({ declarationId, decision, notes });
+      clearTimeout(timeout);
+      // 204 returns undefined — treat as success
       if (res?.newStatus) onStatusUpdate?.(res.newStatus);
+      else if (res === undefined) onStatusUpdate?.("Pending" as any);
       await loadWorkflowInstance();
       setWfMessage("Decision submitted successfully.");
       setTimeout(() => { setWfMessage(""); }, 1500);
     } catch (err: any) {
-      setSubmitError(err.message || "An error occurred while submitting the decision.");
+      if (err.name === "AbortError") setSubmitError("Request timed out. Please try again.");
+      else setSubmitError(err.message || "An error occurred while submitting the decision.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -140,6 +150,7 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
     activeNotes: activeRole?.notes || "",
     setActiveNotes: activeRole?.setNotes as ((v: string) => void) | undefined,
     handleSubmit,
-    submitDisabled: !activeRole?.decision,
+    submitDisabled: !activeRole?.decision || isSubmitting,
+    isSubmitting,
   };
 }

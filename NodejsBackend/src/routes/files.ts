@@ -21,6 +21,7 @@ const ALLOWED_MIMES = [
   "image/jpeg", "image/png", "image/gif", "image/webp",
   "text/plain",
 ];
+const ALLOWED_EXTS = new Set([".pdf",".xlsx",".xls",".docx",".jpg",".jpeg",".png",".gif",".webp",".txt"]);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
@@ -35,7 +36,8 @@ const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (ALLOWED_MIMES.includes(file.mimetype)) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ALLOWED_MIMES.includes(file.mimetype) && ALLOWED_EXTS.has(ext)) {
       cb(null, true);
     } else {
       cb(new Error(`File type ${file.mimetype} is not allowed`));
@@ -122,12 +124,28 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     return;
   }
 
-  // Ownership scoping
-  if (req.user!.role !== "admin" && file.declarationId) {
-    const decl = await prisma.declaration.findUnique({ where: { id: file.declarationId } });
-    if (decl && decl.employeeId !== req.user!.id) {
+  // Ownership scoping — require admin or owner; orphan files (no declarationId) only admin can access
+  if (req.user!.role !== "admin") {
+    if (!file.declarationId) {
       res.status(403).json({ error: "Access denied" });
       return;
+    }
+    const decl = await prisma.declaration.findUnique({ where: { id: file.declarationId } });
+    if (!decl || decl.employeeId !== req.user!.id) {
+      let isApprover = false;
+      if (decl) {
+        const inst = await prisma.workflowInstance.findUnique({ where: { declarationId: decl.id } });
+        if (inst) {
+          try {
+            const steps: any[] = JSON.parse(inst.steps as string);
+            isApprover = steps.some((s: any) => s.assignee === req.user!.id);
+          } catch { isApprover = false; }
+        }
+      }
+      if (!isApprover) {
+        res.status(403).json({ error: "Access denied" });
+        return;
+      }
     }
   }
 
@@ -138,7 +156,10 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
 
   res.setHeader("Content-Type", file.mimeType);
-  res.setHeader("Content-Disposition", `attachment; filename="${file.originalName}"`);
+  // Sanitize filename for Content-Disposition (prevent header injection)
+  const safeName = file.originalName.replace(/["\r\n]/g, "_");
+  const encoded = encodeURIComponent(safeName);
+  res.setHeader("Content-Disposition", `attachment; filename="${safeName}"; filename*=UTF-8''${encoded}`);
   res.sendFile(filePath);
 }));
 
@@ -151,17 +172,33 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     return;
   }
 
-  // Ownership scoping
-  if (req.user!.role !== "admin" && file.declarationId) {
-    const decl = await prisma.declaration.findUnique({ where: { id: file.declarationId } });
-    if (decl && decl.employeeId !== req.user!.id) {
+  // Ownership scoping — same as GET
+  if (req.user!.role !== "admin") {
+    if (!file.declarationId) {
       res.status(403).json({ error: "Access denied" });
       return;
+    }
+    const decl = await prisma.declaration.findUnique({ where: { id: file.declarationId } });
+    if (!decl || decl.employeeId !== req.user!.id) {
+      let isApprover = false;
+      if (decl) {
+        const inst = await prisma.workflowInstance.findUnique({ where: { declarationId: decl.id } });
+        if (inst) {
+          try {
+            const steps: any[] = JSON.parse(inst.steps as string);
+            isApprover = steps.some((s: any) => s.assignee === req.user!.id);
+          } catch { isApprover = false; }
+        }
+      }
+      if (!isApprover) {
+        res.status(403).json({ error: "Access denied" });
+        return;
+      }
     }
   }
 
   const filePath = path.join(UPLOAD_DIR, file.path);
-  try { fs.unlinkSync(filePath); } catch { /* file may have been deleted already */ }
+  try { await fs.promises.unlink(filePath); } catch { /* file may have been deleted already */ }
 
   await prisma.uploadedFile.delete({ where: { id } });
   res.json({ message: "File deleted" });

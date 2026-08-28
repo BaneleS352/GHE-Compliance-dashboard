@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { Save, Shield, Mail, ChevronDown, ChevronRight } from "lucide-react";
+import { Save, Shield, Mail, ChevronDown, ChevronRight, Building2, Plus, Pencil, Trash2 } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
-import { fetchConfig, saveConfig } from "../../../services/api";
+import { fetchConfig, saveConfig, fetchAdminOrganizations, createOrganization, updateOrganization, deleteOrganization } from "../../../services/api";
 import { SystemConfig, NotificationTemplates } from "../../../types/declaration";
 
 const DEFAULT_NOTIFICATION_TEMPLATES: NotificationTemplates = {
@@ -49,8 +49,13 @@ export function AdminConfig() {
   const [saved, setSaved] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
+  const [organizations, setOrganizations] = useState<{ id: string; name: string; shortCode: string }[]>([]);
+  const [newOrgName, setNewOrgName] = useState("");
+  const [newOrgShortCode, setNewOrgShortCode] = useState("");
+  const [editingOrg, setEditingOrg] = useState<{ id: string; name: string; shortCode: string } | null>(null);
 
   useEffect(() => { fetchConfig().then(setConfig).catch((err: Error) => setFetchError(err.message)); }, []);
+  useEffect(() => { fetchAdminOrganizations().then(setOrganizations).catch(() => {}); }, []);
 
   const parsedTemplates: NotificationTemplates = (() => {
     try { return JSON.parse(config.notificationTemplates); } catch { return DEFAULT_NOTIFICATION_TEMPLATES; }
@@ -69,6 +74,38 @@ export function AdminConfig() {
       return () => clearTimeout(t);
     } catch (err: any) {
       setFetchError(err.message || "Failed to save configuration.");
+    }
+  };
+
+  const handleAddOrg = async () => {
+    if (!newOrgName.trim() || !newOrgShortCode.trim()) return;
+    try {
+      const created = await createOrganization({ name: newOrgName.trim(), shortCode: newOrgShortCode.trim() });
+      setOrganizations([...organizations, created]);
+      setNewOrgName("");
+      setNewOrgShortCode("");
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to create organization.");
+    }
+  };
+
+  const handleUpdateOrg = async () => {
+    if (!editingOrg) return;
+    try {
+      const updated = await updateOrganization(editingOrg.id, { name: editingOrg.name, shortCode: editingOrg.shortCode });
+      setOrganizations(organizations.map((o) => o.id === updated.id ? updated : o));
+      setEditingOrg(null);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to update organization.");
+    }
+  };
+
+  const handleDeleteOrg = async (id: string) => {
+    try {
+      await deleteOrganization(id);
+      setOrganizations(organizations.filter((o) => o.id !== id));
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to delete organization.");
     }
   };
 
@@ -174,6 +211,44 @@ export function AdminConfig() {
                 </div>
               );
             })}
+          </div>
+        </Card>
+
+        <Card className="border-white/70 bg-white/80 p-6 card-shadow lg:col-span-2">
+          <div className="mb-5 flex items-center gap-3 border-b border-border pb-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary shadow-sm">
+              <Building2 className="text-purple-600" size={18} />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">Multi-Tenant</p>
+              <h3 className="text-base font-bold">Organizations</h3>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {organizations.map((org) => (
+              <div key={org.id} className="flex items-center gap-3 rounded-xl border border-border px-4 py-3">
+                {editingOrg?.id === org.id ? (
+                  <>
+                    <input value={editingOrg.name} onChange={(e) => setEditingOrg({ ...editingOrg, name: e.target.value })} className="h-9 flex-1 rounded-lg border border-border px-3 text-sm" />
+                    <input value={editingOrg.shortCode} onChange={(e) => setEditingOrg({ ...editingOrg, shortCode: e.target.value })} className="h-9 w-24 rounded-lg border border-border px-3 text-sm" />
+                    <button onClick={handleUpdateOrg} className="rounded-lg px-3 py-1 text-xs font-semibold text-white" style={{ background: PURPLE }}>Save</button>
+                    <button onClick={() => setEditingOrg(null)} className="rounded-lg px-3 py-1 text-xs font-semibold text-muted-foreground border border-border">Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm font-medium text-foreground">{org.name}</span>
+                    <span className="rounded-lg bg-muted px-2 py-1 text-xs font-mono text-muted-foreground">{org.shortCode}</span>
+                    <button onClick={() => setEditingOrg(org)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"><Pencil size={14} /></button>
+                    <button onClick={() => handleDeleteOrg(org.id)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={14} /></button>
+                  </>
+                )}
+              </div>
+            ))}
+            <div className="flex items-center gap-3 rounded-xl border border-dashed border-border px-4 py-3">
+              <input value={newOrgName} onChange={(e) => setNewOrgName(e.target.value)} placeholder="Organization name" className="h-9 flex-1 rounded-lg border border-border px-3 text-sm" />
+              <input value={newOrgShortCode} onChange={(e) => setNewOrgShortCode(e.target.value)} placeholder="Short code" className="h-9 w-24 rounded-lg border border-border px-3 text-sm" />
+              <button onClick={handleAddOrg} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-white" style={{ background: PURPLE }}><Plus size={14} /> Add</button>
+            </div>
           </div>
         </Card>
       </div>

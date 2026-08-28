@@ -296,7 +296,7 @@ describe("Data consistency", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({
         employee: "Sipho Approver", employeeId: "user-approver", teamMemberNumber: "APPR-001",
-        lineManager: "Sandile CEO", position: "Line Manager", department: "Marketing",
+        lineManager: "Sipho Approver", position: "Line Manager", department: "Marketing",
         type: "Gift", counterparty: "LogicalOtherOwner", value: 100,
         submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
         description: "other owner workflow test", relationship: "Test",

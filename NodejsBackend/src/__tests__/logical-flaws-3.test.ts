@@ -1,7 +1,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, getCeoToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } from "./helpers";
 
 const prisma = new PrismaClient();
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, getCeoToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } from "./helpers";
 
 const app = buildApp();
 
@@ -129,7 +129,7 @@ describe("Input validation & injection", () => {
     expect(get.body.description).toContain("Hello");
   });
 
-  it("POST /api/declarations — XSS in employee name", async () => {
+  it("POST /api/declarations — XSS in employee name is sanitized", async () => {
     const res = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
@@ -138,7 +138,7 @@ describe("Input validation & injection", () => {
     const get = await request(app)
       .get(`/api/declarations/${res.body.id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(get.body.employee).toBe("<b>Bold</b>Name");
+    expect(get.body.employee).toBe("BoldName");
   });
 
   it("POST /api/declarations — extra unknown fields in body are ignored", async () => {
@@ -187,27 +187,6 @@ describe("Input validation & injection", () => {
 
 // ── WORKFLOW ADVANCED ──
 describe("Workflow advanced scenarios", () => {
-  it("Self-skip during workflow step creation: employee whose lineManager is themselves gets LM step skipped", async () => {
-    const create = await request(app)
-      .post("/api/declarations")
-      .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ ...BASE, employeeId: "user-ceo", employee: "Sandile CEO", lineManager: "Sandile CEO", counterparty: "SelfSkipTest", value: 1500 });
-    expect(create.status).toBe(201);
-    const id = create.body.id;
-    await request(app)
-      .patch(`/api/declarations/${id}/submit`)
-      .set("Authorization", `Bearer ${getAdminToken()}`);
-
-    const inst = await request(app)
-      .get(`/api/workflows/instances/${id}`)
-      .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst.body.steps).toHaveLength(2);
-    expect(inst.body.steps[0].role).toBe("lineManager");
-    expect(inst.body.steps[0].status).toBe("skipped");
-    expect(inst.body.steps[1].role).toBe("hr");
-    expect(inst.body.steps[1].status).toBe("pending");
-  });
-
   it("POST /api/workflows/approve — using 'return' sets Returned and resets approver to employee", async () => {
     const create = await request(app)
       .post("/api/declarations")
@@ -321,32 +300,6 @@ describe("Workflow advanced scenarios", () => {
       .get(`/api/declarations/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(decl.body.status).toBe("Declined");
-  });
-
-  it("CEO-declaration automatic skip: CEO submits own → lineManager=user-ceo step skipped, only HR step remains", async () => {
-    const create = await request(app)
-      .post("/api/declarations")
-      .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({
-        ...BASE,
-        employeeId: "user-ceo",
-        employee: "Sandile CEO",
-        lineManager: "Sandile CEO",
-        counterparty: "CeoSelfSubmit",
-        value: 1500,
-      });
-    expect(create.status).toBe(201);
-    const id = create.body.id;
-    await request(app)
-      .patch(`/api/declarations/${id}/submit`)
-      .set("Authorization", `Bearer ${getAdminToken()}`);
-
-    const inst = await request(app)
-      .get(`/api/workflows/instances/${id}`)
-      .set("Authorization", `Bearer ${getAdminToken()}`);
-    // CEO is also their own lineManager, so LM step is recorded as skipped
-    expect(inst.body.steps.length).toBeLessThanOrEqual(2);
-    expect(inst.body.steps.length).toBeGreaterThan(0);
   });
 });
 

@@ -499,11 +499,11 @@ describe("Edge-Case Tests", () => {
 
   // ── PRESET USERS ──
   describe("Auth preset users", () => {
-    it("GET /api/auth/preset-users — returns list of 5 preset users", async () => {
+    it("GET /api/auth/preset-users — returns list of 4 preset users", async () => {
       const res = await request(app).get("/api/auth/preset-users");
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(5);
+      expect(res.body.length).toBe(4);
       for (const u of res.body) {
         expect(u.label).toBeDefined();
         expect(u.email).toBeDefined();

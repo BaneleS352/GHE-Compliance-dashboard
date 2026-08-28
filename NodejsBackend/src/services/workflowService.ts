@@ -21,7 +21,8 @@ export interface WorkflowStep {
   decidedByName: string | null;
 }
 
-export function determineRuleId(value: number, highThreshold: number, mediumThreshold: number): string {
+export function determineRuleId(value: number, highThreshold: number, _mediumThreshold: number): string {
+  // 2-tier workflow: < high → LM only (rule-1), >= high → LM + HR (rule-2). mediumThreshold is legacy, kept for API compatibility.
   if (value >= highThreshold) return "rule-2";
   return "rule-1";
 }
@@ -39,7 +40,9 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
   const employee = await prisma.user.findUnique({ where: { id: employeeId } });
   if (!employee) throw new Error("Employee not found");
 
-  const hrUser = await prisma.user.findFirst({ where: { role: "approver", department: "HR" } });
+  const hrWhere: any = { role: "approver", department: "HR" };
+  if (employee.organizationId) hrWhere.organizationId = employee.organizationId;
+  const hrUser = await prisma.user.findFirst({ where: hrWhere });
 
   const steps: WorkflowStep[] = [];
 
@@ -152,5 +155,6 @@ export function declarationResponse(d: any) {
     publicOfficial: d.publicOfficial,
     substantiation: d.substantiation,
     files: parsed || [],
+    organizationId: d.organizationId || null,
   };
 }

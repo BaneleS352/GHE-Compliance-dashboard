@@ -11,7 +11,7 @@ import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG } from "@/co
 import { Declaration, UploadedFile } from "@/types/declaration";
 import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "@/services/api";
 import { useUser } from "@/app/auth/UserContext";
-import { fetchConfig, fetchUserById, updateDeclaration, fetchDropdowns, fetchManagers } from "@/services/api";
+import { fetchConfig, fetchUserById, updateDeclaration, fetchDropdowns, fetchManagers, fetchOrganizations } from "@/services/api";
 
 const determineRuleId = (value: number, highThreshold: number, mediumThreshold: number): string => {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "rule-1";
@@ -53,6 +53,7 @@ export function NewDeclarationScreen({
   const [lineManagerName, setLineManagerName] = useState("");
   const [managers, setManagers] = useState<{ id: string; name: string; email: string; position: string; department: string }[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
+  const [organizations, setOrganizations] = useState<{ id: string; name: string; shortCode: string }[]>([]);
   const [managerSearch, setManagerSearch] = useState("");
   const [showManagerDropdown, setShowManagerDropdown] = useState(false);
 
@@ -60,6 +61,7 @@ export function NewDeclarationScreen({
     fetchConfig().then(setConfig).catch((err: Error) => console.error("Failed to fetch config:", err));
     fetchManagers().then(setManagers).catch((err: Error) => console.error("Failed to fetch managers:", err));
     fetchDropdowns().then((d) => setDepartments(d?.departments || [])).catch((err: Error) => console.error("Failed to fetch departments:", err));
+    fetchOrganizations().then(setOrganizations).catch((err: Error) => console.error("Failed to fetch organizations:", err));
   }, []);
 
   useEffect(() => {
@@ -69,6 +71,16 @@ export function NewDeclarationScreen({
     }
     return () => { cancelled = true; };
   }, [user]);
+
+  useEffect(() => {
+    if (organizations.length > 0) {
+      setFormState((f) => {
+        if (f.company) return f;
+        const first = organizations[0];
+        return { ...f, company: first.name, organizationId: first.id };
+      });
+    }
+  }, [organizations]);
 
   useEffect(() => {
     if (lineManagerName) {
@@ -84,6 +96,7 @@ export function NewDeclarationScreen({
       employeeCode: draft.teamMemberNumber || "",
       lineManager: draft.lineManager || "",
       company: draft.company || "",
+      organizationId: draft.organizationId || "",
       department: draft.department || "",
       team: draft.team || "",
       position: draft.position || "",
@@ -155,7 +168,8 @@ export function NewDeclarationScreen({
     employeeName: user?.name || "",
     employeeCode: user?.teamMemberNumber || "",
     lineManager: lineManagerName,
-    company: "Hollywoodbets Group",
+    company: "",
+    organizationId: "",
     department: user?.department || "",
     team: "",
     position: user?.position || "",
@@ -301,8 +315,8 @@ export function NewDeclarationScreen({
     if (!form.company.trim())            errs.company = "Required";
     if (!form.department.trim())         errs.department = "Required";
     if (!form.position.trim())           errs.position = "Required";
-    if (!form.partyType)                 errs.partyType = "Required";
-     if (!form.Counterparty.trim())       errs.counterparty = "Required";
+     if (!form.partyType)                 errs.partyType = "Required";
+      if (!form.Counterparty.trim())       errs.Counterparty = "Required";
     if (!form.contactPerson.trim())      errs.contactPerson = "Required";
     if (!form.existingRelationship)      errs.existingRelationship = "Required";
     if (!form.contractNegotiation)       errs.contractNegotiation = "Required";
@@ -362,6 +376,7 @@ export function NewDeclarationScreen({
       teamMemberNumber: form.employeeCode,
       lineManager: form.lineManager,
       company: form.company,
+      organizationId: form.organizationId || undefined,
       department: form.department,
       team: form.team,
       position: form.position,
@@ -560,9 +575,13 @@ export function NewDeclarationScreen({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-5">
             <div>
               <FL required error={errors.company}>Company</FL>
-              <Sel value={form.company} onChange={(v) => setF("company", v)} className={errors.company ? "border-red-500 bg-red-50" : ""}>
+              <Sel value={form.company} onChange={(v) => {
+                const org = organizations.find((o) => o.name === v);
+                setF("company", v);
+                setFormState((f) => ({ ...f, organizationId: org?.id || "" }));
+              }} className={errors.company ? "border-red-500 bg-red-50" : ""}>
                 <option value="">Select company…</option>
-                <option>Hollywoodbets Group</option>
+                {organizations.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
               </Sel>
             </div>
             <div>
@@ -659,11 +678,11 @@ export function NewDeclarationScreen({
               </div>
             </div>
             <div>
-              <FL required hint="Full name of the organisation or individual." error={errors.counterparty}>
+              <FL required hint="Full name of the organisation or individual." error={errors.Counterparty}>
                 Name of the Supplier, Customer, Team Member or Public Official
               </FL>
               <input
-                className={`${inp} ${errors.counterparty ? "border-red-400" : ""}`}
+                className={`${inp} ${errors.Counterparty ? "border-red-400" : ""}`}
                  value={form.Counterparty}
                  onChange={(e) => setF("Counterparty", e.target.value)}
                 placeholder="Full legal name"

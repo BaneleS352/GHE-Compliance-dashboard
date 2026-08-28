@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, getCeoToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } from "./helpers";
 
 const app = buildApp();
 
@@ -204,7 +204,7 @@ describe("Workflows", () => {
       .set("Authorization", `Bearer ${getTeamToken()}`);
     expect(submit.status).toBe(200);
 
-    // Verify workflow has exactly 1 step (LM), no HR or CEO
+    // Verify workflow has exactly 1 step (LM), no HR
     const inst1 = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);

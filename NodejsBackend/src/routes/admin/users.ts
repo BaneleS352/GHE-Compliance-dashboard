@@ -45,6 +45,7 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
       department: u.department,
       position: u.position,
       lineManager: u.lineManager,
+      organizationId: u.organizationId,
     }))
   );
 }));
@@ -66,6 +67,7 @@ router.get("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     department: user.department,
     position: user.position,
     lineManager: user.lineManager,
+    organizationId: user.organizationId,
   });
 }));
 
@@ -78,6 +80,7 @@ const createUserSchema = z.object({
   teamMemberNumber: z.string().optional().default(""),
   position: z.string().optional().default(""),
   lineManager: z.string().nullable().optional().default(null),
+  organizationId: z.string().nullable().optional().default(null),
 });
 
 const generatePassword = (): string => {
@@ -115,6 +118,7 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
       department: data.department,
       position: data.position,
       lineManager: data.lineManager,
+      organizationId: data.organizationId,
     },
   });
 
@@ -127,6 +131,7 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
     department: user.department,
     position: user.position,
     lineManager: user.lineManager,
+    organizationId: user.organizationId,
   });
 }));
 
@@ -138,6 +143,7 @@ const updateUserSchema = z.object({
   teamMemberNumber: z.string().optional(),
   position: z.string().optional(),
   lineManager: z.string().nullable().optional(),
+  organizationId: z.string().nullable().optional(),
 });
 
 // PUT /api/admin/users/:id
@@ -172,6 +178,7 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
   if (data.teamMemberNumber !== undefined) updateData.teamMemberNumber = data.teamMemberNumber;
   if (data.position !== undefined) updateData.position = data.position;
   if (data.lineManager !== undefined) updateData.lineManager = data.lineManager;
+  if (data.organizationId !== undefined) updateData.organizationId = data.organizationId;
 
   const user = await prisma.user.update({ where: { id }, data: updateData });
 
@@ -184,6 +191,7 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     department: user.department,
     position: user.position,
     lineManager: user.lineManager,
+    organizationId: user.organizationId,
   });
 }));
 

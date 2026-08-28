@@ -90,6 +90,7 @@ function mapDeclaration(raw: any): Declaration {
     publicOfficial:      raw.publicOfficial,
     substantiation:      raw.substantiation,
     files:               raw.files,
+    organizationId:      raw.organizationId,
   };
 }
 
@@ -218,6 +219,27 @@ export async function deleteApprovalOption(id: string): Promise<any> {
   return api.del<any>(`/api/admin/config/approval-options/${id}`);
 }
 
+// ── Organizations ─────────────────────────────────────
+export async function fetchOrganizations(): Promise<{ id: string; name: string; shortCode: string }[]> {
+  return api.get<{ id: string; name: string; shortCode: string }[]>("/api/users/organizations");
+}
+
+export async function fetchAdminOrganizations(): Promise<{ id: string; name: string; shortCode: string }[]> {
+  return api.get<{ id: string; name: string; shortCode: string }[]>("/api/admin/config/organizations");
+}
+
+export async function createOrganization(data: { name: string; shortCode: string }): Promise<any> {
+  return api.post<any>("/api/admin/config/organizations", data);
+}
+
+export async function updateOrganization(id: string, data: { name: string; shortCode: string }): Promise<any> {
+  return api.put<any>(`/api/admin/config/organizations/${id}`, data);
+}
+
+export async function deleteOrganization(id: string): Promise<any> {
+  return api.del<any>(`/api/admin/config/organizations/${id}`);
+}
+
 function toApiDeclaration(declaration: Partial<Declaration>) {
   return {
     ...(declaration.id !== undefined && { id: declaration.id }),
@@ -250,6 +272,7 @@ function toApiDeclaration(declaration: Partial<Declaration>) {
     ...(declaration.publicOfficial !== undefined && { publicOfficial: declaration.publicOfficial }),
     ...(declaration.substantiation !== undefined && { substantiation: declaration.substantiation }),
     ...(declaration.files !== undefined && { files: declaration.files }),
+    ...(declaration.organizationId !== undefined && { organizationId: declaration.organizationId }),
   };
 }
 

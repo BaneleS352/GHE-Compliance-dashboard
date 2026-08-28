@@ -42,7 +42,7 @@ const mockQueueItems = [
       occasion: "Festive Season", date: "2026-07-05", instances: "1",
       publicOfficial: "No",
     },
-    step: { order: 3, role: "ceo", assignee: "user-bob", assigneeName: "Bob", label: "CEO Review", status: "pending" as const },
+    step: { order: 2, role: "hr", assignee: "user-bob", assigneeName: "Bob", label: "HR Review", status: "pending" as const },
   },
 ];
 

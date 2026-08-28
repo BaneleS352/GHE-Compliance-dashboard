@@ -69,7 +69,7 @@ vi.mock("../services/api", () => ({
 function setRole(role: "approver" | "teamMember" | "admin") {
   const users: Record<string, Record<string, unknown>> = {
     approver: { id: "user-lm", name: "Sipho Approver", email: "sipho@test.com", role: "approver",
-      teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: "user-ceo" },
+      teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: "user-approver" },
     teamMember: { id: "user-team", name: "Nomvula Team", email: "nomvula@test.com", role: "teamMember",
       teamMemberNumber: "TM-001", department: "Marketing", position: "Brand Manager", lineManager: "user-lm" },
     admin: { id: "user-admin", name: "Admin User", email: "admin@test.com", role: "admin",
@@ -115,7 +115,7 @@ describe("Journey 5: Review Declaration", () => {
 
   it("HR sees read-only view when LM step is still pending (J5.2)", async () => {
     setCustomUser({ id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver",
-      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-ceo" });
+      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-approver" });
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
@@ -265,7 +265,7 @@ describe("Journey 6: Approve Declaration", () => {
 
   it("HR approves after LM has approved (J6.4)", async () => {
     setCustomUser({ id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver",
-      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-ceo" });
+      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-approver" });
 
     const lmApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmApproved);
@@ -316,7 +316,7 @@ describe("Journey 6: Approve Declaration", () => {
 
   it("non-assigned approver cannot see decision controls (J6.13)", async () => {
     setCustomUser({ id: "user-other", name: "Other Approver", email: "other@test.com", role: "approver",
-      teamMemberNumber: "APR-999", department: "Sales", position: "Manager", lineManager: "user-ceo" });
+      teamMemberNumber: "APR-999", department: "Sales", position: "Manager", lineManager: "user-approver" });
 
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
@@ -367,7 +367,7 @@ describe("Journey 7: Return Declaration", () => {
 
   it("HR returns declaration when step is active (J7.3)", async () => {
     setCustomUser({ id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver",
-      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-ceo" });
+      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-approver" });
 
     const lmApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmApproved);
@@ -421,7 +421,7 @@ describe("Journey 8: Decline Declaration", () => {
 
   it("HR declines declaration (J8.2)", async () => {
     setCustomUser({ id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver",
-      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-ceo" });
+      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-approver" });
 
     const lmApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmApproved);

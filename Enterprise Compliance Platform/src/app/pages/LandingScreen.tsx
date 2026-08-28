@@ -11,7 +11,6 @@ const QUICK_LOGIN_USERS = [
   { label: "Team Member — Nomvula Dlamini",  email: "nomvula@hb.co.za",  role: "teamMember" as const },
   { label: "Line Manager — Sipho Nkosi",     email: "sipho@hb.co.za",    role: "approver" as const },
   { label: "HR — Lindiwe Zulu",              email: "lindiwe@hb.co.za",  role: "approver" as const },
-  { label: "CEO — Sandile Shabalala",        email: "sandile@hb.co.za",  role: "approver" as const },
   { label: "Admin — System Admin",           email: "admin@hb.co.za",    role: "admin" as const },
 ];
 

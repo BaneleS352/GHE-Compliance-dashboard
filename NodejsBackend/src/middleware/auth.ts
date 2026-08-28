@@ -11,6 +11,7 @@ export interface AuthRequest extends Request {
     name: string;
     department?: string;
     position?: string;
+    organizationId?: string | null;
   };
 }
 
@@ -24,16 +25,19 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, config.jwtSecret) as { id: string; email: string; role: string; name: string; department?: string; position?: string };
+    const decoded = jwt.verify(token, config.jwtSecret, { algorithms: ["HS256"] }) as { id: string; email: string; role: string; name: string; department?: string; position?: string; organizationId?: string | null };
     try {
-      const dbUser = await prisma.user.findUnique({ where: { id: decoded.id }, select: { role: true } });
-      if (dbUser && dbUser.role !== decoded.role) {
-        decoded.role = dbUser.role;
+      const dbUser = await prisma.user.findUnique({ where: { id: decoded.id }, select: { role: true, department: true, position: true, organizationId: true } });
+      if (dbUser) {
+        if (dbUser.role !== decoded.role) decoded.role = dbUser.role;
+        if (dbUser.department !== decoded.department) decoded.department = dbUser.department;
+        if (dbUser.position !== decoded.position) decoded.position = dbUser.position;
+        if (dbUser.organizationId !== decoded.organizationId) (decoded as any).organizationId = dbUser.organizationId;
       }
     } catch {
       console.error("DB lookup failed in auth middleware — falling through with JWT role");
     }
-    req.user = decoded;
+    req.user = decoded as AuthRequest["user"];
     next();
   } catch {
     res.status(401).json({ error: "Invalid or expired token" });
