@@ -1,127 +1,17 @@
-Remove Group CEO Approval entirely from the workflow.
-Flow should now be:
-R0-R1000 Line Manager
-R1001 - R1 000 000 (maximum declaration value) Line Manager -> HR 
+Login
+I want to have 6 login types 
+Hollywoodbets Group must have Team Member and  Line Manager = 2 login
+Nespers Limited Hollywoodbets Group must have Team Member and  Line Manager = 2 login
+HR =1
+Adomin =1
 
-when inputing value amount, 
-Where users enter a value greater than R1 000 000, a pop up should appear: 
-"Maximum value exceeded. Please enter an amount of R1 000 000 or less to continue."
+we need to proper defeerentiation, 
+Hollywoodbets Group, has it's won department, managers and team members
+Nespers Limited, has it's won department, managers and team members
 
+when in the New Declaration -> Team Member Details "when I pick a company I need the drop down to show  department and managers from this company" meaning no half hazard seeding.
 
-alos remember that the need for substantiaion also needs to change to above R1000 instead of the R2000
+New Declaration -> Team Member Details -> Department "drop down is not populated"
 
-New declaration
-"
-The following fields should be reordered like so:		
-Current Field	Requirement	
-"Company"   
-"Department"	
-"Manager Name" Rename to "Approving Manager Name"	
-'Role / Position" Rename to "Team Member Role / Position"
-	
-Make these feilds drop downs "Company", "Department" and "Approving Manager Name"	
+Returned Declaration the edit option seems to appear even for people who don't need to edit the Declaration
 
-		
-The long-term solution is to integrate the application with HIS via SQL to retrieve each Team Member’s latest available employee information.		
-Employees will log into the application through the Oracle integration, using their employee code and password. The employee code will be passed as a parameter to the HIS SQL integration.		
-Once authenticated, the employee code will be used to retrieve the employee’s latest available information from HIS. This information should automatically populate the relevant employee fields within Section 1 of the form		
-The HIS employee information should identify and link each Team Member to their respective manager. This will ensure that the correct Approving Manager Name is populated and that the manager’s email address can be used for workflow notifications.		
-Tyra will work with Santh and Shareel to establish the SQL integration process and incorporate the HIS employee information into the application.		
-		
-Until the HIS integration is implemented, a manual manager list will be maintained within the application.		
-The manager field must be a searchable dropdown, rather than free text, to ensure users select from the approved manager list.		
-Each manager must be linked to their relevant email address so that approval notifications can be automatically routed to the correct manager.		
-
-"
-
-
-
-Add these also make them editable in the Admi
-"5. Notifications								
-								
-1. Manager Approval Required								
-								
-Subject: GHE Declaration – Approval Required - [Declaration ID]								
-								
-Hi [Approving Manager Name],								
-								
-A new Gift, Hospitality and Entertainment (GHE) declaration has been submitted by [Team Member Name] and requires your attention.								
-								
-Please access the GHE Declaration App using the link below to review and action the declaration.								
-								
-[Review Declaration]								
-								
-Kind regards,								
-GHE Declaration System								
-								
-This is an automated notification. Please do not reply to this email.								
-								
-2. HR Approval Required								
-								
-Subject: GHE Declaration – HR Approval Required - [Declaration ID]								
-								
-Hi [HR Approver Name],								
-								
-A Gift, Hospitality and Entertainment (GHE) declaration has been submitted for HR approval and requires your attention.								
-								
-Please access the GHE Declaration App using the link below to review and action the declaration.								
-								
-[Review Declaration]								
-								
-Kind regards,								
-GHE Declaration System								
-								
-This is an automated notification. Please do not reply to this email.								
-								
-3. Declaration Returned								
-								
-Subject: GHE Declaration – Action Required - [Declaration ID]								
-								
-Hi [Team Member Name],								
-								
-Your Gift, Hospitality and Entertainment (GHE) declaration has been returned and requires your attention.								
-								
-Please access the GHE Declaration App using the link below to review the feedback, make the required changes and resubmit your declaration.								
-								
-[Review Declaration]								
-								
-Kind regards,								
-GHE Declaration System								
-								
-This is an automated notification. Please do not reply to this email.								
-								
-4. Declaration Declined								
-								
-Subject: GHE Declaration – Declined - [Declaration ID]								
-								
-Hi [Team Member Name],								
-								
-Your Gift, Hospitality and Entertainment (GHE) declaration has been reviewed and declined.								
-								
-Please access the GHE Declaration App using the link below to view the outcome and any relevant feedback.								
-								
-[View Declaration]								
-								
-Kind regards,								
-GHE Declaration System								
-								
-This is an automated notification. Please do not reply to this email.								
-								
-5. Declaration Approved								
-								
-Subject: GHE Declaration – Approved - [Declaration ID]								
-								
-Hi [Team Member Name],								
-								
-Your Gift, Hospitality and Entertainment (GHE) declaration has completed the required approval process and has been [Manager Approval Option].								
-								
-Please access the GHE Declaration App using the link below to view your declaration.								
-								
-[View Declaration]								
-								
-Kind regards,								
-GHE Declaration System								
-								
-This is an automated notification. Please do not reply to this email.								
-								
-"
