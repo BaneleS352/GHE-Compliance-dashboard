@@ -40,9 +40,17 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
   const employee = await prisma.user.findUnique({ where: { id: employeeId } });
   if (!employee) throw new Error("Employee not found");
 
-  const hrWhere: any = { role: "approver", department: "HR" };
-  if (employee.organizationId) hrWhere.organizationId = employee.organizationId;
-  const hrUser = await prisma.user.findFirst({ where: hrWhere });
+  // HR is global (organizationId null) — try same-org HR first, fallback to global, then any HR
+  let hrUser: any = null;
+  if (employee.organizationId) {
+    hrUser = await prisma.user.findFirst({ where: { role: "approver", department: "HR", organizationId: employee.organizationId } });
+  }
+  if (!hrUser) {
+    hrUser = await prisma.user.findFirst({ where: { role: "approver", department: "HR", organizationId: null } });
+  }
+  if (!hrUser) {
+    hrUser = await prisma.user.findFirst({ where: { role: "approver", department: "HR" } });
+  }
 
   const steps: WorkflowStep[] = [];
 

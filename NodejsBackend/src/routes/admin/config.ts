@@ -62,8 +62,8 @@ router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
   });
 }));
 
-// GET /api/admin/config/dropdowns
-router.get("/dropdowns", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
+// GET /api/admin/config/dropdowns — any authenticated user can read (needed for New Declaration department dropdown)
+router.get("/dropdowns", authenticate, asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const dropdowns = await prisma.dropdowns.findFirst();
   if (!dropdowns) {
     res.status(404).json({ error: "Dropdowns not found" });

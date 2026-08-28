@@ -346,7 +346,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
               </div>
 
               <div className="mt-4 flex flex-col gap-2">
-                {(d.status === "Draft" || d.status === "Returned") && onEditDraft ? (
+                {(d.status === "Draft" || d.status === "Returned") && onEditDraft && (d.employeeId === user?.id || user?.role === "admin") ? (
                   <button onClick={() => onEditDraft(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
                     <Edit size={12} /> {d.status === "Returned" ? "Edit & Resubmit" : "Continue"}
                   </button>
@@ -401,7 +401,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
                   <Td><StatusBadge status={d.status} /></Td>
                   <Td>
                     <div className="flex gap-2">
-                      {["Draft", "Returned"].includes(d.status) && onEditDraft ? (
+                      {["Draft", "Returned"].includes(d.status) && onEditDraft && (d.employeeId === user?.id || user?.role === "admin") ? (
                         <button onClick={() => onEditDraft(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
                           <Edit size={12} /> {d.status === "Returned" ? "Edit & Resubmit" : "Edit"}
                         </button>

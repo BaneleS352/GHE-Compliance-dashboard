@@ -68,8 +68,10 @@ router.post("/login", loginLimiter, asyncHandler(async (req: Request, res: Respo
 }));
 
 const PRESET_USERS = [
-  { label: "Team Member — Nomvula Dlamini", email: "nomvula@hb.co.za", role: "teamMember" },
-  { label: "Line Manager — Sipho Nkosi", email: "sipho@hb.co.za", role: "approver" },
+  { label: "HB — Team Member — Nomvula Dlamini", email: "nomvula@hb.co.za", role: "teamMember" },
+  { label: "HB — Line Manager — Sipho Nkosi", email: "sipho@hb.co.za", role: "approver" },
+  { label: "NPN — Team Member — Kabelo Molefe", email: "kabelo@npn.co.za", role: "teamMember" },
+  { label: "NPN — Line Manager — James van Wyk", email: "james@npn.co.za", role: "approver" },
   { label: "HR — Lindiwe Zulu", email: "lindiwe@hb.co.za", role: "approver" },
   { label: "Admin — System Admin", email: "admin@hb.co.za", role: "admin" },
 ];

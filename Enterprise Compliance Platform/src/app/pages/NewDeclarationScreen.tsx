@@ -11,7 +11,7 @@ import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG } from "@/co
 import { Declaration, UploadedFile } from "@/types/declaration";
 import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "@/services/api";
 import { useUser } from "@/app/auth/UserContext";
-import { fetchConfig, fetchUserById, updateDeclaration, fetchDropdowns, fetchManagers, fetchOrganizations } from "@/services/api";
+import { fetchConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
 
 const determineRuleId = (value: number, highThreshold: number, mediumThreshold: number): string => {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "rule-1";
@@ -59,8 +59,6 @@ export function NewDeclarationScreen({
 
   useEffect(() => {
     fetchConfig().then(setConfig).catch((err: Error) => console.error("Failed to fetch config:", err));
-    fetchManagers().then(setManagers).catch((err: Error) => console.error("Failed to fetch managers:", err));
-    fetchDropdowns().then((d) => setDepartments(d?.departments || [])).catch((err: Error) => console.error("Failed to fetch departments:", err));
     fetchOrganizations().then(setOrganizations).catch((err: Error) => console.error("Failed to fetch organizations:", err));
   }, []);
 
@@ -76,11 +74,12 @@ export function NewDeclarationScreen({
     if (organizations.length > 0) {
       setFormState((f) => {
         if (f.company) return f;
-        const first = organizations[0];
+        const userOrg = organizations.find((o) => o.id === user?.organizationId);
+        const first = userOrg || organizations[0];
         return { ...f, company: first.name, organizationId: first.id };
       });
     }
-  }, [organizations]);
+  }, [organizations, user?.organizationId]);
 
   useEffect(() => {
     if (lineManagerName) {
@@ -222,6 +221,14 @@ export function NewDeclarationScreen({
     const t = setTimeout(() => setUploadError(null), 5000);
     return () => clearTimeout(t);
   }, [uploadError]);
+
+  // Per-org departments and managers — refetch when selected company changes
+  useEffect(() => {
+    const orgId = form.organizationId || user?.organizationId;
+    if (!orgId) return;
+    fetchManagers(orgId).then(setManagers).catch((err: Error) => console.error("Failed to fetch managers:", err));
+    fetchDepartments(orgId).then(setDepartments).catch((err: Error) => console.error("Failed to fetch departments:", err));
+  }, [form.organizationId, user?.organizationId]);
 
   useEffect(() => {
     if (!showManagerDropdown) return;
