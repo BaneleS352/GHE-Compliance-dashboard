@@ -2,13 +2,13 @@ import { prisma } from "../config/prisma";
 
 export interface WorkflowStepDef {
   order: number;
-  role: "lineManager" | "hr" | "ceo";
+  role: "lineManager" | "hr";
   label: string;
 }
 
 export interface WorkflowStep {
   order: number;
-  role: "lineManager" | "hr" | "ceo";
+  role: "lineManager" | "hr";
   assignee: string;
   assigneeName: string;
   label: string;
@@ -21,9 +21,9 @@ export interface WorkflowStep {
   decidedByName: string | null;
 }
 
-export function determineRuleId(value: number, highThreshold: number, mediumThreshold: number): string {
-  if (value >= highThreshold) return "rule-3";
-  if (value >= mediumThreshold) return "rule-2";
+export function determineRuleId(value: number, highThreshold: number, _mediumThreshold: number): string {
+  // 2-tier workflow: < high → LM only (rule-1), >= high → LM + HR (rule-2). mediumThreshold is legacy, kept for API compatibility.
+  if (value >= highThreshold) return "rule-2";
   return "rule-1";
 }
 
@@ -40,8 +40,9 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
   const employee = await prisma.user.findUnique({ where: { id: employeeId } });
   if (!employee) throw new Error("Employee not found");
 
-  const hrUser = await prisma.user.findFirst({ where: { role: "approver", department: "HR" } });
-  const ceoUser = await prisma.user.findFirst({ where: { position: "Group CEO" } });
+  const hrWhere: any = { role: "approver", department: "HR" };
+  if (employee.organizationId) hrWhere.organizationId = employee.organizationId;
+  const hrUser = await prisma.user.findFirst({ where: hrWhere });
 
   const steps: WorkflowStep[] = [];
 
@@ -60,9 +61,6 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
     } else if (def.role === "hr") {
       assigneeId = hrUser?.id || "";
       assigneeName = hrUser?.name || "HR";
-    } else if (def.role === "ceo") {
-      assigneeId = ceoUser?.id || "";
-      assigneeName = ceoUser?.name || "CEO";
     }
 
     if (!assigneeId || assigneeId === employeeId) {
@@ -157,5 +155,6 @@ export function declarationResponse(d: any) {
     publicOfficial: d.publicOfficial,
     substantiation: d.substantiation,
     files: parsed || [],
+    organizationId: d.organizationId || null,
   };
 }

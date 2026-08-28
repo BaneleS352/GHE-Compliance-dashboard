@@ -19,12 +19,11 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
   const [wfLoading, setWfLoading] = useState(!!declarationId);
   const [lmDecision, setLmDecision] = useState<ApprovalDecision>(null);
   const [hrDecision, setHrDecision] = useState<ApprovalDecision>(null);
-  const [ceoDecision, setCeoDecision] = useState<ApprovalDecision>(null);
   const [lmNotes, setLmNotes] = useState("");
   const [hrNotes, setHrNotes] = useState("");
-  const [ceoNotes, setCeoNotes] = useState("");
   const [wfMessage, setWfMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadWorkflowInstance = useCallback(async () => {
     if (!declarationId) {
@@ -39,10 +38,8 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
         const getStep = (role: string) => wf.steps.find((s: any) => s.role === role);
         setLmDecision(getStep("lineManager")?.decision ?? null);
         setHrDecision(getStep("hr")?.decision ?? null);
-        setCeoDecision(getStep("ceo")?.decision ?? null);
         setLmNotes(getStep("lineManager")?.notes ?? "");
         setHrNotes(getStep("hr")?.notes ?? "");
-        setCeoNotes(getStep("ceo")?.notes ?? "");
       }
     } catch {
       setSubmitError("Failed to load workflow instance.");
@@ -58,15 +55,12 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
   const steps = wfInstance?.steps ?? [];
   const lmStep = steps.find((s: any) => s.role === "lineManager");
   const hrStep = steps.find((s: any) => s.role === "hr");
-  const ceoStep = steps.find((s: any) => s.role === "ceo");
 
   const hasLm = !!lmStep;
   const hasHr = !!hrStep;
-  const hasCeo = !!ceoStep;
   const isLmApproved = lmStep?.status === "approved";
   const isHrApproved = hrStep?.status === "approved";
   const isHrEnabled = hasHr && isLmApproved;
-  const isCeoEnabled = hasCeo && isLmApproved && (hasHr ? isHrApproved : true);
 
   const allRoles = useMemo(() => [
     {
@@ -97,21 +91,7 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
       get completed() { return hrStep && hrStep.status !== "pending"; },
       get decidedAt() { return hrStep?.decidedAt || null; },
     },
-    {
-      roleKey: "ceo" as const,
-      title: "3. Group CEO Approval",
-      defaultActor: "Group CEO",
-      get decision() { return ceoStep?.status !== "pending" ? (ceoStep?.decision ?? null) : ceoDecision; },
-      setDecision: setCeoDecision,
-      get notes() { return ceoNotes; },
-      setNotes: setCeoNotes,
-      get step() { return ceoStep; },
-      get exists() { return hasCeo; },
-      get enabled() { return isCeoEnabled && ceoStep?.status === "pending"; },
-      get completed() { return ceoStep && ceoStep.status !== "pending"; },
-      get decidedAt() { return ceoStep?.decidedAt || null; },
-    },
-  ], [lmStep, hrStep, ceoStep, hasLm, hasHr, hasCeo, isLmApproved, isHrApproved, isHrEnabled, isCeoEnabled, lmDecision, hrDecision, ceoDecision, lmNotes, hrNotes, ceoNotes]);
+  ], [lmStep, hrStep, hasLm, hasHr, isLmApproved, isHrApproved, isHrEnabled, lmDecision, hrDecision, lmNotes, hrNotes]);
 
   const wfSteps: StepView[] = useMemo(() => allRoles.map((r) => {
     if (!r.exists) return { label: r.title, actor: r.defaultActor, state: "skipped" };
@@ -133,24 +113,33 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
   const currentUserStepRole = canApprove ? currentUserStep?.role : undefined;
   const activeRole = useMemo(() => allRoles.find((r) => r.enabled && r.roleKey === currentUserStepRole), [allRoles, currentUserStepRole]);
 
-  const decisionsByRole: Record<string, ApprovalDecision> = { lineManager: lmDecision, hr: hrDecision, ceo: ceoDecision };
-  const notesByRole: Record<string, string> = { lineManager: lmNotes, hr: hrNotes, ceo: ceoNotes };
+  const decisionsByRole: Record<string, ApprovalDecision> = { lineManager: lmDecision, hr: hrDecision };
+  const notesByRole: Record<string, string> = { lineManager: lmNotes, hr: hrNotes };
 
   const handleSubmit = async () => {
-    if (!userId || !wfInstance || !currentUserStep) return;
+    if (!userId || !wfInstance || !currentUserStep || isSubmitting) return;
     setSubmitError("");
     const decision = decisionsByRole[currentUserStep.role];
     const notes = notesByRole[currentUserStep.role];
     if (!decision) return;
+    setIsSubmitting(true);
     try {
       if (!declarationId) return;
-      const res = await approveWorkflowStep({ declarationId, decision, notes });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      const res: any = await approveWorkflowStep({ declarationId, decision, notes });
+      clearTimeout(timeout);
+      // 204 returns undefined — treat as success
       if (res?.newStatus) onStatusUpdate?.(res.newStatus);
+      else if (res === undefined) onStatusUpdate?.("Pending" as any);
       await loadWorkflowInstance();
       setWfMessage("Decision submitted successfully.");
       setTimeout(() => { setWfMessage(""); }, 1500);
     } catch (err: any) {
-      setSubmitError(err.message || "An error occurred while submitting the decision.");
+      if (err.name === "AbortError") setSubmitError("Request timed out. Please try again.");
+      else setSubmitError(err.message || "An error occurred while submitting the decision.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -161,6 +150,7 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
     activeNotes: activeRole?.notes || "",
     setActiveNotes: activeRole?.setNotes as ((v: string) => void) | undefined,
     handleSubmit,
-    submitDisabled: !activeRole?.decision,
+    submitDisabled: !activeRole?.decision || isSubmitting,
+    isSubmitting,
   };
 }

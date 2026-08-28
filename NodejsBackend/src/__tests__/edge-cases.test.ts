@@ -499,11 +499,11 @@ describe("Edge-Case Tests", () => {
 
   // ── PRESET USERS ──
   describe("Auth preset users", () => {
-    it("GET /api/auth/preset-users — returns list of 5 preset users", async () => {
+    it("GET /api/auth/preset-users — returns list of 4 preset users", async () => {
       const res = await request(app).get("/api/auth/preset-users");
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(5);
+      expect(res.body.length).toBe(4);
       for (const u of res.body) {
         expect(u.label).toBeDefined();
         expect(u.email).toBeDefined();
@@ -753,7 +753,7 @@ describe("Edge-Case Tests", () => {
   // ── CONFIG/WORKFLOW COUPLING ──
   describe("Config <-> workflow coupling", () => {
     it("Config thresholds determine which workflow rule is selected on submit", async () => {
-      // Verify low threshold: value=100 <= 250 → rule-1 (1 step: LM)
+      // Verify low threshold: value=100 <= 1000 → rule-1 (1 step: LM)
       const declLow = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
@@ -781,14 +781,14 @@ describe("Edge-Case Tests", () => {
       expect(instLow.body.steps).toHaveLength(1);
       expect(instLow.body.steps[0].role).toBe("lineManager");
 
-      // Verify medium threshold: value=500 > 250 → rule-2 (2 steps: LM, HR)
+      // Verify medium threshold: value=1500 > 1000 → rule-2 (2 steps: LM, HR)
       const declMed = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
           employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "Developer", department: "Marketing",
-          type: "Gift", counterparty: "CfgMed", value: 500,
+          type: "Gift", counterparty: "CfgMed", value: 1500,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
           description: "config coupling medium", relationship: "Test",
           receivedGiven: "Received", from: "Supplier", contactPerson: "T",
@@ -810,7 +810,7 @@ describe("Edge-Case Tests", () => {
       expect(instMed.body.steps[0].role).toBe("lineManager");
       expect(instMed.body.steps[1].role).toBe("hr");
 
-      // Verify high threshold: value=5000 > 2000 → rule-3 (3 steps: LM, HR, CEO)
+      // Verify high threshold: value=5000 > 1000 → rule-2 (2 steps: LM, HR)
       const declHigh = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
@@ -835,20 +835,19 @@ describe("Edge-Case Tests", () => {
       const instHigh = await request(app)
         .get(`/api/workflows/instances/${declHigh.body.id}`)
         .set("Authorization", `Bearer ${getAdminToken()}`);
-      expect(instHigh.body.steps).toHaveLength(3);
+      expect(instHigh.body.steps).toHaveLength(2);
       expect(instHigh.body.steps[0].role).toBe("lineManager");
       expect(instHigh.body.steps[1].role).toBe("hr");
-      expect(instHigh.body.steps[2].role).toBe("ceo");
     });
 
-    it("Deleting rule-3 would break new high-value submissions (read-only verification)", async () => {
-      // Verify rule-3 exists and is selected for high-value declarations
+    it("Deleting rule-2 would break new high-value submissions (read-only verification)", async () => {
+      // Verify rule-2 exists and is selected for high-value declarations
       const rulesRes = await request(app)
         .get("/api/admin/workflows/rules")
         .set("Authorization", `Bearer ${getAdminToken()}`);
-      expect(rulesRes.body).toHaveLength(3);
-      const rule3 = rulesRes.body.find((r: any) => r.id === "rule-3");
-      expect(rule3).toBeDefined();
+      expect(rulesRes.body).toHaveLength(2);
+      const rule2 = rulesRes.body.find((r: any) => r.id === "rule-2");
+      expect(rule2).toBeDefined();
 
       // Submit a high-value declaration successfully
       const decl = await request(app)
@@ -871,18 +870,18 @@ describe("Edge-Case Tests", () => {
         .patch(`/api/declarations/${decl.body.id}/submit`)
         .set("Authorization", `Bearer ${getAdminToken()}`);
       expect(submitRes.status).toBe(200);
-      // If rule-3 were deleted, this would return 500 instead (no try/catch in createWorkflowSteps)
+      // If rule-2 were deleted, this would return 500 instead (no try/catch in createWorkflowSteps)
     });
 
     it("Existing workflow instances are frozen — rule changes don't cascade", async () => {
-      // Create and submit a medium-value declaration
+      // Create and submit a high-value declaration
       const decl = await request(app)
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
           employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "Developer", department: "Marketing",
-          type: "Gift", counterparty: "FrozenFlow", value: 500,
+          type: "Gift", counterparty: "FrozenFlow", value: 1500,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
           description: "frozen workflow test", relationship: "Test",
           receivedGiven: "Received", from: "Supplier", contactPerson: "T",

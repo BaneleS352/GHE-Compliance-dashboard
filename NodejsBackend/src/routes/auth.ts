@@ -39,16 +39,16 @@ router.post("/login", loginLimiter, asyncHandler(async (req: Request, res: Respo
     return;
   }
 
-  const valid = bcrypt.compareSync(password, user.passwordHash);
+  const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
 
   const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, name: user.name, department: user.department, position: user.position },
+    { id: user.id, email: user.email, role: user.role, name: user.name, department: user.department, position: user.position, organizationId: user.organizationId },
     config.jwtSecret,
-    { expiresIn: config.jwtExpiresIn as any }
+    { expiresIn: config.jwtExpiresIn as any, algorithm: "HS256" }
   );
 
   res.json({
@@ -62,6 +62,7 @@ router.post("/login", loginLimiter, asyncHandler(async (req: Request, res: Respo
       department: user.department,
       position: user.position,
       lineManager: user.lineManager,
+      organizationId: user.organizationId,
     },
   });
 }));
@@ -70,7 +71,6 @@ const PRESET_USERS = [
   { label: "Team Member — Nomvula Dlamini", email: "nomvula@hb.co.za", role: "teamMember" },
   { label: "Line Manager — Sipho Nkosi", email: "sipho@hb.co.za", role: "approver" },
   { label: "HR — Lindiwe Zulu", email: "lindiwe@hb.co.za", role: "approver" },
-  { label: "CEO — Sandile Shabalala", email: "sandile@hb.co.za", role: "approver" },
   { label: "Admin — System Admin", email: "admin@hb.co.za", role: "admin" },
 ];
 
@@ -94,6 +94,7 @@ router.get("/me", authenticate, asyncHandler(async (req: AuthRequest, res: Respo
     department: user.department,
     position: user.position,
     lineManager: user.lineManager,
+    organizationId: user.organizationId,
   });
 }));
 

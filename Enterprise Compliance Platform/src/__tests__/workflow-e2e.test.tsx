@@ -21,7 +21,7 @@ function makeDeclaration(overrides: Record<string, unknown> = {}) {
 }
 
 function makeWorkflow(stepsOverrides: Array<Partial<{
-  order: number; role: "lineManager" | "hr" | "ceo"; assignee: string;
+  order: number; role: "lineManager" | "hr"; assignee: string;
   assigneeName: string; label: string; status: "pending" | "approved" | "declined" | "returned";
   decision: string | null; notes: string; decidedAt: string | null;
 }>> = []) {
@@ -30,8 +30,6 @@ function makeWorkflow(stepsOverrides: Array<Partial<{
       label: "Line Manager Review", status: "pending" as const, decision: null, notes: "", decidedAt: null },
     { order: 2, role: "hr" as const, assignee: "user-hr", assigneeName: "Lindiwe HR",
       label: "HR Review", status: "pending" as const, decision: null, notes: "", decidedAt: null },
-    { order: 3, role: "ceo" as const, assignee: "user-ceo", assigneeName: "Sandile CEO",
-      label: "CEO Approval", status: "pending" as const, decision: null, notes: "", decidedAt: null },
   ];
   const merged = defaultSteps.map((s, i) => ({ ...s, ...stepsOverrides[i] }));
   return { declarationId: "GHE-2026-E2E-1", steps: merged };
@@ -60,7 +58,7 @@ vi.mock("../services/api", () => ({
   fetchWorkflowInstance: vi.fn(),
   approveWorkflowStep: vi.fn(),
   fetchConfig: vi.fn(() => Promise.resolve({
-    highValueThreshold: 2000, mediumValueThreshold: 250,
+    highValueThreshold: 1000, mediumValueThreshold: 1000,
     slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "",
   })),
   fetchDeclarations: vi.fn(),
@@ -71,7 +69,7 @@ vi.mock("../services/api", () => ({
 function setRole(role: "approver" | "teamMember" | "admin") {
   const users: Record<string, Record<string, unknown>> = {
     approver: { id: "user-lm", name: "Sipho Approver", email: "sipho@test.com", role: "approver",
-      teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: "user-ceo" },
+      teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: "user-approver" },
     teamMember: { id: "user-team", name: "Nomvula Team", email: "nomvula@test.com", role: "teamMember",
       teamMemberNumber: "TM-001", department: "Marketing", position: "Brand Manager", lineManager: "user-lm" },
     admin: { id: "user-admin", name: "Admin User", email: "admin@test.com", role: "admin",
@@ -117,7 +115,7 @@ describe("Journey 5: Review Declaration", () => {
 
   it("HR sees read-only view when LM step is still pending (J5.2)", async () => {
     setCustomUser({ id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver",
-      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-ceo" });
+      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-approver" });
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
@@ -135,7 +133,7 @@ describe("Journey 5: Review Declaration", () => {
     await waitFor(() => {
       expect(screen.getByText("GHE-2026-E2E-1")).toBeInTheDocument();
     });
-    expect(screen.getByText(/awaiting additional information/)).toBeInTheDocument();
+    expect(screen.getByText(/Awaiting action from/)).toBeInTheDocument();
     expect(screen.queryByText("Decision *")).not.toBeInTheDocument();
   });
 
@@ -267,7 +265,7 @@ describe("Journey 6: Approve Declaration", () => {
 
   it("HR approves after LM has approved (J6.4)", async () => {
     setCustomUser({ id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver",
-      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-ceo" });
+      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-approver" });
 
     const lmApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmApproved);
@@ -275,28 +273,8 @@ describe("Journey 6: Approve Declaration", () => {
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
-    fireEvent.click(screen.getByText(/accept the actual GHE/));
-    fireEvent.click(screen.getByText("Submit Decision"));
-
-    await waitFor(() => {
-      expect(approveWorkflowStep).toHaveBeenCalledWith(
-        expect.objectContaining({ decision: "accept" })
-      );
-    });
-  });
-
-  it("CEO approves after LM and HR have approved (J6.5)", async () => {
-    setCustomUser({ id: "user-ceo", name: "Sandile CEO", email: "sandile@test.com", role: "approver",
-      teamMemberNumber: "APR-003", department: "Executive", position: "Group CEO", lineManager: "user-ceo" });
-
-    const lmHrApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
-    lmHrApproved.steps[1] = { ...lmHrApproved.steps[1], status: "approved", decision: "org", decidedAt: "2026-07-16T10:00:00Z", notes: "Approved" };
-    vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmHrApproved);
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Approved" } as any);
-    render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
-
-    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
-    fireEvent.click(screen.getByText(/accept the actual GHE/));
+    const acceptOptions = screen.getAllByText(/accept the actual GHE/);
+    fireEvent.click(acceptOptions[acceptOptions.length - 1]);
     fireEvent.click(screen.getByText("Submit Decision"));
 
     await waitFor(() => {
@@ -338,7 +316,7 @@ describe("Journey 6: Approve Declaration", () => {
 
   it("non-assigned approver cannot see decision controls (J6.13)", async () => {
     setCustomUser({ id: "user-other", name: "Other Approver", email: "other@test.com", role: "approver",
-      teamMemberNumber: "APR-999", department: "Sales", position: "Manager", lineManager: "user-ceo" });
+      teamMemberNumber: "APR-999", department: "Sales", position: "Manager", lineManager: "user-approver" });
 
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
@@ -389,31 +367,10 @@ describe("Journey 7: Return Declaration", () => {
 
   it("HR returns declaration when step is active (J7.3)", async () => {
     setCustomUser({ id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver",
-      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-ceo" });
+      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-approver" });
 
     const lmApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmApproved);
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Returned" } as any);
-    render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
-
-    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
-    fireEvent.click(screen.getByText(/Return - Team member to provide/));
-    fireEvent.click(screen.getByText("Submit Decision"));
-
-    await waitFor(() => {
-      expect(approveWorkflowStep).toHaveBeenCalledWith(
-        expect.objectContaining({ decision: "return" })
-      );
-    });
-  });
-
-  it("CEO returns declaration when step is active (J7.4)", async () => {
-    setCustomUser({ id: "user-ceo", name: "Sandile CEO", email: "sandile@test.com", role: "approver",
-      teamMemberNumber: "APR-003", department: "Executive", position: "Group CEO", lineManager: "user-ceo" });
-
-    const lmHrApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
-    lmHrApproved.steps[1] = { ...lmHrApproved.steps[1], status: "approved", decision: "org", decidedAt: "2026-07-16T10:00:00Z", notes: "Approved" };
-    vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmHrApproved);
     vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Returned" } as any);
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
@@ -464,32 +421,10 @@ describe("Journey 8: Decline Declaration", () => {
 
   it("HR declines declaration (J8.2)", async () => {
     setCustomUser({ id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver",
-      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-ceo" });
+      teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-approver" });
 
     const lmApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmApproved);
-    vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Declined" } as any);
-    render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
-
-    await waitFor(() => expect(screen.getByText("Decision *")).toBeInTheDocument());
-    const declineOption = screen.getByRole("radio", { name: /Declined/ });
-    fireEvent.click(declineOption);
-    fireEvent.click(screen.getByText("Submit Decision"));
-
-    await waitFor(() => {
-      expect(approveWorkflowStep).toHaveBeenCalledWith(
-        expect.objectContaining({ decision: "decline" })
-      );
-    });
-  });
-
-  it("CEO declines declaration at final step (J8.3)", async () => {
-    setCustomUser({ id: "user-ceo", name: "Sandile CEO", email: "sandile@test.com", role: "approver",
-      teamMemberNumber: "APR-003", department: "Executive", position: "Group CEO", lineManager: "user-ceo" });
-
-    const lmHrApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
-    lmHrApproved.steps[1] = { ...lmHrApproved.steps[1], status: "approved", decision: "org", decidedAt: "2026-07-16T10:00:00Z", notes: "Approved" };
-    vi.mocked(fetchWorkflowInstance).mockResolvedValue(lmHrApproved);
     vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Declined" } as any);
     render(<ApprovalDetail declaration={makeDeclaration()} onBack={vi.fn()} />);
 
@@ -559,13 +494,12 @@ describe("Journey 9: Complete Workflow", () => {
     setRole("teamMember");
     const allApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "Good" });
     allApproved.steps[1] = { ...allApproved.steps[1], status: "approved", decision: "org", decidedAt: "2026-07-16T10:00:00Z", notes: "Approved" };
-    allApproved.steps[2] = { ...allApproved.steps[2], status: "approved", decision: "accept", decidedAt: "2026-07-17T10:00:00Z", notes: "Done" };
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(allApproved);
     const decl = makeDeclaration({ status: "Approved" });
     render(<ApprovalDetail declaration={decl} onBack={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Approved")).toBeInTheDocument();
+      expect(screen.getAllByText("Approved").length).toBeGreaterThan(0);
     });
     expect(screen.queryByText("Decision *")).not.toBeInTheDocument();
   });
@@ -574,12 +508,11 @@ describe("Journey 9: Complete Workflow", () => {
     setRole("teamMember");
     const allApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "Good" });
     allApproved.steps[1] = { ...allApproved.steps[1], status: "approved", decision: "org", decidedAt: "2026-07-16T10:00:00Z", notes: "Approved" };
-    allApproved.steps[2] = { ...allApproved.steps[2], status: "approved", decision: "accept", decidedAt: "2026-07-17T10:00:00Z", notes: "Done" };
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(allApproved);
     render(<ApprovalDetail declaration={makeDeclaration({ status: "Approved" })} onBack={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Approved")).toBeInTheDocument();
+      expect(screen.getAllByText("Approved").length).toBeGreaterThan(0);
     });
     expect(screen.queryByText("Decision *")).not.toBeInTheDocument();
   });
@@ -618,7 +551,6 @@ describe("Approval Queue E2E (Journeys 5-6)", () => {
     vi.mocked(fetchDeclarations).mockResolvedValue([makeDeclaration({ status: "Approved" })]);
     const allApproved = workflowWithStep(0, { status: "approved", decision: "accept", decidedAt: "2026-07-15T10:00:00Z", notes: "OK" });
     allApproved.steps[1] = { ...allApproved.steps[1], status: "approved", decision: "org", decidedAt: "2026-07-16T10:00:00Z", notes: "Approved" };
-    allApproved.steps[2] = { ...allApproved.steps[2], status: "approved", decision: "accept", decidedAt: "2026-07-17T10:00:00Z", notes: "Done" };
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(allApproved);
 
     render(<MyDeclarationsScreen />);

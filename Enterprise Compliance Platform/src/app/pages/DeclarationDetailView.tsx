@@ -20,7 +20,7 @@ export function DeclarationDetailView({
   const isRecord = typeof (data as Declaration).value === "number";
   const d = isRecord ? (data as Declaration) : null;
   const record = !d ? (data as Record<string, string>) : null;
-  const [config, setConfig] = useState({ highValueThreshold: 2000, mediumValueThreshold: 500, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
+  const [config, setConfig] = useState({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
 
   useEffect(() => {
     fetchConfig().then(setConfig).catch(() => { /* config defaults are used as fallback */ });
@@ -30,12 +30,12 @@ export function DeclarationDetailView({
 
   const fields: [string, string][] = d
     ? [
-        ["Team Member",            safe(d.employee)],
-        ["Team Member Code",       safe(d.teamMemberNumber)],
-        ["Manager",                safe(d.lineManager)],
         ["Company",                safe(d.company)],
         ["Department",             safe(d.department)],
-        ["Position",               safe(d.position)],
+        ["Approving Manager Name", safe(d.lineManager)],
+        ["Team Member",            safe(d.employee)],
+        ["Team Member Code",       safe(d.teamMemberNumber)],
+        ["Team Member Role / Position", safe(d.position)],
         ["GHE Received/Given",     safe(d.receivedGiven)],
         ["Category",               safe(d.type)],
         ["Counter Party",     safe(d.counterparty)],
@@ -53,13 +53,13 @@ export function DeclarationDetailView({
           : []),
       ]
     : [
-        ["Team Member",            safe(record?.employee)],
-        ["Team Member Code",       safe(record?.teamMemberNumber)],
-        ["Manager",                safe(record?.lineManager)],
         ["Company",                safe(record?.company)],
         ["Department",             safe(record?.department)],
+        ["Approving Manager Name", safe(record?.lineManager)],
+        ["Team Member",            safe(record?.employee)],
+        ["Team Member Code",       safe(record?.teamMemberNumber)],
         ["Team",                   safe(record?.team)],
-        ["Position",               safe(record?.position)],
+        ["Team Member Role / Position", safe(record?.position)],
         ["GHE Received/Given",     safe(record?.receivedGiven)],
         ["Category",               safe(record?.type)],
         ["Counter Party",     safe(record?.counterparty)],

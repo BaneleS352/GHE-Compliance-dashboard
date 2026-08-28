@@ -28,9 +28,14 @@ function findActionablePendingStep(steps: WorkflowStep[], userId: string): Workf
   return null;
 }
 
-// GET /api/workflows/pending — pending approvals for current user
+// GET /api/workflows/pending — pending approvals for current user (org-scoped)
 router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
+  const userOrg = (req.user as any)?.organizationId as string | undefined;
+  const limitRaw = req.query.limit as string | undefined;
+  const offsetRaw = req.query.offset as string | undefined;
+  const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 100) : undefined;
+  const offset = offsetRaw ? Math.max(parseInt(offsetRaw, 10) || 0, 0) : 0;
   const pending: any[] = [];
 
   const instances = await prisma.workflowInstance.findMany();
@@ -44,8 +49,10 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
     const steps: WorkflowStep[] = safeParseSteps(inst.steps);
     const pendingStep = findActionablePendingStep(steps, userId);
     if (pendingStep) {
-      const declaration = declMap.get(inst.declarationId);
+      const declaration = declMap.get(inst.declarationId) as any;
       if (declaration) {
+        // Org isolation: skip cross-org pending (defense-in-depth, HR mis-assignment fallback)
+        if (userOrg && declaration.organizationId && declaration.organizationId !== userOrg) continue;
         pending.push({
           declaration: declarationResponse(declaration),
           step: pendingStep,
@@ -54,7 +61,9 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
     }
   }
 
-  res.json(pending);
+  // Pagination (only if limit requested; keeps backwards compat for existing tests)
+  const paged = limit !== undefined ? pending.slice(offset, offset + limit) : pending;
+  res.json(paged);
 }));
 
 // GET /api/workflows/instances/:declarationId — workflow timeline

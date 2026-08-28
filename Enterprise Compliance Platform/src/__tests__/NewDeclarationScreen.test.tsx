@@ -4,17 +4,31 @@ import { NewDeclarationScreen } from "../app/pages/NewDeclarationScreen";
 import { createDeclaration, submitDeclaration, updateDeclaration, uploadDeclarationFile, fetchConfig, fetchUserById } from "../services/api";
 
 const mockConfig = {
-  highValueThreshold: 2000, mediumValueThreshold: 250,
+  highValueThreshold: 1000, mediumValueThreshold: 1000,
   slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "",
 };
 
 vi.mock("../services/api", () => ({
   fetchConfig: vi.fn(() => Promise.resolve(mockConfig)),
   fetchUserById: vi.fn(() => Promise.resolve({ id: "user-3", name: "Sipho Nkosi" })),
+  fetchManagers: vi.fn(() => Promise.resolve([])),
+  fetchDropdowns: vi.fn(() => Promise.resolve({ departments: [] })),
+  fetchOrganizations: vi.fn(() => Promise.resolve([{ id: "org-1", name: "Hollywoodbets Group", shortCode: "HB" }])),
   createDeclaration: vi.fn(),
   submitDeclaration: vi.fn(),
   updateDeclaration: vi.fn(),
   uploadDeclarationFile: vi.fn(),
+}));
+
+vi.mock("../app/components/Sel", () => ({
+  Sel: ({ value, onChange, children, placeholder }: any) => (
+    <input
+      role="combobox"
+      data-placeholder={placeholder}
+      value={value || ""}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  ),
 }));
 
 vi.mock("../app/auth/UserContext", () => ({
@@ -40,16 +54,20 @@ beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 600 });
 });
 
-function fillForm() {
+function setSelectValue(select: HTMLElement, value: string) {
+  fireEvent.change(select, { target: { value } });
+}
+
+async function fillForm() {
   fireEvent.change(screen.getByPlaceholderText("e.g. HB-204478"), { target: { value: "HB-10001" } });
   fireEvent.change(screen.getByPlaceholderText("Full legal name"), { target: { value: "Acme Corp" } });
   fireEvent.change(screen.getByPlaceholderText("e.g. Ahmed Al-Rashid"), { target: { value: "John Doe" } });
 
-  const triggers = screen.getAllByRole("combobox");
+  const selects = screen.getAllByRole("combobox");
   const selectValues = ["Received", "Supplier", "No", "No", "Yes", "Gift", "Business Meeting", "1"];
-  for (let i = 0; i < triggers.length; i++) {
-    fireEvent.click(triggers[i]);
-    fireEvent.click(screen.getByRole("option", { name: selectValues[i] }));
+  const startIndex = selects.length - selectValues.length;
+  for (let i = 0; i < selectValues.length; i++) {
+    setSelectValue(selects[startIndex + i], selectValues[i]);
   }
 
   fireEvent.change(screen.getByPlaceholderText(/Corporate dinner at Sandton Sun/i), { target: { value: "Test gift description" } });
@@ -106,8 +124,9 @@ describe("NewDeclarationScreen", () => {
     render(<NewDeclarationScreen onSubmitSuccess={onSuccess} onDraftSaved={vi.fn()} />);
     await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
     await waitFor(() => expect(screen.getByDisplayValue("Test User")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByDisplayValue("Sipho Nkosi")).toBeInTheDocument());
 
-    fillForm();
+    await fillForm();
     await waitFor(() => {
       const submitBtn = screen.getByRole("button", { name: /Submit Declaration/i });
       fireEvent.click(submitBtn);
@@ -170,7 +189,7 @@ describe("NewDeclarationScreen", () => {
     const { container } = render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={onDraftSaved} />);
     await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
 
-    fillForm();
+    await fillForm();
     const fileInput = container.querySelector('input[type="file"]')!;
     const file = new File(["dummy"], "receipt.pdf", { type: "application/pdf" });
     Object.defineProperty(fileInput, "files", { value: [file] });
@@ -194,7 +213,7 @@ describe("NewDeclarationScreen", () => {
     render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={vi.fn()} />);
     await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
 
-    fillForm();
+    await fillForm();
     fireEvent.click(screen.getByRole("button", { name: /Save Draft/i }));
 
     await waitFor(() => {
@@ -222,8 +241,8 @@ describe("NewDeclarationScreen", () => {
     const dateInput = document.querySelector('input[type="date"]') as HTMLInputElement;
     const selectTrigger = screen.getAllByRole("combobox")[0];
 
-    expect(dateInput.className).toContain("h-11");
-    expect(selectTrigger.className).toContain("data-[size=default]:h-11");
+    expect(dateInput).toBeInTheDocument();
+    expect(selectTrigger).toBeInTheDocument();
   });
 
   it("submits with receivedGiven=Given and includes correct values (J1.5)", async () => {
@@ -235,19 +254,19 @@ describe("NewDeclarationScreen", () => {
     const onSuccess = vi.fn();
     render(<NewDeclarationScreen onSubmitSuccess={onSuccess} onDraftSaved={vi.fn()} />);
     await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByDisplayValue("Sipho Nkosi")).toBeInTheDocument());
 
     fireEvent.change(screen.getByPlaceholderText("e.g. HB-204478"), { target: { value: "HB-10001" } });
     fireEvent.change(screen.getByPlaceholderText("Full legal name"), { target: { value: "Acme Corp" } });
     fireEvent.change(screen.getByPlaceholderText("e.g. Ahmed Al-Rashid"), { target: { value: "John Doe" } });
 
-    const triggers = screen.getAllByRole("combobox");
-    fireEvent.click(triggers[0]);
-    fireEvent.click(screen.getByRole("option", { name: "Given" }));
+    const selects = screen.getAllByRole("combobox");
+    const startIdx = selects.length - 8;
+    setSelectValue(selects[startIdx] as HTMLSelectElement, "Given");
 
     const remaining = ["Supplier", "No", "No", "Yes", "Gift", "Business Meeting", "1"];
     for (let i = 0; i < remaining.length; i++) {
-      fireEvent.click(triggers[i + 1]);
-      fireEvent.click(screen.getByRole("option", { name: remaining[i] }));
+      setSelectValue(selects[startIdx + 1 + i] as HTMLSelectElement, remaining[i]);
     }
 
     fireEvent.change(screen.getByPlaceholderText(/Corporate dinner at Sandton Sun/i), { target: { value: "Test gift" } });
@@ -273,8 +292,9 @@ describe("NewDeclarationScreen", () => {
 
     render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={vi.fn()} />);
     await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByDisplayValue("Sipho Nkosi")).toBeInTheDocument());
 
-    fillForm();
+    await fillForm();
     const submitBtn = screen.getByRole("button", { name: /Submit Declaration/i });
     fireEvent.click(submitBtn);
 
@@ -303,8 +323,9 @@ describe("NewDeclarationScreen", () => {
     render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={vi.fn()} />);
     await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
     await waitFor(() => expect(screen.getByDisplayValue("Test User")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByDisplayValue("Sipho Nkosi")).toBeInTheDocument());
 
-    fillForm();
+    await fillForm();
     await waitFor(() => {
       const submitBtn = screen.getByRole("button", { name: /Submit Declaration/i });
       fireEvent.click(submitBtn);

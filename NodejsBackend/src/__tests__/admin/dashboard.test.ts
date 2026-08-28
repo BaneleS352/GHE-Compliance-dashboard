@@ -12,8 +12,8 @@ describe("Admin Dashboard", () => {
     expect(res.status).toBe(200);
     expect(res.body.users).toBeGreaterThanOrEqual(5);
     expect(res.body.declarations).toBeGreaterThanOrEqual(3);
-    expect(res.body.workflows).toBeGreaterThanOrEqual(3);
-    expect(res.body.threshold).toBeGreaterThanOrEqual(2000);
+    expect(res.body.workflows).toBeGreaterThanOrEqual(2);
+    expect(res.body.threshold).toBeGreaterThanOrEqual(1000);
   });
 
   it("GET /api/admin/dashboard — non-admin gets 403", async () => {

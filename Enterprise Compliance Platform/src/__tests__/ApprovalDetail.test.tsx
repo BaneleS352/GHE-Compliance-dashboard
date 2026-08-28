@@ -21,8 +21,6 @@ const mockWorkflow = {
       label: "Line Manager Review", status: "pending" as const, decision: null, notes: "", decidedAt: null },
     { order: 2, role: "hr", assignee: "user-4", assigneeName: "Lindiwe Zulu",
       label: "HR Review", status: "pending" as const, decision: null, notes: "", decidedAt: null },
-    { order: 3, role: "ceo", assignee: "user-5", assigneeName: "Sandile Shabalala",
-      label: "CEO Approval", status: "pending" as const, decision: null, notes: "", decidedAt: null },
   ],
 };
 
@@ -32,7 +30,7 @@ vi.mock("../services/api", () => ({
   fetchWorkflowInstance: vi.fn(),
   approveWorkflowStep: vi.fn(),
   fetchConfig: vi.fn(() => Promise.resolve({
-    highValueThreshold: 2000, mediumValueThreshold: 250,
+    highValueThreshold: 1000, mediumValueThreshold: 1000,
     slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "",
   })),
 }));
@@ -79,7 +77,6 @@ describe("ApprovalDetail", () => {
       expect(screen.getByText("GHE-2026-1001")).toBeInTheDocument();
     });
     expect(screen.getByText("1. Line Manager Approval")).toBeInTheDocument();
-    expect(screen.getByText("3. Group CEO Approval")).toBeInTheDocument();
   });
 
   it("shows decision buttons for the current user's pending step", async () => {

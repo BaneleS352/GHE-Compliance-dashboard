@@ -8,7 +8,7 @@ test.beforeEach(async ({ context }) => {
 });
 
 test.describe("Approval Workflow — Full Flow", () => {
-  test("Full approval: LM → HR → CEO (high-value)", async ({ page }) => {
+  test("Full approval: LM → HR (high-value)", async ({ page }) => {
     const app = new AppPage(page);
     const declId = "GHE-2024-0047";
 

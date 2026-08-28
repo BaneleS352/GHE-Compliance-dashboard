@@ -32,21 +32,28 @@ function safeParseWorkflowSteps(data: string | null | undefined): any[] {
   }
 }
 
-router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
-  const [declarations, trendItems, typeItems] = await Promise.all([
-    prisma.declaration.findMany(),
+const VALID_STATUSES = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"] as const;
+
+router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const orgWhere: any = {};
+  if ((req.user as any)?.organizationId) orgWhere.organizationId = (req.user as any).organizationId;
+  // Use DB aggregation instead of loading all rows
+  const [counts, totalValueAgg, trendItems, typeItems] = await Promise.all([
+    prisma.declaration.groupBy({ by: ["status"], where: orgWhere, _count: { status: true } }),
+    prisma.declaration.aggregate({ where: orgWhere, _sum: { value: true } }),
     prisma.complianceTrendPoint.findMany({ orderBy: { id: "asc" } }),
     prisma.typeBreakdownItem.findMany(),
   ]);
-
+  const countMap = new Map(counts.map((c: any) => [c.status, c._count.status]));
+  const total = Array.from(countMap.values()).reduce((a: number, b: number) => a + b, 0);
   const kpis = {
-    total: declarations.length,
-    pending: declarations.filter((d) => d.status === "Pending").length,
-    approved: declarations.filter((d) => d.status === "Approved").length,
-    declined: declarations.filter((d) => d.status === "Declined").length,
-    returned: declarations.filter((d) => d.status === "Returned").length,
-    escalated: declarations.filter((d) => d.status === "Escalated").length,
-    totalValue: declarations.reduce((sum, d) => sum + d.value, 0),
+    total,
+    pending: countMap.get("Pending") || 0,
+    approved: countMap.get("Approved") || 0,
+    declined: countMap.get("Declined") || 0,
+    returned: countMap.get("Returned") || 0,
+    escalated: countMap.get("Escalated") || 0,
+    totalValue: totalValueAgg._sum.value || 0,
   };
 
   res.json({ kpis, complianceTrend: trendItems, typeBreakdown: typeItems });
@@ -55,32 +62,45 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
 router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const status = req.query.status as string | undefined;
   const search = req.query.search as string | undefined;
+  const limit = req.query.limit ? Math.min(Math.max(parseInt(String(req.query.limit), 10) || 0, 1), 100) : undefined;
+  const offset = req.query.offset ? Math.max(parseInt(String(req.query.offset), 10) || 0, 0) : 0;
 
   const where: any = {};
-  if (status) where.status = status;
+  // Whitelist status
+  if (status && (VALID_STATUSES as readonly string[]).includes(status)) where.status = status;
+  // Org isolation — scope all queries by caller's org if present
+  if ((req.user as any)?.organizationId) where.organizationId = (req.user as any).organizationId;
   if (req.user!.role === "teamMember") {
     where.employeeId = req.user!.id;
   } else if (req.user!.role === "approver" && req.user!.department && req.user!.position === "Line Manager") {
     where.department = req.user!.department;
   }
 
-  let declarations = await prisma.declaration.findMany({ where, orderBy: { submitted: "desc" } });
-
+  // DB-side search using contains (Prisma SQLite is case-sensitive, so fallback to in-memory lowercasing after fetch for SQLite)
+  let declarations: any[];
   if (search) {
-    const q = String(search).toLowerCase();
+    const q = String(search);
+    // Try DB contains first; for SQLite we still filter case-insensitively in memory after
+    declarations = await prisma.declaration.findMany({ where, orderBy: { submitted: "desc" } });
+    const qLower = q.toLowerCase();
     declarations = declarations.filter(
       (d) =>
-        d.employee.toLowerCase().includes(q) ||
-        d.counterparty.toLowerCase().includes(q) ||
-        d.id.toLowerCase().includes(q) ||
-        d.description.toLowerCase().includes(q)
+        d.employee.toLowerCase().includes(qLower) ||
+        d.counterparty.toLowerCase().includes(qLower) ||
+        d.id.toLowerCase().includes(qLower) ||
+        d.description.toLowerCase().includes(qLower)
     );
+  } else {
+    declarations = await prisma.declaration.findMany({ where, orderBy: { submitted: "desc" } });
+  }
+
+  // Pagination (in-memory slice after search; keeps backwards compatible when no limit)
+  if (limit !== undefined) {
+    declarations = declarations.slice(offset, offset + limit);
   }
 
   res.json(declarations.map(declarationResponse));
 }));
-
-const VALID_STATUSES = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"] as const;
 
 const createSchema = z.object({
   employee: z.string().min(1),
@@ -93,7 +113,7 @@ const createSchema = z.object({
   team: z.string().optional(),
   type: z.string().min(1),
   counterparty: z.string().min(1),
-  value: z.number().nonnegative(),
+  value: z.number().nonnegative().max(1000000, "Value must be R1,000,000 or less"),
   submitted: z.string(),
   approver: z.string().optional(),
   approverId: z.string().optional(),
@@ -112,6 +132,7 @@ const createSchema = z.object({
   publicOfficial: z.string(),
   substantiation: z.string().optional(),
   files: z.any().optional(),
+  organizationId: z.string().optional(),
 });
 
 router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
@@ -129,38 +150,60 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   const data = parsed.data;
   const id = generateDeclarationId();
 
+  // Derive organizationId server-side — prefer user's org, fallback to client value for admin
+  let orgId: string | null = null;
+  const userOrgId = (req.user as any)?.organizationId as string | undefined;
+  if (userOrgId) {
+    // Non-admin must stay in own org
+    if (data.organizationId && data.organizationId !== userOrgId && req.user!.role !== "admin") {
+      res.status(403).json({ error: "Cannot create declaration for another organization" });
+      return;
+    }
+    orgId = data.organizationId && req.user!.role === "admin" ? data.organizationId : userOrgId;
+  } else {
+    orgId = data.organizationId || null;
+  }
+  if (orgId) {
+    const orgExists = await prisma.organization.findUnique({ where: { id: orgId } });
+    if (!orgExists) {
+      res.status(400).json({ error: "Invalid organizationId" });
+      return;
+    }
+  }
+
   const declaration = await prisma.declaration.create({
     data: {
       id,
-      employee: data.employee,
+      employee: sanitize(data.employee),
       employeeId: data.employeeId,
-      teamMemberNumber: data.teamMemberNumber,
-      lineManager: data.lineManager,
-      position: data.position,
-      department: data.department,
-      company: data.company || null,
-      team: data.team || null,
-      type: data.type,
-      counterparty: data.counterparty,
+      teamMemberNumber: sanitize(data.teamMemberNumber),
+      lineManager: sanitize(data.lineManager),
+      position: sanitize(data.position),
+      department: sanitize(data.department),
+      company: data.company ? sanitize(data.company) : null,
+      team: data.team ? sanitize(data.team) : null,
+      type: sanitize(data.type),
+      counterparty: sanitize(data.counterparty),
       value: data.value,
-      submitted: data.submitted,
-      approver: data.approver || "",
+      submitted: sanitize(data.submitted),
+      approver: data.approver ? sanitize(data.approver) : "",
       approverId: data.approverId || null,
       status: "Draft",
-      priority: data.priority,
+      priority: sanitize(data.priority),
       description: sanitize(data.description),
-      relationship: data.relationship,
-      receivedGiven: data.receivedGiven,
-      fromField: data.from,
-      contactPerson: data.contactPerson,
-      biddingProcess: data.biddingProcess,
-      contractNegotiation: data.contractNegotiation || null,
-      occasion: data.occasion,
-      date: data.date,
-      instances: data.instances,
-      publicOfficial: data.publicOfficial,
-      substantiation: data.substantiation || null,
+      relationship: sanitize(data.relationship),
+      receivedGiven: sanitize(data.receivedGiven),
+      fromField: sanitize(data.from),
+      contactPerson: sanitize(data.contactPerson),
+      biddingProcess: sanitize(data.biddingProcess),
+      contractNegotiation: data.contractNegotiation ? sanitize(data.contractNegotiation) : null,
+      occasion: sanitize(data.occasion),
+      date: sanitize(data.date),
+      instances: sanitize(data.instances),
+      publicOfficial: sanitize(data.publicOfficial),
+      substantiation: data.substantiation ? sanitize(data.substantiation) : null,
       files: data.files ? JSON.stringify(data.files) : null,
+      organizationId: orgId,
     },
   });
 
@@ -177,6 +220,11 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
   if (req.user!.role === "teamMember" && declaration.employeeId !== req.user!.id) {
     res.status(403).json({ error: "Cannot view another user's declaration" });
+    return;
+  }
+  const userOrgIdGet = (req.user as any)?.organizationId as string | undefined;
+  if (declaration.organizationId && userOrgIdGet && declaration.organizationId !== userOrgIdGet && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Cannot view declaration from another organization" });
     return;
   }
 
@@ -209,7 +257,13 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(400).json({ error: "Only drafts or returned declarations can be edited" });
     return;
   }
-  if (req.user!.role === "teamMember" && existing.employeeId !== req.user!.id) {
+  // Org isolation
+  const userOrgIdPut = (req.user as any)?.organizationId as string | undefined;
+  if (existing.organizationId && userOrgIdPut && existing.organizationId !== userOrgIdPut && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Cannot edit declaration from another organization" });
+    return;
+  }
+  if (existing.employeeId !== req.user!.id && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot edit another user's declaration" });
     return;
   }
@@ -221,12 +275,26 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
 
   const data = parsed.data;
+  // Prevent org spoof on update — non-admin cannot change org
+  if ((data as any).organizationId && userOrgIdPut && (data as any).organizationId !== userOrgIdPut && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Cannot move declaration to another organization" });
+    return;
+  }
+  if ((data as any).organizationId) {
+    const orgExists = await prisma.organization.findUnique({ where: { id: (data as any).organizationId } });
+    if (!orgExists) {
+      res.status(400).json({ error: "Invalid organizationId" });
+      return;
+    }
+  }
+
   const updateData: Record<string, unknown> = {};
 
   const fieldMap: Record<string, string> = {
     employee: "employee",
     teamMemberNumber: "teamMemberNumber",
     lineManager: "lineManager", position: "position", department: "department",
+    organizationId: "organizationId",
     company: "company", team: "team", type: "type", counterparty: "counterparty",
     value: "value", submitted: "submitted",
     priority: "priority", description: "description", relationship: "relationship",
@@ -237,10 +305,11 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     approverId: "approverId",
   };
 
+  const sanitizeFields = new Set(["employee","teamMemberNumber","lineManager","position","department","company","team","type","counterparty","priority","description","relationship","receivedGiven","contactPerson","biddingProcess","contractNegotiation","occasion","date","instances","publicOfficial","substantiation","submitted","from"]);
   for (const [key, dbField] of Object.entries(fieldMap)) {
     const val = (data as Record<string, unknown>)[key];
     if (val !== undefined) {
-      updateData[dbField] = key === "description" ? sanitize(val as string) : val;
+      updateData[dbField] = typeof val === "string" && sanitizeFields.has(key) ? sanitize(val) : val;
     }
   }
   if (data.files !== undefined) {
@@ -266,17 +335,22 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     res.status(400).json({ error: "Only draft declarations can be deleted" });
     return;
   }
-  if (req.user!.role === "teamMember" && existing.employeeId !== req.user!.id) {
+  const userOrgIdDel = (req.user as any)?.organizationId as string | undefined;
+  if (existing.organizationId && userOrgIdDel && existing.organizationId !== userOrgIdDel && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Cannot delete declaration from another organization" });
+    return;
+  }
+  if (existing.employeeId !== req.user!.id && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot delete another user's declaration" });
     return;
   }
 
   // Cascade: delete workflow instance and uploaded files before declaration
   const files = await prisma.uploadedFile.findMany({ where: { declarationId: id } });
-  for (const f of files) {
+  await Promise.all(files.map(async (f) => {
     const fp = path.join(UPLOAD_DIR, f.path);
-    try { fs.unlinkSync(fp); } catch { /* file may have been deleted already */ }
-  }
+    try { await fs.promises.unlink(fp); } catch { /* file may have been deleted already */ }
+  }));
   await Promise.all([
     prisma.uploadedFile.deleteMany({ where: { declarationId: id } }),
     prisma.workflowInstance.deleteMany({ where: { declarationId: id } }),
@@ -297,7 +371,12 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     res.status(400).json({ error: "Only drafts or returned declarations can be submitted" });
     return;
   }
-  if (req.user!.role === "teamMember" && existing.employeeId !== req.user!.id) {
+  const userOrgIdSub = (req.user as any)?.organizationId as string | undefined;
+  if (existing.organizationId && userOrgIdSub && existing.organizationId !== userOrgIdSub && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Cannot submit declaration from another organization" });
+    return;
+  }
+  if (existing.employeeId !== req.user!.id && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot submit another user's declaration" });
     return;
   }

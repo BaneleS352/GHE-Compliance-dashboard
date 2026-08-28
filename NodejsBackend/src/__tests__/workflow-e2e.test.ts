@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, getCeoToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } from "./helpers";
 
 const app = buildApp();
 
@@ -185,7 +185,7 @@ describe("Backend E2E: Return & Resubmit Cycle (Journey 7)", () => {
 });
 
 describe("Backend E2E: Full Workflow Chain (Journey 9)", () => {
-  it("J9.1-9.5: full LM → HR → CEO approval chain for high-value declaration", async () => {
+  it("J9.1-9.5: full LM → HR approval chain for high-value declaration", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -201,7 +201,7 @@ describe("Backend E2E: Full Workflow Chain (Journey 9)", () => {
     const inst1 = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst1.body.steps).toHaveLength(3);
+    expect(inst1.body.steps).toHaveLength(2);
 
     const lmApprove = await request(app)
       .post("/api/workflows/approve")
@@ -220,21 +220,13 @@ describe("Backend E2E: Full Workflow Chain (Journey 9)", () => {
       .set("Authorization", `Bearer ${getHrToken()}`)
       .send({ declarationId: id, decision: "org", notes: "Approved by HR" });
     expect(hrApprove.status).toBe(200);
-    expect(hrApprove.body.newStatus).toBe("Pending");
+    expect(hrApprove.body.newStatus).toBe("Approved");
 
     const inst2 = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(inst2.body.steps[0].status).toBe("approved");
     expect(inst2.body.steps[1].status).toBe("approved");
-    expect(inst2.body.steps[2].status).toBe("pending");
-
-    const ceoApprove = await request(app)
-      .post("/api/workflows/approve")
-      .set("Authorization", `Bearer ${getCeoToken()}`)
-      .send({ declarationId: id, decision: "accept", notes: "Approved by CEO" });
-    expect(ceoApprove.status).toBe(200);
-    expect(ceoApprove.body.newStatus).toBe("Approved");
 
     const getFinal = await request(app)
       .get(`/api/declarations/${id}`)
@@ -291,20 +283,13 @@ describe("Backend E2E: Full Workflow Chain (Journey 9)", () => {
       .set("Authorization", `Bearer ${getHrToken()}`)
       .send({ declarationId: id, decision: "foundation" });
     expect(hr.status).toBe(200);
-
-    const ceo = await request(app)
-      .post("/api/workflows/approve")
-      .set("Authorization", `Bearer ${getCeoToken()}`)
-      .send({ declarationId: id, decision: "accept" });
-    expect(ceo.status).toBe(200);
-    expect(ceo.body.newStatus).toBe("Approved");
+    expect(hr.body.newStatus).toBe("Approved");
 
     const inst = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(inst.body.steps[0].decision).toBe("org");
     expect(inst.body.steps[1].decision).toBe("foundation");
-    expect(inst.body.steps[2].decision).toBe("accept");
   });
 
   it("J9.12: admin cannot bypass step assignment — returns 403", async () => {

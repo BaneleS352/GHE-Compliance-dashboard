@@ -19,6 +19,7 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: Auth
     slaEscalationDays: config.slaEscalationDays,
     maxDeclarationsPerCounterparty: config.maxDeclarationsPerCounterparty,
     emailTemplate: config.emailTemplate,
+    notificationTemplates: config.notificationTemplates,
   });
 }));
 
@@ -28,6 +29,7 @@ const configSchema = z.object({
   slaEscalationDays: z.number().int().nonnegative(),
   maxDeclarationsPerCounterparty: z.number().int().nonnegative(),
   emailTemplate: z.string(),
+  notificationTemplates: z.string().optional(),
 });
 
 // PUT /api/admin/config
@@ -56,6 +58,7 @@ router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
     slaEscalationDays: updated.slaEscalationDays,
     maxDeclarationsPerCounterparty: updated.maxDeclarationsPerCounterparty,
     emailTemplate: updated.emailTemplate,
+    notificationTemplates: updated.notificationTemplates,
   });
 }));
 
@@ -160,6 +163,86 @@ router.delete("/approval-options/:id", authenticate, authorize("admin"), asyncHa
   }
   await prisma.approvalOption.delete({ where: { id } });
   res.json({ message: "Approval option deleted" });
+}));
+
+// ── Organizations ──
+
+const orgSchema = z.object({
+  name: z.string().min(1),
+  shortCode: z.string().min(1),
+});
+
+// GET /api/admin/config/organizations
+router.get("/organizations", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
+  const orgs = await prisma.organization.findMany({ orderBy: { name: "asc" } });
+  res.json(orgs.map((o) => ({ id: o.id, name: o.name, shortCode: o.shortCode })));
+}));
+
+// POST /api/admin/config/organizations
+router.post("/organizations", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const parsed = orgSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  const { name, shortCode } = parsed.data;
+  const existing = await prisma.organization.findFirst({ where: { OR: [{ name }, { shortCode }] } });
+  if (existing) {
+    res.status(409).json({ error: "Organization with this name or short code already exists" });
+    return;
+  }
+  const org = await prisma.organization.create({ data: { name, shortCode } });
+  res.status(201).json({ id: org.id, name: org.name, shortCode: org.shortCode });
+}));
+
+// PUT /api/admin/config/organizations/:id
+router.put("/organizations/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+  const parsed = orgSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+  const { name, shortCode } = parsed.data;
+  const existing = await prisma.organization.findUnique({ where: { id } });
+  if (!existing) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
+  const conflict = await prisma.organization.findFirst({ where: { OR: [{ name }, { shortCode }], NOT: { id } } });
+  if (conflict) {
+    res.status(409).json({ error: "Organization with this name or short code already exists" });
+    return;
+  }
+  const org = await prisma.organization.update({ where: { id }, data: { name, shortCode } });
+  res.json({ id: org.id, name: org.name, shortCode: org.shortCode });
+}));
+
+// DELETE /api/admin/config/organizations/:id
+router.delete("/organizations/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+  const existing = await prisma.organization.findUnique({ where: { id }, include: { users: true, declarations: true } });
+  if (!existing) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
+  if (existing.users.length > 0 || existing.declarations.length > 0) {
+    res.status(400).json({ error: "Cannot delete organization with associated users or declarations" });
+    return;
+  }
+  await prisma.organization.delete({ where: { id } });
+  res.json({ message: "Organization deleted" });
+}));
+
+// GET /api/admin/config/organizations/:id
+router.get("/organizations/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+  const org = await prisma.organization.findUnique({ where: { id } });
+  if (!org) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
+  res.json({ id: org.id, name: org.name, shortCode: org.shortCode });
 }));
 
 export default router;

@@ -16,19 +16,20 @@ function buildWhere(req: AuthRequest): Prisma.DeclarationWhereInput {
   const dateFilter = buildDateFilter(startDate as string, endDate as string);
   if (dateFilter) where.date = dateFilter;
   if (department && department !== "All Departments") where.department = String(department);
-  if (status && status !== "All Statuses") where.status = String(status);
+  if (status && status !== "All Statuses" && (["Draft","Pending","Approved","Declined","Escalated","Returned"] as string[]).includes(String(status))) where.status = String(status);
+  // Org isolation
+  const orgId = (req as any).user?.organizationId as string | undefined;
+  if (orgId) (where as any).organizationId = orgId;
   return where;
 }
 
 export async function getStatusBreakdown(req: AuthRequest): Promise<Record<string, number>> {
   const where = buildWhere(req);
-  const declarations = await prisma.declaration.findMany({ where, select: { status: true } });
-
+  const grouped = await prisma.declaration.groupBy({ by: ["status"], where, _count: { status: true } });
   const counts: Record<string, number> = {};
-  for (const d of declarations) {
-    counts[d.status] = (counts[d.status] || 0) + 1;
+  for (const g of grouped) {
+    counts[g.status] = g._count.status;
   }
-
   return counts;
 }
 
@@ -40,7 +41,6 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
   const roleMap: Record<string, string> = {
     lineManager: "Line Manager",
     hr: "HR",
-    ceo: "CEO",
   };
 
   const declarationIds = declarations.map((d) => d.id);

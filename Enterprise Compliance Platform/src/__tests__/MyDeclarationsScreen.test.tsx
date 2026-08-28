@@ -28,7 +28,7 @@ const mockDeclarations = [
   {
     id: "GHE-2026-1003", employee: "Charlie", employeeId: "user-2", department: "Sales",
     type: "Entertainment", counterparty: "CorpC", value: 1500, submitted: "2026-07-10",
-    approver: "Dave", status: "Draft" as const, priority: "High" as const,
+    approver: "Dave", status: "Pending" as const, priority: "High" as const,
     description: "Event", relationship: "Yes", teamMemberNumber: "TM-002",
     lineManager: "Dave", position: "Mgr", receivedGiven: "Received",
     from: "Supplier", contactPerson: "Sue", biddingProcess: "No",
@@ -49,7 +49,7 @@ vi.mock("../services/api", () => ({
   fetchDeclarations: vi.fn(),
   fetchWorkflowInstance: vi.fn(),
   fetchConfig: vi.fn(() => Promise.resolve({
-    highValueThreshold: 2000, mediumValueThreshold: 250,
+    highValueThreshold: 1000, mediumValueThreshold: 1000,
     slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "",
   })),
 }));
@@ -103,6 +103,9 @@ describe("MyDeclarationsScreen", () => {
     render(<MyDeclarationsScreen />);
     await waitFor(() => {
       expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "My" }));
+    await waitFor(() => {
       expect(screen.getAllByText("GHE-2026-1002").length).toBeGreaterThan(0);
     });
     expect(screen.queryAllByText("GHE-2026-1003").length).toBe(0);

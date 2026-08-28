@@ -62,7 +62,7 @@ router.get("/sla", authenticate, authorize("admin", "approver"), asyncHandler(as
 
 router.get("/high-value", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const config = await prisma.systemConfig.findFirst();
-  const threshold = config?.highValueThreshold ?? 2000;
+  const threshold = config?.highValueThreshold ?? 1000;
   const data = await getHighValueDeclarations(req, { highValueThreshold: threshold });
   res.json(data);
 }));

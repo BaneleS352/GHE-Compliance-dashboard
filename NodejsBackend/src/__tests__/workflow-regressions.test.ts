@@ -12,7 +12,7 @@ describe("Workflow regressions", () => {
       .send({
         employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
-        type: "Gift", counterparty: "PendingVisibility", value: 500,
+        type: "Gift", counterparty: "PendingVisibility", value: 1500,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
         description: "Pending visibility test", relationship: "Test",
         receivedGiven: "Received", from: "Supplier", contactPerson: "T",
@@ -50,7 +50,7 @@ describe("Workflow regressions", () => {
       .send({
         employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
-        type: "Gift", counterparty: "ResubmitPreserve", value: 500,
+        type: "Gift", counterparty: "ResubmitPreserve", value: 1500,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
         description: "Resubmit preserve test", relationship: "Test",
         receivedGiven: "Received", from: "Supplier", contactPerson: "T",

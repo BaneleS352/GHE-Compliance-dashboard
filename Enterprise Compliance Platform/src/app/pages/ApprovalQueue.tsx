@@ -69,9 +69,9 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
     );
   });
   const sortFieldMap: Record<string, string> = {
-    "Declaration ID": "id", Employee: "employee", Dept: "department", Type: "type",
+    "Declaration ID": "id", TeamMember: "employee", Dept: "department", Type: "type",
     Counterparty: "counterparty", Value: "value", Submitted: "submitted",
-    Priority: "priority", Status: "status", Step: "step",
+    Priority: "priority", Status: "status",
   };
   const sorted = sortKey
     ? [...filteredQueue].sort((a, b) => {

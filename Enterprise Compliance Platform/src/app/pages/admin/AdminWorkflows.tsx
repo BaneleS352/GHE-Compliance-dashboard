@@ -6,7 +6,7 @@ import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
 import { WorkflowRule } from "../../../types/declaration";
 import { fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule } from "../../../services/api";
 
-const ROLE_LABELS: Record<string, string> = { lineManager: "Line Manager", hr: "Head of HR", ceo: "Group CEO" };
+const ROLE_LABELS: Record<string, string> = { lineManager: "Line Manager", hr: "Head of HR" };
 
 export function AdminWorkflows() {
   const [rules, setRules] = useState<WorkflowRule[]>([]);

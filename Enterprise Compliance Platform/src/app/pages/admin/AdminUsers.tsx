@@ -4,7 +4,7 @@ import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { THead } from "../../components/THead";
 import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
-import { fetchUsers, createUser, updateUser, deleteUser } from "../../../services/api";
+import { fetchUsers, createUser, updateUser, deleteUser, fetchAdminOrganizations } from "../../../services/api";
 import { User } from "../../../types/declaration";
 
 const ROLE_MAP: Record<string, string> = {
@@ -22,9 +22,11 @@ export function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState("All Roles");
   const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [organizations, setOrganizations] = useState<{ id: string; name: string; shortCode: string }[]>([]);
 
   useEffect(() => {
     fetchUsers().then(setUsers).catch((err: Error) => setError(err.message));
+    fetchAdminOrganizations().then(setOrganizations).catch(() => {});
   }, []);
 
   const refresh = () => fetchUsers().then(setUsers).catch((err: Error) => setError(err.message));
@@ -60,6 +62,9 @@ export function AdminUsers() {
     const roleLabel = prompt(`Role (${roleLabels.join(", ")}):`, "teamMember");
     if (!roleLabel || !roleLabels.includes(roleLabel)) return;
     const department = prompt("Department:") || "";
+    const orgList = organizations.map((o) => `${o.shortCode} (${o.name})`).join(", ");
+    const orgShortCode = prompt(`Organization (${orgList}):`) || "";
+    const org = organizations.find((o) => o.shortCode === orgShortCode || o.name === orgShortCode);
     try {
       await createUser({
         id: `USR-${String(_nextId++).slice(-6)}`,
@@ -71,6 +76,7 @@ export function AdminUsers() {
         teamMemberNumber: "",
         position: "",
         lineManager: null,
+        organizationId: org?.id || null,
       });
       refresh();
     } catch (e: any) {
@@ -87,8 +93,11 @@ export function AdminUsers() {
     const roleLabel = prompt(`Role (${roleLabels.join(", ")}):`, user.role);
     if (!roleLabel || !roleLabels.includes(roleLabel)) return;
     const department = prompt("Department:", user.department) || "";
+    const orgList = organizations.map((o) => `${o.shortCode} (${o.name})`).join(", ");
+    const orgShortCode = prompt(`Organization (${orgList}):`, user.organizationId ? organizations.find((o) => o.id === user.organizationId)?.shortCode || "" : "") || "";
+    const org = organizations.find((o) => o.shortCode === orgShortCode || o.name === orgShortCode);
     try {
-      await updateUser(user.id, { name, email, role: roleLabel as User["role"], department });
+      await updateUser(user.id, { name, email, role: roleLabel as User["role"], department, organizationId: org?.id || null });
       refresh();
     } catch (e: any) {
       setError(e.message);

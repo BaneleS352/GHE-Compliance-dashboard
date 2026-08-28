@@ -20,22 +20,20 @@ export async function setup() {
   await prisma.user.createMany({
     data: [
       { id: "user-admin", name: "Admin User", email: "admin@test.com", passwordHash: hash, role: "admin", teamMemberNumber: "ADM-001", department: "IT", position: "System Admin", lineManager: null },
-      { id: "user-approver", name: "Sipho Approver", email: "sipho@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: "user-ceo" },
-      { id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: "user-ceo" },
-      { id: "user-ceo", name: "Sandile CEO", email: "sandile@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-003", department: "Executive", position: "Group CEO", lineManager: "user-ceo" },
+      { id: "user-approver", name: "Sipho Approver", email: "sipho@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: null },
+      { id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: null },
       { id: "user-team", name: "Nomvula Team", email: "nomvula@test.com", passwordHash: hash, role: "teamMember", teamMemberNumber: "TM-001", department: "Marketing", position: "Brand Manager", lineManager: "user-approver" },
     ],
   });
 
   await prisma.systemConfig.create({
-    data: { id: "default", highValueThreshold: 2000, mediumValueThreshold: 250, slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "Test {{ApproverName}}" },
+    data: { id: "default", highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "Test {{ApproverName}}", notificationTemplates: "{}" },
   });
 
   await prisma.workflowRule.createMany({
     data: [
       { id: "rule-1", name: "Low Value", condition: "low", priority: 1, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }]) },
-      { id: "rule-2", name: "Medium Value", condition: "medium", priority: 2, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }, { order: 2, role: "hr", label: "HR Review" }]) },
-      { id: "rule-3", name: "High Value", condition: "high", priority: 3, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }, { order: 2, role: "hr", label: "HR Review" }, { order: 3, role: "ceo", label: "CEO Approval" }]) },
+      { id: "rule-2", name: "High Value", condition: "high", priority: 2, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }, { order: 2, role: "hr", label: "HR Review" }]) },
     ],
   });
 
@@ -43,7 +41,7 @@ export async function setup() {
     data: [
       { id: "GHE-TEST-001", employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing", company: "Test Corp", team: "Brand", type: "Gift", counterparty: "Supplier A", value: 100, submitted: "2026-01-15", approver: "Sipho Approver", approverId: "user-approver", status: "Pending", priority: "Low", description: "Test declaration", relationship: "Test", receivedGiven: "Received", fromField: "Supplier", contactPerson: "John", biddingProcess: "No", occasion: "Business Meeting", date: "2026-01-14", instances: "1", publicOfficial: "No" },
       { id: "GHE-TEST-002", employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing", company: "Test Corp", team: "Brand", type: "Gift", counterparty: "Supplier B", value: 500, submitted: "2026-02-01", approver: "Lindiwe HR", approverId: "user-hr", status: "Pending", priority: "Medium", description: "Second test", relationship: "Test", receivedGiven: "Given", fromField: "Customer", contactPerson: "Jane", biddingProcess: "No", occasion: "Milestone", date: "2026-01-30", instances: "1", publicOfficial: "No" },
-      { id: "GHE-TEST-003", employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing", company: "Test Corp", team: "Brand", type: "Hospitality", counterparty: "Supplier C", value: 3000, submitted: "2026-03-01", approver: "Sandile CEO", approverId: "user-ceo", status: "Approved", priority: "High", description: "High value", relationship: "Test", receivedGiven: "Received", fromField: "Supplier", contactPerson: "Bob", biddingProcess: "Yes", occasion: "Other", date: "2026-02-28", instances: "2", publicOfficial: "No" },
+      { id: "GHE-TEST-003", employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing", company: "Test Corp", team: "Brand", type: "Hospitality", counterparty: "Supplier C", value: 3000, submitted: "2026-03-01", approver: "Lindiwe HR", approverId: "user-hr", status: "Approved", priority: "High", description: "High value", relationship: "Test", receivedGiven: "Received", fromField: "Supplier", contactPerson: "Bob", biddingProcess: "Yes", occasion: "Other", date: "2026-02-28", instances: "2", publicOfficial: "No" },
     ],
   });
 
@@ -51,7 +49,7 @@ export async function setup() {
     data: [
       { declarationId: "GHE-TEST-001", steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null }]) },
       { declarationId: "GHE-TEST-002", steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null }, { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null }]) },
-      { declarationId: "GHE-TEST-003", steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "approved", decision: "accept", notes: "OK", decidedAt: "2026-03-02T10:00:00.000Z", decidedById: null, decidedByName: null }, { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "approved", decision: "org", notes: "Approved", decidedAt: "2026-03-03T10:00:00.000Z", decidedById: null, decidedByName: null }, { order: 3, role: "ceo", assignee: "user-ceo", assigneeName: "Sandile CEO", label: "CEO Approval", status: "approved", decision: "accept", notes: "Done", decidedAt: "2026-03-04T10:00:00.000Z", decidedById: null, decidedByName: null }]) },
+      { declarationId: "GHE-TEST-003", steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "approved", decision: "accept", notes: "OK", decidedAt: "2026-03-02T10:00:00.000Z", decidedById: null, decidedByName: null }, { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "approved", decision: "org", notes: "Approved", decidedAt: "2026-03-03T10:00:00.000Z", decidedById: null, decidedByName: null }]) },
     ],
   });
 
