@@ -81,19 +81,12 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inp} />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                placeholder="Enter your password"
-                className={inp}
-              />
+              <label className="block text-sm font-semibold text-foreground mb-1.5">Quick login as</label>
+              <select value={selectedIdx} onChange={(e) => { setSelectedIdx(Number(e.target.value)); setPassword("password"); setError(""); }}
+                className={`${inp} cursor-pointer`}
+              >
+                {QUICK_LOGIN_USERS.map((u, i) => <option key={i} value={i}>{u.label}</option>)}
+              </select>
             </div>
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
