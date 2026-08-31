@@ -111,7 +111,7 @@ export function NewDeclarationScreen({
       value: String(draft.value || ""),
       currency: "ZAR",
       substantiation: draft.substantiation || "",
-      instances: draft.instances || "",
+      instances: draft.instances || "1",
       description: draft.description || "",
     });
     setReceivedGiven(draft.receivedGiven || "Received");
@@ -184,7 +184,7 @@ export function NewDeclarationScreen({
     value: "",
     currency: "ZAR",
     substantiation: "",
-    instances: "",
+    instances: "1",
     description: "",
   });
 
@@ -331,7 +331,6 @@ export function NewDeclarationScreen({
     if (!category)                       errs.category = "Required";
     if (!form.description.trim())        errs.description = "Required";
     if (!form.date)                      errs.date = "Required";
-    if (!form.instances)                 errs.instances = "Required";
     if (requiresOccasionOther && !form.occasionOther.trim()) errs.occasionOther = "Required";
     if (requiresSubstantiation && !form.substantiation.trim()) errs.substantiation = "Required";
     setErrors(errs);
@@ -342,7 +341,7 @@ export function NewDeclarationScreen({
         partyType: "sec-declaration", Counterparty: "sec-declaration",
         contactPerson: "sec-declaration", existingRelationship: "sec-declaration",
         contractNegotiation: "sec-declaration", biddingProcess: "sec-declaration",
-        category: "sec-ghe", description: "sec-ghe", date: "sec-ghe", instances: "sec-ghe",
+        category: "sec-ghe", description: "sec-ghe", date: "sec-ghe",
         occasionOther: "sec-ghe",
         substantiation: "sec-ghe",
       };
@@ -358,7 +357,7 @@ export function NewDeclarationScreen({
       company: prev.company, department: prev.department, team: prev.team, position: prev.position,
       partyType: "", Counterparty: "", contactPerson: "",
       existingRelationship: "", contractNegotiation: "", biddingProcess: "", occasion: "",
-      occasionOther: "", date: "", value: "", currency: "ZAR", substantiation: "", instances: "",
+      occasionOther: "", date: "", value: "", currency: "ZAR", substantiation: "", instances: "1",
       description: "",
     }));
     setCategory("");
@@ -400,7 +399,7 @@ export function NewDeclarationScreen({
       value: Number.isFinite(value) ? value : 0,
       occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
       description: form.description,
-      instances: form.instances,
+      instances: form.instances || "1",
       publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
       substantiation: requiresSubstantiation ? form.substantiation : "",
       approver: "",
@@ -585,7 +584,8 @@ export function NewDeclarationScreen({
               <Sel value={form.company} onChange={(v) => {
                 const org = organizations.find((o) => o.name === v);
                 setF("company", v);
-                setFormState((f) => ({ ...f, organizationId: org?.id || "" }));
+                setFormState((f) => ({ ...f, organizationId: org?.id || "", department: "", lineManager: "" }));
+                setManagerSearch("");
               }} className={errors.company ? "border-red-500 bg-red-50" : ""}>
                 <option value="">Select company…</option>
                 {organizations.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
@@ -796,15 +796,6 @@ export function NewDeclarationScreen({
                   max={new Date().toISOString().split("T")[0]}
                 />
               </div>
-            </div>
-            <div>
-              <FL required error={errors.instances}>
-                Number of instances a GHE has been given/received between you and this party in the past 12 months
-              </FL>
-              <Sel value={form.instances} onChange={(v) => setF("instances", v)} className={errors.instances ? "border-red-400" : ""}>
-                <option value="">Select…</option>
-                {["0","1","2","3","4","5","6","7","8","9",">10"].map((n) => <option key={n}>{n}</option>)}
-              </Sel>
             </div>
             <div>
               <FL hint="Enter the Rand value including VAT. Convert foreign currency to ZAR equivalent.">

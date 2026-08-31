@@ -137,13 +137,8 @@ function CompletedDetails({ step }: { step: StepView }) {
 }
 
 function PendingDetails({ isActive }: { isActive?: boolean }) {
-  const c = isActive ? undefined : STATUS_COLORS.Pending;
   return (
     <>
-      <div className="wf-detail-row flex justify-between py-1 text-sm">
-        <span className={c ? `text-xs font-semibold ${c.text}` : "text-gray-500"}>Status</span>
-        <span className={`font-semibold ${c ? c.text : "text-gray-900"}`}>Pending</span>
-      </div>
       <div className="wf-detail-row flex justify-between py-1 text-sm">
         <span className="text-gray-500">Date</span>
         <span className="font-semibold text-gray-900">-</span>

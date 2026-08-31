@@ -60,7 +60,11 @@ describe("WorkflowTimeline", () => {
   });
 
   it("shows pending state for future step", () => {
-    render(<WorkflowTimeline steps={mockSteps()} />);
+    const steps: StepView[] = [
+      { label: "1. Line Manager Approval", actor: "Sipho Nkosi", state: "completed", decision: { label: "Accept" } },
+      { label: "2. Head of HR Approval", actor: "Lindiwe Zulu", state: "pending" },
+    ];
+    render(<WorkflowTimeline steps={steps} />);
     expect(screen.getAllByText("Pending").length).toBeGreaterThanOrEqual(1);
   });
 

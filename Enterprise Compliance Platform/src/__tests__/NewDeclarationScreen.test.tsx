@@ -65,7 +65,7 @@ async function fillForm() {
   fireEvent.change(screen.getByPlaceholderText("e.g. Ahmed Al-Rashid"), { target: { value: "John Doe" } });
 
   const selects = screen.getAllByRole("combobox");
-  const selectValues = ["Received", "Supplier", "No", "No", "Yes", "Gift", "Business Meeting", "1"];
+  const selectValues = ["Received", "Supplier", "No", "No", "Yes", "Gift", "Business Meeting"];
   const startIndex = selects.length - selectValues.length;
   for (let i = 0; i < selectValues.length; i++) {
     setSelectValue(selects[startIndex + i], selectValues[i]);
@@ -262,10 +262,10 @@ describe("NewDeclarationScreen", () => {
     fireEvent.change(screen.getByPlaceholderText("e.g. Ahmed Al-Rashid"), { target: { value: "John Doe" } });
 
     const selects = screen.getAllByRole("combobox");
-    const startIdx = selects.length - 8;
+    const startIdx = selects.length - 7;
     setSelectValue(selects[startIdx] as HTMLSelectElement, "Given");
 
-    const remaining = ["Supplier", "No", "No", "Yes", "Gift", "Business Meeting", "1"];
+    const remaining = ["Supplier", "No", "No", "Yes", "Gift", "Business Meeting"];
     for (let i = 0; i < remaining.length; i++) {
       setSelectValue(selects[startIdx + 1 + i] as HTMLSelectElement, remaining[i]);
     }
