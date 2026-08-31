@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Declarations</title>
+
+  <style>
+    :root {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #111;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #f4f5f9;
+    }
+
+    .page {
+      min-height: 270px;
+      padding: 15px 12px 24px;
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 0 0 25px;
+      border-bottom: 2px solid #e5e6ed;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 23px;
+      line-height: 25px;
+      font-weight: 800;
+    }
+
+    .subtitle {
+      margin-top: 4px;
+      font-size: 14px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 9px;
+    }
+
+    button {
+      padding: 12px 23px;
+      border: 1px solid #ececf2;
+      border-radius: 24px;
+      background: #fff;
+      box-shadow: 0 1px 2px #ddd;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(200px, 1fr));
+      gap: 12px;
+      padding-top: 28px;
+    }
+
+    .card {
+      position: relative;
+      height: 128px;
+      overflow: hidden;
+      padding: 27px 28px 18px;
+      border-radius: 22px;
+      color: white;
+      box-shadow: inset 0 -10px 18px rgba(0, 0, 0, .14);
+    }
+
+    .total {
+      background: linear-gradient(125deg, #6431e5, #280897);
+    }
+
+    .pending {
+      background: linear-gradient(125deg, #ffac2a, #bd5800);
+    }
+
+    .approved {
+      background: linear-gradient(125deg, #02a473, #05c89a);
+    }
+
+    .declined {
+      background: linear-gradient(125deg, #f52b32, #e90009);
+    }
+
+    .label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .mini {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border: 2px solid rgba(255, 255, 255, .3);
+      border-radius: 50%;
+      color: rgba(255, 255, 255, .75);
+      font-size: 17px;
+    }
+
+    .value {
+      position: absolute;
+      left: 28px;
+      bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 38px;
+      font-size: 46px;
+      line-height: 42px;
+      font-weight: 800;
+    }
+
+    .money {
+      font-size: 40px;
+      letter-spacing: 1px;
+    }
+
+    .pending .value,
+    .approved .value,
+    .declined .value {
+      gap: 0;
+      font-size: 46px;
+    }
+
+    .art {
+      position: absolute;
+      right: 6px;
+      bottom: 0;
+      opacity: .62;
+    }
+
+    /* Pending card bars */
+
+    .bars {
+      width: 180px;
+      height: 112px;
+      display: flex;
+      align-items: end;
+      gap: 9px;
+      padding: 0 10px 8px;
+    }
+
+    .bars i {
+      display: block;
+      width: 18px;
+      background: #fff;
+      border-radius: 6px 6px 0 0;
+    }
+
+    .bars i:nth-child(1) { height: 40px; }
+    .bars i:nth-child(2) { height: 70px; }
+    .bars i:nth-child(3) { height: 96px; }
+    .bars i:nth-child(4) { height: 58px; }
+    .bars i:nth-child(5) { height: 84px; }
+    .bars i:nth-child(6) { height: 106px; }
+    .bars i:nth-child(7) { height: 68px; }
+
+    /* Approved and declined person */
+
+    .person {
+      width: 130px;
+      height: 120px;
+    }
+
+    .person::before {
+      content: "";
+      position: absolute;
+      top: 6px;
+      left: 42px;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #d7e2bd;
+    }
+
+    .person::after {
+      content: "";
+      position: absolute;
+      bottom: 8px;
+      left: 28px;
+      width: 72px;
+      height: 54px;
+      border-radius: 40px 40px 0 0;
+      background: #d7e2bd;
+    }
+
+    .person .check {
+      position: absolute;
+      z-index: 2;
+      right: 0;
+      bottom: 0;
+      width: 46px;
+      height: 46px;
+      border: 5px solid white;
+      border-radius: 50%;
+      background: #18bc82;
+      font-size: 29px;
+      font-weight: bold;
+      line-height: 36px;
+      text-align: center;
+    }
+
+    .decline-person::before,
+    .decline-person::after {
+      background: #f4b4b4;
+    }
+
+    .person .cross {
+      background: #ff4646;
+    }
+
+    /* Returned KPI card */
+
+    .returned {
+      padding: 0;
+      background:
+        radial-gradient(
+          ellipse 75% 90% at 2% 0%,
+          rgba(34, 218, 230, .82),
+          transparent 64%
+        ),
+        linear-gradient(
+          110deg,
+          #0dbdd4 0%,
+          #08a9c2 47%,
+          #08728d 100%
+        );
+      box-shadow: 0 2px 5px rgba(0, 0, 0, .26);
+    }
+
+    .returned .label {
+      position: absolute;
+      top: 21px;
+      left: 28px;
+      gap: 10px;
+      font-size: 14px;
+      letter-spacing: -.3px;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, .18);
+    }
+
+    .returned .mini {
+      width: 31px;
+      height: 31px;
+      border: 1px solid rgba(255, 255, 255, .21);
+      background: rgba(255, 255, 255, .1);
+      color: rgba(255, 255, 255, .78);
+      font-size: 21px;
+      font-weight: 300;
+    }
+
+    .returned .value {
+      left: 33px;
+      bottom: 17px;
+      gap: 0;
+      font-size: 46px;
+      line-height: .85;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, .15);
+    }
+
+    .returned-arrows {
+      position: absolute;
+      top: 4px;
+      right: 6px;
+      width: 138px;
+      height: 118px;
+    }
+
+    .returned-arrows path {
+      fill: none;
+      stroke: #cbd4d7;
+      stroke-width: 2px;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    @media (max-width: 900px) {
+      .page {
+        overflow: auto;
+      }
+
+      .topbar {
+        gap: 15px;
+      }
+
+      .actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .cards {
+        grid-template-columns: repeat(2, minmax(210px, 1fr));
+      }
+    }
+
+    @media (max-width: 520px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .actions {
+        justify-content: flex-start;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
+
+      .card {
+        height: 130px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div>
+        <h1>My Declarations</h1>
+        <div class="subtitle">5 of your declarations</div>
+      </div>
+
+      <div class="actions">
+        <button type="button">Clear Filters</button>
+        <button type="button">D. &nbsp;Export Excel</button>
+      </div>
+    </header>
+
+    <section class="cards">
+      <article class="card total">
+        <div class="label">
+          <span class="mini">▤</span>
+          TOTAL
+        </div>
+
+        <div class="value">
+          <span>5</span>
+          <span class="money">R98 87 045</span>
+        </div>
+      </article>
+
+      <article class="card pending">
+        <div class="label">
+          <span class="mini">◷</span>
+          PENDING
+        </div>
+
+        <div class="value">4</div>
+
+        <div class="art bars" aria-hidden="true">
+          <i></i>
+          <i></i>
+          <i></i>
+          <i></i>
+          <i></i>
+          <i></i>
+          <i></i>
+        </div>
+      </article>
+
+      <article class="card approved">
+        <div class="label">
+          <span class="mini">✓</span>
+          APPROVED
+        </div>
+
+        <div class="value">1</div>
+
+        <div class="art person" aria-hidden="true">
+          <span class="check">✓</span>
+        </div>
+      </article>
+
+      <article class="card returned">
+        <div class="label">
+          <span class="mini">↶</span>
+          RETURNED
+        </div>
+
+        <div class="value">0</div>
+
+        <svg
+          class="returned-arrows"
+          viewBox="0 0 194 166"
+          aria-hidden="true"
+        >
+          <path
+            d="M16 91 C18 55 42 35 79 35
+               H104 V15 L147 50 L104 85 V66
+               H80 C52 66 30 77 16 91 Z"
+          />
+
+          <path
+            d="M178 79 C176 115 152 136 114 136
+               H89 V153 L47 116 L89 80 V98
+               H113 C141 98 164 87 178 79 Z"
+          />
+        </svg>
+      </article>
+
+      <article class="card declined">
+        <div class="label">
+          <span class="mini">×</span>
+          DECLINED
+        </div>
+
+        <div class="value">0</div>
+
+        <div class="art person decline-person" aria-hidden="true">
+          <span class="check cross">×</span>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
