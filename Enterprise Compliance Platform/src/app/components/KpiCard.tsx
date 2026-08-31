@@ -19,161 +19,151 @@ export const STATUS_KPI: Record<string, KpiDef> = {
   Escalated: { key: "Escalated", label: "Escalated", icon: ArrowUp,  color: STATUS_COLORS.Escalated.hex, filterValue: "Escalated" },
 };
 
+// kpi.html gradients (125deg / 110deg + radial for Returned)
 const GRADIENTS: Record<string, string> = {
-  Total:       "linear-gradient(145deg,#6b3ef0 0%,#4423b8 45%,#1e1268 100%)",
-  Pending:     "linear-gradient(145deg,#ffb04a 0%,#e07a0f 50%,#8a3d05 100%)",
-  Approved:    "linear-gradient(145deg,#0c8f6b 0%,#12b380 55%,#1de29a 100%)",
-  Returned:    "linear-gradient(145deg,#22d3ee 0%,#0891b2 50%,#155e75 100%)",
-  Declined:    "linear-gradient(145deg,#ef4444 0%,#dc2626 50%,#991b1b 100%)",
-  Escalated:   "linear-gradient(145deg,#f97316 0%,#ea580c 50%,#9a3412 100%)",
-  "Total Value": "linear-gradient(145deg,#ff6aa7 0%,#a13cd6 50%,#4a1f8f 100%)",
+  Total:       "linear-gradient(125deg,#6431e5,#280897)",
+  Pending:     "linear-gradient(125deg,#ffac2a,#bd5800)",
+  Approved:    "linear-gradient(125deg,#02a473,#05c89a)",
+  Returned:    "radial-gradient(ellipse 75% 90% at 2% 0%, rgba(34,218,230,.82), transparent 64%), linear-gradient(110deg,#0dbdd4 0%,#08a9c2 47%,#08728d 100%)",
+  Declined:    "linear-gradient(125deg,#f52b32,#e90009)",
+  Escalated:   "linear-gradient(125deg,#f97316,#ea580c)",
+  "Total Value": "linear-gradient(125deg,#6431e5,#280897)",
 };
 
-function DecorTotal({ id }: { id: string }) {
+function DecorPending() {
   return (
-    <svg className="decor float" width="170" height="110" viewBox="0 0 170 110" fill="none" style={{ position: "absolute", right: -6, bottom: -6, zIndex: 2, pointerEvents: "none" }}>
-      <path className="stream" d="M-4 78 C 12 60, 22 90, 34 74 C 46 58, 56 44, 70 58 C 84 72, 92 78, 104 60 C 116 42, 128 40, 142 52 C 156 64, 166 54, 176 42" stroke="rgba(220,205,255,0.7)" strokeWidth="2.4" strokeLinecap="round" fill="none" />
-      <path d="M-4 78 C 12 60, 22 90, 34 74 C 46 58, 56 44, 70 58 C 84 72, 92 78, 104 60 C 116 42, 128 40, 142 52 C 156 64, 166 54, 176 42 L 176 110 L -4 110 Z" fill={`url(#${id}-fill)`} />
+    <div
+      className="art bars"
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        right: 6,
+        bottom: 0,
+        width: 180,
+        height: 112,
+        display: "flex",
+        alignItems: "end",
+        gap: 9,
+        padding: "0 10px 8px",
+        opacity: 0.62,
+      }}
+    >
+      {[40, 70, 96, 58, 84, 106, 68].map((h, i) => (
+        <i
+          key={i}
+          style={{
+            display: "block",
+            width: 18,
+            height: h,
+            background: "#fff",
+            borderRadius: "6px 6px 0 0",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DecorApproved() {
+  return (
+    <div className="art person" aria-hidden="true" style={{ position: "absolute", right: 6, bottom: 0, width: 130, height: 120, opacity: 0.62 }}>
+      <div style={{ position: "absolute", top: 6, left: 42, width: 48, height: 48, borderRadius: "50%", background: "#d7e2bd" }} />
+      <div style={{ position: "absolute", bottom: 8, left: 28, width: 72, height: 54, borderRadius: "40px 40px 0 0", background: "#d7e2bd" }} />
+      <span
+        className="check"
+        style={{
+          position: "absolute",
+          zIndex: 2,
+          right: 0,
+          bottom: 0,
+          width: 46,
+          height: 46,
+          border: "5px solid white",
+          borderRadius: "50%",
+          background: "#18bc82",
+          fontSize: 29,
+          fontWeight: 700,
+          lineHeight: "36px",
+          textAlign: "center",
+          color: "white",
+        }}
+      >
+        ✓
+      </span>
+    </div>
+  );
+}
+
+function DecorDeclined() {
+  return (
+    <div className="art person decline-person" aria-hidden="true" style={{ position: "absolute", right: 6, bottom: 0, width: 130, height: 120, opacity: 0.62 }}>
+      <div style={{ position: "absolute", top: 6, left: 42, width: 48, height: 48, borderRadius: "50%", background: "#f4b4b4" }} />
+      <div style={{ position: "absolute", bottom: 8, left: 28, width: 72, height: 54, borderRadius: "40px 40px 0 0", background: "#f4b4b4" }} />
+      <span
+        className="check cross"
+        style={{
+          position: "absolute",
+          zIndex: 2,
+          right: 0,
+          bottom: 0,
+          width: 46,
+          height: 46,
+          border: "5px solid white",
+          borderRadius: "50%",
+          background: "#ff4646",
+          fontSize: 29,
+          fontWeight: 700,
+          lineHeight: "36px",
+          textAlign: "center",
+          color: "white",
+        }}
+      >
+        ×
+      </span>
+    </div>
+  );
+}
+
+function DecorReturned() {
+  return (
+    <svg className="returned-arrows" viewBox="0 0 194 166" aria-hidden="true" style={{ position: "absolute", top: 4, right: 6, width: 138, height: 118, opacity: 0.62 }}>
+      <path d="M16 91 C18 55 42 35 79 35 H104 V15 L147 50 L104 85 V66 H80 C52 66 30 77 16 91 Z" fill="none" stroke="#cbd4d7" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M178 79 C176 115 152 136 114 136 H89 V153 L47 116 L89 80 V98 H113 C141 98 164 87 178 79 Z" fill="none" stroke="#cbd4d7" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-function DecorPending({ id }: { id: string }) {
-  return (
-    <svg className="decor" width="160" height="105" viewBox="0 0 160 105" fill="none" style={{ position: "absolute", right: -6, bottom: -6, zIndex: 2, pointerEvents: "none" }}>
-      <defs>
-        <linearGradient id={`${id}-barA`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#fff2cf" stopOpacity="0.95" />
-          <stop offset="100%" stopColor="#ffb347" stopOpacity="0.25" />
-        </linearGradient>
-        <linearGradient id={`${id}-barB`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#ffe4b0" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="#ffa02b" stopOpacity="0.2" />
-        </linearGradient>
-      </defs>
-      <rect x="18" y="62" width="14" height="30" rx="4" fill={`url(#${id}-barA)`} />
-      <rect x="38" y="46" width="14" height="46" rx="4" fill={`url(#${id}-barB)`} />
-      <rect x="58" y="22" width="14" height="70" rx="4" fill={`url(#${id}-barA)`} />
-      <rect x="78" y="50" width="14" height="42" rx="4" fill={`url(#${id}-barB)`} />
-      <rect x="98" y="34" width="14" height="58" rx="4" fill={`url(#${id}-barA)`} />
-      <rect x="118" y="14" width="14" height="78" rx="4" fill={`url(#${id}-barB)`} />
-      <rect x="138" y="40" width="14" height="52" rx="4" fill={`url(#${id}-barA)`} />
-      <line x1="14" y1="94" x2="156" y2="94" stroke="rgba(255,255,255,0.35)" strokeWidth="1" />
-    </svg>
-  );
-}
-
-function DecorApproved({ id }: { id: string }) {
-  return (
-    <svg className="decor" width="130" height="130" viewBox="0 0 130 130" fill="none" style={{ position: "absolute", right: -6, bottom: -6, zIndex: 2, pointerEvents: "none" }}>
-      <defs>
-        <linearGradient id={`${id}-ring`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#e6fff4" />
-          <stop offset="100%" stopColor="#20e0a0" />
-        </linearGradient>
-      </defs>
-      <circle cx="65" cy="65" r="42" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="11" />
-      <circle cx="65" cy="65" r="42" fill="none" stroke={`url(#${id}-ring)`} strokeWidth="11" strokeDasharray="263.9" strokeDashoffset="198" strokeLinecap="round" transform="rotate(-90 65 65)" />
-    </svg>
-  );
-}
-
-function DecorValue({ id }: { id: string }) {
-  return (
-    <svg className="decor float" width="175" height="110" viewBox="0 0 175 110" fill="none" style={{ position: "absolute", right: -6, bottom: -6, zIndex: 2, pointerEvents: "none" }}>
-      <defs>
-        <linearGradient id={`${id}-fillP`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(255,140,190,0.35)" />
-          <stop offset="100%" stopColor="rgba(255,140,190,0)" />
-        </linearGradient>
-      </defs>
-      <path d="M-4 72 C 12 60, 22 84, 34 72 C 46 60, 54 46, 66 40 C 76 34, 82 40, 90 50 C 100 62, 108 44, 118 34 C 128 24, 138 30, 148 44 C 158 58, 168 50, 180 40 L180 110 L-4 110 Z" fill={`url(#${id}-fillP)`} />
-      <path d="M-4 72 C 12 60, 22 84, 34 72 C 46 60, 54 46, 66 40 C 76 34, 82 40, 90 50 C 100 62, 108 44, 118 34 C 128 24, 138 30, 148 44 C 158 58, 168 50, 180 40" stroke="rgba(255,220,240,0.85)" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-      <circle cx="118" cy="34" r="10" fill="#ff5f8f" opacity="0.25" />
-      <circle cx="118" cy="34" r="4" fill="#fff" />
-      <circle cx="118" cy="34" r="2" fill="#ff5f8f" />
-    </svg>
-  );
-}
-
-function DecorReturned({ id }: { id: string }) {
-  return (
-    <svg className="decor float" width="160" height="100" viewBox="0 0 160 100" fill="none" style={{ position: "absolute", right: -6, bottom: -6, zIndex: 2, pointerEvents: "none" }}>
-      <defs>
-        <linearGradient id={`${id}-loop`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.35)" />
-          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-        </linearGradient>
-      </defs>
-      <path d="M12 80 Q 30 30, 50 50 T 90 40 T 130 60 T 160 45" stroke="rgba(255,255,255,0.5)" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-      <path d="M12 80 Q 30 30, 50 50 T 90 40 T 130 60 L 160 45" stroke={`url(#${id}-loop)`} strokeWidth="3" fill="none" strokeLinecap="round" opacity="0.3" />
-      <path d="M12 80 L 24 66 L 18 60" stroke="rgba(255,255,255,0.6)" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function DecorDeclined({ id }: { id: string }) {
-  return (
-    <svg className="decor" width="160" height="100" viewBox="0 0 160 100" fill="none" style={{ position: "absolute", right: -6, bottom: -6, zIndex: 2, pointerEvents: "none" }}>
-      <defs>
-        <linearGradient id={`${id}-down`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(255,180,180,0.3)" />
-          <stop offset="100%" stopColor="rgba(255,180,180,0)" />
-        </linearGradient>
-      </defs>
-      <path d="M-4 30 C 20 40, 40 20, 60 38 C 80 56, 100 60, 120 70 C 140 80, 155 90, 170 96" stroke="rgba(255,180,180,0.7)" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-      <path d="M-4 30 C 20 40, 40 20, 60 38 C 80 56, 100 60, 120 70 C 140 80, 155 90, 170 96 L 170 100 L -4 100 Z" fill={`url(#${id}-down)`} />
-      <line x1="150" y1="78" x2="164" y2="92" stroke="rgba(255,180,180,0.7)" strokeWidth="2.4" strokeLinecap="round" />
-      <line x1="164" y1="78" x2="150" y2="92" stroke="rgba(255,180,180,0.7)" strokeWidth="2.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function DecorEscalated({ id }: { id: string }) {
-  return (
-    <svg className="decor float" width="160" height="100" viewBox="0 0 160 100" fill="none" style={{ position: "absolute", right: -6, bottom: -6, zIndex: 2, pointerEvents: "none" }}>
-      <defs>
-        <linearGradient id={`${id}-up`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(255,200,150,0.3)" />
-          <stop offset="100%" stopColor="rgba(255,200,150,0)" />
-        </linearGradient>
-      </defs>
-      <path d="M-4 70 C 20 60, 40 76, 60 56 C 80 36, 100 20, 120 30 C 140 40, 155 30, 170 20" stroke="rgba(255,200,150,0.7)" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-      <path d="M-4 70 C 20 60, 40 76, 60 56 C 80 36, 100 20, 120 30 C 140 40, 155 30, 170 20 L 170 100 L -4 100 Z" fill={`url(#${id}-up)`} />
-      <line x1="154" y1="20" x2="170" y2="12" stroke="rgba(255,200,150,0.7)" strokeWidth="2.4" strokeLinecap="round" />
-      <line x1="170" y1="20" x2="162" y2="8" stroke="rgba(255,200,150,0.7)" strokeWidth="2.4" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function DecorFallback(_: { id: string }) {
+function DecorTotal() {
   return null;
 }
 
-const DECOR_MAP: Record<string, React.FC<{ id: string }>> = {
+function DecorFallback() {
+  return null;
+}
+
+const DECOR_MAP: Record<string, React.FC> = {
   Total: DecorTotal,
   Pending: DecorPending,
   Approved: DecorApproved,
   Returned: DecorReturned,
   Declined: DecorDeclined,
-  Escalated: DecorEscalated,
-  "Total Value": DecorValue,
+  Escalated: DecorFallback,
+  "Total Value": DecorTotal,
 };
 
 function getGradient(keyOrLabel: string): string {
   return GRADIENTS[keyOrLabel] || GRADIENTS.Total;
 }
 
-function getDecor(keyOrLabel: string): React.FC<{ id: string }> {
+function getDecor(keyOrLabel: string): React.FC {
   return DECOR_MAP[keyOrLabel] || DecorFallback;
 }
 
 export function KpiCard({
   label,
   value,
-   secondaryValue,
+  secondaryValue,
   icon: Icon,
-  color,
   active,
   onClick,
   delta,
@@ -191,114 +181,161 @@ export function KpiCard({
 }) {
   const uid = useId();
   const key = decorKey || label;
-  const DecorSvg = getDecor(key);
+  const Decor = getDecor(key);
   const bgGradient = getGradient(key);
+  const isTotal = key === "Total";
+  const isReturned = key === "Returned";
+
+  // Map lucide icon to kpi.html mini char for exact match, fallback to Icon
+  const miniCharMap: Record<string, string> = {
+    Total: "▤",
+    Pending: "◷",
+    Approved: "✓",
+    Returned: "↶",
+    Declined: "×",
+    Escalated: "↑",
+  };
+  const miniChar = miniCharMap[key];
 
   return (
     <div
+      id={uid}
       onClick={onClick}
-      className={`relative isolate overflow-hidden select-none rounded-2xl sm:rounded-[20px] transition-all duration-300
-        ${onClick ? "cursor-pointer" : "cursor-default"}
-        ${active ? "shadow-xl sm:scale-[1.03]" : "hover:-translate-y-1 hover:shadow-[0_1px_0_rgba(255,255,255,0.1)_inset,0_-20px_40px_rgba(0,0,0,0.15)_inset,0_28px_50px_-12px_rgba(0,0,0,0.65),0_10px_20px_-8px_rgba(0,0,0,0.5)]"}
-      `}
+      className={`relative overflow-hidden select-none transition-all duration-300 ${onClick ? "cursor-pointer" : "cursor-default"} ${active ? "scale-[1.02] shadow-xl" : "hover:-translate-y-0.5 hover:shadow-lg"}`}
       style={{
+        height: 128,
+        padding: isReturned ? 0 : "27px 28px 18px",
+        borderRadius: 22,
+        color: "white",
         background: bgGradient,
-        boxShadow: active
-          ? "0 1px 0 rgba(255,255,255,0.08) inset,0 -20px 40px rgba(0,0,0,0.15) inset,0 20px 40px -12px rgba(0,0,0,0.55),0 8px 16px -8px rgba(0,0,0,0.4),0 0 0 2px rgba(255,255,255,0.25)"
-          : "0 1px 0 rgba(255,255,255,0.08) inset,0 -20px 40px rgba(0,0,0,0.15) inset,0 20px 40px -12px rgba(0,0,0,0.55),0 8px 16px -8px rgba(0,0,0,0.4)",
+        boxShadow: isReturned ? "0 2px 5px rgba(0,0,0,.26)" : "inset 0 -10px 18px rgba(0,0,0,.14)",
       }}
     >
+      {/* Label */}
       <div
-        className="pointer-events-none absolute inset-0 z-[1] opacity-[0.18] mix-blend-overlay"
-        style={{
-          backgroundImage: "radial-gradient(rgba(255,255,255,.9) 1px, transparent 1px)",
-          backgroundSize: "3px 3px",
-          WebkitMaskImage: "linear-gradient(120deg, transparent 30%, black 90%)",
-          maskImage: "linear-gradient(120deg, transparent 30%, black 90%)",
-        }}
-      />
-
-      <div className="relative z-[4] p-5 sm:p-[20px_22px]">
-        <div className="flex items-center gap-2">
-          <div
-            className="flex h-[26px] w-[26px] items-center justify-center rounded-lg"
-            style={{
-              background: "rgba(255,255,255,0.14)",
-              border: "1px solid rgba(255,255,255,0.22)",
-              backdropFilter: "blur(6px)",
-              color: "#fff",
-            }}
-          >
-            <Icon size={13} />
-          </div>
-          <span
-            className="text-[12.5px] font-semibold uppercase tracking-[0.4px]"
-            style={{ color: "rgba(255,255,255,0.85)" }}
-          >
-            {label}
-          </span>
-        </div>
-
-        <div
-  className="mt-[10px] flex items-baseline justify-between gap-4"
-  style={{ textShadow: "0 2px 12px rgba(0,0,0,0.25)" }}
-    >
-      <span className="text-[40px] font-bold leading-none tracking-[-0.02em] text-white">
-        {value}
-      </span>
-
-      {secondaryValue && (
+        className="label"
+        style={
+          isReturned
+            ? {
+                position: "absolute",
+                top: 21,
+                left: 28,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                fontSize: 14,
+                fontWeight: 800,
+                letterSpacing: "-0.3px",
+                textShadow: "0 1px 1px rgba(0,0,0,.18)",
+                textTransform: "uppercase",
+              }
+            : {
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                fontSize: 14,
+                fontWeight: 800,
+                textTransform: "uppercase",
+              }
+        }
+      >
         <span
-          className="whitespace-nowrap text-[20px] font-semibold leading-none"
-          style={{
-            color: "#fdb5df", // light purple
-            textShadow: "0 1px 6px rgba(0,0,0,0.2)",
-          }}
+          className="mini"
+          style={
+            isReturned
+              ? {
+                  width: 31,
+                  height: 31,
+                  display: "grid",
+                  placeItems: "center",
+                  border: "1px solid rgba(255,255,255,.21)",
+                  borderRadius: "50%",
+                  background: "rgba(255,255,255,.1)",
+                  color: "rgba(255,255,255,.78)",
+                  fontSize: 21,
+                  fontWeight: 300,
+                }
+              : {
+                  width: 28,
+                  height: 28,
+                  display: "grid",
+                  placeItems: "center",
+                  border: "2px solid rgba(255,255,255,.3)",
+                  borderRadius: "50%",
+                  color: "rgba(255,255,255,.75)",
+                  fontSize: 17,
+                }
+          }
         >
-          {secondaryValue}
+          {miniChar ? miniChar : <Icon size={14} />}
         </span>
-      )}
-      
-    </div>
+        {label}
+      </div>
 
-        {delta && (
-          <span
-            className={`mt-[10px] inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[11px] font-semibold backdrop-blur-sm ${
-              delta.positive
-                ? "bg-[rgba(140,255,201,0.18)] text-[#c8ffe4]"
-                : delta.negative
-                  ? "bg-[rgba(255,140,140,0.16)] text-[#ffd6d6]"
-                  : "bg-[rgba(255,255,255,0.14)] text-white"
-            }`}
-            style={{ border: delta.positive ? "1px solid rgba(140,255,201,0.35)" : delta.negative ? "1px solid rgba(255,140,140,0.3)" : "1px solid rgba(255,255,255,0.18)" }}
-          >
-            {delta.text}
+      {/* Value */}
+      <div
+        className="value"
+        style={
+          isTotal
+            ? {
+                position: "absolute",
+                left: 28,
+                bottom: 20,
+                display: "flex",
+                alignItems: "center",
+                gap: 38,
+                fontSize: 46,
+                lineHeight: "42px",
+                fontWeight: 800,
+              }
+            : isReturned
+              ? {
+                  position: "absolute",
+                  left: 33,
+                  bottom: 17,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0,
+                  fontSize: 46,
+                  lineHeight: 0.85 as any,
+                  fontWeight: 800,
+                  textShadow: "0 1px 1px rgba(0,0,0,.15)",
+                }
+              : {
+                  position: "absolute",
+                  left: 28,
+                  bottom: 20,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0,
+                  fontSize: 46,
+                  lineHeight: "42px",
+                  fontWeight: 800,
+                }
+        }
+      >
+        <span>{value}</span>
+        {isTotal && secondaryValue && (
+          <span className="money" style={{ fontSize: 40, letterSpacing: 1, fontWeight: 800 }}>
+            {secondaryValue}
           </span>
         )}
       </div>
 
-      <DecorSvg id={uid} />
+      {/* Non-total cards without secondaryValue already show single value; delta below if needed */}
+      {delta && (
+        <span
+          className={`absolute left-[28px] bottom-[8px] inline-flex items-center gap-1 rounded-full px-2 py-[2px] text-[11px] font-semibold ${delta.positive ? "bg-[rgba(140,255,201,0.18)] text-[#c8ffe4]" : delta.negative ? "bg-[rgba(255,140,140,0.16)] text-[#ffd6d6]" : "bg-[rgba(255,255,255,0.14)] text-white"}`}
+          style={{ border: delta.positive ? "1px solid rgba(140,255,201,0.35)" : delta.negative ? "1px solid rgba(255,140,140,0.3)" : "1px solid rgba(255,255,255,0.18)" }}
+        >
+          {delta.text}
+        </span>
+      )}
 
-      <div
-        className="pointer-events-none absolute inset-0 z-[3] mix-blend-overlay"
-        style={{
-          background:
-            "radial-gradient(120% 80% at 100% 0%, rgba(255,255,255,0.22), transparent 55%), radial-gradient(80% 60% at 0% 100%, rgba(0,0,0,0.35), transparent 60%)",
-        }}
-      />
+      <Decor />
 
-      <div
-        className="pointer-events-none absolute inset-0 z-[5]"
-        style={{
-          borderRadius: "inherit",
-          padding: 1,
-          background: "linear-gradient(160deg,rgba(255,255,255,0.35),rgba(255,255,255,0.02) 40%,rgba(255,255,255,0) 60%,rgba(255,255,255,0.12))",
-          mask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-          WebkitMask: "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-          maskComposite: "exclude",
-          WebkitMaskComposite: "xor",
-        }}
-      />
+      {/* Active ring */}
+      {active && <div className="pointer-events-none absolute inset-0 rounded-[22px] ring-2 ring-white/30" />}
     </div>
   );
 }
