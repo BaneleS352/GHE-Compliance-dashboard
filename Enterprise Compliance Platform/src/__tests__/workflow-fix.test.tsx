@@ -71,7 +71,7 @@ describe("WorkflowTimeline - Fix for multiple matching elements", () => {
     expect(screen.getAllByText("2. Head of HR Approval").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Lindiwe Zulu").length).toBeGreaterThanOrEqual(1);
     
-    expect(screen.getByText(/Completed/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Approved/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/In Progress/)).toBeInTheDocument();
   });
 

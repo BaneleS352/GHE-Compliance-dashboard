@@ -35,22 +35,32 @@ function buildStepsFromWorkflow(wf: any, employee?: string): StepView[] {
   const hasData = wf && wf.steps && wf.steps.length > 0;
   const existing = hasData ? new Map(wf.steps.map((s: any) => [s.role, s])) : new Map();
   const result: StepView[] = [];
+  let hasTerminal = false;
   for (const r of ALL_ROLES) {
     const step = existing.get(r.role);
+    // If prior step was terminal (Returned/Declined), subsequent pending becomes skipped
+    if (hasTerminal && step && step.status === "pending") {
+      result.push({ label: step.label, actor: step.assigneeName, state: "skipped" });
+      continue;
+    }
     if (!step) {
       result.push({ label: r.label, actor: step?.assigneeName || r.defaultActor, state: "skipped" });
     } else if (step.status === "pending") {
       result.push({ label: step.label, actor: step.assigneeName, state: result.some((s) => s.state === "active" || s.state === "pending") ? "pending" : "active" });
     } else {
+      const decLabel = step.decision ? (DECISION_LABELS[step.decision] || step.decision) : null;
+      const isTerminal = decLabel ? (labelToStatus(decLabel) === "Returned" || labelToStatus(decLabel) === "Declined") : false;
+      if (isTerminal) hasTerminal = true;
       result.push({
         label: step.label,
         actor: step.assigneeName,
         state: "completed",
-        decision: step.decision ? { label: DECISION_LABELS[step.decision] || step.decision } : null,
+        decision: decLabel ? { label: decLabel } : null,
         decidedAt: step.decidedAt || null,
         decidedByName: step.decidedByName || null,
         notes: step.notes || "",
       });
+      if (isTerminal) hasTerminal = true;
     }
   }
   if (!hasData && result.every((s) => s.state === "skipped")) {
@@ -90,6 +100,11 @@ function getRailColor(step: StepView): string {
 
 function Badge({ state, decision }: { state: "completed" | "active" | "pending" | "skipped"; decision?: { label: string } | null }) {
   if (state === "completed") {
+    if (decision?.label) {
+      const s = labelToStatus(decision.label);
+      const c = STATUS_COLORS[s];
+      return <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 whitespace-nowrap ${c.bg} ${c.text}`}>{s}</span>;
+    }
     return <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-600 inline-flex items-center gap-1 whitespace-nowrap">Completed</span>;
   }
   if (state === "active") {

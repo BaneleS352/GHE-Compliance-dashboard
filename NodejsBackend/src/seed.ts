@@ -172,6 +172,7 @@ async function main() {
       mediumValueThreshold: 1000,
       slaEscalationDays: 3,
       maxDeclarationsPerCounterparty: 5,
+      maximumValue: 1000000,
       emailTemplate: "Hi {{ApproverName}},\n\nA new GHE Declaration ({{DeclarationID}}) from {{EmployeeName}} requires your review.\n\nPlease log into the system to approve or decline.\n\nRegards,\nCompliance Team",
       notificationTemplates: defaultNotificationTemplates,
     },

@@ -51,7 +51,7 @@ describe("WorkflowTimeline", () => {
   it("shows completed state with decision badge", () => {
     render(<WorkflowTimeline steps={mockSteps()} />);
     expect(screen.getAllByText(/Accept/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText(/Completed/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Approved/).length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows active state for current step", () => {

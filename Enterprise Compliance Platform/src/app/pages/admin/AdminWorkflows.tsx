@@ -4,7 +4,7 @@ import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
 import { WorkflowRule } from "../../../types/declaration";
-import { fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule } from "../../../services/api";
+import { fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule, fetchConfig } from "../../../services/api";
 
 const ROLE_LABELS: Record<string, string> = { lineManager: "Line Manager", hr: "Head of HR" };
 
@@ -13,8 +13,10 @@ export function AdminWorkflows() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [threshold, setThreshold] = useState<{ highValueThreshold: number; maximumValue: number } | null>(null);
 
   useEffect(() => { fetchWorkflowRules().then(setRules).catch((err: Error) => setError(err.message)); }, []);
+  useEffect(() => { fetchConfig().then((c) => setThreshold({ highValueThreshold: c.highValueThreshold, maximumValue: (c as any).maximumValue ?? 1000000 })).catch(() => {}); }, []);
 
   const handleAdd = async () => {
     try {
@@ -72,8 +74,25 @@ export function AdminWorkflows() {
         }
       />
 
+      {threshold && (
+        <Card className="border-purple-200/50 bg-purple-50/50 p-4">
+          <p className="text-sm text-purple-900">
+            <span className="font-bold">Current thresholds from System Configuration:</span> High Value = R{threshold.highValueThreshold.toLocaleString("en-ZA").replace(/,/g, " ")} (above → Line Manager + HR, below → Line Manager only) • Maximum = R{threshold.maximumValue.toLocaleString("en-ZA").replace(/,/g, " ")} (blocked above). Changing System Configuration affects new declarations (existing workflows frozen).
+          </p>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 gap-5">
-        {rules.map((rule) => (
+        {rules
+          .filter((r) => {
+            try {
+              const steps: any[] = JSON.parse((r as any).steps ?? "[]");
+              return !steps.some((s: any) => s.role === "ceo" || s.label?.toLowerCase().includes("ceo"));
+            } catch {
+              return true;
+            }
+          })
+          .map((rule) => (
           <Card key={rule.id} className="group flex flex-col justify-between gap-4 border-white/70 bg-white/80 p-5 card-shadow transition-all md:flex-row md:items-center">
             <div className="flex flex-1 gap-4">
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-secondary shadow-sm transition-transform group-hover:scale-105 group-hover:bg-purple-100">

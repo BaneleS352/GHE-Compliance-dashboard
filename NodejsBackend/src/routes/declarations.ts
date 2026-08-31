@@ -113,7 +113,7 @@ const createSchema = z.object({
   team: z.string().optional(),
   type: z.string().min(1),
   counterparty: z.string().min(1),
-  value: z.number().nonnegative().max(1000000, "Value must be R1,000,000 or less"),
+  value: z.number().nonnegative(),
   submitted: z.string(),
   approver: z.string().optional(),
   approverId: z.string().optional(),
@@ -148,6 +148,13 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   }
 
   const data = parsed.data;
+  // Enforce maximum value from SystemConfig (dynamic, not hard-coded)
+  const sysCfg = await prisma.systemConfig.findFirst();
+  const maxVal = (sysCfg as any)?.maximumValue ?? 1000000;
+  if (data.value > maxVal) {
+    res.status(400).json({ error: `Maximum value exceeded. Please enter an amount of R${maxVal.toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.` });
+    return;
+  }
   const id = generateDeclarationId();
 
   // Derive organizationId server-side — prefer user's org, fallback to client value for admin
@@ -275,6 +282,14 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
 
   const data = parsed.data;
+  if ((data as any).value !== undefined) {
+    const sysCfg2 = await prisma.systemConfig.findFirst();
+    const maxVal2 = (sysCfg2 as any)?.maximumValue ?? 1000000;
+    if ((data as any).value > maxVal2) {
+      res.status(400).json({ error: `Maximum value exceeded. Please enter an amount of R${maxVal2.toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.` });
+      return;
+    }
+  }
   // Prevent org spoof on update — non-admin cannot change org
   if ((data as any).organizationId && userOrgIdPut && (data as any).organizationId !== userOrgIdPut && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot move declaration to another organization" });

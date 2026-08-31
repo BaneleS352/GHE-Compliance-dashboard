@@ -43,6 +43,7 @@ export function AdminConfig() {
     mediumValueThreshold: 1000,
     slaEscalationDays: 7,
     maxDeclarationsPerCounterparty: 10,
+    maximumValue: 1000000,
     emailTemplate: "",
     notificationTemplates: JSON.stringify(DEFAULT_NOTIFICATION_TEMPLATES),
   });
@@ -150,7 +151,12 @@ export function AdminConfig() {
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-foreground">High Value Gift Threshold (ZAR)</label>
               <input type="number" value={config.highValueThreshold} onChange={(e) => setConfig({ ...config, highValueThreshold: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
-              <p className="mt-1 text-xs text-muted-foreground">Declarations above this value require HR approval.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Declarations above this value require HR approval. Affects new declarations’ workflow routing (LM → HR). Existing workflows are frozen.</p>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-foreground">Maximum Value (ZAR)</label>
+              <input type="number" value={config.maximumValue ?? 1000000} onChange={(e) => setConfig({ ...config, maximumValue: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
+              <p className="mt-1 text-xs text-muted-foreground">Declarations above this value are blocked. Shown as “Maximum value exceeded” in the New Declaration form.</p>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-foreground">SLA Escalation Time (Days)</label>

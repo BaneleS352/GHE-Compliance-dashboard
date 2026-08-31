@@ -49,7 +49,7 @@ export function NewDeclarationScreen({
   draft?: Declaration | null;
 }) {
   const { user } = useUser();
-  const [config, setConfig] = useState({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
+  const [config, setConfig] = useState({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, maximumValue: 1000000, emailTemplate: "" });
   const [lineManagerName, setLineManagerName] = useState("");
   const [managers, setManagers] = useState<{ id: string; name: string; email: string; position: string; department: string }[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
@@ -331,6 +331,7 @@ export function NewDeclarationScreen({
     if (!category)                       errs.category = "Required";
     if (!form.description.trim())        errs.description = "Required";
     if (!form.date)                      errs.date = "Required";
+    if (form.value && Number(form.value) > (config.maximumValue ?? 1000000)) errs.value = `Maximum value exceeded. Please enter an amount of R${(config.maximumValue ?? 1000000).toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.`;
     if (requiresOccasionOther && !form.occasionOther.trim()) errs.occasionOther = "Required";
     if (requiresSubstantiation && !form.substantiation.trim()) errs.substantiation = "Required";
     setErrors(errs);
@@ -341,7 +342,7 @@ export function NewDeclarationScreen({
         partyType: "sec-declaration", Counterparty: "sec-declaration",
         contactPerson: "sec-declaration", existingRelationship: "sec-declaration",
         contractNegotiation: "sec-declaration", biddingProcess: "sec-declaration",
-        category: "sec-ghe", description: "sec-ghe", date: "sec-ghe",
+        category: "sec-ghe", description: "sec-ghe", date: "sec-ghe", value: "sec-ghe",
         occasionOther: "sec-ghe",
         substantiation: "sec-ghe",
       };
@@ -806,22 +807,30 @@ export function NewDeclarationScreen({
                 <input
                   type="text"
                   inputMode="decimal"
-                  className={`${inp} pl-10`}
+                  aria-describedby="rand-value-error"
+                  aria-invalid={Number(form.value) > (config.maximumValue ?? 1000000) ? "true" : "false"}
+                  className={`${inp} pl-10 ${Number(form.value) > (config.maximumValue ?? 1000000) ? "border-[#c55aff] shadow-[0_0_0_4px_rgba(215,103,255,.19)] focus:border-[#b62dff] focus:shadow-[0_0_0_4px_rgba(215,103,255,.24)]" : ""}`}
                   value={form.value ? formatRandValue(form.value, !isValueFocused) : ""}
                   onFocus={() => setIsValueFocused(true)}
                   onBlur={() => setIsValueFocused(false)}
                   onChange={(e) => {
                     const parsed = parseRandInput(e.target.value);
-                    const numVal = Number(parsed);
-                    if (Number.isFinite(numVal) && numVal > 1000000) {
-                      setShowMaxValueModal(true);
-                      return;
-                    }
                     setF("value", parsed);
+                    if (Number(parsed) > (config.maximumValue ?? 1000000)) setShowMaxValueModal(true);
                   }}
                   placeholder="0.00"
                 />
               </div>
+              {Number(form.value) > (config.maximumValue ?? 1000000) && (
+                <div id="rand-value-error" role="alert" className="field__error" style={{ display: "flex", alignItems: "center", minHeight: 52, marginTop: 18, padding: "13px 17px", border: "2px solid #ff918b", borderRadius: "17px 17px 0 0", background: "linear-gradient(90deg, #ffe8e4 0%, #ffd8d4 100%)", color: "#bd2826", fontSize: 14, lineHeight: "1.35" }}>
+                  <svg className="field__error-icon" viewBox="0 0 24 24" aria-hidden="true" style={{ width: 17, height: 17, marginRight: 12, flex: "0 0 auto" }}>
+                    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.5" />
+                    <path d="M12 7.5v5.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                    <circle cx="12" cy="16.7" r="1.2" fill="currentColor" />
+                  </svg>
+                  <span>Maximum value exceeded. Please enter an amount of R{(config.maximumValue ?? 1000000).toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.</span>
+                </div>
+              )}
             </div>
             {requiresSubstantiation && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -992,7 +1001,7 @@ export function NewDeclarationScreen({
               <p className="text-sm font-bold text-foreground">Maximum Value Exceeded</p>
             </div>
             <p className="text-sm text-muted-foreground mb-5">
-              Maximum value exceeded. Please enter an amount of R1 000 000 or less to continue.
+              Maximum value exceeded. Please enter an amount of R{(config.maximumValue ?? 1000000).toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.
             </p>
             <button
               onClick={() => { setShowMaxValueModal(false); setF("value", ""); }}

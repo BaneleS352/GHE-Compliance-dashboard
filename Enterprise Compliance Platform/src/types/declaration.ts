@@ -120,6 +120,7 @@ export interface SystemConfig {
   mediumValueThreshold: number;
   slaEscalationDays: number;
   maxDeclarationsPerCounterparty: number;
+  maximumValue: number;
   emailTemplate: string;
   notificationTemplates: string;
 }

@@ -1,11 +1,11 @@
 import { StatusType } from "@/types/declaration";
 
 // ─── Brand tokens ───────────────────────────────────────────────────────────────
-export const PURPLE     = "#4F1D95";
-export const DEEP       = "#39156F";
+export const PURPLE     = "#6123BD";
+export const DEEP       = "#4A1A9A";
 export const YELLOW     = "#F8D74A";
-export const DARKEST    = "#0f0225";    // darkest purple used in gradients
-export const PURPLE_600 = "#6d28d9";   // medium purple (tailwind purple-600)
+export const DARKEST    = "#1a0a3a";    // darkest purple used in gradients
+export const PURPLE_600 = "#7a3be6";   // medium purple (tailwind purple-600)
 export const F          = { fontFamily: "'Plus Jakarta Sans', sans-serif" };
 
 // ─── Common gradient strings (for inline style={{ background: ... }}) ──────────

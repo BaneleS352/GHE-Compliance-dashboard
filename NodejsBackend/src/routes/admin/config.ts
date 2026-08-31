@@ -18,6 +18,7 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: Auth
     mediumValueThreshold: config.mediumValueThreshold,
     slaEscalationDays: config.slaEscalationDays,
     maxDeclarationsPerCounterparty: config.maxDeclarationsPerCounterparty,
+    maximumValue: (config as any).maximumValue ?? 1000000,
     emailTemplate: config.emailTemplate,
     notificationTemplates: config.notificationTemplates,
   });
@@ -28,6 +29,7 @@ const configSchema = z.object({
   mediumValueThreshold: z.number().nonnegative(),
   slaEscalationDays: z.number().int().nonnegative(),
   maxDeclarationsPerCounterparty: z.number().int().nonnegative(),
+  maximumValue: z.number().positive().max(10000000).optional().default(1000000),
   emailTemplate: z.string(),
   notificationTemplates: z.string().optional(),
 });
@@ -57,6 +59,7 @@ router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
     mediumValueThreshold: updated.mediumValueThreshold,
     slaEscalationDays: updated.slaEscalationDays,
     maxDeclarationsPerCounterparty: updated.maxDeclarationsPerCounterparty,
+    maximumValue: (updated as any).maximumValue ?? 1000000,
     emailTemplate: updated.emailTemplate,
     notificationTemplates: updated.notificationTemplates,
   });
