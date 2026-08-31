@@ -155,7 +155,14 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
     res.status(400).json({ error: `Maximum value exceeded. Please enter an amount of R${maxVal.toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.` });
     return;
   }
-  const id = generateDeclarationId();
+  // Collision guard for GHE ID
+  let id: string = generateDeclarationId();
+  for (let attempts = 0; attempts < 5; attempts++) {
+    const exists = await prisma.declaration.findUnique({ where: { id } });
+    if (!exists) break;
+    id = generateDeclarationId();
+    if (attempts === 4) id = `GHE-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8)}`;
+  }
 
   // Derive organizationId server-side — prefer user's org, fallback to client value for admin
   let orgId: string | null = null;

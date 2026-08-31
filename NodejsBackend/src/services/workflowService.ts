@@ -61,17 +61,20 @@ export async function createWorkflowSteps(declarationId: string, employeeId: str
   for (const def of stepDefs) {
     let assigneeId = "";
     let assigneeName = "";
+    let isStale = false;
 
     if (def.role === "lineManager") {
       assigneeId = employee.lineManager || "";
       const lm = assigneeId ? lmMap.get(assigneeId) : null;
-      assigneeName = lm?.name || "Unknown";
+      if (assigneeId && !lm) isStale = true;
+      assigneeName = lm?.name || (isStale ? "Unknown" : "Unknown");
     } else if (def.role === "hr") {
       assigneeId = hrUser?.id || "";
       assigneeName = hrUser?.name || "HR";
+      if (assigneeId && !hrUser) isStale = true;
     }
 
-    if (!assigneeId || assigneeId === employeeId) {
+    if (!assigneeId || isStale || assigneeId === employeeId) {
       steps.push({
         order: def.order,
         role: def.role,

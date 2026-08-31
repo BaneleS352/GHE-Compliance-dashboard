@@ -28,7 +28,7 @@ function findActionablePendingStep(steps: WorkflowStep[], userId: string): Workf
   return null;
 }
 
-// GET /api/workflows/pending — pending approvals for current user (org-scoped)
+// GET /api/workflows/pending — pending approvals for current user (org-scoped, DB-filtered)
 router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user!.id;
   const userOrg = (req.user as any)?.organizationId as string | undefined;
@@ -38,7 +38,14 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
   const offset = offsetRaw ? Math.max(parseInt(offsetRaw, 10) || 0, 0) : 0;
   const pending: any[] = [];
 
-  const instances = await prisma.workflowInstance.findMany();
+  // DB-level org filter: only fetch declarations for user's org (if any)
+  const orgDeclWhere: any = {};
+  if (userOrg) orgDeclWhere.organizationId = userOrg;
+  const orgDeclarations = await prisma.declaration.findMany({ where: orgDeclWhere, select: { id: true } });
+  const orgDeclIds = new Set(orgDeclarations.map((d) => d.id));
+  const instances = await prisma.workflowInstance.findMany({
+    where: orgDeclIds.size > 0 ? { declarationId: { in: Array.from(orgDeclIds) } } : undefined,
+  });
   const declIds = instances.map((inst) => inst.declarationId);
   const declarations = declIds.length > 0
     ? await prisma.declaration.findMany({ where: { id: { in: declIds } } })

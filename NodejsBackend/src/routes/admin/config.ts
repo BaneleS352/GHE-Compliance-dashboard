@@ -109,12 +109,15 @@ router.put("/dropdowns", authenticate, authorize("admin"), asyncHandler(async (r
     return;
   }
 
+  let existingParsed: any = {};
+  try { existingParsed = JSON.parse(existing.data); } catch {}
+  const merged = { ...existingParsed, ...data };
   await prisma.dropdowns.update({
     where: { id: existing.id },
-    data: { data: JSON.stringify(data) },
+    data: { data: JSON.stringify(merged) },
   });
 
-  res.json(data);
+  res.json(merged);
 }));
 
 // GET /api/admin/config/approval-options

@@ -13,10 +13,9 @@ import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "@/s
 import { useUser } from "@/app/auth/UserContext";
 import { fetchConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
 
-const determineRuleId = (value: number, highThreshold: number, mediumThreshold: number): string => {
+const determineRuleId = (value: number, highThreshold: number, _mediumThreshold: number): string => {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "rule-1";
-  if (value > highThreshold) return "rule-3";
-  if (value > mediumThreshold) return "rule-2";
+  if (value >= highThreshold) return "rule-2";
   return "rule-1";
 };
 
@@ -257,10 +256,11 @@ export function NewDeclarationScreen({
 
   const ALLOWED = [
     "application/pdf",
-    "image/png",
-    "image/jpeg",
-    "application/msword",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "text/plain",
   ];
   const MAX_SIZE = 20 * 1_048_576;
 
@@ -330,6 +330,7 @@ export function NewDeclarationScreen({
     if (!category)                       errs.category = "Required";
     if (!form.description.trim())        errs.description = "Required";
     if (!form.date)                      errs.date = "Required";
+    if (!form.occasion.trim())           errs.occasion = "Required";
     if (form.value && Number(form.value) > (config.maximumValue ?? 1000000)) errs.value = `Maximum value exceeded. Please enter an amount of R${(config.maximumValue ?? 1000000).toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.`;
     if (requiresOccasionOther && !form.occasionOther.trim()) errs.occasionOther = "Required";
     if (requiresSubstantiation && !form.substantiation.trim()) errs.substantiation = "Required";
