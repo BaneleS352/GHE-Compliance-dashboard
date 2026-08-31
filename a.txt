@@ -1,7 +1,19 @@
-Hollywoodbets Group,  Company ->Departments -> Line Managers "should have their own Departments and Line Managers"
 
-Nespers Limited, Company ->Departments -> Line Managers "should have their own Departments and Line Managers"
+Review/view -> Approval Workflow
+"Completed  seems to be green even when rejected and returned"
+The next person turns Orange regardless of decison,  even when rejected and returned
+Updated: Purple Shade - #6123BD - Confirm
 
-New Declaration -> 3"3
-Gift, Hospitality or Entertainment Details" remove "Number of instances a GHE has been given/received between you and this party in the past 12 months
-*"
+
+New Declaration -> 3 Gift, Hospitality or Entertainment Details -> Rand Value or Equivalent Rand Value (including VAT) "Where users enter a value greater than R1 000 000, a pop up should appear: 
+"Maximum value exceeded. Please enter an amount of R1 000 000 or less to continue.""
+
+should look like Maximum value exceeded.html
+
+
+Admin -> Approval Workflows "has flows that still use CEO"
+Admin -> System Configuration "has Compliance Thresholds" which contradicts the new R1000 threshhold and "Admin -> Approval Workflows", how about moving when "Admin -> System Configuration" is changed all others get affected aslo add the Maximum value exceeded in the System Configuration -> Compliance Thresholds
+
+
+audit the logical flow of the whole app
+
