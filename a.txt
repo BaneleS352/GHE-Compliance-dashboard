@@ -2,7 +2,7 @@
 Review/view -> Approval Workflow
 "Completed  seems to be green even when rejected and returned"
 The next person turns Orange regardless of decison,  even when rejected and returned
-Updated: Purple Shade - #6123BD - Confirm
+Updated: Purple Shade to #6123BD
 
 
 New Declaration -> 3 Gift, Hospitality or Entertainment Details -> Rand Value or Equivalent Rand Value (including VAT) "Where users enter a value greater than R1 000 000, a pop up should appear: 
