@@ -18,6 +18,7 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: Auth
     mediumValueThreshold: config.mediumValueThreshold,
     slaEscalationDays: config.slaEscalationDays,
     maxDeclarationsPerCounterparty: config.maxDeclarationsPerCounterparty,
+    maximumValue: (config as any).maximumValue ?? 1000000,
     emailTemplate: config.emailTemplate,
     notificationTemplates: config.notificationTemplates,
   });
@@ -28,6 +29,7 @@ const configSchema = z.object({
   mediumValueThreshold: z.number().nonnegative(),
   slaEscalationDays: z.number().int().nonnegative(),
   maxDeclarationsPerCounterparty: z.number().int().nonnegative(),
+  maximumValue: z.number().positive().max(10000000).optional().default(1000000),
   emailTemplate: z.string(),
   notificationTemplates: z.string().optional(),
 });
@@ -57,13 +59,14 @@ router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
     mediumValueThreshold: updated.mediumValueThreshold,
     slaEscalationDays: updated.slaEscalationDays,
     maxDeclarationsPerCounterparty: updated.maxDeclarationsPerCounterparty,
+    maximumValue: (updated as any).maximumValue ?? 1000000,
     emailTemplate: updated.emailTemplate,
     notificationTemplates: updated.notificationTemplates,
   });
 }));
 
-// GET /api/admin/config/dropdowns
-router.get("/dropdowns", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
+// GET /api/admin/config/dropdowns — any authenticated user can read (needed for New Declaration department dropdown)
+router.get("/dropdowns", authenticate, asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const dropdowns = await prisma.dropdowns.findFirst();
   if (!dropdowns) {
     res.status(404).json({ error: "Dropdowns not found" });
@@ -106,12 +109,15 @@ router.put("/dropdowns", authenticate, authorize("admin"), asyncHandler(async (r
     return;
   }
 
+  let existingParsed: any = {};
+  try { existingParsed = JSON.parse(existing.data); } catch {}
+  const merged = { ...existingParsed, ...data };
   await prisma.dropdowns.update({
     where: { id: existing.id },
-    data: { data: JSON.stringify(data) },
+    data: { data: JSON.stringify(merged) },
   });
 
-  res.json(data);
+  res.json(merged);
 }));
 
 // GET /api/admin/config/approval-options

@@ -499,11 +499,11 @@ describe("Edge-Case Tests", () => {
 
   // ── PRESET USERS ──
   describe("Auth preset users", () => {
-    it("GET /api/auth/preset-users — returns list of 4 preset users", async () => {
+    it("GET /api/auth/preset-users — returns list of 6 preset users", async () => {
       const res = await request(app).get("/api/auth/preset-users");
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(4);
+      expect(res.body.length).toBe(6);
       for (const u of res.body) {
         expect(u.label).toBeDefined();
         expect(u.email).toBeDefined();
@@ -694,8 +694,8 @@ describe("Edge-Case Tests", () => {
 
   // ── FILE SIZE LIMIT ──
   describe("File upload size limit", () => {
-    it("POST /api/files/upload — file exceeding 10MB returns 500 instead of 413 (BUG: no multer error handler)", async () => {
-      const bigFile = Buffer.alloc(10 * 1024 * 1024 + 1, "x");
+    it("POST /api/files/upload — file exceeding 20MB returns 413 (fixed)", async () => {
+      const bigFile = Buffer.alloc(20 * 1024 * 1024 + 1, "x");
       const res = await request(app)
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getAdminToken()}`)

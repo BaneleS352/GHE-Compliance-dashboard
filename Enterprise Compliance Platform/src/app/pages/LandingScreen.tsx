@@ -8,10 +8,12 @@ import { useUser } from "@/app/auth/UserContext";
 import { authenticate } from "@/app/auth/authService";
  
 const QUICK_LOGIN_USERS = [
-  { label: "Team Member — Nomvula Dlamini",  email: "nomvula@hb.co.za",  role: "teamMember" as const },
-  { label: "Line Manager — Sipho Nkosi",     email: "sipho@hb.co.za",    role: "approver" as const },
-  { label: "HR — Lindiwe Zulu",              email: "lindiwe@hb.co.za",  role: "approver" as const },
-  { label: "Admin — System Admin",           email: "admin@hb.co.za",    role: "admin" as const },
+  { label: "HB — Team Member — Nomvula Dlamini",  email: "nomvula@hb.co.za",  role: "teamMember" as const },
+  { label: "HB — Line Manager — Sipho Nkosi",     email: "sipho@hb.co.za",    role: "approver" as const },
+  { label: "NPN — Team Member — Kabelo Molefe",   email: "kabelo@npn.co.za",  role: "teamMember" as const },
+  { label: "NPN — Line Manager — James van Wyk",  email: "james@npn.co.za",   role: "approver" as const },
+  { label: "HR — Lindiwe Zulu (Global)",           email: "lindiwe@hb.co.za",  role: "approver" as const },
+  { label: "Admin — System Admin (Global)",        email: "admin@hb.co.za",    role: "admin" as const },
 ];
 
 export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string) => void }) {

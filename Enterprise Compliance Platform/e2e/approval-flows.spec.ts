@@ -130,7 +130,6 @@ test.describe("Declaration Creation", () => {
     await decl.textarea("E2E test gift for automated testing");
     await decl.select("Reason/Occasion for the gift", "Business Meeting");
     await decl.date("2026-07-15");
-    await decl.select("Number of instances", "1");
     await decl.number("Enter the R amount", "100");
     await decl.submit();
 
@@ -163,7 +162,6 @@ test.describe("Declaration Creation", () => {
     await decl.textarea("E2E test hospitality for approver flow");
     await decl.select("Reason/Occasion for the gift", "Milestone");
     await decl.date("2026-07-15");
-    await decl.select("Number of instances", "1");
     await decl.number("Enter the R amount", "100");
     await decl.submit();
 
@@ -171,7 +169,7 @@ test.describe("Declaration Creation", () => {
     expect(declId).toBeTruthy();
     await decl.closeModal();
 
-    await app.login(USERS.sandile.email);
+    await app.login(USERS.lindiwe.email);
     await app.sidebar("Approval Queue");
     await app.search(declId);
     await app.assertVisible(`table td:has-text("${declId}")`);

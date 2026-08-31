@@ -120,6 +120,7 @@ model SystemConfig {
   mediumValueThreshold    Float
   slaEscalationDays       Int
   maxDeclarationsPerCounterparty Int
+  maximumValue            Float   @default(1000000)
   emailTemplate           String
   notificationTemplates   String @default("{}")
 }

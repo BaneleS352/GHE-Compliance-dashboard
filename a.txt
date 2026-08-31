@@ -1,16 +1,19 @@
-Login
-I want to have 6 login types 
-Hollywoodbets Group must have Team Member and  Line Manager = 2 login
-Nespers Limited Hollywoodbets Group must have Team Member and  Line Manager = 2 login
-HR =1
-Adomin =1
 
-we need to proper defeerentiation, 
-Hollywoodbets Group, has it's won department, managers and team members
-Nespers Limited, has it's won department, managers and team members
+Review/view -> Approval Workflow
+"Completed  seems to be green even when rejected and returned"
+The next person turns Orange regardless of decison,  even when rejected and returned
+Updated: Purple Shade to #6123BD
 
-when in the New Declaration -> Team Member Details "when I pick a company I need the drop down to show  department and managers from this company" meaning no half hazard seeding.
 
-New Declaration -> Team Member Details -> Department "drop down is not populated"
+New Declaration -> 3 Gift, Hospitality or Entertainment Details -> Rand Value or Equivalent Rand Value (including VAT) "Where users enter a value greater than R1 000 000, a pop up should appear: 
+"Maximum value exceeded. Please enter an amount of R1 000 000 or less to continue.""
 
-Returned Declaration the edit option seems to appear even for people who don't need to edit the Declaration
+should look like Maximum value exceeded.html
+
+
+Admin -> Approval Workflows "has flows that still use CEO"
+Admin -> System Configuration "has Compliance Thresholds" which contradicts the new R1000 threshhold and "Admin -> Approval Workflows", how about moving when "Admin -> System Configuration" is changed all others get affected aslo add the Maximum value exceeded in the System Configuration -> Compliance Thresholds
+
+
+audit the logical flow of the whole app
+

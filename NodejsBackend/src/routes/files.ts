@@ -21,7 +21,7 @@ const ALLOWED_MIMES = [
   "image/jpeg", "image/png", "image/gif", "image/webp",
   "text/plain",
 ];
-const ALLOWED_EXTS = new Set([".pdf",".xlsx",".xls",".docx",".jpg",".jpeg",".png",".gif",".webp",".txt"]);
+const ALLOWED_EXTS = new Set([".pdf",".xlsx",".xls",".docx",".doc",".jpg",".jpeg",".png",".gif",".webp",".txt"]);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
@@ -34,7 +34,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (ALLOWED_MIMES.includes(file.mimetype) && ALLOWED_EXTS.has(ext)) {
@@ -79,17 +79,26 @@ router.post(
 
     const declarationId = req.body.declarationId as string;
 
+    const cleanupFile = async () => {
+      if (req.file) {
+        try { await fs.promises.unlink(path.join(UPLOAD_DIR, req.file.filename)); } catch {}
+      }
+    };
+
     if (!declarationId) {
+      await cleanupFile();
       res.status(400).json({ error: "declarationId is required" });
       return;
     }
 
     const decl = await prisma.declaration.findUnique({ where: { id: declarationId } });
     if (!decl) {
+      await cleanupFile();
       res.status(400).json({ error: "Declaration not found" });
       return;
     }
     if (req.user!.role !== "admin" && decl.employeeId !== req.user!.id) {
+      await cleanupFile();
       res.status(403).json({ error: "Cannot upload to another user's declaration" });
       return;
     }

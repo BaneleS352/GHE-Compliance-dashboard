@@ -107,8 +107,14 @@ export async function fetchUserById(id: string): Promise<any> {
   return api.get<any>(`/api/users/${id}`);
 }
 
-export async function fetchManagers(): Promise<any[]> {
-  return api.get<any[]>("/api/users/managers");
+export async function fetchManagers(organizationId?: string): Promise<any[]> {
+  const qs = organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : "";
+  return api.get<any[]>(`/api/users/managers${qs}`);
+}
+
+export async function fetchDepartments(organizationId?: string): Promise<string[]> {
+  const qs = organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : "";
+  return api.get<string[]>(`/api/users/departments${qs}`);
 }
 
 export async function createUser(data: any): Promise<any> {

@@ -58,7 +58,7 @@ describe("Auth & token edge cases", () => {
     expect(res.status).toBe(401);
   });
 
-  it("GET /api/declarations — token with fake user ID falls through (auth middleware console.error and proceeds)", async () => {
+  it("GET /api/declarations — token with fake user ID is rejected (fixed: fail-closed)", async () => {
     const jwt = require("jsonwebtoken");
     const fakeToken = jwt.sign(
       { id: "nonexistent-user", email: "ghost@test.com", role: "teamMember" },
@@ -68,7 +68,7 @@ describe("Auth & token edge cases", () => {
     const res = await request(app)
       .get("/api/declarations")
       .set("Authorization", `Bearer ${fakeToken}`);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(401);
   });
 
   it("POST /api/admin/config — team member gets 403", async () => {

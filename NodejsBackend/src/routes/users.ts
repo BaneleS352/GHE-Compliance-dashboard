@@ -5,13 +5,35 @@ import { asyncHandler } from "../middleware/asyncHandler";
 
 const router = Router();
 
-router.get("/managers", authenticate, asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
+router.get("/managers", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const orgId = req.query.organizationId as string | undefined;
+  const where: any = { position: { contains: "Line Manager" } };
+  if (orgId) where.organizationId = orgId;
+  // Global managers (organizationId null) are visible to all orgs
   const managers = await prisma.user.findMany({
-    where: { position: { contains: "Line Manager" } },
-    select: { id: true, name: true, email: true, position: true, department: true },
+    where,
+    select: { id: true, name: true, email: true, position: true, department: true, organizationId: true },
     orderBy: { name: "asc" },
   });
   res.json(managers);
+}));
+
+// Per-org departments derived from users in that org (for NewDeclaration filtering)
+router.get("/departments", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const orgId = req.query.organizationId as string | undefined;
+  if (!orgId) {
+    // Fallback to global dropdowns if no org specified
+    const dropdowns = await prisma.dropdowns.findFirst();
+    if (!dropdowns) { res.json([]); return; }
+    try {
+      const parsed = JSON.parse(dropdowns.data);
+      res.json(parsed.departments || []);
+    } catch { res.json([]); }
+    return;
+  }
+  const users = await prisma.user.findMany({ where: { organizationId: orgId }, select: { department: true } });
+  const depts = Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort();
+  res.json(depts);
 }));
 
 router.get("/organizations", authenticate, asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
