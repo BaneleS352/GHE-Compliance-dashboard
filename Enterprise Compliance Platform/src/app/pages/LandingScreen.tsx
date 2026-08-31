@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { CircleHelp } from "lucide-react";
 import { ImageWithFallback } from "@/app/components/ImageWithFallback";
 import bannerImg from "@/assets/Button.png";
-import { F, inp, GRADIENT_PRIMARY } from "@/config/theme";
+import { F, inp } from "@/config/theme";
 import { Role } from "@/types/declaration";
 import { useUser } from "@/app/auth/UserContext";
 import { authenticate } from "@/app/auth/authService";
@@ -69,6 +70,12 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
 
       <div className="relative z-20 ml-auto min-h-screen w-full lg:w-[calc(38%_-_180px)] xl:w-[calc(36%_-_180px)] flex items-center justify-center overflow-hidden border-[3px] border-transparent bg-[#f4f6fb] bg-clip-padding px-5 py-8 sm:px-8 sm:py-10 lg:rounded-l-[3.5rem] lg:shadow-[-18px_0_45px_rgba(15,2,37,.22)]" style={{ background: "linear-gradient(#f4f6fb, #f4f6fb) padding-box, linear-gradient(135deg, #5b21b6 0%, #d946ef 35%, #ec4899 55%, #f97316 82%, #facc15 100%) border-box" }}>
         <div className="absolute inset-0 opacity-50 pointer-events-none" aria-hidden style={{ backgroundImage: "linear-gradient(135deg, transparent 0 30%, rgba(79,29,149,.035) 30% 45%, transparent 45% 65%, rgba(79,29,149,.025) 65% 80%, transparent 80%)" }} />
+        <button type="button" aria-label="Help" className="group absolute bottom-5 right-5 z-20 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-300 text-white shadow-sm transition-colors hover:bg-slate-400">
+          <CircleHelp size={30} strokeWidth={3} />
+          <span className="pointer-events-none absolute bottom-full right-0 mb-3 hidden w-64 rounded-lg bg-slate-800 px-3 py-2 text-left text-xs font-medium leading-5 text-white shadow-lg group-hover:block">
+            For access issues, contact your IT Helpdesk or HR representative.
+          </span>
+        </button>
         <div className="relative z-10 w-full max-w-[320px] rounded-[2rem] bg-white/45 px-1 py-2 sm:px-3 sm:py-5 lg:bg-transparent lg:px-0">
           <div className="mb-8">
             <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Welcome back!</h1>
@@ -81,7 +88,7 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Quick login as</label>
+              <label className="block text-sm font-semibold text-foreground mb-1.5">Password</label>
               <select value={selectedIdx} onChange={(e) => { setSelectedIdx(Number(e.target.value)); setPassword("password"); setError(""); }}
                 className={`${inp} cursor-pointer`}
               >
@@ -94,17 +101,20 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
             <div className="pt-1">
               <button type="submit" disabled={loading}
                 className="w-full h-11 rounded-xl text-sm font-semibold text-white hover:opacity-90 active:scale-[0.98] disabled:opacity-60 transition-all"
-                style={{ background: GRADIENT_PRIMARY }}
+                style={{ background: "linear-gradient(90deg, #30004F 0%, #6633A3 100%)" }}
               >
                 {loading ? "Signing in…" : "Sign In"}
               </button>
             </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" className="h-10 rounded-xl border border-slate-300 bg-white/20 text-sm font-medium text-slate-500 transition-colors hover:bg-white/60">
+                Forgot Password
+              </button>
+              <button type="button" className="h-10 rounded-xl border border-slate-300 bg-white/20 text-sm font-medium text-slate-500 transition-colors hover:bg-white/60">
+                Support
+              </button>
+            </div>
           </form>
-          <div className="mt-6 pt-4 border-t border-border">
-            <p className="text-xs text-center text-muted-foreground">
-              For access issues, contact your IT Helpdesk or HR representative.
-            </p>
-          </div>
         </div>
       </div>
     </div>

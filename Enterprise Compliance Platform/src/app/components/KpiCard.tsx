@@ -207,8 +207,10 @@ export function KpiCard({
       onClick={onClick}
       className={`relative overflow-hidden select-none transition-all duration-300 ${onClick ? "cursor-pointer" : "cursor-default"} ${active ? "scale-[1.02] shadow-xl" : "hover:-translate-y-0.5 hover:shadow-lg"}`}
       style={{
-        height: 128,
-        padding: isReturned ? 0 : "27px 28px 18px",
+        height: "auto",
+        minHeight: 108,
+        aspectRatio: "2.5 / 1",
+        padding: isReturned ? 0 : "clamp(18px, 3vw, 27px) clamp(18px, 3vw, 28px) clamp(14px, 2vw, 18px)",
         borderRadius: 22,
         color: "white",
         background: bgGradient,
