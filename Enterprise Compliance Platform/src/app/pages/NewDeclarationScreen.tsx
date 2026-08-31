@@ -158,7 +158,6 @@ export function NewDeclarationScreen({
   const [submitting, setSubmitting] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isValueFocused, setIsValueFocused] = useState(false);
-  const [showMaxValueModal, setShowMaxValueModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFilesRef = useRef<File[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -816,7 +815,6 @@ export function NewDeclarationScreen({
                   onChange={(e) => {
                     const parsed = parseRandInput(e.target.value);
                     setF("value", parsed);
-                    if (Number(parsed) > (config.maximumValue ?? 1000000)) setShowMaxValueModal(true);
                   }}
                   placeholder="0.00"
                 />
@@ -991,27 +989,6 @@ export function NewDeclarationScreen({
         </FS>
       </div>
 
-      {showMaxValueModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-sm rounded-2xl border border-border bg-white p-6 shadow-2xl">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(135deg, #ef4444, #dc2626)" }}>
-                <AlertCircle size={20} className="text-white" />
-              </div>
-              <p className="text-sm font-bold text-foreground">Maximum Value Exceeded</p>
-            </div>
-            <p className="text-sm text-muted-foreground mb-5">
-              Maximum value exceeded. Please enter an amount of R{(config.maximumValue ?? 1000000).toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.
-            </p>
-            <button
-              onClick={() => { setShowMaxValueModal(false); setF("value", ""); }}
-              className="h-10 w-full rounded-xl text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors"
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
