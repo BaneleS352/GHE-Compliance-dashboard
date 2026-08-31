@@ -243,7 +243,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
         }
       />
 
-      <div className="mb-7 grid grid-cols-1 gap-[clamp(0.75rem,1.5vw,1.25rem)] sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-5">
+      <div className="mb-7 grid grid-cols-1 gap-[clamp(0.75rem,1.5vw,1.25rem)] sm:grid-cols-3 xl:grid-cols-5">
         {(["Total", "Pending", "Approved", "Returned", "Declined"] as const).map((k) => {
           const def = STATUS_KPI[k];
           const count = k === "Total" ? visibleDeclarations.length : visibleDeclarations.filter((d) => d.status === def.filterValue).length;

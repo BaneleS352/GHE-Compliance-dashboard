@@ -66,7 +66,7 @@ function DecorPending() {
 
 function DecorApproved() {
   return (
-    <div className="art person" aria-hidden="true" style={{ position: "absolute", right: 6, bottom: 0, width: 130, height: 120 }}>
+    <div className="art person" aria-hidden="true" style={{ position: "absolute", right: 6, bottom: 0, width: 130, height: 120, transform: "scale(clamp(.78, 5vw, 1))", transformOrigin: "bottom right" }}>
       <div style={{ position: "absolute", top: 6, left: 42, width: 48, height: 48, borderRadius: "50%", background: "#A5D2B5" }} />
       <div style={{ position: "absolute", bottom: 8, left: 28, width: 72, height: 54, borderRadius: "40px 40px 0 0", background: "#A5D2B5" }} />
       <span
@@ -97,7 +97,7 @@ function DecorApproved() {
 
 function DecorDeclined() {
   return (
-    <div className="art person decline-person" aria-hidden="true" style={{ position: "absolute", right: 6, bottom: 0, width: 130, height: 120 }}>
+    <div className="art person decline-person" aria-hidden="true" style={{ position: "absolute", right: 6, bottom: 0, width: 130, height: 120, transform: "scale(clamp(.78, 5vw, 1))", transformOrigin: "bottom right" }}>
       <div style={{ position: "absolute", top: 6, left: 42, width: 48, height: 48, borderRadius: "50%", background: "#FF5757" }} />
       <div style={{ position: "absolute", bottom: 8, left: 28, width: 72, height: 54, borderRadius: "40px 40px 0 0", background: "#FF5757" }} />
       <span
@@ -207,10 +207,8 @@ export function KpiCard({
       onClick={onClick}
       className={`relative overflow-hidden select-none transition-all duration-300 ${onClick ? "cursor-pointer" : "cursor-default"} ${active ? "scale-[1.02] shadow-xl" : "hover:-translate-y-0.5 hover:shadow-lg"}`}
       style={{
-        height: "auto",
-        minHeight: 108,
-        aspectRatio: "2.5 / 1",
-        padding: isReturned ? 0 : "clamp(18px, 3vw, 27px) clamp(18px, 3vw, 28px) clamp(14px, 2vw, 18px)",
+        height: "clamp(108px, 8vw, 128px)",
+        padding: isReturned ? 0 : "clamp(16px, 2.1vw, 27px) clamp(16px, 2.2vw, 28px) clamp(12px, 1.4vw, 18px)",
         borderRadius: 22,
         color: "white",
         background: bgGradient,
