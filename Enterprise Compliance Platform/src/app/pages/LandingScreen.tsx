@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ImageWithFallback } from "@/app/components/ImageWithFallback";
-import logoImg from "@/assets/Logo.png";
 import bannerImg from "@/assets/Button.png";
 import { F, inp, GRADIENT_PRIMARY } from "@/config/theme";
 import { Role } from "@/types/declaration";
@@ -51,7 +50,7 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#0f0225]" style={F}>
       <div className="absolute inset-0 z-0">
-        <ImageWithFallback src={bannerImg} alt="GHE Declaration" className="block w-full h-full object-cover object-center" />
+        <ImageWithFallback src={bannerImg} alt="GHE Declaration" className="block w-full h-full object-contain object-left" />
       </div>
       <div className="absolute inset-0 z-10 pointer-events-none">
         <div className="absolute inset-0 pointer-events-none" aria-hidden>
@@ -64,24 +63,16 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
             <path d="M0,40 C200,90 400,0 600,50 C700,75 760,30 800,40 L800,120 L0,120 Z" fill="#EDE8FF" />
           </svg>
         </div>
-        <div className="relative z-10 p-10 pb-0">
-          <ImageWithFallback src={logoImg} alt="Hollywoodbets" className="h-14 w-auto object-contain object-left" />
-        </div>
+        <div className="relative z-10 p-10 pb-0" />
         <div className="relative z-10 flex-1" aria-hidden />
-        <div className="relative z-10 px-10 pb-6">
-          <p className="text-xs" style={{ color: "rgb(237 232 255 / 0.35)" }}>© 2024 Hollywoodbets Group. Authorised employees only.</p>
-        </div>
       </div>
 
-      <div className="relative z-20 ml-auto min-h-screen w-full lg:w-[38%] xl:w-[36%] flex items-center justify-center overflow-hidden bg-[#f4f6fb] px-5 py-8 sm:px-8 sm:py-10 lg:rounded-l-[3.5rem] lg:border-l-4 lg:border-t-2 lg:border-b-2 lg:border-[#ff9f43] lg:shadow-[-18px_0_45px_rgba(15,2,37,.22)]">
+      <div className="relative z-20 ml-auto min-h-screen w-full lg:w-[calc(38%_-_180px)] xl:w-[calc(36%_-_180px)] flex items-center justify-center overflow-hidden border-[3px] border-transparent bg-[#f4f6fb] bg-clip-padding px-5 py-8 sm:px-8 sm:py-10 lg:rounded-l-[3.5rem] lg:shadow-[-18px_0_45px_rgba(15,2,37,.22)]" style={{ background: "linear-gradient(#f4f6fb, #f4f6fb) padding-box, linear-gradient(135deg, #5b21b6 0%, #d946ef 35%, #ec4899 55%, #f97316 82%, #facc15 100%) border-box" }}>
         <div className="absolute inset-0 opacity-50 pointer-events-none" aria-hidden style={{ backgroundImage: "linear-gradient(135deg, transparent 0 30%, rgba(79,29,149,.035) 30% 45%, transparent 45% 65%, rgba(79,29,149,.025) 65% 80%, transparent 80%)" }} />
-        <div className="relative z-10 w-full max-w-[430px] rounded-[2rem] bg-white/45 px-1 py-2 sm:px-3 sm:py-5 lg:bg-transparent lg:px-0">
-          <div className="lg:hidden mb-8">
-            <ImageWithFallback src={logoImg} alt="Hollywoodbets" className="h-10 w-auto object-contain" />
-          </div>
+        <div className="relative z-10 w-full max-w-[320px] rounded-[2rem] bg-white/45 px-1 py-2 sm:px-3 sm:py-5 lg:bg-transparent lg:px-0">
           <div className="mb-8">
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Welcome back</h1>
-            <p className="text-sm text-slate-600 mt-2 leading-6">Sign in to the Gift, Hospitality and Entertainment Declaration Portal</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Welcome back!</h1>
+            <p className="text-sm text-slate-600 mt-2 leading-6">GHE Declaration Portal</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -90,12 +81,19 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-foreground mb-1.5">Quick login as</label>
-              <select value={selectedIdx} onChange={(e) => { setSelectedIdx(Number(e.target.value)); setPassword("password"); setError(""); }}
-                className={`${inp} cursor-pointer`}
-              >
-                {QUICK_LOGIN_USERS.map((u, i) => <option key={i} value={i}>{u.label}</option>)}
-              </select>
+              <label className="block text-sm font-semibold text-foreground mb-1.5">Password</label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inp} />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-1.5">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                placeholder="Enter your password"
+                className={inp}
+              />
             </div>
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>

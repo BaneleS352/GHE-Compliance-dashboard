@@ -66,9 +66,9 @@ function DecorPending() {
 
 function DecorApproved() {
   return (
-    <div className="art person" aria-hidden="true" style={{ position: "absolute", right: 6, bottom: 0, width: 130, height: 120, opacity: 0.62 }}>
-      <div style={{ position: "absolute", top: 6, left: 42, width: 48, height: 48, borderRadius: "50%", background: "#d7e2bd" }} />
-      <div style={{ position: "absolute", bottom: 8, left: 28, width: 72, height: 54, borderRadius: "40px 40px 0 0", background: "#d7e2bd" }} />
+    <div className="art person" aria-hidden="true" style={{ position: "absolute", right: 6, bottom: 0, width: 130, height: 120 }}>
+      <div style={{ position: "absolute", top: 6, left: 42, width: 48, height: 48, borderRadius: "50%", background: "#A5D2B5" }} />
+      <div style={{ position: "absolute", bottom: 8, left: 28, width: 72, height: 54, borderRadius: "40px 40px 0 0", background: "#A5D2B5" }} />
       <span
         className="check"
         style={{
@@ -78,9 +78,10 @@ function DecorApproved() {
           bottom: 0,
           width: 46,
           height: 46,
-          border: "5px solid white",
+          border: "5px solid #0DCA87",
           borderRadius: "50%",
-          background: "#18bc82",
+           background: "#A5D2B5",
+          color: "#FFFFFF",
           fontSize: 29,
           fontWeight: 700,
           lineHeight: "36px",
@@ -96,9 +97,9 @@ function DecorApproved() {
 
 function DecorDeclined() {
   return (
-    <div className="art person decline-person" aria-hidden="true" style={{ position: "absolute", right: 6, bottom: 0, width: 130, height: 120, opacity: 0.62 }}>
-      <div style={{ position: "absolute", top: 6, left: 42, width: 48, height: 48, borderRadius: "50%", background: "#f4b4b4" }} />
-      <div style={{ position: "absolute", bottom: 8, left: 28, width: 72, height: 54, borderRadius: "40px 40px 0 0", background: "#f4b4b4" }} />
+    <div className="art person decline-person" aria-hidden="true" style={{ position: "absolute", right: 6, bottom: 0, width: 130, height: 120 }}>
+      <div style={{ position: "absolute", top: 6, left: 42, width: 48, height: 48, borderRadius: "50%", background: "#FF5757" }} />
+      <div style={{ position: "absolute", bottom: 8, left: 28, width: 72, height: 54, borderRadius: "40px 40px 0 0", background: "#FF5757" }} />
       <span
         className="check cross"
         style={{
@@ -108,18 +109,21 @@ function DecorDeclined() {
           bottom: 0,
           width: 46,
           height: 46,
-          border: "5px solid white",
+          border: "5px solid #D90F17",
           borderRadius: "50%",
-          background: "#ff4646",
-          fontSize: 29,
+          background: "#FF5757",
+          color: "#FFFFFF",
+          fontSize: 34,
           fontWeight: 700,
-          lineHeight: "36px",
+          lineHeight: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
           textAlign: "center",
-          color: "white",
         }}
-      >
-        ×
-      </span>
+        >
+          <span style={{ transform: "translateY(-3px)" }}>×</span>
+        </span>
     </div>
   );
 }
@@ -260,9 +264,10 @@ export function KpiCard({
                   height: 28,
                   display: "grid",
                   placeItems: "center",
-                  border: "2px solid rgba(255,255,255,.3)",
+                  border: "2px solid transparent",
                   borderRadius: "50%",
-                  color: "rgba(255,255,255,.75)",
+                  background: "rgba(255,255,255,.3)",
+                  color: "#ffffff",
                   fontSize: 17,
                 }
           }

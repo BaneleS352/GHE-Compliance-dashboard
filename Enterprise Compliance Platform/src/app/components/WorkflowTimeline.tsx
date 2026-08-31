@@ -74,7 +74,7 @@ function dotColor(step: StepView): string {
   if (step.state !== "completed") {
     if (step.state === "active") return "bg-purple-600";
     if (step.state === "skipped") return "bg-gray-100 border border-gray-300";
-    return STATUS_COLORS.Pending.dot;
+    return "bg-purple-600";
   }
   if (!step.decision?.label) return "bg-purple-600";
   return STATUS_COLORS[labelToStatus(step.decision.label)].dot;
