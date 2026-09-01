@@ -23,13 +23,7 @@ function sanitize(val: string): string {
 }
 
 function safeParseWorkflowSteps(data: string | null | undefined): any[] {
-  if (!data) return [];
-  try {
-    const parsed = JSON.parse(data);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return safeJsonParse(data) as any[] || [];
 }
 
 const VALID_STATUSES = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"] as const;
@@ -66,7 +60,6 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
   const offset = req.query.offset ? Math.max(parseInt(String(req.query.offset), 10) || 0, 0) : 0;
 
   const where: any = {};
-  // Whitelist status
   if (status && (VALID_STATUSES as readonly string[]).includes(status)) where.status = status;
   // Org isolation — scope all queries by caller's org if present
   if ((req.user as any)?.organizationId) where.organizationId = (req.user as any).organizationId;
@@ -405,27 +398,45 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
 
   const existingInstance = await prisma.workflowInstance.findUnique({ where: { declarationId: existing.id } });
 
-  let workflowSteps = await createWorkflowSteps(existing.id, existing.employeeId, existing.value);
-
+  let workflowSteps: any[];
   if (existing.status === "Returned" && existingInstance) {
     const savedSteps = safeParseWorkflowSteps(existingInstance.steps);
     const hasReturnedStep = savedSteps.some((step) => step.status === "returned");
-
     if (hasReturnedStep) {
-      workflowSteps = savedSteps.map((step) =>
-        step.status === "returned"
-          ? {
-              ...step,
-              status: "pending",
-              decision: null,
-              notes: "",
-              decidedAt: null,
-              decidedById: null,
-              decidedByName: null,
-            }
-          : step
-      );
+      // Check if value change would change workflow (e.g., Low ↔ High)
+      const freshSteps = await createWorkflowSteps(existing.id, existing.employeeId, existing.value);
+      const savedRoles = savedSteps.map((s: any) => s.role).join(",");
+      const freshRoles = freshSteps.map((s: any) => s.role).join(",");
+      if (savedRoles !== freshRoles) {
+        // Value crossed threshold — regenerate but preserve already-approved steps
+        const approvedMap = new Map(savedSteps.filter((s: any) => s.status === "approved").map((s: any) => [s.role, s]));
+        workflowSteps = freshSteps.map((fs: any) => {
+          const approved = approvedMap.get(fs.role);
+          if (approved) return { ...fs, status: "approved", decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt };
+          return fs;
+        });
+        // If fresh has fewer steps, the extra returned step is now handled by fresh's pending
+        // If fresh has more steps, new HR step is pending
+      } else {
+        workflowSteps = savedSteps.map((step) =>
+          step.status === "returned"
+            ? {
+                ...step,
+                status: "pending",
+                decision: null,
+                notes: "",
+                decidedAt: null,
+                decidedById: null,
+                decidedByName: null,
+              }
+            : step
+        );
+      }
+    } else {
+      workflowSteps = await createWorkflowSteps(existing.id, existing.employeeId, existing.value);
     }
+  } else {
+    workflowSteps = await createWorkflowSteps(existing.id, existing.employeeId, existing.value);
   }
 
   const nextApprover = workflowSteps.find((step) => step.status === "pending");

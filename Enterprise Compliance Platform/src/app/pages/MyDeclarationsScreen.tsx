@@ -97,8 +97,8 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
       (statusFilter === "All" || d.status === statusFilter) &&
       (approverFilter === "All" || d.approver === approverFilter) &&
       (employeeFilter === "All" || d.employee === employeeFilter) &&
-      (!dateFilterStart || new Date(d.submitted).getTime() >= new Date(dateFilterStart).getTime()) &&
-      (!dateFilterEnd || new Date(d.submitted).getTime() <= new Date(dateFilterEnd).getTime())
+      (!dateFilterStart || d.submitted >= dateFilterStart) &&
+      (!dateFilterEnd || d.submitted <= dateFilterEnd)
   );
 
   const sorted = [...filtered].sort((a, b) => {

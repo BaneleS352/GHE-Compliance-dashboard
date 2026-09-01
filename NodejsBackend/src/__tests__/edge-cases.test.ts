@@ -694,8 +694,8 @@ describe("Edge-Case Tests", () => {
 
   // ── FILE SIZE LIMIT ──
   describe("File upload size limit", () => {
-    it("POST /api/files/upload — file exceeding 20MB returns 413 (fixed)", async () => {
-      const bigFile = Buffer.alloc(20 * 1024 * 1024 + 1, "x");
+    it("POST /api/files/upload — file exceeding 10MB returns 500 instead of 413 (BUG: no multer error handler)", async () => {
+      const bigFile = Buffer.alloc(10 * 1024 * 1024 + 1, "x");
       const res = await request(app)
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getAdminToken()}`)

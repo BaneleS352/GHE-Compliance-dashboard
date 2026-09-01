@@ -3,6 +3,7 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import authRoutes from "../routes/auth";
+import userRoutes from "../routes/users";
 import declarationRoutes from "../routes/declarations";
 import workflowRoutes from "../routes/workflows";
 import reportRoutes from "../routes/reports";
@@ -23,6 +24,7 @@ export function buildApp() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true }));
   app.use("/api/auth", authRoutes);
+  app.use("/api/users", userRoutes);
   app.use("/api/declarations", declarationRoutes);
   app.use("/api/workflows", workflowRoutes);
   app.use("/api/reports", reportRoutes);

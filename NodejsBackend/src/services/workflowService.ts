@@ -27,7 +27,7 @@ export function determineRuleId(value: number, highThreshold: number, _mediumThr
   return "rule-1";
 }
 
-export async function createWorkflowSteps(declarationId: string, employeeId: string, value: number): Promise<WorkflowStep[]> {
+export async function createWorkflowSteps(_declarationId: string, employeeId: string, value: number): Promise<WorkflowStep[]> {
   const config = await prisma.systemConfig.findFirst();
   if (!config) throw new Error("System config not found");
 
@@ -117,10 +117,6 @@ export async function getCurrentStep(declarationId: string): Promise<WorkflowSte
   let steps: WorkflowStep[];
   try { steps = JSON.parse(instance.steps); } catch { return null; }
   return steps.find((s) => s.status === "pending") || null;
-}
-
-export async function getFirstPendingStep(declarationId: string): Promise<WorkflowStep | null> {
-  return getCurrentStep(declarationId);
 }
 
 export function isApprovalDecision(decision: string): boolean {
