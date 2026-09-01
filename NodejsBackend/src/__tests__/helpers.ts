@@ -61,3 +61,13 @@ export function getHrToken(): string {
   const jwt = require("jsonwebtoken");
   return jwt.sign({ id: "user-hr", email: "lindiwe@test.com", role: "approver", department: "HR", position: "Head of HR" }, "test-secret", { expiresIn: "1h" });
 }
+
+export function getKabeloToken(): string {
+  const jwt = require("jsonwebtoken");
+  return jwt.sign({ id: "user-22", email: "kabelo@npn.co.za", role: "teamMember", department: "Engineering", position: "Software Engineer" }, "test-secret", { expiresIn: "1h" });
+}
+
+export function getJamesToken(): string {
+  const jwt = require("jsonwebtoken");
+  return jwt.sign({ id: "user-20", email: "james@npn.co.za", role: "approver", department: "Engineering", position: "Line Manager" }, "test-secret", { expiresIn: "1h" });
+}

@@ -336,6 +336,24 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     data: updateData,
   });
 
+  // Refresh the workflow immediately when a returned declaration's value
+  // changes, so the detail view reflects newly required approvers before submit.
+  if (existing.status === "Returned" && data.value !== undefined && data.value !== existing.value) {
+    const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
+    if (instance) {
+      const savedSteps = safeParseWorkflowSteps(instance.steps);
+      const freshSteps = await createWorkflowSteps(id, existing.employeeId, updated.value);
+      const approvedMap = new Map(savedSteps.filter((s: any) => s.status === "approved").map((s: any) => [s.role, s]));
+      const workflowSteps = freshSteps.map((step: any) => {
+        const approved = approvedMap.get(step.role);
+        return approved
+          ? { ...step, status: "approved", decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt }
+          : step;
+      });
+      await prisma.workflowInstance.update({ where: { declarationId: id }, data: { steps: JSON.stringify(workflowSteps) } });
+    }
+  }
+
   res.json(declarationResponse(updated));
 }));
 
@@ -403,35 +421,17 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     const savedSteps = safeParseWorkflowSteps(existingInstance.steps);
     const hasReturnedStep = savedSteps.some((step) => step.status === "returned");
     if (hasReturnedStep) {
-      // Check if value change would change workflow (e.g., Low ↔ High)
+      // Rebuild from the current value so a returned low-value declaration that
+      // becomes high-value gains the HR step on resubmission.
       const freshSteps = await createWorkflowSteps(existing.id, existing.employeeId, existing.value);
-      const savedRoles = savedSteps.map((s: any) => s.role).join(",");
-      const freshRoles = freshSteps.map((s: any) => s.role).join(",");
-      if (savedRoles !== freshRoles) {
-        // Value crossed threshold — regenerate but preserve already-approved steps
-        const approvedMap = new Map(savedSteps.filter((s: any) => s.status === "approved").map((s: any) => [s.role, s]));
-        workflowSteps = freshSteps.map((fs: any) => {
-          const approved = approvedMap.get(fs.role);
-          if (approved) return { ...fs, status: "approved", decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt };
-          return fs;
-        });
-        // If fresh has fewer steps, the extra returned step is now handled by fresh's pending
-        // If fresh has more steps, new HR step is pending
-      } else {
-        workflowSteps = savedSteps.map((step) =>
-          step.status === "returned"
-            ? {
-                ...step,
-                status: "pending",
-                decision: null,
-                notes: "",
-                decidedAt: null,
-                decidedById: null,
-                decidedByName: null,
-              }
-            : step
-        );
-      }
+      // Preserve approvals only for roles present in the newly selected rule.
+      const approvedMap = new Map(savedSteps.filter((s: any) => s.status === "approved").map((s: any) => [s.role, s]));
+      workflowSteps = freshSteps.map((fs: any) => {
+        const approved = approvedMap.get(fs.role);
+        return approved
+          ? { ...fs, status: "approved", decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt }
+          : fs;
+      });
     } else {
       workflowSteps = await createWorkflowSteps(existing.id, existing.employeeId, existing.value);
     }

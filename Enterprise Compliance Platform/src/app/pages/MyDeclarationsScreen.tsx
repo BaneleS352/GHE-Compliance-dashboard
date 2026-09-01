@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import { ArrowLeft, Download, Eye, Edit } from "lucide-react";
 import { Declaration } from "@/types/declaration";
-import { fetchDeclarations } from "@/services/api";
+import { fetchDeclarations, fetchDeclarationById } from "@/services/api";
 import { formatRand } from "@/config/theme";
 import { useUser } from "@/app/auth/UserContext";
 import { Card } from "@/app/components/Card";
@@ -60,6 +60,15 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
     userId: user?.id ?? null,
     onStatusUpdate: (s) => setViewDeclStatus(s),
   });
+
+  const handleViewDeclaration = async (declaration: Declaration) => {
+    try {
+      setViewDecl(await fetchDeclarationById(declaration.id));
+    } catch {
+      // Keep the list row available if the refresh fails.
+      setViewDecl(declaration);
+    }
+  };
 
   useEffect(() => { setPage(0); }, [search, typeFilter, statusFilter, approverFilter, employeeFilter, dateFilterStart, dateFilterEnd, sortKey, sortDir]);
 
@@ -351,7 +360,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
                     <Edit size={12} /> {d.status === "Returned" ? "Edit & Resubmit" : "Continue"}
                   </button>
                 ) : (
-                  <button onClick={() => setViewDecl(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
+                  <button onClick={() => handleViewDeclaration(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
                     <Eye size={12} /> View
                   </button>
                 )}
@@ -406,7 +415,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
                           <Edit size={12} /> {d.status === "Returned" ? "Edit & Resubmit" : "Edit"}
                         </button>
                       ) : (
-                        <button onClick={() => setViewDecl(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
+                        <button onClick={() => handleViewDeclaration(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
                           <Eye size={12} /> View
                         </button>
                       )}
