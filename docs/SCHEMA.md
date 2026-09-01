@@ -76,8 +76,8 @@ Each step:
 ### SystemConfig
 | Field | Type | Default |
 |-------|------|---------|
-| highValueThreshold | Float | 2000 |
-| mediumValueThreshold | Float | 250 |
+| highValueThreshold | Float | 1000 |
+| mediumValueThreshold | Float | 1000 |
 | slaEscalationDays | Int | 3 |
 | maxDeclarationsPerCounterparty | Int | 5 |
 | emailTemplate | String | Template string |

@@ -12,7 +12,7 @@ import { exportToExcel, ColumnDef } from "../../utils/excelExport";
 type ReportType = "High-Value Gifts Report" | "Counterparty Concentration Report";
 
 const REPORTS: Array<{ title: ReportType; desc: string }> = [
-  { title: "High-Value Gifts Report", desc: "Employee-level summary for declarations valued at R2,000 and above in the selected period." },
+  { title: "High-Value Gifts Report", desc: "Employee-level summary for declarations at or above the configured high-value threshold in the selected period." },
   { title: "Counterparty Concentration Report", desc: "Counterparty totals and concentration for the selected period." },
 ];
 

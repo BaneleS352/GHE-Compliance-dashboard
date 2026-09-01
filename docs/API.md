@@ -203,7 +203,7 @@ Declarations grouped by counterparty, sorted by total value descending.
 **Query params:** `?startDate=&endDate=&department=&status=`
 
 ### `GET /api/reports/high-value`
-Declarations above `highValueThreshold` (default 2000), sorted by value descending.
+Declarations at or above `highValueThreshold` (default 1000), sorted by value descending.
 
 **Query params:** `?startDate=&endDate=&department=&status=`
 
