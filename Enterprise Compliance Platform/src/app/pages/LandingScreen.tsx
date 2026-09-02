@@ -13,6 +13,7 @@ const QUICK_LOGIN_USERS = [
   { label: "NPN — Team Member — Kabelo Molefe",   email: "kabelo@npn.co.za",  role: "teamMember" as const },
   { label: "NPN — Line Manager — James van Wyk",  email: "james@npn.co.za",   role: "approver" as const },
   { label: "HR — Lindiwe Zulu (Global)",           email: "lindiwe@hb.co.za",  role: "approver" as const },
+  { label: "NPN — Head of HR — Aisha Patel",        email: "aisha@npn.co.za",   role: "approver" as const },
   { label: "Admin — System Admin (Global)",        email: "admin@hb.co.za",    role: "admin" as const },
 ];
 
