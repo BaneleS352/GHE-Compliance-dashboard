@@ -48,6 +48,10 @@ const mockQueueItems = [
 
 vi.mock("../services/api", () => ({
   fetchPendingWorkflows: vi.fn(),
+  // ApprovalQueue lazy-loads the SLA configuration after loading the queue.
+  // Keep this export in the mock so the async side effect is observable without
+  // producing an unhandled Vitest mock error.
+  fetchConfig: vi.fn().mockResolvedValue({ slaEscalationDays: 5 }),
 }));
 
 vi.mock("../utils/excel", () => ({

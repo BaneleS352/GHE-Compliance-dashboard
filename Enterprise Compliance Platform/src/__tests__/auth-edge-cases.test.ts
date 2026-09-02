@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { authenticate, canAccessScreen } from "../app/auth/authService";
+import { authenticate, canAccessScreen, fetchCurrentUser } from "../app/auth/authService";
+import { getAuthToken } from "../services/httpClient";
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -43,6 +44,17 @@ describe("Auth — authService", () => {
     const r = await authenticate("admin@hb.co.za", "password");
     expect(r).not.toBeNull();
     expect(r!.role).toBe("admin");
+    expect(getAuthToken()).toBe("abc");
+  });
+
+  it("fetchCurrentUser returns null on a 401", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: false, status: 401, json: () => Promise.resolve({ error: "Unauthorized" }), headers: new Headers() } as Response);
+    await expect(fetchCurrentUser()).resolves.toBeNull();
+  });
+
+  it("fetchCurrentUser returns the refreshed server user", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ id: "u1", name: "Updated User", email: "u@test.com", role: "teamMember" }), headers: new Headers() } as Response);
+    await expect(fetchCurrentUser()).resolves.toMatchObject({ id: "u1", name: "Updated User" });
   });
 
   it("authenticate returns null on network error", async () => {

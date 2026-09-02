@@ -16,7 +16,11 @@ export function buildReportWhere(req: AuthRequest): Prisma.DeclarationWhereInput
   const dateFilter = buildDateFilter(startDate as string, endDate as string);
   if (dateFilter) where.date = dateFilter;
   if (department && department !== "All Departments") where.department = String(department);
-  if (status && status !== "All Statuses" && (["Draft","Pending","Approved","Declined","Escalated","Returned"] as string[]).includes(String(status))) where.status = String(status);
+  if (status && status !== "All Statuses") {
+    const validStatuses = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"];
+    // An explicitly invalid filter must not silently become an unfiltered query.
+    where.status = validStatuses.includes(String(status)) ? String(status) : "__invalid_status__";
+  }
   // Org isolation
   const orgId = (req as any).user?.organizationId as string | undefined;
   if (orgId) (where as any).organizationId = orgId;

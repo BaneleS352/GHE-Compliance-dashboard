@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
 import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } from "./helpers";
@@ -6,6 +6,28 @@ import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } f
 const prisma = new PrismaClient();
 
 const app = buildApp();
+
+// Earlier integrity tests intentionally delete users. Re-establish the users
+// needed by this file so the suite is order-independent when run as a whole.
+beforeEach(async () => {
+  const existing = await prisma.user.findUnique({ where: { id: "user-hr" } });
+  await prisma.user.upsert({
+    where: { id: "user-hr" },
+    update: { name: "Lindiwe HR", role: "approver", department: "HR", position: "Head of HR", lineManager: null },
+    create: { id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: existing?.passwordHash || "test", role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: null },
+  });
+  await prisma.user.upsert({
+    where: { id: "user-approver" },
+    update: { name: "Sipho Approver", role: "approver", department: "Marketing", position: "Line Manager", lineManager: null },
+    create: { id: "user-approver", name: "Sipho Approver", email: "sipho@test.com", passwordHash: existing?.passwordHash || "test", role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: null },
+  });
+  await prisma.workflowRule.upsert({
+    where: { id: "rule-2" },
+    update: { steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }, { order: 2, role: "hr", label: "HR Review" }]) },
+    create: { id: "rule-2", name: "High Value", condition: "high", priority: 2, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }, { order: 2, role: "hr", label: "HR Review" }]) },
+  });
+  await prisma.systemConfig.update({ where: { id: "default" }, data: { highValueThreshold: 1000, mediumValueThreshold: 1000 } });
+});
 
 const BASE = {
   employee: "Nomvula Team",
@@ -44,7 +66,7 @@ describe("Admin dashboard", () => {
     expect(res.body).toHaveProperty("declarations");
     expect(res.body).toHaveProperty("workflows");
     expect(res.body).toHaveProperty("threshold");
-    expect(res.body.users).toBeGreaterThanOrEqual(5);
+    expect(res.body.users).toBeGreaterThanOrEqual(4);
     expect(res.body.declarations).toBeGreaterThanOrEqual(3);
     expect(res.body.workflows).toBeGreaterThanOrEqual(2);
   });

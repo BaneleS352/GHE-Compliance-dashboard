@@ -1,45 +1,18 @@
-# GHE Compliance Dashboard — Documentation
+# GHE Compliance Dashboard documentation
 
-## Project Overview
+This documentation describes the repository implementation as of 2026-09-02.
 
-A full-stack compliance management system for tracking Gifts, Hospitality & Entertainment declarations. Built with Express + TypeScript + Prisma (backend) and React + Vite (frontend).
+| Document | Use it for |
+|---|---|
+| [SETUP.md](SETUP.md) | Local prerequisites, environment, database, tests |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Services, request flow, roles, workflows, notifications |
+| [API.md](API.md) | Route inventory, permissions, request conventions |
+| [SCHEMA.md](SCHEMA.md) | Prisma models, JSON fields, indexes, seed data |
+| [SECURITY.md](SECURITY.md) | Implemented controls and deployment responsibilities |
+| [DEPLOY.md](DEPLOY.md) | Docker deployment and production checklist |
 
-## Documentation Index
+Additional package notes are in `NodejsBackend/docs/` and `Enterprise Compliance Platform/docs/`.
 
-### Project-level (`docs/`)
-| File | Description |
-|------|-------------|
-| `ARCHITECTURE.md` | System architecture, data flow, key design decisions |
-| `README.md` | This file |
+Quick links: API `http://localhost:3001/api/docs`, health `http://localhost:3001/api/health`, Docker UI `http://localhost:3000`, local UI `http://localhost:5173`.
 
-### Backend (`NodejsBackend/docs/`)
-| File | Description |
-|------|-------------|
-| `TESTING.md` | API endpoint test guide with curl/PowerShell examples, preset users, test coverage summary |
-
-### Frontend (`Enterprise Compliance Platform/docs/`)
-| File | Description |
-|------|-------------|
-| `TESTING.md` | Frontend test commands, component coverage, mock strategy |
-
-## Quick Links
-
-- **Swagger UI**: `http://localhost:3001/api/docs` (start backend first)
-- **Docker Stack**: `docker compose up -d --build` (see [`DOCKER.md`](../DOCKER.md))
-- **Backend Tests**: `cd NodejsBackend && npm test`
-- **Frontend Tests**: `cd "Enterprise Compliance Platform" && npm test`
-- **Build note**: on Windows OneDrive workspaces, Vite/esbuild may require a local non-OneDrive checkout when it reports directory access errors.
-
-Email delivery is configured with `EMAIL_WEBHOOK_URL`. Without it, backend development mode logs notification events instead of sending external mail.
-
-## Test Data
-
-Preset users (all password: `password`):
-
-| Role | Email |
-|------|-------|
-| Admin | admin@hb.co.za |
-| Approver (LM) | sipho@hb.co.za |
-| Approver (HR) | lindiwe@hb.co.za |
-| Approver (CEO) | sandile@hb.co.za |
-| Team Member | nomvula@hb.co.za |
+The development seed uses password `password` for all seeded users and creates two organizations plus sample configuration and workflow data. Never use seed credentials outside development. Backend tests use isolated `@test.com` fixtures in `test.db`.

@@ -1,242 +1,38 @@
-A clean 3-container setup (React frontend + Node API + PostgreSQL) is very standard—but most people get the details wrong in ways that hurt scalability, security, and dev experience. Here’s how to do it properly.
+# Docker deployment
 
----
+The root `docker-compose.yml` runs three services:
 
-# 🧱 Core Principles (before touching Docker)
+| Service | Container | Host | Purpose |
+|---|---:|---:|---|
+| `frontend` | 80 | 3000 | Vite build served by Nginx; proxies `/api/` and `/uploads/` |
+| `backend` | 3001 | 3001 | Express API |
+| `db` | 5432 | 5432 | PostgreSQL 16 |
 
-* **One process per container** (don’t bundle frontend + backend together)
-* **Use Docker Compose** for orchestration (not manual `docker run`)
-* **Keep containers stateless** (except the database)
-* **Use environment variables**, never hardcode secrets
-* **Optimize for dev vs prod separately**
+`pgdata` and `uploads` named volumes persist database and uploaded-file data. The compose file publishes PostgreSQL and contains example credentials, so it is a deployment baseline, not a hardened internet-facing configuration.
 
----
+## Start
 
-# 🏗️ Recommended Architecture
-
-```
-[ React (frontend) ]  →  [ Node API (backend) ]  →  [ PostgreSQL ]
-        (3000)                 (5000)                  (5432)
-```
-
-* Frontend talks only to backend
-* Backend talks to database
-* Database is NOT exposed publicly
-
----
-
-# 📁 Suggested Project Structure
-
-```
-project-root/
-│
-├── frontend/
-│   └── Dockerfile
-│
-├── backend/
-│   └── Dockerfile
-│
-├── docker-compose.yml
-├── .env
-└── .dockerignore
+```bash
+docker compose up -d --build
+docker compose ps
+docker compose logs -f backend
 ```
 
----
+Open <http://localhost:3000>. Health is at <http://localhost:3001/api/health>; Swagger UI is at <http://localhost:3001/api/docs>.
 
-# 🐳 Dockerfile Best Practices
+Seed a new database once with `docker compose exec backend npm run db:seed`.
 
-## 1. Frontend (React)
+The backend entrypoint runs `prisma db push` before starting. The backend image switches the Prisma provider from SQLite to PostgreSQL during its build.
 
-Use multi-stage builds:
+## Configuration and operations
 
-```dockerfile
-# frontend/Dockerfile
+Replace `JWT_SECRET`, database credentials, and `CORS_ORIGIN` before production. `BACKEND_URL` controls the Nginx upstream and defaults to `http://backend:3001`. Set `EMAIL_WEBHOOK_URL` to deliver notifications; without it, events are logged.
 
-# Build stage
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
-
-# Production stage
-FROM nginx:alpine
-COPY --from=build /app/build /usr/share/nginx/html
+```bash
+docker compose logs -f frontend backend db
+docker compose down       # keeps volumes
+docker compose down -v    # destructive: removes database and upload volumes
+docker compose build --no-cache
 ```
 
-✅ Why:
-
-* Smaller final image
-* No dev dependencies in production
-
----
-
-## 2. Backend (Node API)
-
-```dockerfile
-# backend/Dockerfile
-
-FROM node:20-alpine
-
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install --only=production
-
-COPY . .
-
-EXPOSE 5000
-
-CMD ["node", "server.js"]
-```
-
-Better:
-
-* Use `npm ci` for consistency
-* Consider `NODE_ENV=production`
-
----
-
-## 3. Database (PostgreSQL)
-
-Use official image (don’t reinvent it):
-
-```yaml
-image: postgres:15
-```
-
----
-
-# ⚙️ docker-compose.yml (Production-style)
-
-```yaml
-version: "3.9"
-
-services:
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-
-  backend:
-    build: ./backend
-    ports:
-      - "5000:5000"
-    environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/mydb
-    depends_on:
-      - db
-
-  db:
-    image: postgres:15
-    restart: always
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydb
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  postgres_data:
-```
-
----
-
-# 🔐 Security Best Practices
-
-* ❌ Don’t expose Postgres port publicly
-* ✅ Use internal Docker network (default in Compose)
-* ✅ Store secrets in `.env` (and don’t commit it)
-* ✅ Use strong DB passwords
-* ✅ Add `.dockerignore`:
-
-```
-node_modules
-.git
-.env
-```
-
----
-
-# ⚡ Dev vs Production (Important)
-
-## Development setup differences:
-
-* Use **hot reload**
-* Mount volumes
-
-Example (backend dev):
-
-```yaml
-backend:
-  volumes:
-    - ./backend:/app
-  command: npm run dev
-```
-
-## Production:
-
-* No volumes
-* Prebuilt images
-* Use Nginx for frontend
-* Use process manager (optional, e.g. PM2)
-
----
-
-# 🚀 Performance Tips
-
-* Use **Alpine images** (smaller size)
-* Cache dependencies:
-
-```dockerfile
-COPY package*.json ./
-RUN npm install
-```
-
-(before copying full source)
-
-* Avoid rebuilding everything unnecessarily
-
----
-
-# 🧠 Common Mistakes (avoid these)
-
-* Running DB migrations manually every time → automate them
-* Using `latest` tag → pin versions (`postgres:15`)
-* Hardcoding `localhost` → use service names (`db`)
-* Exposing database port → security risk
-* Not using volumes → data loss
-
----
-
-# 🧩 Optional Improvements
-
-* Add **NGINX reverse proxy** for routing
-* Use **Docker networks** explicitly for control
-* Add **health checks**:
-
-```yaml
-healthcheck:
-  test: ["CMD", "pg_isready", "-U", "user"]
-```
-
-* Use **CI/CD pipeline** to build images
-
----
-
-# 🧾 Quick Summary
-
-* 3 containers = perfect separation of concerns
-* Use Docker Compose to wire them together
-* Backend connects to DB via service name (`db`)
-* Frontend should NEVER talk directly to DB
-* Keep images small, secure, and production-ready
-
----
-
-
-using Docker volume for uploads
+Use TLS and edge authentication, restrict CORS, back up PostgreSQL and uploads, and do not publicly expose port 5432 in production. Consider object storage for uploads when containers are replaced or scaled.

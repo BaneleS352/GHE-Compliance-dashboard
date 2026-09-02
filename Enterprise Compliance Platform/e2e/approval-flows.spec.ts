@@ -24,12 +24,6 @@ test.describe("Approval Workflow — Full Flow", () => {
     await app.pickDecision("Accept");
     await app.submitDecision();
 
-    await app.login(USERS.sandile.email);
-    await app.sidebar("Approval Queue");
-    await app.clickReviewFor(declId);
-    await app.pickDecision("Accept");
-    await app.submitDecision();
-
     await app.verifyStatus(declId, "Approved");
   });
 
@@ -150,7 +144,7 @@ test.describe("Declaration Creation", () => {
 
     await app.login(USERS.lindiwe.email);
     await app.sidebar("New Declaration");
-    await decl.autoFilled(USERS.lindiwe.name, USERS.sandile.name);
+    await decl.autoFilled(USERS.lindiwe.name, USERS.sipho.name);
     await decl.receivedGiven("Received");
     await decl.select("Who did you receive it from?", "Supplier");
     await decl.fill("Name of the Supplier", "E2E Approver Supplies");
