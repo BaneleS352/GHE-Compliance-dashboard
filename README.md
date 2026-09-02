@@ -66,7 +66,7 @@ npx playwright install chromium
 npx playwright test
 ```
 
-Backend: 360/360 passing. Frontend: build clean.
+Run the commands above for the current test count; counts are intentionally not pinned in this document.
 
 ### Playwright E2E Tests
 
@@ -104,7 +104,7 @@ npx playwright show-trace
 
 ## Audit Status
 
-All 42 audit findings across 6 severity levels have been resolved:
+All 42 tracked audit findings across four recorded severity levels have been resolved:
 
 | Severity | Count | Status |
 |----------|-------|--------|

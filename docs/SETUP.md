@@ -1,119 +1,62 @@
-# Development Setup
+# Local development setup
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20 (Docker uses Node 20; the code generally requires Node 18+)
 - npm
-- Docker & Docker Compose (optional, for containerized setup)
+- Docker Desktop and Compose, if using containers
 
-## Quick Start (Local)
+## Run locally
 
-```bash
-# 1. Clone and install backend dependencies
+```powershell
 cd NodejsBackend
 npm install
-
-# 2. Initialize the database (SQLite)
+npx prisma generate
 npx prisma db push
-npx prisma db seed    # Seeds test data with preset users, rules, config
-
-# 3. Start the backend
-# (uses tsx watch — hot reload enabled)
+npm run db:seed
+$env:JWT_SECRET = "local-development-secret"
 npm run dev
-# Server starts on http://localhost:3001
+```
 
-# 4. In a new terminal — install and start frontend
+In another terminal:
+
+```powershell
 cd "Enterprise Compliance Platform"
 npm install
-npx vite
-# Frontend starts on http://localhost:5173
+npm run dev
 ```
 
-## Quick Start (Docker)
+The API is `http://localhost:3001`; Vite is `http://localhost:5173`. `dev.bat` starts both on Windows.
 
-```bash
-# Build and start all 3 containers
-docker compose up -d --build
+## Environment
 
-# First time only — seed the database
-docker compose exec backend npm run db:seed
+Backend loads `.env` with `dotenv`:
 
-# Open http://localhost:3000
-```
+| Variable | Required | Default | Meaning |
+|---|---|---|---|
+| `JWT_SECRET` | yes | — | JWT signing secret |
+| `DATABASE_URL` | yes for Prisma | — | `file:./dev.db` or PostgreSQL URL |
+| `PORT` | no | `3001` | API listen port |
+| `CORS_ORIGIN` | no | dev localhost origins | Comma-separated allowed origins |
+| `EMAIL_WEBHOOK_URL` | no | — | Notification webhook; absent means log-only |
 
-See [`DOCKER.md`](../DOCKER.md) for full Docker instructions.
-```
+Frontend accepts `VITE_API_URL` (local default `http://localhost:3001`). Docker uses Nginx and `BACKEND_URL` for the upstream.
 
-## Environment Variables
+## Database and tests
 
-### Backend (`NodejsBackend/.env`)
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DATABASE_URL` | `file:./dev.db` | SQLite path or PostgreSQL URL |
-| `JWT_SECRET` | (required) | Secret for signing JWT tokens |
-| `PORT` | `3001` | Server port |
-| `CORS_ORIGIN` | `http://localhost:5173` | Allowed CORS origins (comma-separated) |
-
-### Frontend
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VITE_API_URL` | `http://localhost:3001` | Backend API base URL |
-
-## Database Commands
-
-```bash
-# Push schema to DB (creates tables)
+```powershell
 npx prisma db push
-
-# Push with force reset (drops all data)
-npx prisma db push --force-reset
-
-# Run seed script
-npx prisma db seed
-
-# Open Prisma Studio (GUI)
+npx prisma generate
 npx prisma studio
-
-# Generate Prisma client (after schema changes)
-npx prisma generate
-```
-
-## Running Tests
-
-```bash
-# Backend tests
-cd NodejsBackend
-npm test                         # Full suite
-npx vitest run src/__tests__/break.test.ts   # Single file
-npx vitest                       # Watch mode
-
-# Frontend tests
-cd "Enterprise Compliance Platform"
 npm test
-npx vitest run -t "login"        # By test name pattern
+npx vitest run src/__tests__/break.test.ts
 ```
 
-## Test Database
+`db push --force-reset` destroys the selected database. Backend `globalSetup.ts` uses `file:./test.db`, resets it, and seeds isolated fixtures. Frontend tests use Vitest and Testing Library. Playwright E2E tests are under `Enterprise Compliance Platform/e2e`; install Chromium with `npx playwright install chromium`.
 
-Tests use a separate SQLite database at `NodejsBackend/src/__tests__/test.db`. The `globalSetup.ts` script:
-1. Runs `prisma db push --force-reset` to create tables
-2. Seeds preset test data (5 users, 3 declarations, 3 workflow rules, config)
-3. Each test run starts with a clean database
+## Troubleshooting
 
-## Common Issues
-
-**Port already in use:**
-```bash
-# Find and kill process on port 3001
-netstat -ano | findstr :3001
-taskkill /PID <pid> /F
-```
-
-**Prisma client not generated:**
-```bash
-cd NodejsBackend
-npx prisma generate
-```
-
-**Node version mismatch:**
-Check with `node --version`. Requires 18+.
+- Missing `JWT_SECRET`: set it in `NodejsBackend/.env` or the process environment.
+- Port conflict: inspect `netstat -ano | findstr :3001` or `:5173`.
+- Prisma errors: run `npx prisma generate` from `NodejsBackend`.
+- Vite/esbuild access errors in synced folders: use a local checkout.

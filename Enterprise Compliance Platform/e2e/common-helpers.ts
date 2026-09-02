@@ -1,3 +1,5 @@
+import { expect, type Page } from "@playwright/test";
+
 export const USERS = {
   nomvula:  { email: "nomvula@hb.co.za",  role: "teamMember", name: "Nomvula Dlamini" },
   sipho:    { email: "sipho@hb.co.za",    role: "approver",   name: "Sipho Nkosi" },
@@ -9,9 +11,9 @@ export const USERS = {
 export const LOGIN_INDEX: Record<string, number> = {
   "nomvula@hb.co.za": 0,
   "sipho@hb.co.za": 1,
-  "lindiwe@hb.co.za": 2,
+  "lindiwe@hb.co.za": 4,
   "sandile@hb.co.za": 3,
-  "admin@hb.co.za": 4,
+  "admin@hb.co.za": 5,
 };
 
 export async function login(page: Page, email: string) {
@@ -19,11 +21,13 @@ export async function login(page: Page, email: string) {
   await page.waitForSelector("select", { timeout: 10000 });
   await page.selectOption("select", String(LOGIN_INDEX[email]));
   await page.click('button[type="submit"]');
-  await page.waitForSelector("aside", { timeout: 15000 });
+  // Desktop renders the sidebar inside <aside>; mobile renders the compact
+  // navigation as a top-level <nav>.
+  await page.waitForSelector("aside nav, nav", { timeout: 15000 });
 }
 
 export async function clickSidebar(page: Page, label: string) {
-  await page.locator(`aside nav button:has-text("${label}")`).click();
+  await page.locator(`aside nav button:has-text("${label}"):visible, nav button:has-text("${label}"):visible`).first().click();
 }
 
 export class AppPage {

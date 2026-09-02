@@ -14,6 +14,8 @@ import {
   fetchReportCounterpartyConcentration, fetchReportHighValue,
   fetchReportList, fetchApprovalOptions,
   createApprovalOption, updateApprovalOption, deleteApprovalOption,
+  uploadDeclarationFile, fetchOrganizations, fetchAdminOrganizations,
+  createOrganization, updateOrganization, deleteOrganization,
 } from "../services/api";
 import { Declaration } from "../types/declaration";
 
@@ -72,6 +74,31 @@ describe("fetchDeclarationById", () => {
     mockFetch(200, body);
     const result = await fetchDeclarationById("GHE-1");
     expect(result.id).toBe("GHE-1");
+  });
+});
+
+describe("file and organization API wrappers", () => {
+  it("uploads a file with the declaration ID", async () => {
+    const spy = mockFetch(201, { id: "file-1", name: "receipt.txt", size: 12, type: "text/plain", url: "/api/files/file-1" });
+    const file = new File(["receipt"], "receipt.txt", { type: "text/plain" });
+    const result = await uploadDeclarationFile(file, "GHE-1");
+    expect(result.id).toBe("file-1");
+    const body = spy.mock.calls[0][1]?.body as FormData;
+    expect(body.get("declarationId")).toBe("GHE-1");
+    expect(body.get("file")).toBe(file);
+  });
+
+  it("covers organization list and admin CRUD wrappers", async () => {
+    mockFetch(200, [{ id: "org-1", name: "HB", shortCode: "HB" }]);
+    expect((await fetchOrganizations())[0].id).toBe("org-1");
+    mockFetch(200, [{ id: "org-1", name: "HB", shortCode: "HB" }]);
+    expect((await fetchAdminOrganizations())[0].shortCode).toBe("HB");
+    mockFetch(201, { id: "org-2" });
+    expect((await createOrganization({ name: "NPN", shortCode: "NPN" })).id).toBe("org-2");
+    mockFetch(200, { id: "org-2", name: "NPN Updated" });
+    expect((await updateOrganization("org-2", { name: "NPN Updated", shortCode: "NPN" })).name).toBe("NPN Updated");
+    mockFetch(200, { message: "Organization deleted" });
+    expect((await deleteOrganization("org-2")).message).toContain("deleted");
   });
 });
 

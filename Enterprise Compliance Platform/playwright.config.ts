@@ -22,6 +22,10 @@ export default defineConfig({
       name: "desktop",
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      name: "mobile",
+      use: { ...devices["Pixel 5"] },
+    },
   ],
   webServer: [
     {
