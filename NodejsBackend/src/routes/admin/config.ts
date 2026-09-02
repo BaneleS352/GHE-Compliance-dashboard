@@ -24,6 +24,15 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: Auth
   });
 }));
 
+const notificationTemplateSchema = z.object({ subject: z.string().min(1), body: z.string().min(1) });
+const notificationTemplatesSchema = z.object({
+  managerApproval: notificationTemplateSchema,
+  hrApproval: notificationTemplateSchema,
+  declarationReturned: notificationTemplateSchema,
+  declarationDeclined: notificationTemplateSchema,
+  declarationApproved: notificationTemplateSchema,
+}).strict();
+
 const configSchema = z.object({
   highValueThreshold: z.number().nonnegative(),
   mediumValueThreshold: z.number().nonnegative(),
@@ -31,7 +40,10 @@ const configSchema = z.object({
   maxDeclarationsPerCounterparty: z.number().int().nonnegative(),
   maximumValue: z.number().positive().max(10000000).optional().default(1000000),
   emailTemplate: z.string(),
-  notificationTemplates: z.string().optional(),
+  notificationTemplates: z.string().optional().refine((value) => {
+    if (value === undefined) return true;
+    try { notificationTemplatesSchema.parse(JSON.parse(value)); return true; } catch { return false; }
+  }, "Invalid notification templates: all five event templates require a subject and body"),
 });
 
 // PUT /api/admin/config

@@ -18,13 +18,14 @@ GHE-Compliance-Dashboard/
 │       │   ├── auth.ts            # login, me, preset-users
 │       │   ├── declarations.ts    # CRUD, submit, status
 │       │   ├── files.ts           # upload, download, delete
-│       │   ├── reports.ts         # SLA, breakdown, export
+│       │   ├── reports.ts         # SLA, breakdown, aggregation, export
 │       │   └── workflows.ts       # pending, instances, approve
 │       ├── services/
 │       │   ├── workflowService.ts  # step resolution logic
 │       │   ├── reports.ts          # report data computation
-│       │   └── excelService.ts     # Excel buffer generation
-│       └── __tests__/             # Vitest test suite (203 tests)
+│       │   ├── excelService.ts     # Excel buffer generation
+│       │   └── notificationService.ts # Template rendering and webhook delivery
+│       └── __tests__/             # Vitest test suite
 │   ├── prisma/                    # schema.prisma + migrations
 │   └── docs/                      # Backend docs
 │
@@ -45,7 +46,7 @@ GHE-Compliance-Dashboard/
 │   │   ├── styles/
 │   │   │   ├── theme.css          # CSS variables (--table-header-bg, --info-bg, --darkest, --purple-600)
 │   │   │   └── index.css          # Tailwind + .card-shadow, .btn-gradient utilities
-│   │   ├── __tests__/             # Vitest test suite (230 tests)
+│   │   ├── __tests__/             # Vitest test suite
 │   │   └── shell/
 │   │       └── AppShell.tsx       # Layout shell (uses var(--background) — no hardcoded colours)
 │   └── docs/                      # Frontend docs
@@ -62,7 +63,7 @@ Browser (React SPA)
 Express API (port 3001)
     │
     ├── JWT Auth Middleware
-    │       └── Decodes token → req.user { id, email, role }
+    │       └── Decodes token → req.user { id, email, name, role, department, position, organizationId }
     │
     ├── Route Handler
     │       ├── Zod validation
@@ -81,6 +82,7 @@ Express API (port 3001)
 | Validation | Zod schemas | Type-safe, composable, good DX |
 | File storage | Local disk (`uploads/`) | Simple; replace with S3 for production |
 | Workflow | JSON steps in `WorkflowInstance` | Flexible per-declaration step definitions |
+| Notifications | Validated templates + email webhook | Provider-independent delivery with safe development logging |
 | Theme | Centralised `theme.ts` + CSS variables | Single source of truth for colours, gradients, status/priority maps |
 | Docker | Multi-stage builds | Frontend: Vite→Nginx (port 3000); Backend: TSC→Node (port 3001); auto-swaps SQLite→PostgreSQL
 
@@ -100,11 +102,19 @@ Express API (port 3001)
 4. Loads `WorkflowRule.steps` (JSON of step definitions)
 5. Resolves assignees from `User` table (lineManager, HR, CEO)
 6. Stores resolved steps as JSON in `WorkflowInstance.steps`
-7. Steps are frozen — config/rule changes don't cascade retroactively
+7. Steps are frozen — config/rule changes don't cascade retroactively. Returned declarations are re-evaluated on save/resubmission so value changes can add newly required approvers while preserving valid completed approvals.
+
+## Notifications
+
+Workflow submission and approval transitions call `notificationService.ts`. It resolves recipients from the user table, renders the configured event template, and POSTs `{ to, subject, body, event, declarationId }` to `EMAIL_WEBHOOK_URL`. Without that variable, development mode logs the event. Delivery failures do not roll back workflow state.
+
+## Reports
+
+Reports share inclusive date, department, and status filters with organization isolation. High-value results aggregate by employee and include values at or above `highValueThreshold`. Status breakdown and SLA data are available in the Reports screen alongside high-value and counterparty concentration reports.
 
 ## Test Philosophy
 
-- 433 total tests (203 backend + 230 frontend)
+- Test counts are intentionally not hard-coded here; run each package's test command for the current count.
 - `break.test.ts`: 72 negative/attack tests (SQLi, XSS, JWT tampering, Zod bypasses)
 - `edge-cases.test.ts`: 50 vulnerability boundary tests (mass assignment, self-approval, data leaks)
 - `frontend-break.test.ts`: 31 HTTP-layer tests (error codes, network failure, malformed responses)

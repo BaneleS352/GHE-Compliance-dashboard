@@ -84,7 +84,7 @@ Create a new declaration.
 ### `GET /api/declarations/:id`
 Get single declaration with workflow steps.
 
-**Note:** No ownership check — any authenticated user can read any declaration by ID.
+**Access:** Owners, assigned approvers, and administrators can view the declaration and workflow.
 
 **Response 200:** Declaration with `workflowSteps` array  
 **Errors:** 404
@@ -92,7 +92,7 @@ Get single declaration with workflow steps.
 ### `PUT /api/declarations/:id`
 Update declaration fields. Only drafts or returned declarations can be edited.
 
-**Note:** No field whitelist — `status`, `employeeId`, and all other fields can be changed by the owner. Team members cannot edit other users' declarations.
+**Note:** Only declared editable fields are accepted. Owners may edit drafts and returned declarations; workflow/status fields remain server-controlled.
 
 **Errors:** 400 (not editable), 403 (IDOR), 404
 
@@ -104,7 +104,7 @@ Delete a draft declaration. Only drafts can be deleted.
 ### `PATCH /api/declarations/:id/submit`
 Submit a draft — creates workflow steps and sets status to Pending.
 
-**Note:** User with `lineManager: null` will create a workflow step with `assignee: ""` that can never be approved.
+**Note:** Workflow steps are resolved from the current system threshold and approver configuration. Returned declarations are rebuilt on resubmission so a value crossing the threshold receives the newly required HR step.
 
 **Errors:** 400 (not a draft), 500 (missing system config or workflow rule)
 
@@ -132,7 +132,7 @@ List pending approval steps for the current user.
 ### `GET /api/workflows/instances/:declarationId`
 Get workflow timeline for a declaration.
 
-**Note:** No ownership check — any authenticated user can view any workflow instance.
+**Access:** Declaration owners, assigned approvers, and administrators can view the workflow instance.
 
 **Response 200:** `{ "declarationId": "...", "steps": [...] }`  
 **Errors:** 404
@@ -147,8 +147,7 @@ Approve, decline, or return a workflow step.
 
 **Valid decisions:** `return`, `accept`, `org`, `foundation`, `decline`, `reject`, `info`, `escalate`
 
-**Note:** No self-approval guard — approver can approve their own declaration.  
-**Note:** No step order enforcement — HR can approve before Line Manager.
+**Note:** Self-approval and step-order checks are enforced. A returned or declined outcome notifies the declaration owner; approval outcomes notify the next approver or owner.
 
 **Response 200:** `{ "declarationId", "newStatus", "currentStep", "workflowSteps" }`  
 **Errors:** 400 (invalid decision, missing fields), 403 (no pending step), 404
@@ -190,20 +189,22 @@ Delete a file (DB record + disk file).
 ### `GET /api/reports/status-breakdown`
 Declaration counts grouped by status.
 
-**Query params:** `?startDate=&endDate=&department=&status=`
+**Query params:** `?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&department=&status=`. Date boundaries are inclusive.
 
 ### `GET /api/reports/sla`
 Average/min/max turnaround days by approver role.
 
-**Query params:** `?startDate=&endDate=&department=&status=`
+**Query params:** `?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&department=&status=`. Date boundaries are inclusive.
 
 ### `GET /api/reports/counterparty-concentration`
 Declarations grouped by counterparty, sorted by total value descending.
 
-**Query params:** `?startDate=&endDate=&department=&status=`
+**Query params:** `?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&department=&status=`. Date boundaries are inclusive.
 
 ### `GET /api/reports/high-value`
-Declarations at or above `highValueThreshold` (default 1000), sorted by value descending.
+Declarations at or above `highValueThreshold` (default 1000), aggregated by employee and sorted by total value descending.
+
+**Response 200:** Rows contain `employee`, `lineManager`, `declarationCount`, `totalValue`, `averageValue`, `totalGift`, `totalHospitality`, `totalEntertainment`, and `mostFrequentSupplier`.
 
 **Query params:** `?startDate=&endDate=&department=&status=`
 
@@ -261,7 +262,7 @@ Delete user. **Admin only.** Blocks deleting the last admin.
 #### `GET /api/admin/config`
 Get system config. **Admin only.**
 
-**Response:** `{ highValueThreshold, mediumValueThreshold, slaEscalationDays, maxDeclarationsPerCounterparty, emailTemplate }`
+**Response:** `{ highValueThreshold, mediumValueThreshold, slaEscalationDays, maxDeclarationsPerCounterparty, maximumValue, emailTemplate, notificationTemplates }`
 
 #### `PUT /api/admin/config`
 Update system config. **Admin only.**
@@ -269,6 +270,12 @@ Update system config. **Admin only.**
 **All fields required.** Partial updates rejected by Zod.
 
 **Note:** Config threshold changes affect new workflow rule selection but don't re-evaluate existing pending workflows.
+
+`notificationTemplates` must be valid JSON containing exactly these keys: `managerApproval`, `hrApproval`, `declarationReturned`, `declarationDeclined`, and `declarationApproved`. Each value requires a non-empty `subject` and `body`.
+
+Supported placeholders are `[Declaration ID]`, `[Team Member Name]`, `[Approving Manager Name]`, `[HR Approver Name]`, and `[Manager Approval Option]`.
+
+Notifications are delivered to `EMAIL_WEBHOOK_URL` as a JSON POST. When that variable is not configured, development mode logs the event without sending an external email. Delivery failures are logged and do not roll back the workflow transaction.
 
 #### `GET /api/admin/config/dropdowns`
 Get dropdown options. **Admin only.**

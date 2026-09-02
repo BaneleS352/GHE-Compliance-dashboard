@@ -80,7 +80,9 @@ Each step:
 | mediumValueThreshold | Float | 1000 |
 | slaEscalationDays | Int | 3 |
 | maxDeclarationsPerCounterparty | Int | 5 |
-| emailTemplate | String | Template string |
+| maximumValue | Float | 1,000,000; declarations above this are blocked |
+| emailTemplate | String | Legacy single-template field |
+| notificationTemplates | String | JSON object containing the five validated event templates |
 
 ### UploadedFile
 | Field | Type | Notes |
@@ -97,6 +99,16 @@ Each step:
 - **ComplianceTrendPoint** — Monthly approval/decline counts (dashboard)
 - **TypeBreakdownItem** — Declaration type stats (dashboard)
 - **ApprovalOption** — Decision options (accept, org, foundation, decline, return)
+
+## Notification Templates
+
+`SystemConfig.notificationTemplates` stores the administrator-editable subject/body pair for each event: manager approval, HR approval, returned, declined, and approved. The backend validates the complete object and renders supported placeholders before posting to the configured email webhook.
+
+## Key Business Rules
+
+- Values at or above `highValueThreshold` use the high-value workflow and appear in the high-value report.
+- Returned declarations are re-evaluated when saved/resubmitted; newly required approvers are added while valid completed approvals are preserved.
+- Report date filters are inclusive.
 
 ## Cascade Gaps
 

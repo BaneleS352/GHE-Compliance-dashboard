@@ -8,6 +8,7 @@ import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { createWorkflowSteps, safeJsonParse, declarationResponse } from "../services/workflowService";
+import { sendNotification } from "../services/notificationService";
 
 const router = Router();
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
@@ -456,6 +457,9 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
   ]);
 
   res.json(declarationResponse(updated));
+  if (nextApprover) {
+    void sendNotification(nextApprover.role === "hr" ? "hrApproval" : "managerApproval", existing.id, nextApprover.assignee);
+  }
 }));
 
 router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {

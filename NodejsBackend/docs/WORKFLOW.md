@@ -53,6 +53,8 @@ function determineRuleId(value, highThreshold, mediumThreshold): string {
 
 ### Frozen Workflows (By Design)
 
+Pending workflows remain stable when administrators change rules. A returned declaration is re-evaluated when the employee saves/resubmits it: if its value now meets the high-value threshold, the HR step is added and valid completed approvals are preserved.
+
 Once a declaration is submitted, its workflow steps are serialized to JSON in `WorkflowInstance.steps`. Subsequent changes to config thresholds or workflow rules do not modify existing instances. This prevents changing approval requirements for declarations already in flight.
 
 ## Step Resolution Details
@@ -109,7 +111,9 @@ Valid roles: `lineManager`, `hr`, `ceo`
 
 ### Update Config
 `PUT /api/admin/config`
-- All 5 fields required: `highValueThreshold`, `mediumValueThreshold`, `slaEscalationDays`, `maxDeclarationsPerCounterparty`, `emailTemplate`
+- Required configuration fields: `highValueThreshold`, `mediumValueThreshold`, `slaEscalationDays`, `maxDeclarationsPerCounterparty`, `emailTemplate`, and validated `notificationTemplates`.
+
+Notification events are delivered through `EMAIL_WEBHOOK_URL`; without that environment variable, local development logs the event only.
 - Affects new submissions only
 
 ## Decision Values
@@ -134,8 +138,8 @@ The new UI (`WorkflowTimeline` component) sends `accept`, `reject`, `decline`, `
 1. **Null lineManager** → unreviewable LM step (assignee: "")
 2. **Deleting rule-3** → 500 on new high-value submissions
 3. **Deleting system config** → 500 on any submission
-4. **No step order enforcement** — HR can approve before LM
-5. ~~**No self-approval guard** — approver can approve own declaration~~ **(Fixed)** Steps where `assignee === creator` are now skipped entirely (auto-removed from the workflow). The timeline shows "Not Required" for those roles.
+4. **Step order is enforced** — downstream approvers cannot action a step before earlier steps are approved.
+5. **Self-approval is blocked** — a user cannot approve their own declaration; invalid self-assigned steps are not actionable.
 
 ## Self-Approval Guard
 

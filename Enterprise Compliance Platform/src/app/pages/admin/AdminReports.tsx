@@ -26,6 +26,8 @@ export function AdminReports() {
   const [loading, setLoading] = useState(false);
   const [counterpartyData, setCounterpartyData] = useState<any[]>([]);
   const [highValueData, setHighValueData] = useState<any[]>([]);
+  const [statusBreakdown, setStatusBreakdown] = useState<Record<string, number>>({});
+  const [slaData, setSlaData] = useState<any[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -46,6 +48,8 @@ export function AdminReports() {
       const data = await fetchReports(params);
       setCounterpartyData(data.counterpartyData);
       setHighValueData(data.highValueData);
+      setStatusBreakdown(data.statusBreakdown);
+      setSlaData(data.slaData);
       setDepartments(data.departments);
       setGeneratedAt(new Date().toLocaleString("en-ZA"));
     } catch {
@@ -191,6 +195,19 @@ export function AdminReports() {
           </div>
         </div>
       </Card>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card className="p-5">
+          <h3 className="mb-4 text-sm font-bold text-foreground">Status Breakdown</h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {Object.entries(statusBreakdown).map(([key, value]) => <div key={key} className="rounded-xl bg-muted/50 p-3"><p className="text-xs text-muted-foreground">{key}</p><p className="text-xl font-bold">{value}</p></div>)}
+          </div>
+        </Card>
+        <Card className="overflow-x-auto p-5">
+          <h3 className="mb-4 text-sm font-bold text-foreground">Approval SLA</h3>
+          <Table><Thead><Tr><Th>Role</Th><Th>Average Days</Th><Th>Cases</Th></Tr></Thead><Tbody>{slaData.length === 0 ? <Tr><Td colSpan={3}>No completed approvals.</Td></Tr> : slaData.map((row) => <Tr key={row.role}><Td>{row.role}</Td><Td>{row.avg}</Td><Td>{row.count}</Td></Tr>)}</Tbody></Table>
+        </Card>
+      </div>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 

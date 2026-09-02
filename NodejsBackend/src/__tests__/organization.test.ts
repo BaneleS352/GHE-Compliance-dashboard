@@ -8,7 +8,7 @@ import bcrypt from "bcryptjs";
 const app = buildApp();
 const prisma = new PrismaClient();
 
-function tokenFor(user: { id: string; email: string; role: string; organizationId?: string | null; department?: string; position?: string }) {
+function tokenFor(user: { id: string; name?: string; email: string; role: string; organizationId?: string | null; department?: string; position?: string }) {
   return jwt.sign(
     { id: user.id, email: user.email, role: user.role, name: user.name, department: user.department || "IT", position: user.position || "Staff", organizationId: user.organizationId || null },
     "test-secret",

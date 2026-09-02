@@ -3,6 +3,7 @@ import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { WorkflowStep, safeJsonParse, declarationResponse } from "../services/workflowService";
+import { sendNotification } from "../services/notificationService";
 
 const router = Router();
 
@@ -218,6 +219,14 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
     currentStep: freshSteps[resultStepIndex],
     workflowSteps: freshSteps,
   });
+  const ownerId = declaration.employeeId;
+  if (newStatus === "Returned") void sendNotification("declarationReturned", declarationId, ownerId, decision);
+  else if (newStatus === "Declined") void sendNotification("declarationDeclined", declarationId, ownerId, decision);
+  else if (newStatus === "Approved") void sendNotification("declarationApproved", declarationId, ownerId, decision);
+  else {
+    const next = freshSteps.find((s) => s.status === "pending");
+    if (next) void sendNotification(next.role === "hr" ? "hrApproval" : "managerApproval", declarationId, next.assignee, decision);
+  }
 }));
 
 export default router;

@@ -4,30 +4,12 @@ import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { generateExcelBuffer, ColumnDef } from "../services/excelService";
-import { getStatusBreakdown, getSLABreakdown, getHighValueDeclarations } from "../services/reports";
+import { getStatusBreakdown, getSLABreakdown, getHighValueDeclarations, buildReportWhere } from "../services/reports";
 
 const router = Router();
 
-function buildDateFilter(startDate?: string, endDate?: string): Prisma.StringFilter | undefined {
-  if (!startDate && !endDate) return undefined;
-  const f: Prisma.StringFilter = {};
-  if (startDate) f.gte = startDate;
-  if (endDate) f.lte = endDate;
-  return f;
-}
-
-function buildWhere(req: AuthRequest): Prisma.DeclarationWhereInput {
-  const { startDate, endDate, department, status } = req.query;
-  const where: Prisma.DeclarationWhereInput = {};
-  const dateFilter = buildDateFilter(startDate as string, endDate as string);
-  if (dateFilter) where.date = dateFilter;
-  if (department && department !== "All Departments") where.department = String(department);
-  if (status && status !== "All Statuses") where.status = String(status);
-  return where;
-}
-
 router.get("/counterparty-concentration", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const where = buildWhere(req);
+  const where = buildReportWhere(req);
   const declarations = await prisma.declaration.findMany({ where, select: { counterparty: true, value: true } });
 
   const groups: Record<string, { count: number; totalValue: number }> = {};
@@ -68,7 +50,7 @@ router.get("/high-value", authenticate, authorize("admin", "approver"), asyncHan
 }));
 
 router.get("/list", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const where = buildWhere(req);
+  const where = buildReportWhere(req);
   const search = req.query.search as string | undefined;
 
   const declarations = await prisma.declaration.findMany({
@@ -90,7 +72,7 @@ router.get("/list", authenticate, authorize("admin", "approver"), asyncHandler(a
 }));
 
 router.get("/export", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const where = buildWhere(req);
+  const where = buildReportWhere(req);
   const { reportType } = req.query;
 
   const declarations = await prisma.declaration.findMany({

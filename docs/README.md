@@ -26,9 +26,11 @@ A full-stack compliance management system for tracking Gifts, Hospitality & Ente
 
 - **Swagger UI**: `http://localhost:3001/api/docs` (start backend first)
 - **Docker Stack**: `docker compose up -d --build` (see [`DOCKER.md`](../DOCKER.md))
-- **Backend Tests**: `cd NodejsBackend && npm test` (203 tests)
-- **Frontend Tests**: `cd "Enterprise Compliance Platform" && npm test` (230 tests)
-- **Total**: 433 tests
+- **Backend Tests**: `cd NodejsBackend && npm test`
+- **Frontend Tests**: `cd "Enterprise Compliance Platform" && npm test`
+- **Build note**: on Windows OneDrive workspaces, Vite/esbuild may require a local non-OneDrive checkout when it reports directory access errors.
+
+Email delivery is configured with `EMAIL_WEBHOOK_URL`. Without it, backend development mode logs notification events instead of sending external mail.
 
 ## Test Data
 
