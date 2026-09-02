@@ -91,18 +91,24 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
     },
   ], [lmStep, hrStep, hasLm, hasHr, isLmApproved, isHrEnabled, lmDecision, hrDecision, lmNotes, hrNotes]);
 
-  const wfSteps: StepView[] = useMemo(() => allRoles.map((r) => {
+  const wfSteps: StepView[] = useMemo(() => {
+    let hasTerminal = false;
+    return allRoles.map((r) => {
     if (!r.exists) return { label: r.title, actor: r.defaultActor, state: "skipped" };
     const decided = r.completed;
-    return {
+    const state = hasTerminal ? "skipped" : decided ? "completed" : r.enabled ? "active" : "pending";
+    const view = {
       label: r.title,
       actor: r.step?.assigneeName || r.defaultActor,
-      state: decided ? "completed" : r.enabled ? "active" : "pending",
+      state: state as StepView["state"],
       decision: r.decision ? { label: DECISION_LABELS[r.decision] || r.decision } : null,
       decidedAt: r.decidedAt,
       notes: r.notes,
     };
-  }), [allRoles]);
+    if (decided && r.decision && ["return", "decline"].includes(r.decision)) hasTerminal = true;
+    return view;
+  });
+  }, [allRoles]);
 
   const currentUserStep = useMemo(() => steps.find(
     (s: any, i: number) => s.status === "pending" && steps.slice(0, i).every((p: any) => p.status === "approved" || p.status === "skipped")

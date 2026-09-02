@@ -73,6 +73,7 @@ const PRESET_USERS = [
   { label: "NPN — Team Member — Kabelo Molefe", email: "kabelo@npn.co.za", role: "teamMember" },
   { label: "NPN — Line Manager — James van Wyk", email: "james@npn.co.za", role: "approver" },
   { label: "HR — Lindiwe Zulu", email: "lindiwe@hb.co.za", role: "approver" },
+  { label: "NPN — Head of HR — Aisha Patel", email: "aisha@npn.co.za", role: "approver" },
   { label: "Admin — System Admin", email: "admin@hb.co.za", role: "admin" },
 ];
 
