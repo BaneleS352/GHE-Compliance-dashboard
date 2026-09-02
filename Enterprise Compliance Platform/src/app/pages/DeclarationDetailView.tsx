@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft, Download, Eye, FileText } from "lucide-react";
 import { Card } from "@/app/components/ui/card";
-import { formatRand, DEFAULT_HIGH_VALUE_THRESHOLD } from "@/config/theme";
+import { formatRand, DEFAULT_HIGH_VALUE_THRESHOLD, DEFAULT_MEDIUM_VALUE_THRESHOLD } from "@/config/theme";
 import { Declaration, UploadedFile } from "@/types/declaration";
 import { fetchConfig } from "@/services/api";
 import { motion } from "framer-motion";

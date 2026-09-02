@@ -86,7 +86,6 @@ function DecorApproved() {
           fontWeight: 700,
           lineHeight: "36px",
           textAlign: "center",
-          color: "white",
         }}
       >
         ✓
