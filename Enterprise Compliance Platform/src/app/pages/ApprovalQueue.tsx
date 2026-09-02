@@ -17,8 +17,8 @@ function daysSince(dateStr: string): number {
   return Math.floor((Date.now() - t) / 86400000);
 }
 
-function isOutstanding(dateStr: string): boolean {
-  return daysSince(dateStr) >= 7;
+function isOutstanding(dateStr: string, slaDays: number): boolean {
+  return daysSince(dateStr) >= slaDays;
 }
 
 export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void }) {
@@ -36,6 +36,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const PAGE_SIZE = 10;
+  const [slaDays, setSlaDays] = useState(3);
 
   useEffect(() => {
     fetchPendingWorkflows()
@@ -47,6 +48,8 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
+    // Fetch SLA threshold for overdue calculation
+    import("@/services/api").then(({ fetchConfig }) => fetchConfig().then((c) => setSlaDays(c.slaEscalationDays ?? 3)).catch(() => {}));
   }, []);
 
   useEffect(() => { setPage(0); }, [search, department, status, priority, employeeFilter, overdueOnly, sortKey, sortDir]);
@@ -65,7 +68,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       (status === "All" || d.status === status) &&
       (priority === "All" || d.priority === priority) &&
       (employeeFilter === "All" || d.employee === employeeFilter) &&
-      (!overdueOnly || isOutstanding(d.submitted))
+      (!overdueOnly || isOutstanding(d.submitted, slaDays))
     );
   });
   const sortFieldMap: Record<string, string> = {

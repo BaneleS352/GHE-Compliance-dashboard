@@ -10,7 +10,7 @@ function buildDateFilter(startDate?: string, endDate?: string): Prisma.StringFil
   return f;
 }
 
-function buildWhere(req: AuthRequest): Prisma.DeclarationWhereInput {
+export function buildReportWhere(req: AuthRequest): Prisma.DeclarationWhereInput {
   const { startDate, endDate, department, status } = req.query;
   const where: Prisma.DeclarationWhereInput = {};
   const dateFilter = buildDateFilter(startDate as string, endDate as string);
@@ -24,7 +24,7 @@ function buildWhere(req: AuthRequest): Prisma.DeclarationWhereInput {
 }
 
 export async function getStatusBreakdown(req: AuthRequest): Promise<Record<string, number>> {
-  const where = buildWhere(req);
+  const where = buildReportWhere(req);
   const grouped = await prisma.declaration.groupBy({ by: ["status"], where, _count: { status: true } });
   const counts: Record<string, number> = {};
   for (const g of grouped) {
@@ -34,7 +34,7 @@ export async function getStatusBreakdown(req: AuthRequest): Promise<Record<strin
 }
 
 export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
-  const where = buildWhere(req);
+  const where = buildReportWhere(req);
   const declarations = await prisma.declaration.findMany({ where, select: { id: true, date: true } });
   if (declarations.length === 0) return [];
 
@@ -84,7 +84,7 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
 }
 
 export async function getCounterpartyConcentration(req: AuthRequest): Promise<any[]> {
-  const where = buildWhere(req);
+  const where = buildReportWhere(req);
   const declarations = await prisma.declaration.findMany({ where, select: { counterparty: true, value: true } });
 
   const groups: Record<string, { count: number; totalValue: number }> = {};
@@ -108,19 +108,54 @@ export async function getCounterpartyConcentration(req: AuthRequest): Promise<an
 }
 
 export async function getHighValueDeclarations(req: AuthRequest, config: { highValueThreshold: number }): Promise<any[]> {
-  const where = buildWhere(req);
-  where.value = { gt: config.highValueThreshold };
+  const where = buildReportWhere(req);
+  where.value = { gte: config.highValueThreshold };
 
   const declarations = await prisma.declaration.findMany({
     where,
-    orderBy: { value: "desc" },
+    orderBy: [{ employee: "asc" }, { value: "desc" }],
     select: {
-      id: true, employee: true, department: true, type: true,
+      employee: true, lineManager: true, department: true, type: true,
       counterparty: true, value: true, date: true, status: true,
     },
   });
 
-  return declarations;
+  const groups = new Map<string, any>();
+  for (const d of declarations) {
+    const row = groups.get(d.employee) || {
+      employee: d.employee,
+      lineManager: d.lineManager,
+      declarationCount: 0,
+      totalValue: 0,
+      averageValue: 0,
+      totalGift: 0,
+      totalHospitality: 0,
+      totalEntertainment: 0,
+      suppliers: new Map<string, number>(),
+    };
+    row.declarationCount += 1;
+    row.totalValue += d.value;
+    if (d.type === "Gift") row.totalGift += d.value;
+    if (d.type === "Hospitality") row.totalHospitality += d.value;
+    if (d.type === "Entertainment") row.totalEntertainment += d.value;
+    row.suppliers.set(d.counterparty || "Unknown", (row.suppliers.get(d.counterparty || "Unknown") || 0) + 1);
+    groups.set(d.employee, row);
+  }
+
+  return [...groups.values()].map((row) => {
+    const mostFrequentSupplier = [...row.suppliers.entries()].sort((a: any, b: any) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || "Unknown";
+    return {
+      employee: row.employee,
+      lineManager: row.lineManager,
+      declarationCount: row.declarationCount,
+      totalValue: row.totalValue,
+      averageValue: Math.round((row.totalValue / row.declarationCount) * 100) / 100,
+      totalGift: row.totalGift,
+      totalHospitality: row.totalHospitality,
+      totalEntertainment: row.totalEntertainment,
+      mostFrequentSupplier,
+    };
+  }).sort((a, b) => b.totalValue - a.totalValue);
 }
 
 export async function getReportsData(req: AuthRequest, config: { highValueThreshold: number }): Promise<any> {
@@ -140,7 +175,7 @@ export async function getReportsData(req: AuthRequest, config: { highValueThresh
 }
 
 export async function getReports(req: AuthRequest, config: { highValueThreshold: number }): Promise<any> {
-  const where = buildWhere(req);
+  const where = buildReportWhere(req);
   const declarations = await prisma.declaration.findMany({
     where,
     orderBy: { submitted: "desc" },

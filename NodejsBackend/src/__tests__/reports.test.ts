@@ -50,7 +50,10 @@ describe("Reports", () => {
     expect(res.status).toBe(200);
     expect(res.body.length).toBeGreaterThanOrEqual(0);
     for (const d of res.body) {
-      expect(d.value).toBeGreaterThanOrEqual(2000);
+      expect(d.declarationCount).toBeGreaterThan(0);
+      expect(d.totalValue).toBeGreaterThanOrEqual(1000);
+      expect(d.averageValue).toBeGreaterThan(0);
+      expect(d.mostFrequentSupplier).toBeDefined();
     }
   });
 

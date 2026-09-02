@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft, Download, Eye, FileText } from "lucide-react";
 import { Card } from "@/app/components/ui/card";
-import { formatRand } from "@/config/theme";
+import { formatRand, DEFAULT_HIGH_VALUE_THRESHOLD, DEFAULT_MEDIUM_VALUE_THRESHOLD } from "@/config/theme";
 import { Declaration, UploadedFile } from "@/types/declaration";
 import { fetchConfig } from "@/services/api";
 import { motion } from "framer-motion";
@@ -20,7 +20,7 @@ export function DeclarationDetailView({
   const isRecord = typeof (data as Declaration).value === "number";
   const d = isRecord ? (data as Declaration) : null;
   const record = !d ? (data as Record<string, string>) : null;
-  const [config, setConfig] = useState({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
+  const [config, setConfig] = useState({ highValueThreshold: DEFAULT_HIGH_VALUE_THRESHOLD, mediumValueThreshold: DEFAULT_MEDIUM_VALUE_THRESHOLD, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
 
   useEffect(() => {
     fetchConfig().then(setConfig).catch(() => { /* config defaults are used as fallback */ });
@@ -48,7 +48,7 @@ export function DeclarationDetailView({
         ["Contract In Progress",   safe(d.contractNegotiation)],
         ["No. of GHE past 12 months", safe(d.instances)],
         ["Description",            safe(d.description)],
-        ...(d.value > config.highValueThreshold
+        ...(d.value >= config.highValueThreshold
           ? ([[`Substantiation (> R${config.highValueThreshold})`, safe(d.substantiation || "Required")]] as [string, string][])
           : []),
       ]
@@ -72,7 +72,7 @@ export function DeclarationDetailView({
         ["Contract In Progress",   safe(record?.contractNegotiation)],
         ["No. of GHE past 12 months", safe(record?.instances)],
         ["Description",            safe(record?.description)],
-        ...(Number(record?.value) > config.highValueThreshold
+        ...(Number(record?.value) >= config.highValueThreshold
           ? ([[`Substantiation (> R${config.highValueThreshold})`, safe(record?.substantiation || "Required")]] as [string, string][])
           : []),
       ];

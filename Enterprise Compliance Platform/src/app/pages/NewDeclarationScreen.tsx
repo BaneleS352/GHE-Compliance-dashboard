@@ -7,21 +7,17 @@ import { Sel } from "@/app/components/Sel"
 import { FL } from "@/app/components/FL";
 import { FS, FORM_SECTIONS } from "@/app/components/FS";
 import { Card } from "@/app/components/Card";
-import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG } from "@/config/theme";
+import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG, DEFAULT_HIGH_VALUE_THRESHOLD, DEFAULT_MEDIUM_VALUE_THRESHOLD, DEFAULT_MAXIMUM_VALUE } from "@/config/theme";
 import { Declaration, UploadedFile } from "@/types/declaration";
 import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "@/services/api";
 import { useUser } from "@/app/auth/UserContext";
 import { fetchConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
 
-const determineRuleId = (value: number, highThreshold: number, _mediumThreshold: number): string => {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "rule-1";
-  if (value >= highThreshold) return "rule-2";
-  return "rule-1";
-};
+// determineRuleId now handled server-side via workflowService.determineRuleId (2-tier: >=high → rule-2)
 
 const getPriority = (value: number, highThreshold: number, mediumThreshold: number): "High" | "Medium" | "Low" => {
-  if (value > highThreshold) return "High";
-  if (value > mediumThreshold) return "Medium";
+  if (value >= highThreshold) return "High";
+  if (value >= mediumThreshold) return "Medium";
   return "Low";
 };
 
@@ -48,7 +44,7 @@ export function NewDeclarationScreen({
   draft?: Declaration | null;
 }) {
   const { user } = useUser();
-  const [config, setConfig] = useState({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, maximumValue: 1000000, emailTemplate: "" });
+  const [config, setConfig] = useState({ highValueThreshold: DEFAULT_HIGH_VALUE_THRESHOLD, mediumValueThreshold: DEFAULT_MEDIUM_VALUE_THRESHOLD, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, maximumValue: DEFAULT_MAXIMUM_VALUE, emailTemplate: "" });
   const [lineManagerName, setLineManagerName] = useState("");
   const [managers, setManagers] = useState<{ id: string; name: string; email: string; position: string; department: string }[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
@@ -256,11 +252,10 @@ export function NewDeclarationScreen({
 
   const ALLOWED = [
     "application/pdf",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/png",
+    "image/jpeg",
     "application/msword",
-    "image/jpeg", "image/png", "image/gif", "image/webp",
-    "text/plain",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ];
   const MAX_SIZE = 20 * 1_048_576;
 
@@ -311,7 +306,7 @@ export function NewDeclarationScreen({
 
   const validate = () => {
     const value = Number(form.value || 0);
-    const requiresSubstantiation = Number.isFinite(value) && value > config.highValueThreshold;
+    const requiresSubstantiation = Number.isFinite(value) && value >= config.highValueThreshold;
     const requiresOccasionOther = form.occasion === "Other";
 
     const errs: Record<string, string> = {};
@@ -330,7 +325,6 @@ export function NewDeclarationScreen({
     if (!category)                       errs.category = "Required";
     if (!form.description.trim())        errs.description = "Required";
     if (!form.date)                      errs.date = "Required";
-    if (!form.occasion.trim())           errs.occasion = "Required";
     if (form.value && Number(form.value) > (config.maximumValue ?? 1000000)) errs.value = `Maximum value exceeded. Please enter an amount of R${(config.maximumValue ?? 1000000).toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.`;
     if (requiresOccasionOther && !form.occasionOther.trim()) errs.occasionOther = "Required";
     if (requiresSubstantiation && !form.substantiation.trim()) errs.substantiation = "Required";
@@ -372,7 +366,7 @@ export function NewDeclarationScreen({
   const buildDeclarationPayload = (): Declaration | null => {
     if (!user) return null;
     const value = Number(form.value || 0);
-    const requiresSubstantiation = Number.isFinite(value) && value > config.highValueThreshold;
+    const requiresSubstantiation = Number.isFinite(value) && value >= config.highValueThreshold;
     const requiresOccasionOther = form.occasion === "Other";
     const priority = getPriority(value, config.highValueThreshold, config.mediumValueThreshold);
 
@@ -478,7 +472,7 @@ export function NewDeclarationScreen({
 
 
   const valueNum = Number(form.value || 0);
-  const requiresSubstantiation = Number.isFinite(valueNum) && valueNum > config.highValueThreshold;
+  const requiresSubstantiation = Number.isFinite(valueNum) && valueNum >= config.highValueThreshold;
   const requiresOccasionOther = form.occasion === "Other";
 
   return (
@@ -811,7 +805,10 @@ export function NewDeclarationScreen({
                   aria-invalid={Number(form.value) > (config.maximumValue ?? 1000000) ? "true" : "false"}
                   className={`${inp} pl-10 ${Number(form.value) > (config.maximumValue ?? 1000000) ? "border-[#c55aff] shadow-[0_0_0_4px_rgba(215,103,255,.19)] focus:border-[#b62dff] focus:shadow-[0_0_0_4px_rgba(215,103,255,.24)]" : ""}`}
                   value={form.value ? formatRandValue(form.value, !isValueFocused) : ""}
-                  onFocus={() => setIsValueFocused(true)}
+                  onFocus={(e) => {
+                    setIsValueFocused(true);
+                    e.currentTarget.select();
+                  }}
                   onBlur={() => setIsValueFocused(false)}
                   onChange={(e) => {
                     const parsed = parseRandInput(e.target.value);

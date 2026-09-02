@@ -3,6 +3,7 @@ import cors from "cors";
 import fs from "fs";
 import path from "path";
 import authRoutes from "../routes/auth";
+import userRoutes from "../routes/users";
 import declarationRoutes from "../routes/declarations";
 import workflowRoutes from "../routes/workflows";
 import reportRoutes from "../routes/reports";
@@ -23,6 +24,7 @@ export function buildApp() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ extended: true }));
   app.use("/api/auth", authRoutes);
+  app.use("/api/users", userRoutes);
   app.use("/api/declarations", declarationRoutes);
   app.use("/api/workflows", workflowRoutes);
   app.use("/api/reports", reportRoutes);
@@ -58,4 +60,14 @@ export function getTeamToken(): string {
 export function getHrToken(): string {
   const jwt = require("jsonwebtoken");
   return jwt.sign({ id: "user-hr", email: "lindiwe@test.com", role: "approver", department: "HR", position: "Head of HR" }, "test-secret", { expiresIn: "1h" });
+}
+
+export function getKabeloToken(): string {
+  const jwt = require("jsonwebtoken");
+  return jwt.sign({ id: "user-22", email: "kabelo@npn.co.za", role: "teamMember", department: "Engineering", position: "Software Engineer" }, "test-secret", { expiresIn: "1h" });
+}
+
+export function getJamesToken(): string {
+  const jwt = require("jsonwebtoken");
+  return jwt.sign({ id: "user-20", email: "james@npn.co.za", role: "approver", department: "Engineering", position: "Line Manager" }, "test-secret", { expiresIn: "1h" });
 }

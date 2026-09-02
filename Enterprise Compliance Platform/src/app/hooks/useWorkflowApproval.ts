@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { fetchWorkflowInstance, approveWorkflowStep } from "@/services/api";
 import { DECISION_LABELS } from "@/config/theme";
-// import type { StepView } from "@/../components/WorkflowTimeline";
 import type { StepView } from "@/app/components/WorkflowTimeline"
 import type {
     ApprovalDecision,
@@ -59,8 +58,7 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
   const hasLm = !!lmStep;
   const hasHr = !!hrStep;
   const isLmApproved = lmStep?.status === "approved";
-  const isHrApproved = hrStep?.status === "approved";
-  const isHrEnabled = hasHr && isLmApproved;
+  const isHrEnabled = hasHr && (isLmApproved || lmStep?.status === "skipped");
 
   const allRoles = useMemo(() => [
     {
@@ -91,7 +89,7 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
       get completed() { return hrStep && hrStep.status !== "pending"; },
       get decidedAt() { return hrStep?.decidedAt || null; },
     },
-  ], [lmStep, hrStep, hasLm, hasHr, isLmApproved, isHrApproved, isHrEnabled, lmDecision, hrDecision, lmNotes, hrNotes]);
+  ], [lmStep, hrStep, hasLm, hasHr, isLmApproved, isHrEnabled, lmDecision, hrDecision, lmNotes, hrNotes]);
 
   const wfSteps: StepView[] = useMemo(() => allRoles.map((r) => {
     if (!r.exists) return { label: r.title, actor: r.defaultActor, state: "skipped" };

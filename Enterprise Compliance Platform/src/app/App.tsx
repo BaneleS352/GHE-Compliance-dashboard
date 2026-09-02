@@ -21,7 +21,7 @@ import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { Screen, Role, Declaration } from "@/types/declaration";
 
 function AppInner() {
-  const { user, setUser } = useUser();
+  const { user, logout } = useUser();
   const [screen, setScreen] = useState<Screen>("landing");
   const [selectedDecl, setSelectedDecl] = useState<Declaration | null>(null);
   const [submittedData, setSubmittedData] = useState<Declaration | null>(null);
@@ -55,7 +55,7 @@ function AppInner() {
   };
 
   const handleSignOut = () => {
-    setUser(null);
+    logout();
     setScreen("landing");
     setSelectedDecl(null);
     setSubmittedData(null);

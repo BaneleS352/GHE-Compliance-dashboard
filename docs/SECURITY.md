@@ -1,6 +1,6 @@
 # Security & Hardening — Audit Fix Log
 
-All audit findings have been resolved. Below is the comprehensive fix log covering all severity levels.
+The application has been hardened across authentication, workflow authorization, file access, organization isolation, reporting access, and notification delivery. This document records the principal controls; run the current test suites before release.
 
 ---
 
@@ -60,10 +60,16 @@ All audit findings have been resolved. Below is the comprehensive fix log coveri
 
 ---
 
-## Current Status
+## Notification and reporting controls
 
-- Backend: 360/360 tests passing
-- Frontend build: Clean
-- All audit CRITICAL and HIGH items resolved
-- All MEDIUM items resolved
-- All LOW items resolved
+- Notification templates are admin-only and validated as a complete five-event configuration.
+- Notifications resolve recipients from the database and post only to the configured `EMAIL_WEBHOOK_URL`; no external delivery occurs when it is absent.
+- Email failures are logged without changing workflow state.
+- Reports require admin or approver authorization and apply organization isolation.
+- High-value reports use `value >= highValueThreshold` and inclusive date filters.
+
+## Verification status
+
+- Backend build passes.
+- Targeted workflow, report, and configuration tests pass.
+- Frontend Vite builds may fail in the OneDrive workspace with an esbuild directory-access error; verify from a local checkout if encountered.

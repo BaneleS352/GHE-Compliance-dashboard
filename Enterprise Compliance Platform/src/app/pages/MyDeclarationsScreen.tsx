@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect } from "react";
 import { ArrowLeft, Download, Eye, Edit } from "lucide-react";
 import { Declaration } from "@/types/declaration";
-import { fetchDeclarations } from "@/services/api";
+import { fetchDeclarations, fetchDeclarationById } from "@/services/api";
 import { formatRand } from "@/config/theme";
 import { useUser } from "@/app/auth/UserContext";
 import { Card } from "@/app/components/Card";
@@ -61,6 +61,15 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
     onStatusUpdate: (s) => setViewDeclStatus(s),
   });
 
+  const handleViewDeclaration = async (declaration: Declaration) => {
+    try {
+      setViewDecl(await fetchDeclarationById(declaration.id));
+    } catch {
+      // Keep the list row available if the refresh fails.
+      setViewDecl(declaration);
+    }
+  };
+
   useEffect(() => { setPage(0); }, [search, typeFilter, statusFilter, approverFilter, employeeFilter, dateFilterStart, dateFilterEnd, sortKey, sortDir]);
 
   const userDeclarations = user
@@ -97,8 +106,8 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
       (statusFilter === "All" || d.status === statusFilter) &&
       (approverFilter === "All" || d.approver === approverFilter) &&
       (employeeFilter === "All" || d.employee === employeeFilter) &&
-      (!dateFilterStart || new Date(d.submitted).getTime() >= new Date(dateFilterStart).getTime()) &&
-      (!dateFilterEnd || new Date(d.submitted).getTime() <= new Date(dateFilterEnd).getTime())
+      (!dateFilterStart || d.submitted >= dateFilterStart) &&
+      (!dateFilterEnd || d.submitted <= dateFilterEnd)
   );
 
   const sorted = [...filtered].sort((a, b) => {
@@ -243,7 +252,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
         }
       />
 
-      <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+      <div className="mb-7 grid grid-cols-1 gap-[clamp(0.75rem,1.5vw,1.25rem)] sm:grid-cols-3 xl:grid-cols-5">
         {(["Total", "Pending", "Approved", "Returned", "Declined"] as const).map((k) => {
           const def = STATUS_KPI[k];
           const count = k === "Total" ? visibleDeclarations.length : visibleDeclarations.filter((d) => d.status === def.filterValue).length;
@@ -351,7 +360,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
                     <Edit size={12} /> {d.status === "Returned" ? "Edit & Resubmit" : "Continue"}
                   </button>
                 ) : (
-                  <button onClick={() => setViewDecl(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
+                  <button onClick={() => handleViewDeclaration(d)} className="flex h-9 w-full items-center justify-center gap-1 rounded-xl bg-secondary text-xs font-semibold hover:bg-secondary/70">
                     <Eye size={12} /> View
                   </button>
                 )}
@@ -406,7 +415,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
                           <Edit size={12} /> {d.status === "Returned" ? "Edit & Resubmit" : "Edit"}
                         </button>
                       ) : (
-                        <button onClick={() => setViewDecl(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
+                        <button onClick={() => handleViewDeclaration(d)} className="flex h-8 items-center gap-1 rounded-lg bg-secondary px-3 text-xs font-semibold hover:bg-secondary/70">
                           <Eye size={12} /> View
                         </button>
                       )}

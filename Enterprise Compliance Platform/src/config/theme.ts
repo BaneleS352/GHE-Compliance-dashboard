@@ -17,6 +17,9 @@ export const GRADIENT_LANDING = `linear-gradient(145deg, ${DARKEST} 0%, ${DEEP} 
 // ─── Shared background colours ──────────────────────────────────────────────────
 export const TABLE_HEADER_BG = "#F7F8FC";
 export const INFO_BG        = "#F5F2FF";
+export const DEFAULT_HIGH_VALUE_THRESHOLD = 1000;
+export const DEFAULT_MEDIUM_VALUE_THRESHOLD = 1000;
+export const DEFAULT_MAXIMUM_VALUE = 1000000;
 
 // ─── Declaration type chart colours (shared by dashboard charts) ────────────────
 export const TYPE_COLORS: Record<string, string> = {

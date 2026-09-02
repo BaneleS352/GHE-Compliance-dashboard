@@ -181,7 +181,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
         }
       />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="mb-6 grid grid-cols-1 gap-[clamp(0.75rem,1.5vw,1.25rem)] sm:grid-cols-2 xl:grid-cols-5">
         {kpiDefs.map((def) => {
           const value = String(def.key === "Pending" ? kpisData.pending : def.key === "Approved" ? kpisData.approved : def.key === "Declined" ? kpisData.declined : kpisData.escalated);
           return (

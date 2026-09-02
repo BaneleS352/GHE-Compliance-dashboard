@@ -54,14 +54,8 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(403).json({ error: "Access denied" });
     return;
   }
-  if (req.user!.role !== "admin" && req.user!.id !== id && !callerOrg) {
-    // No org context — fallback to self/admin only
-    const isSameOrgFallback = !user.organizationId;
-    if (!isSameOrgFallback) {
-      res.status(403).json({ error: "Access denied" });
-      return;
-    }
-  }
+  // Global callers (no org) are allowed to fetch any user (HR/Admin global)
+  // No additional check needed for !callerOrg
   res.json({
     id: user.id,
     name: user.name,

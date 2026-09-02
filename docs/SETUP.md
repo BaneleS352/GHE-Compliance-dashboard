@@ -81,13 +81,13 @@ npx prisma generate
 ## Running Tests
 
 ```bash
-# Backend (203 tests)
+# Backend tests
 cd NodejsBackend
 npm test                         # Full suite
 npx vitest run src/__tests__/break.test.ts   # Single file
 npx vitest                       # Watch mode
 
-# Frontend (230 tests)
+# Frontend tests
 cd "Enterprise Compliance Platform"
 npm test
 npx vitest run -t "login"        # By test name pattern
