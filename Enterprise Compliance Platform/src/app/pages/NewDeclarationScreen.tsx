@@ -575,6 +575,14 @@ export function NewDeclarationScreen({
         <FS id="sec-team" num="1" title="Team Member Details">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-5">
             <div>
+              <FL required error={errors.employeeName}>Team Member Name</FL>
+              <ErrInp errors={errors} field="employeeName" value={form.employeeName} onChange={(e) => setF("employeeName", e.target.value)} maxLength={100} />
+            </div>
+            <div>
+              <FL error={errors.employeeCode}>Team Member Code</FL>
+              <ErrInp errors={errors} field="employeeCode" value={form.employeeCode} onChange={(e) => setF("employeeCode", e.target.value)} placeholder="e.g. HB-204478" maxLength={50} />
+            </div>
+            <div>
               <FL required error={errors.company}>Company</FL>
               <Sel value={form.company} onChange={(v) => {
                 const org = organizations.find((o) => o.name === v);
@@ -594,59 +602,18 @@ export function NewDeclarationScreen({
               </Sel>
             </div>
             <div>
+              <FL required error={errors.position}>Team Member Role/Position</FL>
+              <ErrInp errors={errors} field="position" value={form.position} onChange={(e) => setF("position", e.target.value)} maxLength={100} />
+            </div>
+            <div>
               <FL required error={errors.lineManager}>Approving Manager Name</FL>
               <div className="relative" data-manager-dropdown>
-                <input
-                  type="text"
-                  className={`${inp} ${errors.lineManager ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`}
-                  value={managerSearch || form.lineManager}
-                  onChange={(e) => {
-                    setManagerSearch(e.target.value);
-                    setShowManagerDropdown(true);
-                    setF("lineManager", e.target.value);
-                  }}
-                  onFocus={() => { setManagerSearch(""); setShowManagerDropdown(true); }}
-                  placeholder="Search for manager…"
-                  maxLength={100}
-                />
-                {showManagerDropdown && managers.length > 0 && (
-                  <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-white shadow-lg">
-                    {managers
-                      .filter((m) => !managerSearch || m.name.toLowerCase().includes(managerSearch.toLowerCase()))
-                      .map((m) => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          className="w-full text-left px-4 py-2.5 text-sm hover:bg-purple-50 transition-colors border-b border-border/50 last:border-0"
-                          onClick={() => {
-                            setFormState((f) => ({ ...f, lineManager: m.name }));
-                            setManagerSearch("");
-                            setShowManagerDropdown(false);
-                            setErrors((e) => ({ ...e, lineManager: "" }));
-                          }}
-                        >
-                          <span className="font-semibold">{m.name}</span>
-                          <span className="text-xs text-muted-foreground ml-2">({m.position})</span>
-                        </button>
-                      ))}
-                    {managers.filter((m) => !managerSearch || m.name.toLowerCase().includes(managerSearch.toLowerCase())).length === 0 && (
-                      <div className="px-4 py-2.5 text-sm text-muted-foreground">No managers found</div>
-                    )}
-                  </div>
-                )}
+                <input type="text" className={`${inp} ${errors.lineManager ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`} value={managerSearch || form.lineManager} onChange={(e) => { setManagerSearch(e.target.value); setShowManagerDropdown(true); setF("lineManager", e.target.value); }} onFocus={() => { setManagerSearch(""); setShowManagerDropdown(true); }} placeholder="Search for manager…" maxLength={100} />
+                {showManagerDropdown && managers.length > 0 && <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-white shadow-lg">
+                  {managers.filter((m) => !managerSearch || m.name.toLowerCase().includes(managerSearch.toLowerCase())).map((m) => <button key={m.id} type="button" className="w-full text-left px-4 py-2.5 text-sm hover:bg-purple-50 transition-colors border-b border-border/50 last:border-0" onClick={() => { setFormState((f) => ({ ...f, lineManager: m.name })); setManagerSearch(""); setShowManagerDropdown(false); setErrors((e) => ({ ...e, lineManager: "" })); }}><span className="font-semibold">{m.name}</span><span className="text-xs text-muted-foreground ml-2">({m.position})</span></button>)}
+                  {managers.filter((m) => !managerSearch || m.name.toLowerCase().includes(managerSearch.toLowerCase())).length === 0 && <div className="px-4 py-2.5 text-sm text-muted-foreground">No managers found</div>}
+                </div>}
               </div>
-            </div>
-            <div>
-              <FL required error={errors.employeeName}>Team Member Name</FL>
-              <ErrInp errors={errors} field="employeeName" value={form.employeeName} onChange={(e) => setF("employeeName", e.target.value)} maxLength={100} />
-            </div>
-            <div>
-              <FL error={errors.employeeCode}>Team Member Code</FL>
-              <ErrInp errors={errors} field="employeeCode" value={form.employeeCode} onChange={(e) => setF("employeeCode", e.target.value)} placeholder="e.g. HB-204478" maxLength={50} />
-            </div>
-            <div>
-              <FL required error={errors.position}>Team Member Role / Position</FL>
-              <ErrInp errors={errors} field="position" value={form.position} onChange={(e) => setF("position", e.target.value)} maxLength={100} />
             </div>
           </div>
         </FS>
@@ -680,7 +647,7 @@ export function NewDeclarationScreen({
               </div>
             </div>
             <div>
-              <FL required hint="Full name of the organisation or individual." error={errors.Counterparty}>
+              <FL required hint="Full Name of the organisation or Team Member" error={errors.Counterparty}>
                 Name of the Supplier, Customer, Team Member or Public Official
               </FL>
               <input
