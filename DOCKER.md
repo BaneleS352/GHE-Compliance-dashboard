@@ -4,7 +4,7 @@ The root `docker-compose.yml` runs three services:
 
 | Service | Container | Host | Purpose |
 |---|---:|---:|---|
-| `frontend` | 80 | 3000 | Vite build served by Nginx; proxies `/api/` and `/uploads/` |
+| `frontend` | 80 | 3000 | Vite build served by Nginx; proxies API requests |
 | `backend` | 3001 | 3001 | Express API |
 | `db` | 5432 | 5432 | PostgreSQL 16 |
 

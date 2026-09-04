@@ -27,7 +27,7 @@ UploadedFile ──(N:1)──> Declaration  (via declarationId, optional, no FK
 | role | String | "admin", "approver", "teamMember" |
 | teamMemberNumber | String | Employee number |
 | department | String | |
-| position | String | e.g. "Group CEO" (used for CEO step resolution) |
+| position | String | User's job position; not used to create a CEO workflow step |
 | lineManager | String? | References another User's id. Null = no manager |
 
 ### Declaration
@@ -41,7 +41,9 @@ UploadedFile ──(N:1)──> Declaration  (via declarationId, optional, no FK
 | files | String? | JSON array of file references |
 | fromField | String | Mapped from `from` (Prisma `@map("from_field")`) |
 
-**Full field list:** 30+ fields covering declaration metadata, compliance details, and workflow tracking.
+The Declaration model contains the complete declaration metadata and workflow fields shown in `prisma/schema.prisma`, including employee identity, organisation, department, position, counterparty, value, submission/approval fields, compliance questions, optional substantiation/files, organisation ID, and timestamps. The schema file is authoritative for exact types and defaults.
+
+`employeeId`, `lineManager`, and `UploadedFile.declarationId` are application-level references rather than Prisma-enforced foreign keys. `UploadedFile.declarationId` is optional in the schema, although the upload route requires a declaration ID for new uploads.
 
 ### WorkflowInstance
 | Field | Type | Notes |
@@ -67,7 +69,7 @@ Each step:
 ### WorkflowRule
 | Field | Type | Notes |
 |-------|------|-------|
-| id | String @id | rule-1, rule-2, rule-3 or custom |
+| id | String @id | rule-1, rule-2, or custom; active seed rules are rule-1 and rule-2 |
 | name | String | |
 | condition | String | "low", "medium", "high" |
 | priority | Int | Sort order |

@@ -21,13 +21,13 @@ The application has been hardened across authentication, workflow authorization,
 | # | Finding | File | Fix |
 |---|---------|------|-----|
 | 8 | Report endpoints lack role guards | `NodejsBackend/src/routes/reports.ts` | All 6 report endpoints + `/stats` now use `authorize("admin", "approver")` |
-| 9 | `GET /api/users/:id` accessible to any authenticated user | `NodejsBackend/src/routes/users.ts` | Now restricted to admin or the user themselves |
+| 9 | `GET /api/users/:id` access required explicit policy | `NodejsBackend/src/routes/users.ts` | Available to authenticated users; required for managers and executives to resolve user names |
 | 10 | Approve endpoint doesn't verify user role | `NodejsBackend/src/routes/workflows.ts` | Now requires `approver` or `admin` role |
 | 11 | `Counterparty` casing mismatch (frontend↔backend) | `Enterprise Compliance Platform/src/types/declaration.ts` + all consumers | Renamed to `counterparty` (lowercase) consistently |
 | 12 | `err.message` leaked to client — approvals | `NodejsBackend/src/routes/workflows.ts` catch block | Sanitized to generic messages |
 | 13 | Multer/file errors leak internals | `NodejsBackend/src/routes/files.ts` | Sanitized error messages |
 | 14 | Missing role guard on `/preset-users` | `NodejsBackend/src/routes/auth.ts` | Preserved as intentional public endpoint |
-| 15 | Approver sees all declarations regardless of department | `NodejsBackend/src/routes/declarations.ts` | Department scoping added for approver role |
+| 15 | Line-manager declaration visibility was not department-scoped | `NodejsBackend/src/routes/declarations.ts` | Department scoping applies to users with position `Line Manager`; HR users retain global visibility |
 
 ## MEDIUM Fixes (15)
 
@@ -47,9 +47,9 @@ The application has been hardened across authentication, workflow authorization,
 | 27 | `DeclarationDetailView` no error handling for file fetch | `Enterprise Compliance Platform/src/app/pages/DeclarationDetailView.tsx` | try/catch + `response.ok` check |
 | 28 | `NewDeclarationScreen` `fetchConfig`/`fetchUserById` silent failures | `Enterprise Compliance Platform/src/app/pages/NewDeclarationScreen.tsx` | Error logging added |
 | 29 | Sequential independent DB queries in `/stats` | `NodejsBackend/src/routes/declarations.ts` | Parallelized with `Promise.all` |
-| 30 | Department scoping missing for approvers | `NodejsBackend/src/routes/declarations.ts` + `workflows.ts` | Approver-scoped queries by department |
+| 30 | Department scoping rules needed to distinguish line managers from global approvers | `NodejsBackend/src/routes/declarations.ts` + `workflows.ts` | Line managers are scoped by department; pending workflow assignments remain user-scoped |
 
-## LOW Fixes
+## LOW Fixes (4)
 
 | # | Finding | File | Fix |
 |---|---------|------|-----|

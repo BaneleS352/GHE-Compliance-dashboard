@@ -26,7 +26,7 @@ function ModernCard({ children, className = "", style, accent }: { children: Rea
   );
 }
 
-type DashboardFilter = "All" | "Pending" | "Approved" | "Declined" | "Escalated" | "Total Value";
+type DashboardFilter = "All" | "Pending" | "Approved" | "Returned" | "Declined" | "Escalated" | "Total Value";
 
 
 
@@ -80,6 +80,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   const kpisData = useMemo(() => ({
     pending: scopedDeclarations.filter((d) => d.status === "Pending").length,
     approved: scopedDeclarations.filter((d) => d.status === "Approved").length,
+    returned: scopedDeclarations.filter((d) => d.status === "Returned").length,
     declined: scopedDeclarations.filter((d) => d.status === "Declined").length,
     escalated: scopedDeclarations.filter((d) => d.status === "Escalated").length,
     totalValue: scopedDeclarations.filter((d) => ["Pending", "Approved"].includes(d.status)).reduce((sum, d) => sum + d.value, 0),
@@ -158,8 +159,8 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   const kpiDefs = [
     { ...STATUS_KPI.Pending, label: "Pending Queue" },
     STATUS_KPI.Approved,
+    STATUS_KPI.Returned,
     STATUS_KPI.Declined,
-    STATUS_KPI.Escalated,
   ] as const;
 
   return (
@@ -183,7 +184,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
 
       <div className="mb-6 grid grid-cols-1 gap-[clamp(0.75rem,1.5vw,1.25rem)] sm:grid-cols-2 xl:grid-cols-5">
         {kpiDefs.map((def) => {
-          const value = String(def.key === "Pending" ? kpisData.pending : def.key === "Approved" ? kpisData.approved : def.key === "Declined" ? kpisData.declined : kpisData.escalated);
+          const value = String(def.key === "Pending" ? kpisData.pending : def.key === "Approved" ? kpisData.approved : def.key === "Returned" ? kpisData.returned : kpisData.declined);
           return (
             <KpiCard
               key={def.key}

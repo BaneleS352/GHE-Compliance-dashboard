@@ -10,7 +10,7 @@ Base URL: `http://localhost:3001`; JSON requests use `Content-Type: application/
 | POST | `/api/auth/login` | Authenticate with email and password |
 | GET | `/api/auth/preset-users` | Development login presets |
 
-`/api/auth/me` is protected and returns the current user.
+| GET | `/api/auth/me` | authenticated; returns the current user |
 
 ## User and declaration routes
 
@@ -31,7 +31,7 @@ Base URL: `http://localhost:3001`; JSON requests use `Content-Type: application/
 | GET | `/api/workflows/pending` | authenticated; only assigned pending work is returned |
 | GET | `/api/workflows/instances/:declarationId` | authenticated and scoped |
 | POST | `/api/workflows/approve` | authenticated; role and assignment are verified |
-| POST | `/api/files` | authenticated; `declarationId` is required |
+| POST | `/api/files/upload` | authenticated; multipart upload and required `declarationId` |
 | GET/DELETE | `/api/files/:id` | authenticated and declaration-scoped |
 
 Workflow decisions include `accept`, `org`, `foundation`, `decline`, and `return` as configured by approval options. Returned declarations can be edited and resubmitted; approval transitions are persisted transactionally.
@@ -40,13 +40,15 @@ Workflow decisions include `accept`, `org`, `foundation`, `decline`, and `return
 
 Reports (`admin` or `approver`): `GET /api/reports/counterparty-concentration`, `/status-breakdown`, `/sla`, `/high-value`, `/list`, and `/export`. Report filters are query parameters such as date range, department, and status.
 
-Admin-only namespaces:
+Admin namespaces and permissions:
 
 - `/api/admin/dashboard` — dashboard aggregates
 - `/api/admin/users` — list, read, create, update, delete users
-- `/api/admin/config` — system config, dropdowns, approval options, organizations
+- `/api/admin/config` — system config, approval options, and organizations are admin-only; `GET /api/admin/config/dropdowns` is authenticated-user readable and its update route is admin-only
 - `/api/admin/workflows/rules` — workflow rule CRUD
 
 ## Errors and conventions
 
 Successful mutations return the affected resource or a confirmation; deletes may return `204`. Validation and authorization failures use 4xx responses. Unknown routes return `{ "error": "Not found" }`; unexpected failures return `{ "error": "Internal server error" }`. Do not rely on error message text as a stable API contract.
+
+`JWT_SECRET` is required. `PORT` defaults to `3001`; JWTs expire after one hour. `CORS_ORIGIN` accepts comma-separated origins. In production, CORS is denied unless explicitly configured. JSON and URL-encoded request bodies are limited to 1 MB. `EMAIL_WEBHOOK_URL` is optional and enables outbound notification delivery.

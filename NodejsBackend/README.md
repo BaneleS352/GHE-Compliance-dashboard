@@ -57,7 +57,7 @@ All endpoints are documented in Swagger at `/api/docs`. Summary:
 | **Declarations** | CRUD, submit, status change | Bearer |
 | **Workflows** | Pending steps, timeline, approve/decline/return | Bearer |
 | **Reports** | Status breakdown, SLA, counterparty concentration, high-value, filtered list, Excel export | Bearer |
-| **Files** | Upload (10MB max), download, delete | Bearer (download public) |
+| **Files** | `POST /api/files/upload` (10MB max), authenticated download/delete | Bearer |
 | **Admin Dashboard** | KPI counts | Admin |
 | **Admin Users** | User CRUD, search, filter | Admin |
 | **Admin Config** | System config, dropdowns, approval options | Admin |
@@ -67,7 +67,7 @@ All endpoints are documented in Swagger at `/api/docs`. Summary:
 ## Testing
 
 ```bash
-npm run test          # 132 tests across 9 suites
+npm run test          # Run the current backend Vitest suite
 npm run test:watch    # Watch mode
 ```
 
@@ -144,6 +144,6 @@ SQLite by default, PostgreSQL optional. 10 models:
 Rule matching is value-based:
 - **Low** (`≤ mediumThreshold`): Line manager review only
 - **Medium** (`> mediumThreshold`, `≤ highThreshold`): Line manager + HR
-- **High** (`> highThreshold`): Line manager + HR + CEO
+- **High** (`>= highValueThreshold`): Line Manager + HR
 
 Approval decisions: `accept`, `org` (org pool), `foundation` (donate), `decline`, `return`.

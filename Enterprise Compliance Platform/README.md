@@ -12,8 +12,12 @@ npm run dev          # Vite dev server (proxies /api to backend:3001)
 ## Testing
 
 ```bash
-npm test             # 130 tests across 9 suites
+npm test             # Run the current frontend Vitest suite
 ```
+
+### Current declaration UI
+
+The New Declaration form displays Team Member Details in this order: Team Member Name, Team Member Code, Company, Department, Team Member Role/Position, and Approving Manager Name. The Approver Dashboard uses Pending Queue, Approved, Returned, and Declined KPI cards; Returned is counted from declarations with status `Returned`.
 
 ### Test Coverage
 

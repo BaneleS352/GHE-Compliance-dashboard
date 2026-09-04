@@ -27,7 +27,6 @@ npx vitest run
 | Admin | admin@test.com | password |
 | Approver (LM) | sipho@test.com | password |
 | Approver (HR) | lindiwe@test.com | password |
-| Approver (CEO) | sandile@test.com | password |
 | Team Member | nomvula@test.com | password |
 
 ## Swagger UI
@@ -317,7 +316,7 @@ $team = (Invoke-RestMethod -Uri "http://localhost:3001/api/auth/login" -Method P
 
 ## Test Coverage Summary
 
-### Backend (212 tests)
+### Backend coverage areas
 
 | File | Tests | What's tested |
 |------|-------|---------------|
@@ -333,7 +332,7 @@ $team = (Invoke-RestMethod -Uri "http://localhost:3001/api/auth/login" -Method P
 | `admin/workflows.test.ts` | 5 | Workflow rules CRUD |
 | `workflow-paths.test.ts` | 15 | Full approval path end-to-end scenarios |
 
-### Frontend (160 tests)
+### Frontend coverage areas
 
 | File | Tests | What's tested |
 |------|-------|---------------|
@@ -351,4 +350,4 @@ $team = (Invoke-RestMethod -Uri "http://localhost:3001/api/auth/login" -Method P
 | `dashboard-render.test.ts` | 1 | ApproverDashboard mount smoke test |
 | `frontend-break.test.ts` | 27 | httpClient edge cases, API wrapper URL building |
 
-**Backend: 212 tests · Frontend: 160 tests · Grand total: 372**
+Run the backend and frontend test commands separately to obtain the current totals; counts are not fixed documentation.

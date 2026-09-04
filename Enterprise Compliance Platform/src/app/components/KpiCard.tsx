@@ -320,7 +320,7 @@ export function KpiCard({
       >
         <span>{value}</span>
         {isTotal && secondaryValue && (
-          <span className="money" style={{ fontSize: 40, letterSpacing: 1, fontWeight: 800 }}>
+          <span className="money" style={{ fontSize: 46, letterSpacing: 1, fontWeight: 800 }}>
             {secondaryValue}
           </span>
         )}

@@ -1,5 +1,7 @@
 # Hollywoodbets GHE Declaration System — Rework Plan (Post-Figma Feedback)
 
+> Historical design reference. The current implementation is defined by source code and the maintained technical documentation under `docs/`.
+
 ## Context
 
 Figma testing feedback identified three critical failures in the current build:

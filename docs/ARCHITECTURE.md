@@ -31,7 +31,7 @@ GHE-Compliance-Dashboard/
 │
 ├── Enterprise Compliance Platform/ # React + Vite frontend
 │   ├── Dockerfile                  # Multi-stage Vite→Nginx build
-│   ├── nginx.conf                  # Proxies /api/ + /uploads/ to backend
+│   ├── nginx.conf                  # Proxies API requests to backend
 │   ├── src/
 │   │   ├── app/
 │   │   │   ├── components/        # Shared React components (Card, StatusBadge, etc.)
@@ -80,11 +80,11 @@ Express API (port 3001)
 | Database | SQLite (dev) / PostgreSQL (prod) | Prisma abstracts both; SQLite for zero-setup dev |
 | Auth | JWT (self-contained) | No session store needed; role embedded in token |
 | Validation | Zod schemas | Type-safe, composable, good DX |
-| File storage | Local disk (`uploads/`) | Simple; replace with S3 for production |
+| File storage | Local disk (`uploads/`) behind authenticated API routes | Simple; replace with object storage for production |
 | Workflow | JSON steps in `WorkflowInstance` | Flexible per-declaration step definitions |
 | Notifications | Validated templates + email webhook | Provider-independent delivery with safe development logging |
 | Theme | Centralised `theme.ts` + CSS variables | Single source of truth for colours, gradients, status/priority maps |
-| Docker | Multi-stage builds | Frontend: Vite→Nginx (port 3000); Backend: TSC→Node (port 3001); auto-swaps SQLite→PostgreSQL
+| Docker | Multi-stage builds | Frontend container port 80 published on host port 3000; backend port 3001; PostgreSQL port 5432; backend image swaps SQLite provider to PostgreSQL
 
 ## Authentication Flow
 
@@ -100,9 +100,11 @@ Express API (port 3001)
 2. Reads `SystemConfig` for `highValueThreshold`, `mediumValueThreshold`
 3. Calls `determineRuleId(value, high, medium)` to select rule
 4. Loads `WorkflowRule.steps` (JSON of step definitions)
-5. Resolves assignees from `User` table (lineManager, HR, CEO)
+5. Resolves assignees from `User` table (lineManager and HR)
 6. Stores resolved steps as JSON in `WorkflowInstance.steps`
 7. Steps are frozen — config/rule changes don't cascade retroactively. Returned declarations are re-evaluated on save/resubmission so value changes can add newly required approvers while preserving valid completed approvals.
+
+Workflow rule selection is `value >= highValueThreshold → rule-2`, otherwise `rule-1`. The legacy `mediumValueThreshold` remains for API compatibility but does not select a separate workflow. Line Manager assignees come from the employee record; HR resolves to an approver in the employee's organisation where possible, then a global HR approver.
 
 ## Notifications
 

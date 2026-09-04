@@ -45,14 +45,8 @@ Files are stored in a named Docker volume (`uploads`). For production, replace l
 
 ### 1. Database — Switch to PostgreSQL
 
-Edit `prisma/schema.prisma`:
+For a manual PostgreSQL deployment, configure the datasource provider in the deployment checkout before generating the Prisma client:
 
-```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-```
 ```prisma
 datasource db {
   provider = "postgresql"

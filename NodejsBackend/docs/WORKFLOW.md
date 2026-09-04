@@ -6,9 +6,8 @@ Workflows determine the approval steps required for a declaration. The system us
 
 | Tier | Value Range | Rule | Steps |
 |------|-------------|------|-------|
-| Low | ≤ mediumThreshold (default 250) | rule-1 | 1: Line Manager |
-| Medium | > mediumThreshold, ≤ highThreshold (default 2000) | rule-2 | 2: Line Manager → HR |
-| High | > highThreshold | rule-3 | 3: Line Manager → HR → CEO |
+| Standard | < highValueThreshold (seed default 1000) | rule-1 | 1: Line Manager |
+| High | ≥ highValueThreshold (seed default 1000) | rule-2 | 2: Line Manager → HR |
 
 ## How Rules Are Selected
 
@@ -24,7 +23,6 @@ Workflows determine the approval steps required for a declaration. The system us
 4. Assignees are resolved from the `User` table:
    - `lineManager` → employee's `lineManager` field
    - `hr` → first user with role `approver` and department `HR`
-   - `ceo` → first user with position `Group CEO`
 5. The resolved steps (with actual user IDs) are stored as JSON in `WorkflowInstance.steps`
 
 ## Config ↔ Workflow Coupling
@@ -35,8 +33,7 @@ The `SystemConfig` fields `highValueThreshold` and `mediumValueThreshold` determ
 
 ```typescript
 function determineRuleId(value, highThreshold, mediumThreshold): string {
-  if (value > highThreshold) return "rule-3";
-  if (value > mediumThreshold) return "rule-2";
+  if (value >= highThreshold) return "rule-2";
   return "rule-1";
 }
 ```
@@ -74,14 +71,6 @@ assigneeName = hrUser?.name || "HR";
 ```
 If no HR approver exists, the step gets `assignee: ""` — stuck.
 
-### CEO Step
-```typescript
-const ceoUser = await prisma.user.findFirst({ where: { position: "Group CEO" } });
-assigneeId = ceoUser?.id || "";
-assigneeName = ceoUser?.name || "CEO";
-```
-If no CEO user exists, the step gets `assignee: ""` — stuck.
-
 ## Admin Endpoints
 
 ### View Rules
@@ -97,7 +86,7 @@ If no CEO user exists, the step gets `assignee: ""` — stuck.
   "steps": [{ "order": 1, "role": "lineManager", "label": "LM Review" }]
 }
 ```
-Valid roles: `lineManager`, `hr`, `ceo`
+Valid roles: `lineManager`, `hr`
 
 ### Update Rule
 `PUT /api/admin/workflows/rules/:id`
@@ -123,33 +112,29 @@ When an approver submits a decision via `POST /api/workflows/approve`, the `deci
 | Value | Effect on Step Status | Effect on Declaration Status |
 |-------|----------------------|----------------------------|
 | `accept` | `approved` | "Pending" (if more steps) or "Approved" (if final step) |
-| `reject` | `declined` | "Declined" |
 | `decline` | `declined` | "Declined" |
-| `info` | `returned` | "Returned" |
 | `return` | `returned` | "Returned" |
-| `escalate` | `approved` | Preserves next pending step (does not advance to final) |
 | `org` | `approved` | Legacy — still accepted |
 | `foundation` | `approved` | Legacy — still accepted |
 
-The new UI (`WorkflowTimeline` component) sends `accept`, `reject`, `decline`, `info`, and `escalate`. Legacy values (`return`, `org`, `foundation`) remain accepted for backward compatibility with existing data.
+The current UI (`WorkflowTimeline` component) sends the configured approval options: `return`, `accept`, `org`, `foundation`, and `decline`. These are also the values documented by the backend Swagger schema. Do not describe `reject`, `info`, or `escalate` as current UI decisions unless the backend and frontend are intentionally changed to support them.
 
 ## Known Bugs
 
 1. **Null lineManager** → unreviewable LM step (assignee: "")
-2. **Deleting rule-3** → 500 on new high-value submissions
+2. **Deleting rule-2** → 500 on new high-value submissions
 3. **Deleting system config** → 500 on any submission
 4. **Step order is enforced** — downstream approvers cannot action a step before earlier steps are approved.
 5. **Self-approval is blocked** — a user cannot approve their own declaration; invalid self-assigned steps are not actionable.
 
 ## Self-Approval Guard
 
-When a declaration is submitted (`PATCH /:id/submit`), `createWorkflowSteps()` in `services/workflowService.ts` now skips any step whose resolved `assignee` matches the creator's user ID. This prevents approvers from approving their own declarations.
+Approval requests verify the authenticated user's role, assigned step, declaration ownership, and workflow order. A user cannot approve their own declaration. The exact workflow step list is created from the matched rule and stored in the workflow instance.
 
 ### Scenarios
 
 | Creator | Skipped Steps | Remaining Steps |
 |---------|---------------|-----------------|
 | Team member | None | All rule-defined steps (normal flow) |
-| Line Manager | None (LM step → CEO as their lineManager) | All rule-defined steps |
-| HR approver | HR step | LM (→ CEO), CEO (if rule-3) |
-| CEO | LM step, CEO step | HR step (if rule-2/3), or empty (rule-1) |
+| Line Manager | None | All rule-defined Line Manager steps |
+| HR approver | HR step | Line Manager step |

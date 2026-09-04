@@ -57,15 +57,15 @@ Maps column header labels to data field names (lowercase camelCase). Example: `"
 
 ## Recent Session Changes
 
-All audit findings (7 CRITICAL, 8 HIGH, 15 MEDIUM, 12 LOW) have been resolved:
+All 34 documented audit findings (7 CRITICAL, 8 HIGH, 15 MEDIUM, 4 LOW) have been resolved:
 
 ### Security
 - Removed static `/uploads` middleware (all file access via authenticated endpoint)
 - `declarationId` now required on file upload (blocks orphan uploads)
 - Added `authorize("admin", "approver")` to reports + `/stats`
-- `GET /api/users/:id` restricted to admin or self
+- `GET /api/users/:id` available to authenticated users for manager/executive name resolution
 - Role verification on approve endpoint (requires `approver` or `admin` role)
-- Department scoping for approvers in declarations list and pending queue
+- Department scoping for Line Managers in declarations list; pending workflow assignments are user-scoped
 - TOCTOU race fixed in workflows approve (single Prisma transaction)
 - Error messages sanitized (no `err.message` leaks to client)
 
@@ -92,19 +92,17 @@ All audit findings (7 CRITICAL, 8 HIGH, 15 MEDIUM, 12 LOW) have been resolved:
 ### Auth & JWT
 - JWT payload now includes `department` and `position` fields alongside `id`, `email`, `role`, `name`
 - `AuthRequest.user` type in `middleware/auth.ts` includes `department?: string` and `position?: string`
-- `GET /api/users/:id` now allows any authenticated user (removed admin-or-self restriction; needed for CEO/managers to look up user names)
+- `GET /api/users/:id` now allows any authenticated user (needed for managers to look up user names)
 - `GET /api/workflows/pending` removed department scoping (per-user pending assignments handle scope already)
-- `GET /api/declarations` department scoping now only applies to `position === "Line Manager"` — HR and CEO see all declarations
+- `GET /api/declarations` department scoping now only applies to `position === "Line Manager"` — HR sees all declarations
 
-### CEO Flow Fixes
-- CEO (`position: "Group CEO"`) now sees all declarations on "All Declarations" tab (same as admin)
-- CEO dashboard (`ApproverDashboard.tsx`) treats CEO like admin for scoped declarations view
-- `getCeoToken()` test helper updated to include `department: "Executive"` and `position: "Group CEO"`
-- All test tokens now include `department` and `position` fields to match production JWTs
+### Workflow Role Updates
+- The active workflow supports Line Manager and HR steps only; CEO workflow steps and CEO-specific test flows were removed.
+- Test tokens include `department` and `position` fields where needed for current role/scoping logic.
 
 ### Dashboard/Declarations Scoping Fix (all roles)
-- Backend `GET /api/declarations` department scoping now only applies to `position === "Line Manager"` — HR and CEO see all declarations, LM sees only their dept
-- `AuthRequest` type and JWT `auth.ts` now include `position` field to distinguish CEO/LM/HR
+- Backend `GET /api/declarations` department scoping now only applies to `position === "Line Manager"` — HR sees all declarations, LM sees only their department
+- `AuthRequest` type and JWT `auth.ts` include `position` for Line Manager/HR/scoping logic
 - `ApproverDashboard.tsx` scopedDeclarations simplified — teamMembers see own only; all other roles see all backend-returned declarations (backend already scoping to department for LMs)
 - Test helper tokens updated to include `department` and `position` fields matching production JWTs
 - Dead `hasApprovedPredecessors` function removed
@@ -115,3 +113,9 @@ All audit findings (7 CRITICAL, 8 HIGH, 15 MEDIUM, 12 LOW) have been resolved:
 ### Build
 - Frontend `ApprovalQueue.tsx` JSX syntax error fixed (nested ternary bracket mismatch)
 - Both `npm run build` passes cleanly for backend (`npx tsc`) and frontend (Vite)
+
+### UI Updates (2026-09-03 to 2026-09-04)
+- New Declaration Team Member Details fields reordered to: Team Member Name, Team Member Code, Company, Department, Team Member Role/Position, Approving Manager Name
+- Counterparty helper text updated to `Full Name of the organisation or Team Member`
+- Approver Dashboard Escalated KPI card replaced with Returned; Returned counts and filtering are supported
+- Total KPI count and rand value now use the same font size

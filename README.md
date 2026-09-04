@@ -41,7 +41,7 @@ open http://localhost:3000
 
 A 3-container setup is defined in [`docker-compose.yml`](./docker-compose.yml):
 
-- **Frontend** (Nginx, port 3000) — serves the built SPA, proxies `/api/` and `/uploads/` to the backend
+- **Frontend** (Nginx, port 3000) — serves the built SPA and proxies API requests to the backend; files are accessed through authenticated `/api/files/:id`
 - **Backend** (Node, port 3001) — Express API with Prisma (PostgreSQL via sed-swapped schema)
 - **Database** (PostgreSQL 16, port 5432) — persistent volume
 
@@ -72,7 +72,7 @@ Run the commands above for the current test count; counts are intentionally not 
 
 The E2E test suite covers key user flows:
 
-- Full approval workflows (LM → HR → CEO)
+- Full approval workflows (Line Manager, with HR added for high-value declarations)
 - Rejections and returns with resubmit
 - Declaration creation and submission
 - Admin user management
@@ -102,16 +102,18 @@ npx playwright test --debug
 npx playwright show-trace
 ```
 
+The Approver Dashboard KPI cards are Pending Queue, Approved, Returned, Declined, and Total Value. Escalated remains a declaration status and queue/report filter, but is not displayed as a dashboard KPI card.
+
 ## Audit Status
 
-All 42 tracked audit findings across four recorded severity levels have been resolved:
+All 34 documented audit findings across four recorded severity levels have been resolved:
 
 | Severity | Count | Status |
 |----------|-------|--------|
 | CRITICAL | 7 | ✅ All fixed |
 | HIGH | 8 | ✅ All fixed |
 | MEDIUM | 15 | ✅ All fixed |
-| LOW | 12 | ✅ All fixed |
+| LOW | 4 | ✅ All fixed |
 
 See [`docs/SECURITY.md`](./docs/SECURITY.md) for the detailed fix log.
 

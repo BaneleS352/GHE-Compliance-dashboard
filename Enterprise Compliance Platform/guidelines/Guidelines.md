@@ -1,3 +1,5 @@
+> Historical/design guidance. Verify current behaviour against source code before using this document as an implementation reference.
+
 **Add your own guidelines here**
 <!--
 
