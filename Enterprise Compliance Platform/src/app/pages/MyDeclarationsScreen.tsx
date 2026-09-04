@@ -223,7 +223,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
     <div>
       <PageHeader
         title={viewMode === "my" ? "My Declarations" : "All Declarations"}
-        subtitle={`${visibleDeclarations.length} ${viewMode === "my" ? "of your" : "total"} declarations`}
+        subtitle={`${visibleDeclarations.length} ${viewMode === "my" ? "of your" : "Total"} Declarations`}
         actions={
           <div className="flex gap-2">
             {!isTeamMember && (
@@ -259,13 +259,8 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
           return (
             <KpiCard
               key={def.key}
-              label={def.label}
-              value={String(count)}
-              secondaryValue={
-                  k === "Total"
-                      ? formatRand(totalValue)
-                      : undefined
-              }
+              label={k === "Total" ? "Total Value" : def.label}
+              value={k === "Total" ? formatRand(totalValue) : String(count)}
               icon={def.icon}
               color={def.color}
               active={activeKpi === def.filterValue}

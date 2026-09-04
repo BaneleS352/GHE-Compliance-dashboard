@@ -319,7 +319,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
         <div className="flex items-center justify-between border-b border-purple-100 px-5 py-4">
           <h3 className="text-sm font-bold text-foreground">Department Insights</h3>
           <p className="text-xs text-muted-foreground">
-            <strong className="text-foreground">{departmentStats.reduce((sum, row) => sum + row.declarations, 0)}</strong> total declarations
+            <strong className="text-foreground">{departmentStats.reduce((sum, row) => sum + row.declarations, 0)}</strong> Total Declarations
           </p>
         </div>
         <div className="overflow-x-auto">

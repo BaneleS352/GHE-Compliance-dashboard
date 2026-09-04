@@ -130,7 +130,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
     <div>
       <PageHeader
         title="Approval Queue"
-        subtitle={`${filteredQueue.length} declarations awaiting your review`}
+        subtitle={`${filteredQueue.length} Declarations awaiting your review`}
         actions={
           <div className="flex flex-wrap gap-2">
             <button
@@ -239,12 +239,12 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
 
       {allDeclarations.length === 0 && !loading && (
         <div className="rounded-xl border border-dashed border-border bg-white/50 p-10 text-center text-sm text-muted-foreground">
-          No declarations awaiting your review.
+          No Declarations awaiting your review.
         </div>
       )}
       <Card className="space-y-3 p-3.5 md:hidden">
         {pagedQueue.length === 0 && !loading ? (
-          <div className="py-10 text-center text-sm text-muted-foreground">No declarations match your filters.</div>
+          <div className="py-10 text-center text-sm text-muted-foreground">No Declarations match your filters.</div>
         ) : null}
         {pagedQueue.length > 0 && pagedQueue.map((d) => (
           <div key={d.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
