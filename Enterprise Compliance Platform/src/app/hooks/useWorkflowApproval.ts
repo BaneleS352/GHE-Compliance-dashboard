@@ -10,10 +10,11 @@ import type {
 interface UseWorkflowApprovalOptions {
     declarationId: string | null;
     userId: string | null;
+    initialWorkflowSteps?: any[];
     onStatusUpdate?: (status: StatusType) => void;
 }
 
-export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: UseWorkflowApprovalOptions) {
+export function useWorkflowApproval({ declarationId, userId, initialWorkflowSteps, onStatusUpdate }: UseWorkflowApprovalOptions) {
   const [wfInstance, setWfInstance] = useState<any>(null);
   const [wfLoading, setWfLoading] = useState(!!declarationId);
   const [lmDecision, setLmDecision] = useState<ApprovalDecision>(null);
@@ -27,6 +28,12 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
   const loadWorkflowInstance = useCallback(async () => {
     if (!declarationId) {
       setWfInstance(null);
+      return;
+    }
+    if (initialWorkflowSteps) {
+      setWfInstance({ declarationId, steps: initialWorkflowSteps });
+      setSubmitError("");
+      setWfLoading(false);
       return;
     }
     setWfLoading(true);
@@ -45,7 +52,7 @@ export function useWorkflowApproval({ declarationId, userId, onStatusUpdate }: U
     } finally {
       setWfLoading(false);
     }
-  }, [declarationId]);
+  }, [declarationId, initialWorkflowSteps]);
 
   useEffect(() => {
     loadWorkflowInstance();

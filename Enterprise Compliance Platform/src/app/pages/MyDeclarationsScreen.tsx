@@ -58,6 +58,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
   } = useWorkflowApproval({
     declarationId: viewDecl?.id ?? null,
     userId: user?.id ?? null,
+    initialWorkflowSteps: viewDecl?.workflowSteps,
     onStatusUpdate: (s) => setViewDeclStatus(s),
   });
 

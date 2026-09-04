@@ -12,7 +12,7 @@ export async function fetchDeclarations(status?: string, search?: string): Promi
 
 export async function fetchDeclarationById(id: string): Promise<Declaration> {
   const raw = await api.get<any>(`/api/declarations/${id}`);
-  return mapDeclaration(raw);
+  return { ...mapDeclaration(raw), workflowSteps: raw.workflowSteps ?? [] };
 }
 
 export async function createDeclaration(declaration: Partial<Declaration>): Promise<Declaration> {

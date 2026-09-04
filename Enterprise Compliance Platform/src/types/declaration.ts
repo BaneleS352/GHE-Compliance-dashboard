@@ -78,6 +78,7 @@ export interface Declaration {
   substantiation?: string;
   files?: UploadedFile[];
   organizationId?: string;
+  workflowSteps?: WorkflowStep[];
 }
 
 export interface WorkflowStep {
