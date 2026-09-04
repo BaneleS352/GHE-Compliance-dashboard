@@ -87,14 +87,20 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   }), [scopedDeclarations]);
 
   const teamActivity = useMemo(() => {
-    const map = new Map<string, { declarations: number; totalValue: number; types: Record<string, number> }>();
+    type ActivityStatus = { declarations: number; totalValue: number; types: Record<string, number> };
+    const emptyStatus = (): ActivityStatus => ({ declarations: 0, totalValue: 0, types: { Gift: 0, Hospitality: 0, Entertainment: 0 } });
+    const map = new Map<string, { totalValue: number; statuses: { Approved: ActivityStatus; Declined: ActivityStatus } }>();
     scopedDeclarations.forEach((d) => {
       const key = d.employee;
-      if (!map.has(key)) map.set(key, { declarations: 0, totalValue: 0, types: { Gift: 0, Hospitality: 0, Entertainment: 0 } });
+      if (!map.has(key)) map.set(key, { totalValue: 0, statuses: { Approved: emptyStatus(), Declined: emptyStatus() } });
       const row = map.get(key)!;
-      row.declarations += 1;
       row.totalValue += d.value;
-      row.types[d.type] = (row.types[d.type] || 0) + 1;
+      if (d.status === "Approved" || d.status === "Declined") {
+        const status = row.statuses[d.status];
+        status.declarations += 1;
+        status.totalValue += d.value;
+        status.types[d.type] = (status.types[d.type] || 0) + 1;
+      }
     });
     return Array.from(map.entries())
       .map(([name, row]) => ({ name, ...row }))
@@ -208,18 +214,30 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
             <p className="text-xs font-bold uppercase tracking-wide text-foreground/70">Team Member Activity</p>
           </div>
           <div className="mt-3 flex-1 space-y-2">
+            <div className="grid grid-cols-[minmax(12rem,1.35fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3 px-3 text-[10px] font-bold uppercase tracking-wide text-foreground/60">
+              <span />
+              <span className="border-l-2 border-green-600 pl-2 text-green-700">Approved</span>
+              <span className="border-l-2 border-red-600 pl-2 text-red-700">Declined</span>
+            </div>
             {teamActivity.length === 0 ? (
               <p className="text-xs text-muted-foreground">No activity available</p>
             ) : (
               teamActivity.map((row) => (
                 <div key={row.name} className="rounded-xl bg-purple-50/40 p-3 ring-1 ring-purple-500/8 transition-all hover:bg-purple-50/70">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="truncate text-sm font-semibold text-foreground">{row.name}</p>
-                    <span className="text-[10px] text-muted-foreground">{row.declarations} decl.</span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between gap-3 text-[11px]">
-                    <span className="font-semibold" style={{ color: PURPLE }}>{formatRand(row.totalValue)}</span>
-                    <span className="text-muted-foreground">Gift {row.types.Gift || 0} · Hosp {row.types.Hospitality || 0} · Ent {row.types.Entertainment || 0}</span>
+                  <div className="grid grid-cols-[minmax(12rem,1.35fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-foreground">{row.name}</p>
+                      <p className="mt-0.5 text-[11px] font-semibold" style={{ color: PURPLE }}>{formatRand(row.totalValue)}</p>
+                    </div>
+                    {(["Approved", "Declined"] as const).map((status) => {
+                      const activity = row.statuses[status];
+                      return (
+                        <div key={status} className="min-w-0 border-l-2 pl-2" style={{ borderColor: status === "Approved" ? "#16a34a" : "#dc2626" }}>
+                          <p className="text-[11px] font-semibold text-foreground">{activity.declarations} Decl. · {formatRand(activity.totalValue)}</p>
+                          <p className="truncate text-[10px] text-muted-foreground">G {activity.types.Gift || 0} · H {activity.types.Hospitality || 0} · E {activity.types.Entertainment || 0}</p>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))
