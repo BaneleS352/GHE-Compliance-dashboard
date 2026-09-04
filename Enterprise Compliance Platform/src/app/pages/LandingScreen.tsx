@@ -61,9 +61,6 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
           <div className="absolute bottom-[-180px] right-[-100px] w-[700px] h-[700px] rounded-full opacity-25"
             style={{ background: "radial-gradient(circle, #a78bfa, transparent 70%)", transform: "translate(20%,20%)" }} />
           <div className="absolute inset-0 opacity-40" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, rgba(255,255,255,.35) 0 1px, transparent 1.5px)", backgroundSize: "115px 115px" }} />
-          <svg className="absolute bottom-0 left-0 w-full opacity-10" viewBox="0 0 800 120" preserveAspectRatio="none">
-            <path d="M0,40 C200,90 400,0 600,50 C700,75 760,30 800,40 L800,120 L0,120 Z" fill="#EDE8FF" />
-          </svg>
         </div>
         <div className="relative z-10 p-10 pb-0" />
         <div className="relative z-10 flex-1" aria-hidden />
