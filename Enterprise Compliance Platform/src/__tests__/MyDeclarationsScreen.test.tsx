@@ -149,11 +149,11 @@ describe("MyDeclarationsScreen", () => {
     });
   });
 
-  it("shows KPI card counts", async () => {
+  it("shows KPI cards", async () => {
     vi.mocked(fetchDeclarations).mockResolvedValue(mockDeclarations);
     render(<MyDeclarationsScreen />);
     await waitFor(() => {
-      expect(screen.getByText("Total")).toBeInTheDocument();
+      expect(screen.getByText("Total Value")).toBeInTheDocument();
     });
   });
 

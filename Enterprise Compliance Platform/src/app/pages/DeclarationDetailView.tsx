@@ -47,7 +47,6 @@ export function DeclarationDetailView({
         ["Reason/Occasion",        safe(d.occasion)],
         ["Bid In Progress",        safe(d.biddingProcess)],
         ["Contract In Progress",   safe(d.contractNegotiation)],
-        ["No. of GHE past 12 months", safe(d.instances)],
         ["Description",            safe(d.description)],
         ...(d.value >= config.highValueThreshold
           ? ([[`Substantiation (> R${config.highValueThreshold})`, safe(d.substantiation || "Required")]] as [string, string][])
@@ -72,7 +71,6 @@ export function DeclarationDetailView({
         ["Reason/Occasion",        safe(record?.occasion)],
         ["Bid In Progress",        safe(record?.biddingProcess)],
         ["Contract In Progress",   safe(record?.contractNegotiation)],
-        ["No. of GHE past 12 months", safe(record?.instances)],
         ["Description",            safe(record?.description)],
         ...(Number(record?.value) >= config.highValueThreshold
           ? ([[`Substantiation (> R${config.highValueThreshold})`, safe(record?.substantiation || "Required")]] as [string, string][])
