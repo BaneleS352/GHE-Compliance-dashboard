@@ -227,6 +227,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                   <div className="grid grid-cols-[minmax(12rem,1.35fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-foreground">{row.name}</p>
+                      <p className="mt-0.5 text-[11px] font-semibold" style={{ color: PURPLE }}>{formatRand(row.totalValue)}</p>
                     </div>
                     {(["Approved", "Declined"] as const).map((status) => {
                       const activity = row.statuses[status];
