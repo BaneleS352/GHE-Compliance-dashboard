@@ -299,3 +299,46 @@ These are additions to the existing cleanup plan; apply them only once their rep
 - Once SQLite test setup is repaired, remove the temporary direct-CLI diagnostic/workaround in `src/__tests__/globalSetup.ts` if the ordinary local Prisma invocation is proven stable. Keep only actionable test setup code, not layered retries/workarounds.
 - After dashboard endpoints consume reporting views, retire `ComplianceTrendPoint`, `TypeBreakdownItem`, their seed records, static API reads, and frontend fallback assumptions together in one planned release.
 - Normalize line endings and remove trailing whitespace from touched files now; formatting-only churn should not be carried into later schema-retirement commits.
+
+## Fourth Implementation Audit — 2026-09-28
+
+### Status: migration added, but deployment remains blocked
+
+Migration `0003_counterparty_unique` closes the previous schema-only gap by adding a PostgreSQL partial unique index for organisation-scoped counterparties. The index policy is reasonable if global counterparties are intentionally allowed. However, the preceding duplicate-reconciliation statement is destructive and does not preserve relational data. Do not apply this migration to an existing database until it is replaced by a data-preserving forward migration and exercised against production-shaped PostgreSQL data.
+
+### Release blockers
+
+1. **The migration deletes every global counterparty.** The `DELETE FROM "Counterparty"` predicate is not restricted to rows with a non-null `organizationId`. Since global rows are absent from its inner query, every `organizationId IS NULL` counterparty matches the outer delete condition. This directly contradicts the partial index's stated policy of allowing global counterparties and causes irreversible data loss.
+
+2. **Duplicate deletion loses declaration and contact relationships.** Removing a duplicate counterparty invokes existing foreign-key actions: linked declarations can have `counterpartyId` set to `NULL`, and duplicate-row contacts can be deleted through cascading. Before deleting any duplicate, the migration must select a canonical row, repoint every `Declaration.counterpartyId` to it, and merge or reparent `CounterpartyContact` rows according to a documented collision policy. It must then delete only unreferenced duplicates.
+
+3. **The canonical-row rule does not match the migration comments.** `MIN(id)` chooses the lexicographically smallest UUID/string; it does not select the earliest `createdAt` record. Use a deterministic ranking rule such as `row_number() over (partition by organizationId, name order by createdAt nulls last, id)` and document how null timestamps and duplicate contacts are handled.
+
+4. **The committed reporting-view migration still uses the legacy date string.** `0001_normalization` defines `v_declarations_monthly` using `substr(Declaration.date, ...)`. Runtime view recreation may mask this locally, but it is not a reliable deployment mechanism because the application role may not have DDL privileges. Add a new forward migration that replaces the view with an `eventDate`-based definition; do not edit an already-deployed migration.
+
+5. **Automated backend tests still do not run.** `npm run build` passes, but `npm test` fails in SQLite global setup while executing `prisma db push --force-reset`, before any test is discovered. This continues to block evidence for the migration, declaration flows, and reporting behavior.
+
+### Important follow-up work
+
+1. **Add duplicate-data migration tests.** PostgreSQL integration coverage must seed: scoped duplicates referenced by declarations, contacts attached to both the survivor and duplicate, global counterparties, null `createdAt` values, and no-duplicate input. Assert that the migration preserves rows and references, produces the chosen canonical record, and enforces the intended scoped/global uniqueness policy.
+
+2. **Update the runbook before release.** `NodejsBackend/prisma/BASELINE.md` still describes migrations only through `0002_rule_fk`. Include `0003_counterparty_unique` (or its safe replacement), a duplicate preflight/reconciliation report, backup/restore instructions, expected record counts, and a post-deploy verification query.
+
+3. **Finish dashboard view adoption.** `/api/declarations/stats` still aggregates through Prisma and compatibility reporting tables rather than the agreed scoped views. Either route the approved dashboard read models through the views with equivalence tests or explicitly defer and remove the unused view-helper surface until it is scheduled.
+
+### Verification evidence
+
+- `npm run build` passed on 2026-09-28.
+- `npm test` failed before test discovery in `src/__tests__/globalSetup.ts` during SQLite schema initialisation.
+- The newest commit passes `git diff --check`.
+- PostgreSQL migration execution was not independently run on this audit host because Docker was unavailable; the PostgreSQL CI job must pass, and must include the duplicate-data cases above.
+
+### Additional dead-code and cleanup actions
+
+Apply these only after the safe counterparty migration, PostgreSQL verification, and the compatibility-retirement gates already defined above.
+
+- Remove the misleading SQLite/Prisma comments from `0003_counterparty_unique/migration.sql`. This is a PostgreSQL deployment migration; `@@unique([name, organizationId])` does not express the deployed partial-index policy and should not be presented as equivalent. Retain a concise comment that documents the actual PostgreSQL identity rule.
+- Remove the runtime `ensureReportingViews()` DDL path from `services/reportingViews.ts` after a forward migration owns the typed monthly-view definition and all reporting views. Runtime application credentials should need only read access to views, not `CREATE OR REPLACE VIEW` privileges.
+- Remove legacy-date fallbacks and `Declaration.date`-based monthly view logic only after every endpoint, export, and report reads `eventDate` and reconciliation confirms valid typed values for all retained declarations.
+- Remove obsolete counterparty retry/lookup branches only after the final uniqueness policy is encoded in PostgreSQL and `ensureCounterparty()` uses one canonical transactional create-or-resolve path. Do not remove safeguards while SQLite development still has different constraint semantics.
+- Remove migration-era duplicate-cleanup scripts or diagnostics once the data-preserving migration is deployed, its reconciliation evidence is retained, and no supported deployment path uses them. Do not retain an application-startup delete/reconciliation routine.
