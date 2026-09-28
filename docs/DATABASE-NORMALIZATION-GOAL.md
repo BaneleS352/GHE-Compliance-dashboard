@@ -185,3 +185,73 @@ The implementation added a baseline migration, normalization migration, relation
 4. Make JSON/relational workflow compatibility writes atomic, or retain a single authoritative read path until cutover.
 5. Repair automated database setup; run the full backend test suite and add a PostgreSQL migration/backfill test job.
 6. Complete the timestamp cutover, backfill validation, reconciliation reporting, and updated deployment documentation.
+
+## Follow-up Implementation Audit — 2026-09-28
+
+This follow-up supersedes the resolved findings in the preceding review. The implementation improved materially, but it remains **not approved for deployment** until the remaining blockers are closed and verified.
+
+### Findings resolved since the first review
+
+- The production entrypoint now stops on migration or backfill failure; it no longer falls back to `prisma db push`.
+- The deployment runbook, Docker documentation, architecture documentation, and build scripts were updated for versioned migrations and reproducible Prisma-client generation.
+- `WorkflowInstance.ruleId` now has a Prisma relation, PostgreSQL foreign key, index, and `ON DELETE SET NULL` behavior.
+- Workflow JSON and relational step rows are now written together inside the approval and submission transactions.
+- Reporting-view parameter binding now rewrites SQLite `?` placeholders to PostgreSQL `$1`, `$2`, and so on.
+- A PostgreSQL migration/backfill/view/FK integration script and CI workflow were added.
+
+### Remaining release blockers
+
+1. **Current approver foreign key drifts after workflow approval.** The approval transaction updates legacy `Declaration.approver` and `Declaration.approverId`, but does not update `Declaration.currentApproverUserId`. When an approval moves to HR, returns to the declarer, or completes, the canonical current-approver relation can retain the previous person. Update the legacy and relational approver values together in the same transaction, and extend the verifier and tests to assert equivalence.
+
+2. **Canonical declaration mirror errors are still swallowed.** `mirrorDeclarationRelational()` catches all failures, so a create, update, or submit request can return success while `eventDate`, `submittedAt`, snapshot, declaration detail, declarer link, approver link, or counterparty link was not written. Calling code awaits the function but receives no failure signal. Move the declaration write and required relational writes into one transaction, or return a retryable error rather than claiming canonical data exists.
+
+3. **The SQLite backend test suite remains blocked.** `npm run build` passes, but `npm test` still fails while global setup runs `prisma db push --force-reset --skip-generate`; no test files execute. The setup error must be diagnosed and fixed, not merely made more visible. The PostgreSQL integration suite also has not been run locally because Docker is unavailable on the audit host. CI must pass before approval.
+
+### Remaining correctness and scope gaps
+
+1. **Dashboard/report views are only partially wired into the application.** The main `/api/declarations/stats` dashboard endpoint still uses Prisma `groupBy` and `aggregate`, while `viewMonthly`, `viewTypeBreakdown`, `viewHighValue`, and `viewCurrentSteps` are not consumed by the application report/dashboard services. The existence of views alone does not satisfy the reporting-read-model goal. Route the agreed dashboard/report queries through scoped views and retain non-view aggregation only where filters genuinely require it.
+
+2. **Monthly reporting still derives from legacy text dates.** `v_declarations_monthly` derives its month via `substr(Declaration.date, 1, 7)` instead of `eventDate`. The typed date cutover is incomplete until PostgreSQL views and all report paths use the canonical date/timestamp fields.
+
+3. **Counterparty identity is not constrained against duplicates.** `ensureCounterparty()` uses `findFirst` followed by create, but the schema has no organisation/name uniqueness constraint. Concurrent requests can create duplicate counterparties. Define the intended organisation/global counterparty identity and enforce it with an appropriate unique index or constraint.
+
+4. **The generic lookup/reference migration is incomplete.** The `Ref*` tables are populated by backfill but `Declaration` still stores type, status, priority, relationship, and direction as unconstrained strings. They are therefore reference-data copies, not controlled transactional references. This remains Phase 2/5 work and must not be described as fully database-enforced normalization.
+
+### Verification status
+
+- `prisma validate` and `npm run build` pass.
+- `npm test` does not run the test suite because SQLite test-database setup fails.
+- A PostgreSQL integration harness and CI job exist, but no successful PostgreSQL execution was available during this audit.
+- Docker was unavailable on the audit host, so the PostgreSQL migration/backfill/view path could not be independently executed locally.
+
+## Dead-Code and Compatibility Cleanup Plan
+
+None of the items below may be removed until the backfill and verification gates pass on production-shaped PostgreSQL data, the release/rollback window has elapsed, and the frontend/API contract has an approved replacement. They are compatibility surfaces, not immediate deletion targets.
+
+### Remove at Phase 5 cutover
+
+- `Declaration` legacy employee-context columns (`employee`, `employeeId`, `teamMemberNumber`, `lineManager`, `position`, `department`, `company`, `team`) after the API is moved to `declarerUserId` plus `DeclarationSnapshot`/joined master data.
+- `Declaration` legacy transaction/detail columns duplicated by `DeclarationDetail`, once the service and API read/write the detail table directly.
+- `Declaration.files` JSON after all file reads use `UploadedFile`/`DeclarationFile` and reconciliation proves every legacy reference has a join row.
+- `WorkflowRule.steps` JSON after `WorkflowRuleStep` is the only workflow-definition write/read path.
+- `WorkflowInstance.steps` JSON after `WorkflowInstanceStep` is the only workflow-state write/read path and audit/export responses are mapped from rows.
+- Legacy `Declaration.date` and `Declaration.submitted` text fields after all API payloads, exports, views, filters, and ordering use `eventDate`/`submittedAt`.
+- Legacy declaration `approver` and `approverId` text fields after current-approver API behavior is served from the enforced relational reference and historical actors are served from workflow-step rows.
+
+### Replace before deletion
+
+- Replace the generic `Dropdowns` JSON model and the form code that consumes it with the approved domain-specific reference tables. Do not remove it until every dropdown has an explicit owner, active/inactive lifecycle, ordering rule, and migration/backfill mapping.
+- Replace seeded `ComplianceTrendPoint` and `TypeBreakdownItem` dashboard data with reporting views. Once the dashboard consumes the views and result-equivalence tests pass, remove the seed data, Prisma models, routes/services, and frontend fallbacks that depend on those static tables.
+- Replace API-side status, monthly, type, high-value, SLA, counterparty, and current-step aggregation only after their scoped view equivalents are wired in and tested. Retain API authorization and filter validation; only the aggregation/read-model implementation is replaced.
+
+### Remove or narrow transitional implementation code
+
+- Remove production runtime view-creation logic from `services/reportingViews.ts` after migrations are the sole owner of view DDL. Runtime requests should query existing views, not require `CREATE VIEW` privileges. Keep a test-only setup helper if SQLite tests still need it.
+- Remove JSON/text fallback reads such as `safeJsonParse`, `readWorkflowSteps` fallback behavior, and legacy report fallbacks only after `db:verify` reports zero drift and all supported databases have completed the cutover.
+- Remove `mirrorDeclarationRelational`, `persistWorkflowInstanceSteps`, and all dual-write branches once normalized tables are the only write path. Replace them with direct transactional writes to canonical models.
+- Remove the Dockerfile provider-rewrite (`sed` from SQLite to PostgreSQL) when development/testing are moved to PostgreSQL or an explicit separate PostgreSQL Prisma schema is adopted. The production schema must remain migration-authoritative.
+- Keep `db:push` only for the explicitly supported SQLite development/test workflow. Remove it from production scripts, documentation, and deployment automation permanently.
+
+### Cleanup acceptance criteria
+
+For each removal, record the migration version, source/target row counts, zero-drift verification output, affected API contract/version, test evidence, deployment date, and rollback/restore reference. A legacy field or table is not dead code until all supported reads and writes have been retired and that evidence is recorded.
