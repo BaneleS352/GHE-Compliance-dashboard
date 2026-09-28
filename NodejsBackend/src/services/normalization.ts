@@ -4,6 +4,16 @@ import type { WorkflowStep } from "./workflowService";
 /**
  * Normalization helpers (DATABASE-NORMALIZATION-GOAL Phases 1–3).
  *
+ * Single source-of-truth rule for this phase:
+ *   - Relational rows are authoritative whenever present.
+ *   - The legacy JSON/text columns are a write-through cache maintained
+ *     ATOMICALLY in the same transaction as the rows (see
+ *     `writeWorkflowStepsTx`). They are read only as a fallback for
+ *     pre-backfill data.
+ *   - Direct database writes MUST update both stores. Application code must
+ *     use `writeWorkflowStepsTx` (inside a transaction) instead of writing
+ *     either store on its own.
+ *
  * Strategy: dual-write. Legacy string/JSON columns remain the API contract.
  * These helpers maintain the relational read model alongside them so the
  * migration is data-preserving and rollback-safe. All helpers are idempotent.
@@ -158,11 +168,18 @@ function toStepRow(declarationId: string, s: WorkflowStep, validUserIds: Set<str
 }
 
 /**
- * Mirror the canonical JSON step array into WorkflowInstanceStep rows.
- * The JSON column remains the source of truth until Phase 5 retirement;
- * rows make the audit trail queryable and power the reporting views.
+ * Write the canonical step array to BOTH stores inside the caller's
+ * transaction: the legacy JSON cache on WorkflowInstance plus the
+ * authoritative WorkflowInstanceStep rows (with stale-row cleanup).
+ *
+ * `ruleId`: pass the producing rule to record it; pass `undefined` to leave
+ * the recorded rule untouched (e.g. an approval that does not reselect the
+ * rule). Must be called within an encompassing `$transaction` — never split
+ * the JSON and row writes across transactions, or readers can observe a
+ * half-mirrored workflow.
  */
-export async function persistWorkflowInstanceSteps(
+export async function writeWorkflowStepsTx(
+  tx: any,
   declarationId: string,
   steps: WorkflowStep[],
   ruleId?: string | null,
@@ -175,34 +192,48 @@ export async function persistWorkflowInstanceSteps(
   }
   let validUserIds = new Set<string>();
   if (ids.size > 0) {
-    const users = await prisma.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true } });
-    validUserIds = new Set(users.map((u) => u.id));
+    const users = await tx.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true } });
+    validUserIds = new Set(users.map((u: any) => u.id));
   }
-  await (prisma as any).$transaction(async (tx: any) => {
-    if (ruleId !== undefined) {
-      await tx.workflowInstance.upsert({
-        where: { declarationId },
-        create: { declarationId, steps: JSON.stringify(steps), ruleId: ruleId ?? null },
-        update: { steps: JSON.stringify(steps), ruleId: ruleId ?? null },
-      });
-    }
-    for (const s of steps) {
-      const row = toStepRow(declarationId, s, validUserIds);
-      await tx.workflowInstanceStep.upsert({
-        where: { instanceId_stepOrder: { instanceId: declarationId, stepOrder: s.order } },
-        create: { instanceId: declarationId, declarationId, ...row },
-        update: { ...row },
-      });
-    }
-    const wanted = new Set(steps.map((s) => s.order));
-    const existing = await tx.workflowInstanceStep.findMany({
-      where: { instanceId: declarationId },
-      select: { stepOrder: true },
+  const instanceData: any = { steps: JSON.stringify(steps) };
+  if (ruleId !== undefined) instanceData.ruleId = ruleId ?? null;
+  await tx.workflowInstance.upsert({
+    where: { declarationId },
+    create: { declarationId, ...instanceData },
+    update: instanceData,
+  });
+  for (const s of steps) {
+    const row = toStepRow(declarationId, s, validUserIds);
+    await tx.workflowInstanceStep.upsert({
+      where: { instanceId_stepOrder: { instanceId: declarationId, stepOrder: s.order } },
+      create: { instanceId: declarationId, declarationId, ...row },
+      update: { ...row },
     });
-    const stale = existing.map((r: any) => r.stepOrder).filter((o: number) => !wanted.has(o));
-    if (stale.length > 0) {
-      await tx.workflowInstanceStep.deleteMany({ where: { instanceId: declarationId, stepOrder: { in: stale } } });
-    }
+  }
+  const wanted = new Set(steps.map((s) => s.order));
+  const existing = await tx.workflowInstanceStep.findMany({
+    where: { instanceId: declarationId },
+    select: { stepOrder: true },
+  });
+  const stale = existing.map((r: any) => r.stepOrder).filter((o: number) => !wanted.has(o));
+  if (stale.length > 0) {
+    await tx.workflowInstanceStep.deleteMany({ where: { instanceId: declarationId, stepOrder: { in: stale } } });
+  }
+}
+
+/**
+ * Standalone mirror (backfill, tests, fire-and-forget sync). Opens its own
+ * transaction — request paths that already hold a transaction MUST use
+ * `writeWorkflowStepsTx` instead so both stores commit atomically.
+ */
+export async function persistWorkflowInstanceSteps(
+  declarationId: string,
+  steps: WorkflowStep[],
+  ruleId?: string | null,
+): Promise<void> {
+  if (!declarationId || !Array.isArray(steps)) return;
+  await (prisma as any).$transaction(async (tx: any) => {
+    await writeWorkflowStepsTx(tx, declarationId, steps, ruleId);
   });
 }
 

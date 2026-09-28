@@ -5,7 +5,7 @@ import { buildApp, getAdminToken, getTeamToken, getApproverToken } from "./helpe
 import { backfillNormalization } from "../scripts/backfill-normalization";
 import { verifyNormalization } from "../scripts/verify-normalization";
 import { readWorkflowSteps } from "../services/normalization";
-import { viewStatusSummary, viewCounterparty, viewSlaRows } from "../services/reportingViews";
+import { viewStatusSummary, viewCounterparty, viewSlaRows, bindParams, isPostgresProvider } from "../services/reportingViews";
 
 const app = buildApp();
 const prisma = new PrismaClient();
@@ -157,5 +157,42 @@ describe("Database normalization (goal)", () => {
     await request(app)
       .delete(`/api/admin/workflows/rules/${created.body.id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
+  });
+
+  it("submit records the producing rule on the workflow instance (rule FK)", async () => {
+    const create = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({
+        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+        type: "Gift", counterparty: "Rule FK Co", value: 5000, submitted: "2026-04-12",
+        status: "Draft", priority: "High", description: "rule fk test",
+        relationship: "Supplier", receivedGiven: "Received", from: "Supplier",
+        contactPerson: "Sam", biddingProcess: "No", occasion: "Milestone",
+        date: "2026-04-11", instances: "1", publicOfficial: "No",
+      });
+    const id = create.body.id;
+    await request(app)
+      .patch(`/api/declarations/${id}/submit`)
+      .set("Authorization", `Bearer ${getTeamToken()}`);
+    const inst = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
+    // 5000 >= threshold 1000 → rule-2, recorded with an enforced FK.
+    expect((inst as any).ruleId).toBe("rule-2");
+  });
+
+  it("PostgreSQL parameter binding rewrites ? to $n (provider-aware)", async () => {
+    const prev = process.env.DATABASE_URL;
+    try {
+      process.env.DATABASE_URL = "file:./test.db";
+      expect(isPostgresProvider()).toBe(false);
+      expect(bindParams(`WHERE "a" = ? AND "b" = ?`)).toBe(`WHERE "a" = ? AND "b" = ?`);
+      process.env.DATABASE_URL = "postgresql://u:p@localhost:5432/db?schema=public";
+      expect(isPostgresProvider()).toBe(true);
+      expect(bindParams(`WHERE "a" = ? AND "b" = ?`)).toBe(`WHERE "a" = $1 AND "b" = $2`);
+      expect(bindParams(`SELECT 1`)).toBe(`SELECT 1`);
+    } finally {
+      process.env.DATABASE_URL = prev;
+    }
   });
 });

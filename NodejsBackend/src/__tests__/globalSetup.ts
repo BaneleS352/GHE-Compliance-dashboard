@@ -8,11 +8,24 @@ export async function setup() {
   process.env.DATABASE_URL = TEST_DB_URL;
   process.env.JWT_SECRET = "test-secret";
 
-  execSync("npx prisma db push --force-reset --skip-generate", {
-    cwd: process.cwd(),
-    env: { ...process.env, DATABASE_URL: TEST_DB_URL },
-    stdio: "pipe",
-  });
+  // Surface schema-engine failures loudly: with stdio "pipe" a failed
+  // `db push` otherwise aborts the run with no diagnostics and no tests run.
+  try {
+    execSync("npx prisma db push --force-reset --skip-generate", {
+      cwd: process.cwd(),
+      env: { ...process.env, DATABASE_URL: TEST_DB_URL },
+      stdio: "pipe",
+    });
+  } catch (err: any) {
+    const detail =
+      err?.stdout?.toString() || err?.stderr?.toString() || err?.message || String(err);
+    console.error(
+      "Test database setup failed (`prisma db push --force-reset`).\n" +
+        "Ensure dependencies are installed (`npm install`, which runs `prisma generate` via postinstall),\n" +
+        "then re-run `npm test`. Engine output:\n" + detail,
+    );
+    throw new Error(`Test database setup failed: ${detail.split("\n")[0]}`);
+  }
 
   const prisma = new PrismaClient();
   const hash = bcrypt.hashSync("password", 10);

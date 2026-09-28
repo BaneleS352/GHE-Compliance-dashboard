@@ -8,9 +8,9 @@ This is a staged modernization. The objective is to improve correctness, traceab
 
 ## Current State
 
-The current implementation uses Prisma with SQLite in development and PostgreSQL in Docker production. Production starts with `prisma db push`, so schema changes are not versioned as deployable migrations.
+The implementation uses Prisma with SQLite in development and PostgreSQL in Docker production. Production starts with `prisma migrate deploy` (versioned migrations `0000_baseline`, `0001_normalization`, `0002_rule_fk`); the entrypoint fails fast with no `db push` fallback, then runs the idempotent backfill as an observable, fatal-on-error deployment step. SQLite remains the supported development/testing workflow (`prisma db push`).
 
-The existing `Declaration` table stores both transactional data and copied employee/organisation attributes. Workflow rules and workflow instances serialize their steps as JSON text. Several logical references are strings without database foreign-key constraints, including declaration owners, approvers, workflows, and uploaded files.
+The existing `Declaration` table stores both transactional data and copied employee/organisation attributes, now joined by enforced foreign keys (`declarerUserId`, `currentApproverUserId`, `counterpartyId`) and canonical `eventDate`/`submittedAt` (`date`/`timestamptz`) columns populated synchronously on every write; the legacy text fields remain the API write path. Workflow rules and workflow instances maintain their steps as relational rows (`WorkflowRuleStep`, `WorkflowInstanceStep`) written atomically in the same transaction as the legacy JSON cache, which is now read only as a fallback. Remaining string references without database foreign-key constraints are documented as the temporary Phase 5 compatibility surface (see `NodejsBackend/prisma/schema.prisma` header and `RETIREMENT.md`).
 
 These choices were practical for an early-stage application, but they prevent the database from enforcing key integrity and make detailed reporting depend heavily on API-side aggregation.
 

@@ -4,14 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/index.js",
+    "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev --name init",
     "db:push": "prisma db push",
     "db:seed": "tsx src/seed.ts",
     "db:backfill": "tsx src/scripts/run-backfill.ts",
     "db:verify": "tsx src/scripts/run-verify.ts",
+    "pg:test": "tsx src/scripts/pg-integration.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

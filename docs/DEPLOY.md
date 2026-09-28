@@ -55,9 +55,12 @@ datasource db {
 ```
 
 Run migrations:
+
 ```bash
 npx prisma migrate deploy
-npx prisma db seed
+npm run db:seed    # first deploy of an empty database only; never re-run against operational data
+npm run db:backfill  # idempotent; review the reconciliation report
+npm run db:verify    # must report zero drift before considering the deploy healthy
 ```
 
 ### 2. Environment Variables

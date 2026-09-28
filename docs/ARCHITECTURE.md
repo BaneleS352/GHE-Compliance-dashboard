@@ -9,7 +9,7 @@ GHE-Compliance-Dashboard/
 ├── DOCKER.md                       # Full Docker setup guide
 ├── NodejsBackend/                  # REST API (Express + TypeScript + Prisma)
 │   ├── Dockerfile                  # Multi-stage build (TSC + PostgreSQL swap)
-│   ├── entrypoint.sh               # Runs prisma db push, starts server
+│   ├── entrypoint.sh               # Runs prisma migrate deploy + backfill, starts server
 │   └── src/
 │       ├── config/                 # env, swagger, prisma client
 │       ├── middleware/             # auth (JWT), authorization

@@ -3,24 +3,44 @@ import { prisma } from "../config/prisma";
 /**
  * Phase 4 reporting read models.
  *
- * Views are created with portable SQL (SQLite + PostgreSQL) over the
- * normalized tables. They never replace authorization: every query helper
- * below still applies organisation scoping, and every caller keeps its
- * role checks. When the relational tables are empty (pre-backfill) or the
- * database predates the migration, helpers fall back to the legacy
- * Prisma aggregations so the API contract is unchanged.
+ * Single source-of-truth rule for this phase: relational rows are
+ * authoritative whenever present. The legacy JSON/text columns are a
+ * write-through cache maintained atomically in the same transaction as the
+ * rows (see `writeWorkflowStepsTx`); they are read only as a fallback for
+ * pre-backfill data. Direct database writes MUST update both stores.
+ *
+ * Views are read models, not replacements for transactional tables or
+ * authorization. API authorization, organisation scoping, and parameter
+ * validation remain required.
  */
 
-const VIEW_DDLS = [
+export function isPostgresProvider(): boolean {
+  return (process.env.DATABASE_URL || "").startsWith("postgres");
+}
+
+/**
+ * Rewrite `?` placeholders to PostgreSQL `$1..$n` positional parameters.
+ * Constraint: view SQL must only use `?` as a value placeholder — never put
+ * a literal `?` inside a string literal.
+ */
+export function bindParams(sql: string): string {
+  if (!isPostgresProvider()) return sql;
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
+}
+
+const VIEWS: { name: string; select: string }[] = [
   // Counts + value totals by organisation and status.
-  `CREATE VIEW IF NOT EXISTS "v_declaration_status_summary" AS
-   SELECT "organizationId" AS "organizationId", "status" AS "status",
+  {
+    name: "v_declaration_status_summary",
+    select: `SELECT "organizationId" AS "organizationId", "status" AS "status",
           COUNT(*) AS "count", SUM("value") AS "totalValue"
    FROM "Declaration" GROUP BY "organizationId", "status"`,
-
+  },
   // Volume + outcomes by month (legacy YYYY-MM-DD text column; portable substr).
-  `CREATE VIEW IF NOT EXISTS "v_declarations_monthly" AS
-   SELECT "organizationId" AS "organizationId",
+  {
+    name: "v_declarations_monthly",
+    select: `SELECT "organizationId" AS "organizationId",
           substr("date", 1, 7) AS "month",
           COUNT(*) AS "count",
           SUM(CASE WHEN "status" = 'Approved' THEN 1 ELSE 0 END) AS "approved",
@@ -28,44 +48,54 @@ const VIEW_DDLS = [
           SUM("value") AS "totalValue"
    FROM "Declaration" WHERE "date" IS NOT NULL AND length("date") >= 7
    GROUP BY "organizationId", substr("date", 1, 7)`,
-
+  },
   // Type / value breakdowns.
-  `CREATE VIEW IF NOT EXISTS "v_declaration_type_breakdown" AS
-   SELECT "organizationId" AS "organizationId", "type" AS "type",
+  {
+    name: "v_declaration_type_breakdown",
+    select: `SELECT "organizationId" AS "organizationId", "type" AS "type",
           COUNT(*) AS "count", SUM("value") AS "totalValue"
    FROM "Declaration" GROUP BY "organizationId", "type"`,
-
+  },
   // Current pending step per declaration (relational audit trail).
-  `CREATE VIEW IF NOT EXISTS "v_workflow_current_step" AS
-   SELECT "declarationId", "stepOrder", "role", "assigneeId", "assigneeName", "status"
+  {
+    name: "v_workflow_current_step",
+    select: `SELECT "declarationId", "stepOrder", "role", "assigneeId", "assigneeName", "status"
    FROM "WorkflowInstanceStep" WHERE "status" = 'pending'`,
-
+  },
   // Completed-step durations: raw timestamps; day math stays in JS for portability.
-  `CREATE VIEW IF NOT EXISTS "v_workflow_step_sla" AS
-   SELECT s."role" AS "role", s."decidedAt" AS "decidedAt",
+  {
+    name: "v_workflow_step_sla",
+    select: `SELECT s."role" AS "role", s."decidedAt" AS "decidedAt",
           d."eventDate" AS "eventDate", d."date" AS "legacyDate"
    FROM "WorkflowInstanceStep" s JOIN "Declaration" d ON d."id" = s."declarationId"
    WHERE s."decidedAt" IS NOT NULL`,
-
+  },
   // Counterparty concentration.
-  `CREATE VIEW IF NOT EXISTS "v_counterparty_concentration" AS
-   SELECT "organizationId" AS "organizationId", "counterparty" AS "counterparty",
+  {
+    name: "v_counterparty_concentration",
+    select: `SELECT "organizationId" AS "organizationId", "counterparty" AS "counterparty",
           COUNT(*) AS "count", SUM("value") AS "totalValue",
           AVG("value") AS "avgValue"
    FROM "Declaration" GROUP BY "organizationId", "counterparty"`,
-
+  },
   // High-value declaration rows (threshold applied by the service).
-  `CREATE VIEW IF NOT EXISTS "v_high_value_declarations" AS
-   SELECT "id", "employee", "lineManager", "department", "type",
+  {
+    name: "v_high_value_declarations",
+    select: `SELECT "id", "employee", "lineManager", "department", "type",
           "counterparty", "value", "date", "status", "organizationId"
    FROM "Declaration"`,
+  },
 ];
 
 let ensured = false;
 
 export async function ensureReportingViews(): Promise<void> {
   if (ensured) return;
-  for (const ddl of VIEW_DDLS) {
+  for (const v of VIEWS) {
+    // PostgreSQL has no CREATE VIEW IF NOT EXISTS — use CREATE OR REPLACE.
+    const ddl = isPostgresProvider()
+      ? `CREATE OR REPLACE VIEW "${v.name}" AS ${v.select}`
+      : `CREATE VIEW IF NOT EXISTS "${v.name}" AS ${v.select}`;
     try {
       await prisma.$executeRawUnsafe(ddl);
     } catch {
@@ -76,10 +106,15 @@ export async function ensureReportingViews(): Promise<void> {
   ensured = true;
 }
 
+/** Test hook: reset the ensure-once flag (tests only). */
+export function resetReportingViewsCache(): void {
+  ensured = false;
+}
+
 async function queryView<T>(sql: string, params: any[]): Promise<T[] | null> {
   await ensureReportingViews();
   try {
-    return await prisma.$queryRawUnsafe(sql, ...params);
+    return await prisma.$queryRawUnsafe(bindParams(sql), ...params);
   } catch {
     return null;
   }
@@ -145,4 +180,15 @@ export async function viewHighValue(organizationId: string | undefined, threshol
 
 export async function viewSlaRows() {
   return queryView<any>(`SELECT "role", "decidedAt", "eventDate", "legacyDate" FROM "v_workflow_step_sla"`, []);
+}
+
+export async function viewCurrentSteps(organizationId?: string) {
+  return queryView<any>(
+    `SELECT s."declarationId" AS "declarationId", s."stepOrder" AS "stepOrder",` +
+      ` s."role" AS "role", s."assigneeId" AS "assigneeId",` +
+      ` s."assigneeName" AS "assigneeName", s."status" AS "status"` +
+      ` FROM "v_workflow_current_step" s JOIN "Declaration" d ON d."id" = s."declarationId"` +
+      (organizationId ? ` WHERE d."organizationId" = ?` : ``),
+    organizationId ? [organizationId] : [],
+  );
 }

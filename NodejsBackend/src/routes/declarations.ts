@@ -7,18 +7,23 @@ import fs from "fs";
 import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { createWorkflowSteps, safeJsonParse, declarationResponse } from "../services/workflowService";
+import { createWorkflowSteps, resolveRuleId, safeJsonParse, declarationResponse } from "../services/workflowService";
 import {
   parseDateSafe,
   ensureCounterparty,
   captureDeclarationSnapshot,
   syncDeclarationDetail,
-  persistWorkflowInstanceSteps,
+  writeWorkflowStepsTx,
   readWorkflowSteps,
 } from "../services/normalization";
 import { sendNotification } from "../services/notificationService";
 
-/** Best-effort relational mirror; legacy columns stay authoritative until Phase 5. */
+/**
+ * Populate the canonical relational fields (eventDate/submittedAt DateTime
+ * columns, declarer/approver/counterparty links, immutable snapshot, detail).
+ * Guarded internally so a mirror failure never breaks the legacy write path;
+ * callers await it so the columns are populated before responding.
+ */
 async function mirrorDeclarationRelational(declaration: any): Promise<void> {
   try {
     const eventDate = parseDateSafe(declaration.date);
@@ -119,11 +124,13 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
   }
 
   // DB-side search using contains (Prisma SQLite is case-sensitive, so fallback to in-memory lowercasing after fetch for SQLite)
+  // Ordering uses the canonical submittedAt DateTime column (populated
+  // synchronously on every write from the legacy `submitted` text).
   let declarations: any[];
   if (search) {
     const q = String(search);
     // Try DB contains first; for SQLite we still filter case-insensitively in memory after
-    declarations = await prisma.declaration.findMany({ where, orderBy: { submitted: "desc" } });
+    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" } });
     const qLower = q.toLowerCase();
     declarations = declarations.filter(
       (d) =>
@@ -133,7 +140,7 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
         d.description.toLowerCase().includes(qLower)
     );
   } else {
-    declarations = await prisma.declaration.findMany({ where, orderBy: { submitted: "desc" } });
+    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" } });
   }
 
   // Pagination (in-memory slice after search; keeps backwards compatible when no limit)
@@ -263,8 +270,12 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
     },
   });
 
+  // Canonical DateTime columns, snapshot, detail, and counterparty link are
+  // populated synchronously (guarded internally) so they are never observed
+  // empty after a write. Legacy text columns remain the API contract.
+  await mirrorDeclarationRelational(declaration);
+
   res.status(201).json(declarationResponse(declaration));
-  void mirrorDeclarationRelational(declaration);
 }));
 
 router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
@@ -401,16 +412,16 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
           ? { ...step, status: "approved", decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt }
           : step;
       });
-      await prisma.workflowInstance.update({ where: { declarationId: id }, data: { steps: JSON.stringify(workflowSteps) } });
-      try {
-        await persistWorkflowInstanceSteps(id, workflowSteps);
-      } catch {
-        // Relational mirror must never break the legacy path.
-      }
+      // JSON cache and authoritative rows commit in one transaction.
+      await prisma.$transaction(async (tx) => {
+        await writeWorkflowStepsTx(tx, id, workflowSteps);
+      });
     }
   }
 
-  void mirrorDeclarationRelational(updated);
+  // Synchronous for the timestamp cutover: DateTime columns must be populated
+  // before the updated declaration is returned.
+  await mirrorDeclarationRelational(updated);
 
   res.json(declarationResponse(updated));
 }));
@@ -507,26 +518,22 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
   const approverName = nextApprover ? nextApprover.assigneeName : existing.approver;
   const approverIdValue = nextApprover ? nextApprover.assignee : existing.approverId;
 
-  const [updated] = await prisma.$transaction([
-    prisma.declaration.update({
+  // Single transaction: declaration status, JSON cache, authoritative step
+  // rows, and the producing rule all commit atomically — readers never observe
+  // a half-mirrored workflow.
+  const ruleId = await resolveRuleId(existing.value);
+  const [updated] = await prisma.$transaction(async (tx) => {
+    const upd = await tx.declaration.update({
       where: { id: existing.id },
       data: { status: "Pending", approver: approverName, approverId: approverIdValue },
-    }),
-    prisma.workflowInstance.upsert({
-      where: { declarationId: existing.id },
-      create: { declarationId: existing.id, steps: JSON.stringify(workflowSteps) },
-      update: { steps: JSON.stringify(workflowSteps) },
-    }),
-  ]);
+    });
+    await writeWorkflowStepsTx(tx, existing.id, workflowSteps, ruleId);
+    return [upd];
+  });
 
-  // Mirror to the relational audit trail BEFORE responding so readers never
-  // observe JSON without matching step rows (legacy JSON stays authoritative).
-  try {
-    await persistWorkflowInstanceSteps(existing.id, workflowSteps);
-  } catch {
-    // Relational mirror must never break the legacy path.
-  }
-  void mirrorDeclarationRelational(updated);
+  // Canonical timestamps/snapshot/detail are populated synchronously so the
+  // DateTime columns are never observed empty after a write.
+  await mirrorDeclarationRelational(updated);
 
   res.json(declarationResponse(updated));
   if (nextApprover) {

@@ -27,11 +27,15 @@ export function determineRuleId(value: number, highThreshold: number, _mediumThr
   return "rule-1";
 }
 
-export async function createWorkflowSteps(_declarationId: string, employeeId: string, value: number): Promise<WorkflowStep[]> {
+/** Resolve the producing rule for a declaration value under current thresholds. */
+export async function resolveRuleId(value: number): Promise<string> {
   const config = await prisma.systemConfig.findFirst();
   if (!config) throw new Error("System config not found");
+  return determineRuleId(value, config.highValueThreshold, config.mediumValueThreshold);
+}
 
-  const ruleId = determineRuleId(value, config.highValueThreshold, config.mediumValueThreshold);
+export async function createWorkflowSteps(_declarationId: string, employeeId: string, value: number): Promise<WorkflowStep[]> {
+  const ruleId = await resolveRuleId(value);
   const rule = await prisma.workflowRule.findUnique({ where: { id: ruleId } });
   if (!rule) throw new Error(`Workflow rule ${ruleId} not found`);
 

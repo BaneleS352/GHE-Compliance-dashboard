@@ -3,7 +3,7 @@ import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { WorkflowStep, declarationResponse } from "../services/workflowService";
-import { persistWorkflowInstanceSteps, readWorkflowSteps } from "../services/normalization";
+import { writeWorkflowStepsTx, readWorkflowSteps } from "../services/normalization";
 import { sendNotification } from "../services/notificationService";
 
 const router = Router();
@@ -222,38 +222,10 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
           ? declaration.employeeId
           : nextApproverId || declaration.approverId;
 
-      await tx.workflowInstance.update({
-        where: { declarationId },
-        data: { steps: JSON.stringify(steps) },
-      });
-      // Mirror the decided step into the relational audit trail in the same tx.
-      const decided = steps[currentStepIndex];
-      const decidedAt = decided.decidedAt ? new Date(decided.decidedAt) : null;
-      let decidedByOk: string | null = null;
-      if (decided.decidedById) {
-        const u = await tx.user.findUnique({ where: { id: decided.decidedById }, select: { id: true } });
-        if (u) decidedByOk = u.id;
-      }
-      let assigneeOk: string | null = null;
-      if (decided.assignee) {
-        const u = await tx.user.findUnique({ where: { id: decided.assignee }, select: { id: true } });
-        if (u) assigneeOk = u.id;
-      }
-      await (tx as any).workflowInstanceStep.upsert({
-        where: { instanceId_stepOrder: { instanceId: declarationId, stepOrder: decided.order } },
-        create: {
-          instanceId: declarationId, declarationId, stepOrder: decided.order,
-          role: decided.role, label: decided.label, assigneeId: assigneeOk,
-          assigneeName: decided.assigneeName, status: decided.status,
-          decision: decided.decision ?? null, notes: decided.notes ?? "",
-          decidedAt, decidedById: decidedByOk, decidedByName: decided.decidedByName ?? null,
-        },
-        update: {
-          status: decided.status, decision: decided.decision ?? null,
-          notes: decided.notes ?? "", decidedAt,
-          decidedById: decidedByOk, decidedByName: decided.decidedByName ?? null,
-        },
-      });
+      // Full row sync in the SAME transaction: JSON cache and authoritative
+      // rows commit atomically (no best-effort second write). The recorded
+      // rule is left untouched — approvals never reselect the rule.
+      await writeWorkflowStepsTx(tx, declarationId, steps);
       await tx.declaration.update({
         where: { id: declarationId },
         data: { status: statusStr, approver: declarationApprover, approverId: declarationApproverId },
@@ -269,12 +241,7 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
     return;
   }
 
-  // Mirror to the relational audit trail before responding.
-  try {
-    await persistWorkflowInstanceSteps(declarationId, freshSteps);
-  } catch {
-    // Relational mirror must never break the legacy path.
-  }
+  // Rows were already synced inside the transaction above — respond directly.
 
   res.json({
     declarationId,

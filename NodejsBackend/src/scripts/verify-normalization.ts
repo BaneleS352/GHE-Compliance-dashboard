@@ -53,8 +53,14 @@ export async function verifyNormalization(): Promise<VerifyResult> {
 
   // Workflow instances: rows vs JSON.
   const instances = await prisma.workflowInstance.findMany();
+  const ruleIds = new Set(rules.map((r) => r.id));
   for (const inst of instances) {
     checked.instances++;
+    // Every recorded rule must exist (database-enforced going forward; this
+    // catches pre-constraint data on databases that predate 0002_rule_fk).
+    if ((inst as any).ruleId && !ruleIds.has((inst as any).ruleId)) {
+      drifts.push({ scope: "instance", id: inst.declarationId, detail: `ruleId ${(inst as any).ruleId} references a missing rule` });
+    }
     let steps: any[];
     try {
       steps = JSON.parse(inst.steps);
@@ -124,7 +130,14 @@ export async function verifyNormalization(): Promise<VerifyResult> {
     const eventDate = parseDateSafe(d.date)?.toISOString() ?? null;
     const rowEvent = d.eventDate ? new Date(d.eventDate).toISOString() : null;
     // Compare by day: legacy text is a calendar date, stored DateTime is UTC midnight.
-    if ((eventDate?.slice(0, 10) ?? null) !== (rowEvent?.slice(0, 10) ?? null)) {
+    // Unparseable legacy text is a *rejected value* (listed in the backfill
+    // report), not drift — but then the column must be null, never a guess.
+    const dateTextInvalid = !!d.date && String(d.date).trim() !== "" && eventDate === null;
+    if (dateTextInvalid) {
+      if (rowEvent !== null) {
+        drifts.push({ scope: "declaration", id: d.id, detail: `eventDate ${rowEvent} set from invalid date text ${d.date}` });
+      }
+    } else if ((eventDate?.slice(0, 10) ?? null) !== (rowEvent?.slice(0, 10) ?? null)) {
       drifts.push({ scope: "declaration", id: d.id, detail: `eventDate ${rowEvent} != date text ${d.date}` });
     }
     if (d.counterparty) {

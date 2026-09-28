@@ -8,6 +8,15 @@ datasource db {
   // via `prisma migrate deploy` (see entrypoint.sh and prisma/migrations/).
   // New DateTime/FK fields use provider-agnostic Prisma types so a single
   // schema works on both SQLite and PostgreSQL.
+  //
+  // Compatibility phase (documented temporary state, see
+  // docs/DATABASE-NORMALIZATION-GOAL.md Phase 5): legacy string/JSON columns
+  // (Declaration employee-context text, files JSON, WorkflowRule/WorkflowInstance
+  // steps JSON) remain writable alongside their relational counterparts.
+  // Relational rows are authoritative whenever present; the legacy columns are
+  // a write-through cache maintained atomically in the same transaction.
+  // Database enforcement is complete for all NEW references; legacy-string
+  // enforcement arrives with the Phase 5 retirement migration.
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
@@ -352,6 +361,7 @@ model WorkflowRule {
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   ruleSteps  WorkflowRuleStep[]
+  instances  WorkflowInstance[]
 
   @@index([organizationId])
 }
@@ -378,7 +388,10 @@ model WorkflowInstance {
   updatedAt DateTime @updatedAt
 
   declaration Declaration @relation("InstanceDeclaration", fields: [declarationId], references: [id], onDelete: Cascade)
+  rule WorkflowRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
   stepRows  WorkflowInstanceStep[] @relation("InstanceSteps")
+
+  @@index([ruleId])
 }
 
 model WorkflowInstanceStep {

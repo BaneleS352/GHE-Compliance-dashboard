@@ -5,8 +5,10 @@ import {
   captureDeclarationSnapshot,
   syncDeclarationDetail,
   syncWorkflowRuleSteps,
+  parseRuleStepDefs,
   persistWorkflowInstanceSteps,
 } from "../services/normalization";
+import { resolveRuleId } from "../services/workflowService";
 
 export interface BackfillReport {
   users: { total: number; managerLinked: number; missingManagerRefs: string[]; rolesGranted: number };
@@ -17,6 +19,7 @@ export interface BackfillReport {
     total: number;
     eventDateBackfilled: number;
     submittedAtBackfilled: number;
+    invalidDates: string[];
     declarerLinked: number;
     approverLinked: number;
     missingDeclarers: string[];
@@ -24,7 +27,7 @@ export interface BackfillReport {
     snapshots: number;
     details: number;
   };
-  workflows: { rules: number; ruleSteps: number; instances: number; instanceSteps: number; orphanInstances: string[]; corruptJson: string[] };
+  workflows: { rules: number; ruleSteps: number; instances: number; instanceSteps: number; orphanInstances: string[]; corruptJson: string[]; ruleInferred: number };
   files: { total: number; orphanFiles: string[]; links: number };
 }
 
@@ -37,11 +40,11 @@ export async function backfillNormalization(): Promise<BackfillReport> {
     reference: {},
     counterparties: { created: 0, linked: 0, missing: 0 },
     declarations: {
-      total: 0, eventDateBackfilled: 0, submittedAtBackfilled: 0,
+      total: 0, eventDateBackfilled: 0, submittedAtBackfilled: 0, invalidDates: [],
       declarerLinked: 0, approverLinked: 0, missingDeclarers: [], missingApprovers: [],
       snapshots: 0, details: 0,
     },
-    workflows: { rules: 0, ruleSteps: 0, instances: 0, instanceSteps: 0, orphanInstances: [], corruptJson: [] },
+    workflows: { rules: 0, ruleSteps: 0, instances: 0, instanceSteps: 0, orphanInstances: [], corruptJson: [], ruleInferred: 0 },
     files: { total: 0, orphanFiles: [], links: 0 },
   };
 
@@ -107,17 +110,10 @@ export async function backfillNormalization(): Promise<BackfillReport> {
         report.departments.created++;
       }
       await prisma.user.update({ where: { id: u.id }, data: { departmentId: dept.id } });
-      const teamName = (u as any).team || null;
-      if (teamName) {
-        let team = await (prisma as any).team.findUnique({
-          where: { departmentId_name: { departmentId: dept.id, name: teamName } },
-        });
-        if (!team) {
-          team = await (prisma as any).team.create({ data: { departmentId: dept.id, name: teamName } });
-          report.departments.teams++;
-        }
-        await prisma.user.update({ where: { id: u.id }, data: { teamId: team.id } });
-      }
+      // User teams: UNRESOLVED by design. The User model has no legacy team
+      // field, so there is no source data to map users onto teams — teamId
+      // stays null until a team-assignment workflow exists. Teams themselves
+      // are still backfilled from declaration data below.
     } else if (!u.organizationId) {
       report.departments.unscopedUsers++;
     }
@@ -178,7 +174,9 @@ export async function backfillNormalization(): Promise<BackfillReport> {
       },
     });
     if (eventDate) report.declarations.eventDateBackfilled++;
+    else if (d.date && String(d.date).trim()) report.declarations.invalidDates.push(`${d.id}.date=${d.date}`);
     if (submittedAt) report.declarations.submittedAtBackfilled++;
+    else if (d.submitted && String(d.submitted).trim()) report.declarations.invalidDates.push(`${d.id}.submitted=${d.submitted}`);
     if (declarerOk) report.declarations.declarerLinked++;
     else report.declarations.missingDeclarers.push(`${d.id} -> ${d.employeeId}`);
     if (d.approverId) {
@@ -228,12 +226,23 @@ export async function backfillNormalization(): Promise<BackfillReport> {
   // ── Workflow rules + instances ──
   const rules = await prisma.workflowRule.findMany();
   report.workflows.rules = rules.length;
+  // Role signature (e.g. "lineManager>hr") -> rule id, for inferring the
+  // producing rule of historical instances whose ruleId was never recorded.
+  const ruleSignatures = new Map<string, string>();
   for (const r of rules) {
     report.workflows.ruleSteps += await syncWorkflowRuleSteps(r.id);
+    const rows = await (prisma as any).workflowRuleStep.findMany({
+      where: { ruleId: r.id }, orderBy: { order: "asc" },
+    });
+    const roles = rows.length > 0
+      ? rows.map((s: any) => s.role)
+      : parseRuleStepDefs(r.steps).map((d) => d.role);
+    ruleSignatures.set(roles.join(">"), r.id);
   }
 
   const instances = await prisma.workflowInstance.findMany();
   const declIds = new Set(declarations.map((d) => d.id));
+  const declById = new Map(declarations.map((d) => [d.id, d]));
   for (const inst of instances) {
     if (!declIds.has(inst.declarationId)) {
       report.workflows.orphanInstances.push(inst.declarationId);
@@ -247,7 +256,17 @@ export async function backfillNormalization(): Promise<BackfillReport> {
       report.workflows.corruptJson.push(inst.declarationId);
       continue;
     }
-    await persistWorkflowInstanceSteps(inst.declarationId, steps, inst.ruleId ?? null);
+    let ruleId: string | null = (inst as any).ruleId ?? null;
+    if (!ruleId) {
+      const sig = steps.map((s: any) => s.role).join(">");
+      ruleId = ruleSignatures.get(sig) ?? null;
+      if (!ruleId) {
+        // Fallback: current thresholds applied to the declaration value.
+        try { ruleId = await resolveRuleId(declById.get(inst.declarationId)!.value); } catch { ruleId = null; }
+      }
+      if (ruleId) report.workflows.ruleInferred++;
+    }
+    await persistWorkflowInstanceSteps(inst.declarationId, steps, ruleId);
     report.workflows.instances++;
     report.workflows.instanceSteps += steps.length;
   }
@@ -279,8 +298,8 @@ export function formatBackfillReport(r: BackfillReport): string {
     `departments: created=${r.departments.created} teams=${r.departments.teams} unscopedUsers=${r.departments.unscopedUsers}`,
     ...Object.entries(r.reference).map(([k, v]) => `ref ${k}: created=${v.created} invalid=${v.invalid.length}`),
     `counterparties: created=${r.counterparties.created} linked=${r.counterparties.linked} missing=${r.counterparties.missing}`,
-    `declarations: total=${r.declarations.total} eventDate=${r.declarations.eventDateBackfilled} submittedAt=${r.declarations.submittedAtBackfilled} declarerLinked=${r.declarations.declarerLinked} approverLinked=${r.declarations.approverLinked} snapshots=${r.declarations.snapshots}`,
-    `workflows: rules=${r.workflows.rules} ruleSteps=${r.workflows.ruleSteps} instances=${r.workflows.instances} steps=${r.workflows.instanceSteps} orphans=${r.workflows.orphanInstances.length} corrupt=${r.workflows.corruptJson.length}`,
+    `declarations: total=${r.declarations.total} eventDate=${r.declarations.eventDateBackfilled} submittedAt=${r.declarations.submittedAtBackfilled} invalidDates=${r.declarations.invalidDates.length} declarerLinked=${r.declarations.declarerLinked} approverLinked=${r.declarations.approverLinked} snapshots=${r.declarations.snapshots}`,
+    `workflows: rules=${r.workflows.rules} ruleSteps=${r.workflows.ruleSteps} instances=${r.workflows.instances} steps=${r.workflows.instanceSteps} ruleInferred=${r.workflows.ruleInferred} orphans=${r.workflows.orphanInstances.length} corrupt=${r.workflows.corruptJson.length}`,
     `files: total=${r.files.total} links=${r.files.links} orphans=${r.files.orphanFiles.length}`,
   ].join("\n");
 }

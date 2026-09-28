@@ -20,9 +20,15 @@ docker compose logs -f backend
 
 Open <http://localhost:3000>. Health is at <http://localhost:3001/api/health>; Swagger UI is at <http://localhost:3001/api/docs>.
 
-Seed a new database once with `docker compose exec backend npm run db:seed`.
+Seed a new database once with `SEED_ON_BOOT=true docker compose up -d --build`
+(or `docker compose exec backend npm run db:seed` against a running stack).
 
-The backend entrypoint runs `prisma db push` before starting. The backend image switches the Prisma provider from SQLite to PostgreSQL during its build.
+The backend entrypoint runs `prisma migrate deploy` before starting — versioned
+migrations only, failing fast with no `db push` fallback. It then runs the
+idempotent normalization backfill (reconciliation report in the logs, fatal on
+failure) and starts the API. The backend image switches the Prisma provider
+from SQLite to PostgreSQL during its build. Pre-migration databases must use
+the one-time baseline procedure in `NodejsBackend/prisma/BASELINE.md`.
 
 ## Configuration and operations
 

@@ -55,7 +55,7 @@ router.get("/list", authenticate, authorize("admin", "approver"), asyncHandler(a
 
   const declarations = await prisma.declaration.findMany({
     where,
-    orderBy: { submitted: "desc" },
+    orderBy: { submittedAt: "desc" },
     select: {
       id: true, employee: true, department: true, type: true,
       counterparty: true, value: true, date: true, submitted: true, status: true,
@@ -77,7 +77,7 @@ router.get("/export", authenticate, authorize("admin", "approver"), asyncHandler
 
   const declarations = await prisma.declaration.findMany({
     where,
-    orderBy: { submitted: "desc" },
+    orderBy: { submittedAt: "desc" },
     select: {
       id: true, employee: true, department: true, type: true,
       counterparty: true, value: true, date: true, submitted: true, status: true,

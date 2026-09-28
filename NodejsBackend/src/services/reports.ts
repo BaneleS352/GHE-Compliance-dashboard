@@ -1,21 +1,37 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AuthRequest } from "../middleware/auth";
+import { parseDateSafe } from "./normalization";
 import { viewStatusSummary, viewSlaRows, viewCounterparty } from "./reportingViews";
 
-function buildDateFilter(startDate?: string, endDate?: string): Prisma.StringFilter | undefined {
+/**
+ * Canonical date filter on the `eventDate` DateTime column (Phase 1 cutover).
+ * Legacy `date` text is the write path for API compatibility, but every write
+ * populates `eventDate` synchronously, so range queries use the typed column.
+ * Unparseable bounds are ignored; rows with an invalid legacy date (null
+ * `eventDate`) are excluded from date-filtered queries and counted in the
+ * backfill reconciliation report (`invalidDates`).
+ */
+function buildDateFilter(startDate?: string, endDate?: string): Prisma.DateTimeFilter | undefined {
   if (!startDate && !endDate) return undefined;
-  const f: Prisma.StringFilter = {};
-  if (startDate) f.gte = startDate;
-  if (endDate) f.lte = endDate;
-  return f;
+  const f: Prisma.DateTimeFilter = {};
+  const start = parseDateSafe(startDate);
+  if (start) f.gte = start;
+  let end = parseDateSafe(endDate);
+  if (end && endDate && /^\d{4}-\d{2}-\d{2}$/.test(String(endDate).trim())) {
+    // A calendar-date upper bound is inclusive of the whole day (UTC).
+    end = new Date(end.getTime());
+    end.setUTCHours(23, 59, 59, 999);
+  }
+  if (end) f.lte = end;
+  return Object.keys(f).length > 0 ? f : undefined;
 }
 
 export function buildReportWhere(req: AuthRequest): Prisma.DeclarationWhereInput {
   const { startDate, endDate, department, status } = req.query;
   const where: Prisma.DeclarationWhereInput = {};
   const dateFilter = buildDateFilter(startDate as string, endDate as string);
-  if (dateFilter) where.date = dateFilter;
+  if (dateFilter) where.eventDate = dateFilter;
   if (department && department !== "All Departments") where.department = String(department);
   if (status && status !== "All Statuses") {
     const validStatuses = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"];
@@ -247,7 +263,7 @@ export async function getReports(req: AuthRequest, config: { highValueThreshold:
   const where = buildReportWhere(req);
   const declarations = await prisma.declaration.findMany({
     where,
-    orderBy: { submitted: "desc" },
+    orderBy: { submittedAt: "desc" },
     select: {
       id: true, employee: true, department: true, type: true,
       counterparty: true, value: true, submitted: true, status: true,

@@ -138,3 +138,15 @@ All 34 documented audit findings (7 CRITICAL, 8 HIGH, 15 MEDIUM, 4 LOW) have bee
 - Cleanup: `dev.db`/`test.db` untracked (`git rm --cached`) and gitignored; removed dead `scoped`/`warmReportingViews` exports and unused imports
 - One test updated for the dual-store reality: `logical-flaws.test.ts` "admin can set Approved" now mirrors its direct JSON edit into step rows via `persistWorkflowInstanceSteps` (direct JSON writes bypass the source of truth)
 - Tests: 379/379 passing (6 in `normalization.test.ts`); `npx tsc` clean; `db:backfill` + `db:verify` proven against dev.db
+
+### Review remediation (goal doc "Implementation Review — 2026-09-28", all items)
+- Entrypoint fails fast: `db push` fallback removed, backfill failure stops startup (exit 1) with printed reconciliation report; `SEED_ON_BOOT` guard kept
+- Provider-correct raw SQL: `bindParams()` rewrites `?`→`$1..$n` on PostgreSQL; `ensureReportingViews` emits `CREATE OR REPLACE VIEW` on PG (`IF NOT EXISTS` is SQLite-only); added `viewCurrentSteps()` so all 7 views are queryable
+- `WorkflowInstance.ruleId` FK added (schema relation + `0002_rule_fk` migration, `ON DELETE SET NULL`); submit records the producing rule via `resolveRuleId()`; backfill infers historical ruleIds by role signature (reported as `ruleInferred`)
+- Atomic workflow writes: new `writeWorkflowStepsTx(tx, …)` writes JSON cache + rows + stale cleanup in the caller's transaction; submit/PUT-refresh/approve all use it (redundant post-response mirrors removed). Single rule documented in code + schema header: rows authoritative when present, JSON is fallback-only, direct writes must touch both
+- Setup hardening: globalSetup surfaces engine errors with actionable message; `postinstall` + `build` run `prisma generate` automatically
+- Timestamp cutover: mirrors awaited on POST/PUT/submit; report date filters + list ordering use `eventDate`/`submittedAt` DateTime columns (inclusive end-of-day bounds); backfill reports `invalidDates` rejected values; verify tolerates null columns for unparseable text
+- User teams: dead `user.team` branch removed, `teamId` documented as unresolved (no source data); teams still backfilled from declaration data
+- PG coverage without local PG (no docker/network here): `npm run pg:test` orchestrator (provider swap → generate → `migrate deploy` → checks → restore) + `pg-integration-checks.ts` (fixture, backfill, verify, all 7 org-scoped views vs Prisma aggregations, FK block + SET NULL) + `.github/workflows/postgres-normalization.yml` CI job; `bindParams` covered by unit tests
+- Docs: DOCKER.md/ARCHITECTURE.md no longer claim `db push`; DEPLOY.md seed fixed + verify step; BASELINE.md expanded to full runbook (operator, backup, verify queries, rollback); goal doc Current State updated
+- Tests: 381/381 passing (8 in `normalization.test.ts` incl. rule-FK + binding tests); `db:backfill` + `db:verify` clean on dev.db (ruleInferred=26)

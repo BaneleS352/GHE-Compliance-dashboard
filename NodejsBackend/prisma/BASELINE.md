@@ -1,32 +1,89 @@
-# PostgreSQL baseline procedure (Phase 0)
+# PostgreSQL deployment runbook (Phases 0–5)
 
-Production previously started with `prisma db push`, so there is no migration
-history on existing databases. `prisma/migrations/0000_baseline` captures that
-pre-normalization schema as the one-time baseline.
+`prisma/migrations/0000_baseline` captures the pre-normalization schema that
+production previously created with `prisma db push`. `0001_normalization`
+adds the relational model, and `0002_rule_fk` reconciles the
+`WorkflowInstance -> WorkflowRule` foreign key. All migrations are
+forward-only; rollback is backup/restore, never DDL reversal.
 
-## New database
+## Roles
 
-No action needed. The Docker entrypoint runs `prisma migrate deploy`, which
-applies `0000_baseline` + `0001_normalization` in order.
+- **Release operator** (human or deploy pipeline): takes the backup, runs the
+  one-time baseline/resolve commands below, and approves the deploy.
+- **Container entrypoint**: runs `prisma migrate deploy`, the idempotent
+  backfill, then the API. It fails fast — a failed migration or backfill
+  stops the container with a non-zero exit. There is no `db push` fallback.
 
-## Existing production database (created by `db push`)
-
-Mark the baseline as already applied, then deploy the normalization migration:
+## 0. Back up first (required before any migration)
 
 ```sh
-# 1. Point DATABASE_URL at the existing production database.
+pg_dump "postgresql://ghe_user:ghe_password@db:5432/ghe_compliance?schema=public" \
+  > backup_pre_$(date +%Y%m%d_%H%M%S).sql
+# Verify the dump restores: pg_restore/psql into a scratch database.
+```
+
+## 1. New database
+
+No action needed. The Docker entrypoint runs `prisma migrate deploy`, which
+applies `0000_baseline` + `0001_normalization` + `0002_rule_fk` in order,
+then the backfill, then the server.
+
+```sh
+SEED_ON_BOOT=true docker compose up -d --build   # empty database, first boot only
+```
+
+## 2. Existing production database (created by `db push`)
+
+One-time procedure, run by the release operator:
+
+```sh
+# 1. Point DATABASE_URL at the existing production database (backup taken above).
 # 2. Mark the baseline applied without running its DDL:
 npx prisma migrate resolve --applied "0000_baseline"
 
-# 3. Verify what would run next (should be only 0001_normalization):
+# 3. Confirm the plan (must list only 0001_normalization and 0002_rule_fk):
 npx prisma migrate status
 
-# 4. Apply it (or let the container entrypoint do it on next deploy):
+# 4. Apply (or let the container entrypoint do it on next deploy):
 npx prisma migrate deploy
 
 # 5. Backfill + reconcile (idempotent; prints the mapping report):
 npm run db:backfill
+
+# 6. Verify zero drift before declaring the deploy healthy:
+npm run db:verify
 ```
+
+## 3. Verification queries (post-deploy health)
+
+```sh
+npx prisma migrate status            # must report "Database schema is up to date"
+npm run db:verify                    # must print "OK: relational model matches legacy columns"
+```
+
+Spot-check in SQL:
+
+```sql
+-- every instance resolves to a live rule (or null after a rule delete)
+SELECT COUNT(*) FROM "WorkflowInstance" i
+ LEFT JOIN "WorkflowRule" r ON r."id" = i."ruleId"
+ WHERE i."ruleId" IS NOT NULL AND r."id" IS NULL;  -- must be 0
+-- step rows mirror the JSON cache
+SELECT COUNT(*) FROM "WorkflowInstance";           -- N instances
+SELECT COUNT(DISTINCT "instanceId") FROM "WorkflowInstanceStep";  -- must also be N
+```
+
+## 4. Failure / rollback
+
+- **Migration failure**: the entrypoint exits non-zero and the old container
+  keeps serving (compose does not replace a container whose entrypoint
+  fails). Inspect `docker compose logs backend`, fix the cause, restore the
+  backup if the database was partially migrated, redeploy.
+- **Backfill/verify failure**: startup stops. Do not bypass — restore the
+  backup if data was affected, fix the cause, redeploy.
+- **Rollback**: restore the pre-deploy `pg_dump` backup and redeploy the
+  previous image tag. Application compatibility is maintained because the
+  API contract never changed (legacy columns remain populated).
 
 ## Safety rules
 
@@ -34,8 +91,11 @@ npm run db:backfill
 - `node dist/seed.js` never runs automatically in production; the entrypoint
   only seeds when `SEED_ON_BOOT=true` (first boot of an empty database).
 - `npm run db:backfill` is idempotent and safe to re-run; review its
-  reconciliation report for missing references / rejected values before
-  retiring any legacy column (Phase 5).
+  reconciliation report (`invalidDates`, missing references, rejected values)
+  before retiring any legacy column (Phase 5, see RETIREMENT.md).
 - SQLite dev/tests keep using `prisma db push` from `schema.prisma`; the
   `Dockerfile` rewrites the provider to `postgresql` at build time so the
   same schema deploys with versioned migrations in production.
+- PostgreSQL behaviour (migrations, views, backfill, scoping, FKs) is covered
+  by `npm run pg:test` (needs `TEST_PG_DATABASE_URL`) and the
+  `postgres-normalization` CI job.
