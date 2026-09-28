@@ -255,3 +255,47 @@ None of the items below may be removed until the backfill and verification gates
 ### Cleanup acceptance criteria
 
 For each removal, record the migration version, source/target row counts, zero-drift verification output, affected API contract/version, test evidence, deployment date, and rollback/restore reference. A legacy field or table is not dead code until all supported reads and writes have been retired and that evidence is recorded.
+
+## Third Implementation Audit — 2026-09-28
+
+### Status: improved, but still not approved
+
+The latest revision closes two previously critical consistency gaps: declaration create/update/submit now writes its canonical relational fields in the same transaction, and workflow approval updates `currentApproverUserId` alongside the legacy approver fields. The typed monthly view was also changed to use `eventDate`.
+
+However, the migration chain, test execution, and dashboard-view adoption remain incomplete.
+
+### Remaining release blockers
+
+1. **The counterparty uniqueness change is schema-only.** `Counterparty` now declares `@@unique([name, organizationId])` in `schema.prisma`, but the committed PostgreSQL migration chain ends at `0002_rule_fk`. `prisma migrate deploy` will not create this new constraint. The production database therefore remains duplicate-prone, and `ensureCounterparty()` will not receive the expected `P2002` race error. Add a forward-only migration that first identifies/reconciles duplicates, then creates the chosen constraint/index.
+
+2. **The chosen composite unique rule does not protect global counterparties.** PostgreSQL permits multiple rows where `organizationId` is `NULL` under a normal composite unique constraint. If global counterparties are valid, use a partial/expression unique index or split global and organisation-scoped identity rules. If they are not valid, make `organizationId` non-null. This policy must be decided before migration `0003` is written.
+
+3. **The backend test suite still does not execute.** Replacing `npx` with the resolved local Prisma CLI did not fix the SQLite schema-engine failure. `npm test` fails in global setup before discovering or running a test. The test environment/root cause must be fixed and the full suite must pass; improved error output alone is not verification.
+
+### Remaining implementation gaps
+
+1. **Dashboard views remain disconnected.** `/api/declarations/stats` still uses Prisma aggregation and the static `ComplianceTrendPoint`/`TypeBreakdownItem` tables. The new `viewStatusSummaryFull()` helper is not used by that endpoint, and the monthly/type/high-value/current-step view helpers are used only by the PostgreSQL integration worker. Wire the agreed views into the application or remove the unused helper layer until that work is scheduled.
+
+2. **The update adds widespread trailing whitespace.** `git diff --check` reports trailing whitespace throughout the modified test and route files. Clean the touched files before merge so review, patching, and future formatting checks remain reliable.
+
+3. **Counterparty creation is outside the declaration transaction.** A counterparty can be created successfully while the subsequent declaration transaction fails, leaving an unused counterparty row. This is acceptable only if such rows are deliberately retained master data. Otherwise, resolve/create the counterparty in the declaration transaction after the uniqueness constraint exists.
+
+4. **The historical snapshot is not immutable as documented.** `captureDeclarationSnapshot()` updates `managerDisplayName` whenever a non-null manager is supplied, despite claiming it only fills blanks. Define whether manager display name is a submission-time snapshot or mutable display data; for a true audit snapshot, remove the update path after the first insert.
+
+### Verification evidence
+
+- `npm run build` passes.
+- `npm test` fails before any test executes because SQLite test database initialisation still fails.
+- PostgreSQL execution remains unverified on this audit host because Docker is unavailable. The CI PostgreSQL job must run successfully before approval.
+- `git diff --check` fails due to trailing whitespace introduced in the latest commit.
+
+### Additional dead-code and cleanup actions
+
+These are additions to the existing cleanup plan; apply them only once their replacement is live and tested.
+
+- Add and apply the counterparty-identity migration before relying on `ensureCounterparty()`'s `P2002` branch. After the database constraint and a clear global-counterparty policy are in place, replace `findFirst` with the appropriately constrained lookup where possible; remove any no-longer-reachable retry code.
+- `viewStatusSummaryFull`, `viewMonthly`, `viewTypeBreakdown`, `viewHighValue`, and `viewCurrentSteps` are currently integration-test-only helpers. Either wire each approved view into a scoped production endpoint with result-equivalence coverage, or remove the unused helper and test until the feature is scheduled.
+- Remove `resetReportingViewsCache()` if it remains unreferenced after the reporting-view tests are finalized; it is a test hook with no value in the production module when unused.
+- Once SQLite test setup is repaired, remove the temporary direct-CLI diagnostic/workaround in `src/__tests__/globalSetup.ts` if the ordinary local Prisma invocation is proven stable. Keep only actionable test setup code, not layered retries/workarounds.
+- After dashboard endpoints consume reporting views, retire `ComplianceTrendPoint`, `TypeBreakdownItem`, their seed records, static API reads, and frontend fallback assumptions together in one planned release.
+- Normalize line endings and remove trailing whitespace from touched files now; formatting-only churn should not be carried into later schema-retirement commits.
