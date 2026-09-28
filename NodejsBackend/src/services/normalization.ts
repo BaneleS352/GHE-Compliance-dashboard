@@ -80,11 +80,9 @@ export async function captureDeclarationSnapshot(
       department: declarer.department,
       managerDisplayName,
     },
-    update: {
-      // Snapshot is immutable after first capture for non-draft edits; only
-      // fill blanks (e.g. backfill) so history isn't rewritten on team moves.
-      managerDisplayName: managerDisplayName ?? undefined,
-    },
+    // Snapshot is immutable after first capture; no update path so later calls
+    // cannot rewrite historical declarer context (e.g. team moves).
+    update: {},
   });
 }
 
