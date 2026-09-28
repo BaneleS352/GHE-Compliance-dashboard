@@ -119,3 +119,22 @@ All 34 documented audit findings (7 CRITICAL, 8 HIGH, 15 MEDIUM, 4 LOW) have bee
 - Counterparty helper text updated to `Full Name of the organisation or Team Member`
 - Approver Dashboard Escalated KPI card replaced with Returned; Returned counts and filtering are supported
 - Total KPI count and rand value now use the same font size
+
+### DB Normalization (docs/DATABASE-NORMALIZATION-GOAL.md, Phases 0–4)
+- Single Prisma schema works on SQLite (dev/test via `db push`) and PostgreSQL (prod via `migrate deploy`; Dockerfile sed rewrites provider at build)
+- `prisma/migrations/0000_baseline` (pre-normalization DDL) + `0001_normalization` (new tables/columns/views); baseline procedure in `prisma/BASELINE.md`
+- Entrypoint runs `migrate deploy` (falls back to `db push` on pre-migration DBs), seeds only when `SEED_ON_BOOT=true`, then runs idempotent `npm run db:backfill`
+- New models: `Department`, `Team`, `AppRole`, `UserRole`, `OrganizationSetting`, ref lookups (`RefDeclarationType/Status/Priority/Direction/WorkflowStatus/RelationshipType`), `Counterparty` + `CounterpartyContact`, `DeclarationSnapshot` (immutable declarer context), `DeclarationDetail`, `DeclarationFile` join, `WorkflowRuleStep`, `WorkflowInstanceStep`
+- `Declaration` gained `eventDate`/`submittedAt` (DateTime, backfilled from text), `declarerUserId`/`currentApproverUserId`/`counterpartyId` FKs (`SetNull` so user deletes still succeed and history stays in legacy strings); `User.managerId`/`departmentId`/`teamId`; legacy JSON/text columns remain the API contract (Phase 5 retirement deferred)
+- Dual-write: declarations POST/PUT/submit mirror snapshot/detail/counterparty/timestamps; submit/approve persist step rows BEFORE responding; rule admin syncs `WorkflowRuleStep`; file upload creates `DeclarationFile` join; all mirrors are best-effort and never break the legacy path
+- Reporting views (`reportingViews.ts`, portable SQLite/Postgres SQL, `ensureReportingViews`) used for unfiltered status/counterparty/SLA queries with legacy fallback when filters present; auth scoping stays in the API
+- Tests: 378/378 passing incl. new `normalization.test.ts` (backfill idempotence, mirror, step equivalence, view equivalence, rule sync)
+
+### DB Normalization completion (Phase 5 readiness + cleanup)
+- Source-of-truth flip (no DDL, per the goal doc's safety rule deferring destructive removal to a later release): all step reads are rows-first with JSON fallback — `createWorkflowSteps` reads `WorkflowRuleStep` rows, `getCurrentStep`/`pending`/`instances`/approve/files/guards/`PATCH :id/status` read `WorkflowInstanceStep` rows; approve writes rows + JSON atomically in one transaction; submit persists rows before responding
+- `npm run db:verify` gate (`scripts/verify-normalization.ts`): asserts zero drift between rows and legacy JSON/text (rules, instances, snapshots, details, dates, counterparties, file joins); covered by a test in `normalization.test.ts`
+- `prisma/RETIREMENT.md` runbook: verify → release window → backup/restore rollback → deferred `0002_retirement` DDL draft (kept out of `migrations/` so `migrate deploy` never applies it early)
+- `globalSetup` runs the backfill so the suite exercises relational paths from the start
+- Cleanup: `dev.db`/`test.db` untracked (`git rm --cached`) and gitignored; removed dead `scoped`/`warmReportingViews` exports and unused imports
+- One test updated for the dual-store reality: `logical-flaws.test.ts` "admin can set Approved" now mirrors its direct JSON edit into step rows via `persistWorkflowInstanceSteps` (direct JSON writes bypass the source of truth)
+- Tests: 379/379 passing (6 in `normalization.test.ts`); `npx tsc` clean; `db:backfill` + `db:verify` proven against dev.db

@@ -246,6 +246,28 @@ async function main() {
 
   console.log("Seeded system config, dropdowns, trend data, type breakdown, and approval options");
   console.log(`All passwords: "${DEFAULT_PASSWORD}"`);
+
+  // Phase 2 reference data (idempotent lookups for the normalized model).
+  for (const role of ["admin", "approver", "teamMember"]) {
+    await prisma.appRole.upsert({ where: { name: role }, create: { name: role }, update: {} });
+  }
+  const refSeeds: { model: "refDeclarationType" | "refDeclarationStatus" | "refPriority" | "refDirection" | "refWorkflowStatus"; values: string[] }[] = [
+    { model: "refDeclarationType", values: ["Gift", "Hospitality", "Entertainment"] },
+    { model: "refDeclarationStatus", values: ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"] },
+    { model: "refPriority", values: ["Low", "Medium", "High"] },
+    { model: "refDirection", values: ["Received", "Given"] },
+    { model: "refWorkflowStatus", values: ["pending", "approved", "declined", "returned", "skipped"] },
+  ];
+  for (const spec of refSeeds) {
+    for (const name of spec.values) {
+      await (prisma as any)[spec.model].upsert({ where: { name }, create: { name }, update: {} });
+    }
+  }
+
+  // Backfill the relational read model from the seeded legacy rows (idempotent).
+  const { backfillNormalization, formatBackfillReport } = await import("./scripts/backfill-normalization");
+  const report = await backfillNormalization();
+  console.log("Normalization backfill:\n" + formatBackfillReport(report));
 }
 
 main()

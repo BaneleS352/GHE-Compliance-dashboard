@@ -6,6 +6,7 @@ import crypto from "crypto";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { readWorkflowSteps } from "../services/normalization";
 
 const router = Router();
 
@@ -45,8 +46,7 @@ const upload = multer({
   },
 });
 
-function handleMulterError(err: Error, _req: AuthRequest, res: Response, next: NextFunction): void {
-  if (err instanceof MulterError) {
+function handleMulterError(err: Error, _req: AuthRequest, res: Response, next: NextFunction): void {  if (err instanceof MulterError) {
     if (err.code === "LIMIT_FILE_SIZE") {
       res.status(413).json({ error: "File too large. Maximum size is 10MB" });
       return;
@@ -59,6 +59,20 @@ function handleMulterError(err: Error, _req: AuthRequest, res: Response, next: N
     return;
   }
   next(err);
+}
+
+/** Rows-first assignee check; legacy JSON cache is the fallback. */
+async function isWorkflowAssignee(declarationId: string, userId: string): Promise<boolean> {
+  try {
+    const steps = await readWorkflowSteps(declarationId);
+    if (steps) return steps.some((s: any) => s.assignee === userId);
+  } catch { /* fall through to JSON */ }
+  const inst = await prisma.workflowInstance.findUnique({ where: { declarationId } });
+  if (!inst) return false;
+  try {
+    const steps: any[] = JSON.parse(inst.steps as string);
+    return steps.some((s: any) => s.assignee === userId);
+  } catch { return false; }
 }
 
 // POST /api/files/upload
@@ -113,6 +127,15 @@ router.post(
       },
     });
 
+    // Relational join for the auditable file association (Phase 3).
+    try {
+      await (prisma as any).declarationFile.create({
+        data: { declarationId, fileId: file.id },
+      });
+    } catch {
+      // Legacy UploadedFile.declarationId remains authoritative.
+    }
+
     res.status(201).json({
       id: file.id,
       name: file.originalName,
@@ -143,13 +166,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     if (!decl || decl.employeeId !== req.user!.id) {
       let isApprover = false;
       if (decl) {
-        const inst = await prisma.workflowInstance.findUnique({ where: { declarationId: decl.id } });
-        if (inst) {
-          try {
-            const steps: any[] = JSON.parse(inst.steps as string);
-            isApprover = steps.some((s: any) => s.assignee === req.user!.id);
-          } catch { isApprover = false; }
-        }
+        isApprover = await isWorkflowAssignee(decl.id, req.user!.id);
       }
       if (!isApprover) {
         res.status(403).json({ error: "Access denied" });
@@ -191,13 +208,7 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     if (!decl || decl.employeeId !== req.user!.id) {
       let isApprover = false;
       if (decl) {
-        const inst = await prisma.workflowInstance.findUnique({ where: { declarationId: decl.id } });
-        if (inst) {
-          try {
-            const steps: any[] = JSON.parse(inst.steps as string);
-            isApprover = steps.some((s: any) => s.assignee === req.user!.id);
-          } catch { isApprover = false; }
-        }
+        isApprover = await isWorkflowAssignee(decl.id, req.user!.id);
       }
       if (!isApprover) {
         res.status(403).json({ error: "Access denied" });
@@ -209,6 +220,7 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
   const filePath = path.join(UPLOAD_DIR, file.path);
   try { await fs.promises.unlink(filePath); } catch { /* file may have been deleted already */ }
 
+  await (prisma as any).declarationFile.deleteMany({ where: { fileId: id } }).catch(() => undefined);
   await prisma.uploadedFile.delete({ where: { id } });
   res.json({ message: "File deleted" });
 }));

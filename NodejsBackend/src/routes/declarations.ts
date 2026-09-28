@@ -8,7 +8,55 @@ import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { createWorkflowSteps, safeJsonParse, declarationResponse } from "../services/workflowService";
+import {
+  parseDateSafe,
+  ensureCounterparty,
+  captureDeclarationSnapshot,
+  syncDeclarationDetail,
+  persistWorkflowInstanceSteps,
+  readWorkflowSteps,
+} from "../services/normalization";
 import { sendNotification } from "../services/notificationService";
+
+/** Best-effort relational mirror; legacy columns stay authoritative until Phase 5. */
+async function mirrorDeclarationRelational(declaration: any): Promise<void> {
+  try {
+    const eventDate = parseDateSafe(declaration.date);
+    const submittedAt = parseDateSafe(declaration.submitted);
+    let counterpartyId: string | null = null;
+    if (declaration.counterparty) {
+      const cp = await ensureCounterparty(declaration.counterparty, declaration.organizationId, declaration.contactPerson);
+      counterpartyId = cp?.id || null;
+    }
+    let declarerUserId: string | null = null;
+    if (declaration.employeeId) {
+      const u = await prisma.user.findUnique({ where: { id: declaration.employeeId }, select: { id: true } });
+      if (u) declarerUserId = u.id;
+    }
+    let currentApproverUserId: string | null = null;
+    if (declaration.approverId) {
+      const a = await prisma.user.findUnique({ where: { id: declaration.approverId }, select: { id: true } });
+      if (a) currentApproverUserId = a.id;
+    }
+    await prisma.declaration.update({
+      where: { id: declaration.id },
+      data: { eventDate, submittedAt, declarerUserId, currentApproverUserId, counterpartyId },
+    });
+    await captureDeclarationSnapshot(
+      declaration.id,
+      {
+        name: declaration.employee,
+        teamMemberNumber: declaration.teamMemberNumber,
+        position: declaration.position,
+        department: declaration.department,
+      },
+      declaration.lineManager || null,
+    );
+    await syncDeclarationDetail(declaration.id, declaration);
+  } catch {
+    // Relational mirror must never break the legacy write path.
+  }
+}
 
 const router = Router();
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
@@ -216,6 +264,7 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   });
 
   res.status(201).json(declarationResponse(declaration));
+  void mirrorDeclarationRelational(declaration);
 }));
 
 router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
@@ -237,7 +286,8 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
 
   const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: declaration.id } });
-  const rawSteps = instance ? safeJsonParse(instance.steps) : [];
+  // Rows-first; legacy JSON cache is the fallback.
+  const rawSteps = instance ? (await readWorkflowSteps(instance.declarationId)) || safeJsonParse(instance.steps) || [] : [];
 
   const workflowSteps = req.user!.role === "admin" || req.user!.role === "approver"
     ? rawSteps
@@ -342,7 +392,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   if (existing.status === "Returned" && data.value !== undefined && data.value !== existing.value) {
     const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
     if (instance) {
-      const savedSteps = safeParseWorkflowSteps(instance.steps);
+      const savedSteps = (await readWorkflowSteps(id)) || safeParseWorkflowSteps(instance.steps);
       const freshSteps = await createWorkflowSteps(id, existing.employeeId, updated.value);
       const approvedMap = new Map(savedSteps.filter((s: any) => s.status === "approved").map((s: any) => [s.role, s]));
       const workflowSteps = freshSteps.map((step: any) => {
@@ -352,8 +402,15 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
           : step;
       });
       await prisma.workflowInstance.update({ where: { declarationId: id }, data: { steps: JSON.stringify(workflowSteps) } });
+      try {
+        await persistWorkflowInstanceSteps(id, workflowSteps);
+      } catch {
+        // Relational mirror must never break the legacy path.
+      }
     }
   }
+
+  void mirrorDeclarationRelational(updated);
 
   res.json(declarationResponse(updated));
 }));
@@ -379,7 +436,9 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     return;
   }
 
-  // Cascade: delete workflow instance and uploaded files before declaration
+  // Cascade: delete workflow instance and uploaded files before declaration.
+  // Draft-only deletion is enforced above; relational children cascade at the
+  // DB level, with explicit deletes here for pre-migration databases.
   const files = await prisma.uploadedFile.findMany({ where: { declarationId: id } });
   await Promise.all(files.map(async (f) => {
     const fp = path.join(UPLOAD_DIR, f.path);
@@ -388,8 +447,12 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
   await Promise.all([
     prisma.uploadedFile.deleteMany({ where: { declarationId: id } }),
     prisma.workflowInstance.deleteMany({ where: { declarationId: id } }),
-    prisma.declaration.delete({ where: { id } }),
+    (prisma as any).workflowInstanceStep.deleteMany({ where: { declarationId: id } }).catch(() => undefined),
+    (prisma as any).declarationFile.deleteMany({ where: { declarationId: id } }).catch(() => undefined),
+    (prisma as any).declarationSnapshot.deleteMany({ where: { declarationId: id } }).catch(() => undefined),
+    (prisma as any).declarationDetail.deleteMany({ where: { declarationId: id } }).catch(() => undefined),
   ]);
+  await prisma.declaration.delete({ where: { id } });
 
   res.json({ message: "Declaration deleted" });
 }));
@@ -419,7 +482,7 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
 
   let workflowSteps: any[];
   if (existing.status === "Returned" && existingInstance) {
-    const savedSteps = safeParseWorkflowSteps(existingInstance.steps);
+    const savedSteps = (await readWorkflowSteps(existing.id)) || safeParseWorkflowSteps(existingInstance.steps);
     const hasReturnedStep = savedSteps.some((step) => step.status === "returned");
     if (hasReturnedStep) {
       // Rebuild from the current value so a returned low-value declaration that
@@ -456,6 +519,15 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     }),
   ]);
 
+  // Mirror to the relational audit trail BEFORE responding so readers never
+  // observe JSON without matching step rows (legacy JSON stays authoritative).
+  try {
+    await persistWorkflowInstanceSteps(existing.id, workflowSteps);
+  } catch {
+    // Relational mirror must never break the legacy path.
+  }
+  void mirrorDeclarationRelational(updated);
+
   res.json(declarationResponse(updated));
   if (nextApprover) {
     void sendNotification(nextApprover.role === "hr" ? "hrApproval" : "managerApproval", existing.id, nextApprover.assignee);
@@ -488,7 +560,7 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
       res.status(400).json({ error: "Cannot approve/decline a declaration with no workflow instance" });
       return;
     }
-    const steps: any[] = safeJsonParse(instance.steps);
+    const steps: any[] = (await readWorkflowSteps(id)) || safeJsonParse(instance.steps) || [];
     const pendingStep = steps.find((s: any) => s.status === "pending");
     if (pendingStep) {
       res.status(400).json({ error: "Cannot approve/decline — pending approval step still exists" });

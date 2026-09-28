@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AuthRequest } from "../middleware/auth";
+import { viewStatusSummary, viewSlaRows, viewCounterparty } from "./reportingViews";
 
 function buildDateFilter(startDate?: string, endDate?: string): Prisma.StringFilter | undefined {
   if (!startDate && !endDate) return undefined;
@@ -28,6 +29,19 @@ export function buildReportWhere(req: AuthRequest): Prisma.DeclarationWhereInput
 }
 
 export async function getStatusBreakdown(req: AuthRequest): Promise<Record<string, number>> {
+  // Phase 4: prefer the reporting view; fall back to legacy aggregation
+  // (pre-backfill or pre-migration databases, SQLite dev).
+  try {
+    const orgId = (req as any).user?.organizationId as string | undefined;
+    const fromView = await viewStatusSummary(orgId);
+    if (fromView) {
+      // Views are unfiltered read models — re-apply non-org filters via legacy path when present.
+      const { startDate, endDate, department, status } = req.query;
+      if (!startDate && !endDate && !department && !status) return fromView;
+    }
+  } catch {
+    // Fall through to legacy aggregation.
+  }
   const where = buildReportWhere(req);
   const grouped = await prisma.declaration.groupBy({ by: ["status"], where, _count: { status: true } });
   const counts: Record<string, number> = {};
@@ -38,6 +52,46 @@ export async function getStatusBreakdown(req: AuthRequest): Promise<Record<strin
 }
 
 export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
+  // Phase 4: prefer relational step rows via the SLA view (portable day math in JS).
+  // Views are unfiltered read models: only use them when the request carries no
+  // report filters, otherwise fall through to the filtered legacy aggregation.
+  const { startDate, endDate, department, status } = req.query as Record<string, unknown>;
+  const unfiltered = !startDate && !endDate && (!department || department === "All Departments") && (!status || status === "All Statuses");
+  if (unfiltered) {
+  try {
+    const rows = await viewSlaRows();
+    if (rows && rows.length > 0) {
+      const roleMap: Record<string, string> = { lineManager: "Line Manager", hr: "HR" };
+      const byRole: Record<string, number[]> = {};
+      for (const r of rows as any[]) {
+        const decidedRaw = (r as any).decidedAt;
+        const eventRaw = (r as any).eventDate;
+        const legacyRaw = (r as any).legacyDate;
+        if (!decidedRaw) continue;
+        const decided = new Date(decidedRaw).getTime();
+        const base = eventRaw ? new Date(eventRaw).getTime() : new Date(String(legacyRaw)).getTime();
+        if (Number.isNaN(decided) || Number.isNaN(base)) continue;
+        const days = (decided - base) / (1000 * 60 * 60 * 24);
+        const label = roleMap[(r as any).role] || (r as any).role;
+        if (!byRole[label]) byRole[label] = [];
+        byRole[label].push(days);
+      }
+      const out = Object.entries(byRole).map(([role, days]) => {
+        const total = days.reduce((s, d) => s + d, 0);
+        return {
+          role,
+          avg: Math.round((total / days.length) * 100) / 100,
+          min: Math.round(Math.min(...days) * 100) / 100,
+          max: Math.round(Math.max(...days) * 100) / 100,
+          count: days.length,
+        };
+      });
+      if (out.length > 0) return out;
+    }
+  } catch {
+    // Fall through to legacy JSON aggregation.
+  }
+  }
   const where = buildReportWhere(req);
   const declarations = await prisma.declaration.findMany({ where, select: { id: true, date: true } });
   if (declarations.length === 0) return [];
@@ -88,6 +142,17 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
 }
 
 export async function getCounterpartyConcentration(req: AuthRequest): Promise<any[]> {
+  // Phase 4: prefer the reporting view for unfiltered org queries.
+  try {
+    const { startDate, endDate, department, status } = req.query;
+    if (!startDate && !endDate && !department && !status) {
+      const orgId = (req as any).user?.organizationId as string | undefined;
+      const fromView = await viewCounterparty(orgId);
+      if (fromView) return fromView;
+    }
+  } catch {
+    // Fall through to legacy aggregation.
+  }
   const where = buildReportWhere(req);
   const declarations = await prisma.declaration.findMany({ where, select: { counterparty: true, value: true } });
 

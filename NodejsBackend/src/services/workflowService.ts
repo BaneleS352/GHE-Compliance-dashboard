@@ -35,8 +35,21 @@ export async function createWorkflowSteps(_declarationId: string, employeeId: st
   const rule = await prisma.workflowRule.findUnique({ where: { id: ruleId } });
   if (!rule) throw new Error(`Workflow rule ${ruleId} not found`);
 
+  // Source of truth: relational rule-step rows; legacy JSON is a write-through cache.
   let stepDefs: WorkflowStepDef[];
-  try { stepDefs = JSON.parse(rule.steps); } catch { throw new Error(`Corrupt workflow rule steps for rule ${ruleId}`); }
+  try {
+    const rows = await (prisma as any).workflowRuleStep.findMany({
+      where: { ruleId },
+      orderBy: { order: "asc" },
+    });
+    stepDefs = rows.length > 0
+      ? rows.map((r: any) => ({ order: r.order, role: r.role, label: r.label }))
+      : JSON.parse(rule.steps);
+    if (!Array.isArray(stepDefs)) throw new Error("bad shape");
+  } catch (err) {
+    if ((err as Error).message === "bad shape") throw new Error(`Corrupt workflow rule steps for rule ${ruleId}`);
+    try { stepDefs = JSON.parse(rule.steps); } catch { throw new Error(`Corrupt workflow rule steps for rule ${ruleId}`); }
+  }
   const employee = await prisma.user.findUnique({ where: { id: employeeId } });
   if (!employee) throw new Error("Employee not found");
 
@@ -112,6 +125,33 @@ export async function createWorkflowSteps(_declarationId: string, employeeId: st
 }
 
 export async function getCurrentStep(declarationId: string): Promise<WorkflowStep | null> {
+  // Source of truth: relational step rows; legacy JSON is a read fallback.
+  try {
+    const rows = await (prisma as any).workflowInstanceStep.findMany({
+      where: { instanceId: declarationId },
+      orderBy: { stepOrder: "asc" },
+    });
+    if (rows.length > 0) {
+      const pending = rows.find((r: any) => r.status === "pending");
+      if (!pending) return null;
+      return {
+        order: pending.stepOrder,
+        role: pending.role,
+        assignee: pending.assigneeId || "",
+        assigneeName: pending.assigneeName,
+        label: pending.label,
+        status: pending.status,
+        decision: pending.decision ?? null,
+        approvedAt: null,
+        notes: pending.notes ?? "",
+        decidedAt: pending.decidedAt ? new Date(pending.decidedAt).toISOString() : null,
+        decidedById: pending.decidedById ?? null,
+        decidedByName: pending.decidedByName ?? null,
+      };
+    }
+  } catch {
+    // Fall through to legacy JSON.
+  }
   const instance = await prisma.workflowInstance.findUnique({ where: { declarationId } });
   if (!instance) return null;
   let steps: WorkflowStep[];

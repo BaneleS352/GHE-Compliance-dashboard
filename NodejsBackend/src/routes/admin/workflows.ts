@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
 import { asyncHandler } from "../../middleware/asyncHandler";
+import { syncWorkflowRuleSteps } from "../../services/normalization";
 
 const router = Router();
 
@@ -16,11 +17,21 @@ interface StepDef {
 router.get("/rules", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const rules = await prisma.workflowRule.findMany({ orderBy: { priority: "asc" } });
   res.json(
-    rules.map((r) => {
+    await Promise.all(rules.map(async (r) => {
+      // Rows-first; legacy JSON cache is the fallback.
       let s: StepDef[];
-      try { s = JSON.parse(r.steps); } catch { s = []; }
+      try {
+        const rows = await (prisma as any).workflowRuleStep.findMany({
+          where: { ruleId: r.id },
+          orderBy: { order: "asc" },
+        });
+        s = rows.length > 0
+          ? rows.map((row: any) => ({ order: row.order, role: row.role, label: row.label }))
+          : JSON.parse(r.steps);
+        if (!Array.isArray(s)) s = [];
+      } catch { s = []; }
       return { id: r.id, name: r.name, condition: r.condition, priority: r.priority, steps: s };
-    })
+    })),
   );
 }));
 
@@ -66,6 +77,8 @@ router.post("/rules", authenticate, authorize("admin"), asyncHandler(async (req:
     },
   });
 
+  void syncWorkflowRuleSteps(rule.id).catch(() => undefined);
+
   res.status(201).json({
     id: rule.id,
     name: rule.name,
@@ -104,18 +117,31 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
 
   if (data.steps) {
     const newRoles = data.steps.map((s) => s.role);
-    const instances = await prisma.workflowInstance.findMany();
-    for (const inst of instances) {
-      let currentSteps: any[];
-      try { currentSteps = JSON.parse(inst.steps); } catch { continue; }
-      for (const role of newRoles) {
-        const active = currentSteps.find((s) => s.role === role && s.status === "pending");
-        if (active) {
-          res.status(400).json({
-            error: `Cannot add step with role "${role}"; it is still active in workflow for declaration ${inst.declarationId}`,
-          });
-          return;
+    // Guard against redefining a role that is mid-approval: check relational
+    // rows first, legacy JSON cache as fallback.
+    for (const role of newRoles) {
+      let blocker: string | null = null;
+      try {
+        const row = await (prisma as any).workflowInstanceStep.findFirst({
+          where: { role, status: "pending" },
+          select: { declarationId: true },
+        });
+        if (row) blocker = row.declarationId;
+      } catch { blocker = null; }
+      if (!blocker) {
+        const instances = await prisma.workflowInstance.findMany();
+        for (const inst of instances) {
+          let currentSteps: any[];
+          try { currentSteps = JSON.parse(inst.steps); } catch { continue; }
+          const active = currentSteps.find((s) => s.role === role && s.status === "pending");
+          if (active) { blocker = inst.declarationId; break; }
         }
+      }
+      if (blocker) {
+        res.status(400).json({
+          error: `Cannot add step with role "${role}"; it is still active in workflow for declaration ${blocker}`,
+        });
+        return;
       }
     }
   }
@@ -130,6 +156,10 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
     where: { id },
     data: updateData,
   });
+
+  if (data.steps !== undefined) {
+    void syncWorkflowRuleSteps(rule.id).catch(() => undefined);
+  }
 
   res.json({
     id: rule.id,
@@ -149,6 +179,7 @@ router.delete("/rules/:id", authenticate, authorize("admin"), asyncHandler(async
     return;
   }
 
+  await (prisma as any).workflowRuleStep.deleteMany({ where: { ruleId: id } }).catch(() => undefined);
   await prisma.workflowRule.delete({ where: { id } });
   res.json({ message: "Workflow rule deleted" });
 }));

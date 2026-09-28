@@ -1059,6 +1059,10 @@ describe("Admin status bypass protection", () => {
       s.approvedAt = new Date().toISOString();
     }
     await prisma.workflowInstance.update({ where: { declarationId: id }, data: { steps: JSON.stringify(steps) } });
+    // Relational step rows are the source of truth: mirror the direct JSON
+    // edit into them (production code always writes both stores).
+    const { persistWorkflowInstanceSteps } = await import("../services/normalization");
+    await persistWorkflowInstanceSteps(id, steps);
     const res = await request(app)
       .patch(`/api/declarations/${id}/status`)
       .set("Authorization", `Bearer ${getAdminToken()}`)

@@ -82,6 +82,13 @@ export async function setup() {
   });
 
   await prisma.$disconnect();
+
+  // Populate the relational read model (snapshots, details, rule/instance
+  // step rows, counterparties, roles) so tests exercise the normalized paths.
+  const { backfillNormalization } = await import("../scripts/backfill-normalization");
+  await backfillNormalization();
+
+  // Views are created lazily by reportingViews; nothing else to do here.
 }
 
 export async function teardown() {

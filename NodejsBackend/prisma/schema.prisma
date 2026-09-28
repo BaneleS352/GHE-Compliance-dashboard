@@ -3,22 +3,27 @@ generator client {
 }
 
 datasource db {
-  // Change to "postgresql" for production.
-  //   docker compose up -d
-  //   npx prisma migrate dev --name init
-  //   npm run db:seed
+  // SQLite for local dev/tests. Production Docker build rewrites this to
+  // "postgresql" (see Dockerfile sed step) and runs versioned migrations
+  // via `prisma migrate deploy` (see entrypoint.sh and prisma/migrations/).
+  // New DateTime/FK fields use provider-agnostic Prisma types so a single
+  // schema works on both SQLite and PostgreSQL.
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
 model Organization {
-  id          String         @id @default(cuid())
-  name        String         @unique
-  shortCode   String         @unique
-  users       User[]
-  declarations Declaration[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id        String   @id @default(cuid())
+  name      String   @unique
+  shortCode String   @unique
+  users     User[]
+  declarations Declaration[] @relation("DeclarationOrganization")
+  departments Department[]
+  counterparties Counterparty[]
+  workflowRules WorkflowRule[]
+  settings  OrganizationSetting?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model User {
@@ -33,15 +38,177 @@ model User {
   lineManager      String?
   organizationId   String?
 
+  // ── Phase 1/2 normalized references (nullable for backfill compat) ──
+  managerId    String?
+  manager      User?  @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports User[] @relation("UserManager")
+
+  departmentId String?
+  departmentRef Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization Organization? @relation(fields: [organizationId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  userRoles UserRole[]
+  declarationsOwned Declaration[] @relation("DeclarationDeclarer")
+  approvalsAssigned Declaration[] @relation("DeclarationApprover")
+  stepsAssigned WorkflowInstanceStep[] @relation("StepAssignee")
+  stepsDecided  WorkflowInstanceStep[] @relation("StepDecider")
 
   @@index([department])
   @@index([role])
   @@index([lineManager])
   @@index([organizationId])
+  @@index([managerId])
+  @@index([departmentId])
+  @@index([teamId])
+}
+
+// ── Phase 2: normalised organisation hierarchy ──
+
+model Department {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  code           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  teams        Team[]
+  users        User[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model Team {
+  id           String   @id @default(uuid())
+  departmentId String
+  name         String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  members    User[]
+
+  @@unique([departmentId, name])
+  @@index([departmentId])
+}
+
+model AppRole {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assignments UserRole[]
+}
+
+model UserRole {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  grantedAt DateTime @default(now())
+
+  user User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+model OrganizationSetting {
+  id             String   @id @default(uuid())
+  organizationId String   @unique
+  highValueThreshold Float @default(1000)
+  slaEscalationDays  Int  @default(3)
+  notificationTemplates String @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// ── Phase 2: controlled reference data ──
+// Lookup tables seed the allowed values observed in Dropdowns/seed data.
+// Application code validates against these; FK enforcement is introduced
+// per-field after backfill verification (Phase 5), so legacy free-text
+// columns remain the write path for now.
+
+model RefDeclarationType {
+  id    String @id @default(uuid())
+  name  String @unique
+  color String?
+}
+
+model RefDeclarationStatus {
+  id   String @id @default(uuid())
+  name String @unique
+}
+
+model RefPriority {
+  id   String @id @default(uuid())
+  name String @unique
+}
+
+model RefRelationshipType {
+  id   String @id @default(uuid())
+  name String @unique
+}
+
+model RefDirection {
+  id   String @id @default(uuid())
+  name String @unique
+}
+
+model RefWorkflowStatus {
+  id   String @id @default(uuid())
+  name String @unique
+}
+
+// ── Phase 3: counterparty ownership ──
+
+model Counterparty {
+  id             String  @id @default(uuid())
+  organizationId String?
+  name           String
+  contactName    String?
+  contactDetails String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  contacts     CounterpartyContact[]
+  declarations Declaration[] @relation("DeclarationCounterparty")
+
+  @@index([organizationId])
+  @@index([name])
+}
+
+model CounterpartyContact {
+  id             String @id @default(uuid())
+  counterpartyId String
+  name           String
+  details        String?
+
+  createdAt DateTime @default(now())
+
+  counterparty Counterparty @relation(fields: [counterpartyId], references: [id], onDelete: Cascade)
+
+  @@index([counterpartyId])
 }
 
 model Declaration {
@@ -77,10 +244,34 @@ model Declaration {
   files               String?
   organizationId      String?
 
+  // ── Phase 1: normalized timestamps (UTC). Legacy text fields stay the
+  // API contract until Phase 5; these are backfilled from them. ──
+  eventDate   DateTime?
+  submittedAt DateTime?
+
+  // ── Phase 1/3: database-enforced references (nullable until backfill
+  // verification; legacy string columns remain for compat). ──
+  declarerUserId       String?
+  declarer             User? @relation("DeclarationDeclarer", fields: [declarerUserId], references: [id], onDelete: SetNull)
+
+  currentApproverUserId String?
+  currentApprover       User? @relation("DeclarationApprover", fields: [currentApproverUserId], references: [id], onDelete: SetNull)
+
+  counterpartyId String?
+  counterpartyRef Counterparty? @relation("DeclarationCounterparty", fields: [counterpartyId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization Organization? @relation(fields: [organizationId], references: [id])
+  organization Organization? @relation("DeclarationOrganization", fields: [organizationId], references: [id], onDelete: Restrict)
+
+  // ── Phase 3: relational children (auditable, cascade on draft delete) ──
+  snapshot  DeclarationSnapshot?
+  detail    DeclarationDetail?
+  fileLinks DeclarationFile[]
+  filesRel  UploadedFile[] @relation("FileDeclaration")
+  workflow  WorkflowInstance? @relation("InstanceDeclaration")
+  workflowSteps WorkflowInstanceStep[]
 
   @@index([employeeId])
   @@index([status])
@@ -93,6 +284,59 @@ model Declaration {
   @@index([submitted])
   @@index([date])
   @@index([value])
+  @@index([declarerUserId])
+  @@index([currentApproverUserId])
+  @@index([counterpartyId])
+  @@index([eventDate])
+  @@index([submittedAt])
+}
+
+// Immutable declaration-time context: preserves who/where the declarer was
+// at submission so later team moves don't rewrite history.
+model DeclarationSnapshot {
+  id                String   @id @default(uuid())
+  declarationId     String   @unique
+  declarerName      String
+  employeeNumber    String
+  positionTitle     String
+  department        String
+  managerDisplayName String?
+  capturedAt        DateTime @default(now())
+
+  declaration Declaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+}
+
+// Relational declaration details mirror the transactional fields for
+// query/report use; legacy Declaration columns remain the write path.
+model DeclarationDetail {
+  id                  String @id @default(uuid())
+  declarationId       String @unique
+  description         String
+  occasion            String
+  relationship        String
+  receivedGiven       String
+  fromField           String
+  contactPerson       String
+  biddingProcess      String
+  contractNegotiation String?
+  instances           String
+  publicOfficial      String
+  substantiation      String?
+
+  declaration Declaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+}
+
+// Explicit join between declarations and uploaded file metadata.
+model DeclarationFile {
+  id            String   @id @default(uuid())
+  declarationId String
+  fileId        String   @unique
+  createdAt     DateTime @default(now())
+
+  declaration Declaration  @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+  file        UploadedFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([declarationId])
 }
 
 model WorkflowRule {
@@ -101,17 +345,70 @@ model WorkflowRule {
   condition String
   priority  Int
   steps     String
+  organizationId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  ruleSteps  WorkflowRuleStep[]
+
+  @@index([organizationId])
+}
+
+model WorkflowRuleStep {
+  id     String @id @default(uuid())
+  ruleId String
+  order  Int
+  role   String
+  label  String
+
+  rule WorkflowRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, order])
+  @@index([ruleId])
 }
 
 model WorkflowInstance {
   declarationId String   @id
   steps         String
+  ruleId        String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  declaration Declaration @relation("InstanceDeclaration", fields: [declarationId], references: [id], onDelete: Cascade)
+  stepRows  WorkflowInstanceStep[] @relation("InstanceSteps")
+}
+
+model WorkflowInstanceStep {
+  id            String   @id @default(uuid())
+  instanceId    String
+  declarationId String
+  stepOrder     Int
+  role          String
+  label         String
+  assigneeId    String?
+  assigneeName  String
+  status        String   @default("pending")
+  decision      String?
+  notes         String   @default("")
+  decidedAt     DateTime?
+  decidedById   String?
+  decidedByName String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  instance    WorkflowInstance @relation("InstanceSteps", fields: [instanceId], references: [declarationId], onDelete: Cascade)
+  declaration Declaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+  assignee    User? @relation("StepAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  decidedBy   User? @relation("StepDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@unique([instanceId, stepOrder])
+  @@index([declarationId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([role])
 }
 
 model SystemConfig {
@@ -158,6 +455,9 @@ model UploadedFile {
   path          String
   declarationId String?
   uploadedAt    DateTime @default(now())
+
+  declaration Declaration? @relation("FileDeclaration", fields: [declarationId], references: [id], onDelete: Cascade)
+  link DeclarationFile?
 
   @@index([declarationId])
 }

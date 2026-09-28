@@ -2,7 +2,8 @@ import { Router, Response } from "express";
 import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { WorkflowStep, safeJsonParse, declarationResponse } from "../services/workflowService";
+import { WorkflowStep, declarationResponse } from "../services/workflowService";
+import { persistWorkflowInstanceSteps, readWorkflowSteps } from "../services/normalization";
 import { sendNotification } from "../services/notificationService";
 
 const router = Router();
@@ -17,6 +18,13 @@ function toStepStatus(decision: string): StepStatus {
 
 function safeParseSteps(data: string): WorkflowStep[] {
   try { return JSON.parse(data); } catch { return []; }
+}
+
+/** Rows-first step read; legacy JSON cache is the fallback. */
+async function loadSteps(declarationId: string, jsonFallback: string): Promise<WorkflowStep[]> {
+  const rows = await readWorkflowSteps(declarationId);
+  if (rows) return rows;
+  return safeParseSteps(jsonFallback);
 }
 
 function findActionablePendingStep(steps: WorkflowStep[], userId: string): WorkflowStep | null {
@@ -54,7 +62,7 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
   const declMap = new Map(declarations.map((d) => [d.id, d]));
 
   for (const inst of instances) {
-    const steps: WorkflowStep[] = safeParseSteps(inst.steps);
+    const steps: WorkflowStep[] = await loadSteps(inst.declarationId, inst.steps);
     const pendingStep = findActionablePendingStep(steps, userId);
     if (pendingStep) {
       const declaration = declMap.get(inst.declarationId) as any;
@@ -86,7 +94,7 @@ router.get("/instances/:declarationId", authenticate, asyncHandler(async (req: A
   }
 
   const declaration = await prisma.declaration.findUnique({ where: { id: declarationId } });
-  const steps: WorkflowStep[] = safeParseSteps(instance.steps);
+  const steps: WorkflowStep[] = await loadSteps(instance.declarationId, instance.steps);
   const isAssignee = steps.some((s) => s.assignee === req.user!.id);
   const isOwner = declaration?.employeeId === req.user!.id;
   
@@ -133,7 +141,9 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
     return;
   }
 
-  // Atomic step update — read, check, and write within a single transaction
+  // Atomic step update — read, check, and write within a single transaction.
+  // Relational step rows are the source of truth; the JSON column is a
+  // write-through cache kept until the Phase 5 retirement migration.
   const now = new Date().toISOString();
   const newStepStatus = toStepStatus(decision);
 
@@ -145,7 +155,25 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
       const instance = await tx.workflowInstance.findUnique({ where: { declarationId } });
       if (!instance) throw Object.assign(new Error("Workflow instance not found"), { statusCode: 404 });
 
-      const steps: WorkflowStep[] = safeParseSteps(instance.steps);
+      let steps: WorkflowStep[];
+      try {
+        const rows = await (tx as any).workflowInstanceStep.findMany({
+          where: { instanceId: declarationId },
+          orderBy: { stepOrder: "asc" },
+        });
+        steps = rows.length > 0
+          ? rows.map((r: any) => ({
+              order: r.stepOrder, role: r.role, assignee: r.assigneeId || "",
+              assigneeName: r.assigneeName, label: r.label, status: r.status,
+              decision: r.decision ?? null,
+              approvedAt: r.status === "approved" && r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
+              notes: r.notes ?? "", decidedAt: r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
+              decidedById: r.decidedById ?? null, decidedByName: r.decidedByName ?? null,
+            }))
+          : safeParseSteps(instance.steps);
+      } catch {
+        steps = safeParseSteps(instance.steps);
+      }
       const currentStepIndex = steps.findIndex((s) => s.status === "pending" && s.assignee === req.user!.id);
 
       if (currentStepIndex === -1) throw Object.assign(new Error("You do not have a pending approval step for this declaration"), { statusCode: 403 });
@@ -198,6 +226,34 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
         where: { declarationId },
         data: { steps: JSON.stringify(steps) },
       });
+      // Mirror the decided step into the relational audit trail in the same tx.
+      const decided = steps[currentStepIndex];
+      const decidedAt = decided.decidedAt ? new Date(decided.decidedAt) : null;
+      let decidedByOk: string | null = null;
+      if (decided.decidedById) {
+        const u = await tx.user.findUnique({ where: { id: decided.decidedById }, select: { id: true } });
+        if (u) decidedByOk = u.id;
+      }
+      let assigneeOk: string | null = null;
+      if (decided.assignee) {
+        const u = await tx.user.findUnique({ where: { id: decided.assignee }, select: { id: true } });
+        if (u) assigneeOk = u.id;
+      }
+      await (tx as any).workflowInstanceStep.upsert({
+        where: { instanceId_stepOrder: { instanceId: declarationId, stepOrder: decided.order } },
+        create: {
+          instanceId: declarationId, declarationId, stepOrder: decided.order,
+          role: decided.role, label: decided.label, assigneeId: assigneeOk,
+          assigneeName: decided.assigneeName, status: decided.status,
+          decision: decided.decision ?? null, notes: decided.notes ?? "",
+          decidedAt, decidedById: decidedByOk, decidedByName: decided.decidedByName ?? null,
+        },
+        update: {
+          status: decided.status, decision: decided.decision ?? null,
+          notes: decided.notes ?? "", decidedAt,
+          decidedById: decidedByOk, decidedByName: decided.decidedByName ?? null,
+        },
+      });
       await tx.declaration.update({
         where: { id: declarationId },
         data: { status: statusStr, approver: declarationApprover, approverId: declarationApproverId },
@@ -211,6 +267,13 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
   } catch (err: any) {
     res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : "Internal server error" });
     return;
+  }
+
+  // Mirror to the relational audit trail before responding.
+  try {
+    await persistWorkflowInstanceSteps(declarationId, freshSteps);
+  } catch {
+    // Relational mirror must never break the legacy path.
   }
 
   res.json({
