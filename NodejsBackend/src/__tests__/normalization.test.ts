@@ -83,6 +83,11 @@ describe("Database normalization (goal)", () => {
       .set("Authorization", `Bearer ${getTeamToken()}`);
     expect(submit.status).toBe(200);
 
+    // Canonical approver link tracks the legacy reference at submit.
+    let decl = await prisma.declaration.findUnique({ where: { id } });
+    expect(decl!.approverId).toBe("user-approver");
+    expect((decl as any)!.currentApproverUserId).toBe("user-approver");
+
     let rows = await (prisma as any).workflowInstanceStep.findMany({
       where: { declarationId: id }, orderBy: { stepOrder: "asc" },
     });
@@ -105,6 +110,11 @@ describe("Database normalization (goal)", () => {
     });
     expect(rows[0].status).toBe("approved");
     expect(rows[0].decision).toBe("accept");
+
+    // Canonical approver link moves to HR with the legacy reference.
+    decl = await prisma.declaration.findUnique({ where: { id } });
+    expect(decl!.approverId).toBe("user-hr");
+    expect((decl as any)!.currentApproverUserId).toBe("user-hr");
   });
 
   it("reporting views agree with legacy aggregations (result equivalence)", async () => {

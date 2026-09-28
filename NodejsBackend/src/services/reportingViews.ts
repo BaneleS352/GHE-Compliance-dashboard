@@ -29,7 +29,7 @@ export function bindParams(sql: string): string {
   return sql.replace(/\?/g, () => `$${++i}`);
 }
 
-const VIEWS: { name: string; select: string }[] = [
+const VIEWS: { name: string; select: string; selectPg?: string }[] = [
   // Counts + value totals by organisation and status.
   {
     name: "v_declaration_status_summary",
@@ -37,17 +37,27 @@ const VIEWS: { name: string; select: string }[] = [
           COUNT(*) AS "count", SUM("value") AS "totalValue"
    FROM "Declaration" GROUP BY "organizationId", "status"`,
   },
-  // Volume + outcomes by month (legacy YYYY-MM-DD text column; portable substr).
+  // Volume + outcomes by month from the canonical eventDate column.
+  // Rows with an invalid legacy date (null eventDate) cannot be bucketed and
+  // are excluded; they are counted in the backfill reconciliation report.
   {
     name: "v_declarations_monthly",
     select: `SELECT "organizationId" AS "organizationId",
-          substr("date", 1, 7) AS "month",
+          strftime('%Y-%m', "eventDate") AS "month",
           COUNT(*) AS "count",
           SUM(CASE WHEN "status" = 'Approved' THEN 1 ELSE 0 END) AS "approved",
           SUM(CASE WHEN "status" = 'Declined' THEN 1 ELSE 0 END) AS "declined",
           SUM("value") AS "totalValue"
-   FROM "Declaration" WHERE "date" IS NOT NULL AND length("date") >= 7
-   GROUP BY "organizationId", substr("date", 1, 7)`,
+   FROM "Declaration" WHERE "eventDate" IS NOT NULL
+   GROUP BY "organizationId", strftime('%Y-%m', "eventDate")`,
+    selectPg: `SELECT "organizationId" AS "organizationId",
+          to_char("eventDate", 'YYYY-MM') AS "month",
+          COUNT(*) AS "count",
+          SUM(CASE WHEN "status" = 'Approved' THEN 1 ELSE 0 END) AS "approved",
+          SUM(CASE WHEN "status" = 'Declined' THEN 1 ELSE 0 END) AS "declined",
+          SUM("value") AS "totalValue"
+   FROM "Declaration" WHERE "eventDate" IS NOT NULL
+   GROUP BY "organizationId", to_char("eventDate", 'YYYY-MM')`,
   },
   // Type / value breakdowns.
   {
@@ -91,11 +101,13 @@ let ensured = false;
 
 export async function ensureReportingViews(): Promise<void> {
   if (ensured) return;
+  const pg = isPostgresProvider();
   for (const v of VIEWS) {
+    const select = pg && v.selectPg ? v.selectPg : v.select;
     // PostgreSQL has no CREATE VIEW IF NOT EXISTS — use CREATE OR REPLACE.
-    const ddl = isPostgresProvider()
-      ? `CREATE OR REPLACE VIEW "${v.name}" AS ${v.select}`
-      : `CREATE VIEW IF NOT EXISTS "${v.name}" AS ${v.select}`;
+    const ddl = pg
+      ? `CREATE OR REPLACE VIEW "${v.name}" AS ${select}`
+      : `CREATE VIEW IF NOT EXISTS "${v.name}" AS ${select}`;
     try {
       await prisma.$executeRawUnsafe(ddl);
     } catch {
@@ -121,15 +133,22 @@ async function queryView<T>(sql: string, params: any[]): Promise<T[] | null> {
 }
 
 export async function viewStatusSummary(organizationId?: string) {
+  const rows = await viewStatusSummaryFull(organizationId);
+  if (!rows) return null;
+  const out: Record<string, number> = {};
+  for (const r of rows) out[r.status] = r.count;
+  return out;
+}
+
+/** Status rows with value totals (powers the dashboard KPIs). */
+export async function viewStatusSummaryFull(organizationId?: string): Promise<{ status: string; count: number; totalValue: number }[] | null> {
   const rows = await queryView<any>(
-    `SELECT "status" AS "status", "count" AS "count" FROM "v_declaration_status_summary"` +
+    `SELECT "status" AS "status", "count" AS "count", "totalValue" AS "totalValue" FROM "v_declaration_status_summary"` +
       (organizationId ? ` WHERE "organizationId" = ?` : ""),
     organizationId ? [organizationId] : [],
   );
   if (!rows) return null;
-  const out: Record<string, number> = {};
-  for (const r of rows) out[String(r.status)] = Number(r.count);
-  return out;
+  return rows.map((r) => ({ status: String(r.status), count: Number(r.count), totalValue: Number(r.totalValue) }));
 }
 
 export async function viewMonthly(organizationId?: string) {

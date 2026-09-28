@@ -221,6 +221,15 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
         decision === "return"
           ? declaration.employeeId
           : nextApproverId || declaration.approverId;
+      // The canonical current-approver relation tracks the legacy approver
+      // reference in the SAME transaction — never leave it pointing at the
+      // previous person. Null when the target user no longer exists (the
+      // legacy string columns keep the history; FK SetNull enforces this).
+      let currentApproverUserId: string | null = null;
+      if (declarationApproverId) {
+        const u = await tx.user.findUnique({ where: { id: declarationApproverId }, select: { id: true } });
+        if (u) currentApproverUserId = u.id;
+      }
 
       // Full row sync in the SAME transaction: JSON cache and authoritative
       // rows commit atomically (no best-effort second write). The recorded
@@ -228,7 +237,7 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
       await writeWorkflowStepsTx(tx, declarationId, steps);
       await tx.declaration.update({
         where: { id: declarationId },
-        data: { status: statusStr, approver: declarationApprover, approverId: declarationApproverId },
+        data: { status: statusStr, approver: declarationApprover, approverId: declarationApproverId, currentApproverUserId },
       });
 
       return { newStatus: statusStr, freshSteps: steps, stepIndex: currentStepIndex };

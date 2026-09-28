@@ -204,7 +204,7 @@ model Counterparty {
   declarations Declaration[] @relation("DeclarationCounterparty")
 
   @@index([organizationId])
-  @@index([name])
+  @@unique([name, organizationId])
 }
 
 model CounterpartyContact {

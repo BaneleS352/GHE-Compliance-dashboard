@@ -53,8 +53,10 @@ export async function ensureCounterparty(
       },
       select: { id: true },
     });
-  } catch {
-    // Race: another request created it first.
+  } catch (e: any) {
+    // P2002: unique constraint on (organizationId, name) — another request
+    // created it first; fall through to the re-read below.
+    if (e.code !== "P2002") throw e;
     return await (prisma as any).counterparty.findFirst({
       where: { name: clean, organizationId: organizationId || null },
       select: { id: true },
@@ -66,8 +68,9 @@ export async function captureDeclarationSnapshot(
   declarationId: string,
   declarer: { name: string; teamMemberNumber: string; position: string; department: string },
   managerDisplayName: string | null,
+  db: any = prisma,
 ): Promise<void> {
-  await (prisma as any).declarationSnapshot.upsert({
+  await (db as any).declarationSnapshot.upsert({
     where: { declarationId },
     create: {
       declarationId,
@@ -85,8 +88,8 @@ export async function captureDeclarationSnapshot(
   });
 }
 
-export async function syncDeclarationDetail(declarationId: string, d: any): Promise<void> {
-  await (prisma as any).declarationDetail.upsert({
+export async function syncDeclarationDetail(declarationId: string, d: any, db: any = prisma): Promise<void> {
+  await (db as any).declarationDetail.upsert({
     where: { declarationId },
     create: {
       declarationId,

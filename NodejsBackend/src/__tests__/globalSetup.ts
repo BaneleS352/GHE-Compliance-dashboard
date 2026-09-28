@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { execSync } from "child_process";
+import { execFileSync } from "child_process";
 
 const TEST_DB_URL = "file:./test.db";
 
@@ -8,14 +8,30 @@ export async function setup() {
   process.env.DATABASE_URL = TEST_DB_URL;
   process.env.JWT_SECRET = "test-secret";
 
+  // Invoke the LOCAL Prisma CLI directly via node instead of `npx`: on hosts
+  // where npx resolves a different (or no) Prisma version, `db push` fails
+  // with a schema-engine error before any test runs.
+  let prismaBin: string;
+  try {
+    prismaBin = require.resolve("prisma/build/index.js");
+  } catch {
+    throw new Error(
+      "Cannot resolve the local Prisma CLI (node_modules/prisma). " +
+        "Ensure dependencies are installed (`npm install`, which runs `prisma generate` via postinstall).",
+    );
+  }
   // Surface schema-engine failures loudly: with stdio "pipe" a failed
   // `db push` otherwise aborts the run with no diagnostics and no tests run.
   try {
-    execSync("npx prisma db push --force-reset --skip-generate", {
-      cwd: process.cwd(),
-      env: { ...process.env, DATABASE_URL: TEST_DB_URL },
-      stdio: "pipe",
-    });
+    execFileSync(
+      process.execPath,
+      [prismaBin, "db", "push", "--force-reset", "--skip-generate"],
+      {
+        cwd: process.cwd(),
+        env: { ...process.env, DATABASE_URL: TEST_DB_URL },
+        stdio: "pipe",
+      },
+    );
   } catch (err: any) {
     const detail =
       err?.stdout?.toString() || err?.stderr?.toString() || err?.message || String(err);

@@ -111,10 +111,18 @@ export async function verifyNormalization(): Promise<VerifyResult> {
     });
   }
 
-  // Declarations: snapshot/detail/timestamps/counterparty mirrors.
+  // Declarations: snapshot/detail/timestamps/counterparty/approver mirrors.
+  // The canonical current-approver link must track the legacy approver
+  // reference (null when the target user no longer exists — FK SetNull).
+  const allUsers = await prisma.user.findMany({ select: { id: true } });
+  const allUserIds = new Set(allUsers.map((u) => u.id));
   const declarations = await prisma.declaration.findMany();
   for (const d of declarations) {
     checked.declarations++;
+    const expectedCurrent = d.approverId && allUserIds.has(d.approverId) ? d.approverId : null;
+    if ((d.currentApproverUserId ?? null) !== expectedCurrent) {
+      drifts.push({ scope: "declaration", id: d.id, detail: `currentApproverUserId ${d.currentApproverUserId} != approverId ${d.approverId}` });
+    }
     const snap = await (prisma as any).declarationSnapshot.findUnique({ where: { declarationId: d.id } });
     if (!snap) {
       drifts.push({ scope: "declaration", id: d.id, detail: "missing snapshot" });

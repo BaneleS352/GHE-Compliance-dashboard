@@ -18,51 +18,6 @@ import {
 } from "../services/normalization";
 import { sendNotification } from "../services/notificationService";
 
-/**
- * Populate the canonical relational fields (eventDate/submittedAt DateTime
- * columns, declarer/approver/counterparty links, immutable snapshot, detail).
- * Guarded internally so a mirror failure never breaks the legacy write path;
- * callers await it so the columns are populated before responding.
- */
-async function mirrorDeclarationRelational(declaration: any): Promise<void> {
-  try {
-    const eventDate = parseDateSafe(declaration.date);
-    const submittedAt = parseDateSafe(declaration.submitted);
-    let counterpartyId: string | null = null;
-    if (declaration.counterparty) {
-      const cp = await ensureCounterparty(declaration.counterparty, declaration.organizationId, declaration.contactPerson);
-      counterpartyId = cp?.id || null;
-    }
-    let declarerUserId: string | null = null;
-    if (declaration.employeeId) {
-      const u = await prisma.user.findUnique({ where: { id: declaration.employeeId }, select: { id: true } });
-      if (u) declarerUserId = u.id;
-    }
-    let currentApproverUserId: string | null = null;
-    if (declaration.approverId) {
-      const a = await prisma.user.findUnique({ where: { id: declaration.approverId }, select: { id: true } });
-      if (a) currentApproverUserId = a.id;
-    }
-    await prisma.declaration.update({
-      where: { id: declaration.id },
-      data: { eventDate, submittedAt, declarerUserId, currentApproverUserId, counterpartyId },
-    });
-    await captureDeclarationSnapshot(
-      declaration.id,
-      {
-        name: declaration.employee,
-        teamMemberNumber: declaration.teamMemberNumber,
-        position: declaration.position,
-        department: declaration.department,
-      },
-      declaration.lineManager || null,
-    );
-    await syncDeclarationDetail(declaration.id, declaration);
-  } catch {
-    // Relational mirror must never break the legacy write path.
-  }
-}
-
 const router = Router();
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
 
@@ -234,46 +189,83 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
     }
   }
 
-  const declaration = await prisma.declaration.create({
-    data: {
-      id,
-      employee: sanitize(data.employee),
-      employeeId: data.employeeId,
-      teamMemberNumber: sanitize(data.teamMemberNumber),
-      lineManager: sanitize(data.lineManager),
-      position: sanitize(data.position),
-      department: sanitize(data.department),
-      company: data.company ? sanitize(data.company) : null,
-      team: data.team ? sanitize(data.team) : null,
-      type: sanitize(data.type),
-      counterparty: sanitize(data.counterparty),
-      value: data.value,
-      submitted: sanitize(data.submitted),
-      approver: data.approver ? sanitize(data.approver) : "",
-      approverId: data.approverId || null,
-      status: "Draft",
-      priority: sanitize(data.priority),
-      description: sanitize(data.description),
-      relationship: sanitize(data.relationship),
-      receivedGiven: sanitize(data.receivedGiven),
-      fromField: sanitize(data.from),
-      contactPerson: sanitize(data.contactPerson),
-      biddingProcess: sanitize(data.biddingProcess),
-      contractNegotiation: data.contractNegotiation ? sanitize(data.contractNegotiation) : null,
-      occasion: sanitize(data.occasion),
-      date: sanitize(data.date),
-      instances: sanitize(data.instances),
-      publicOfficial: sanitize(data.publicOfficial),
-      substantiation: data.substantiation ? sanitize(data.substantiation) : null,
-      files: data.files ? JSON.stringify(data.files) : null,
-      organizationId: orgId,
-    },
-  });
+  // Counterparty identity is resolved before the transaction (find-or-create
+  // is retry-safe on unique races; the declaration write itself stays atomic).
+  const sanitizedCounterparty = sanitize(data.counterparty);
+  let counterpartyId: string | null = null;
+  if (sanitizedCounterparty) {
+    const cp = await ensureCounterparty(sanitizedCounterparty, orgId, data.contactPerson ? sanitize(data.contactPerson) : null);
+    counterpartyId = cp?.id || null;
+  }
+  const eventDate = parseDateSafe(data.date);
+  const submittedAt = parseDateSafe(data.submitted);
 
-  // Canonical DateTime columns, snapshot, detail, and counterparty link are
-  // populated synchronously (guarded internally) so they are never observed
-  // empty after a write. Legacy text columns remain the API contract.
-  await mirrorDeclarationRelational(declaration);
+  // Single transaction: legacy columns, canonical DateTime columns and links,
+  // immutable snapshot, and detail rows all commit atomically. A failure
+  // returns a retryable error instead of claiming canonical data exists.
+  const declaration = await prisma.$transaction(async (tx) => {
+    let declarerUserId: string | null = null;
+    const declarer = await tx.user.findUnique({ where: { id: data.employeeId }, select: { id: true } });
+    if (declarer) declarerUserId = declarer.id;
+    let txApproverUserId: string | null = null;
+    if (data.approverId) {
+      const au = await tx.user.findUnique({ where: { id: data.approverId }, select: { id: true } });
+      if (au) txApproverUserId = au.id;
+    }
+    const created = await tx.declaration.create({
+      data: {
+        id,
+        employee: sanitize(data.employee),
+        employeeId: data.employeeId,
+        teamMemberNumber: sanitize(data.teamMemberNumber),
+        lineManager: sanitize(data.lineManager),
+        position: sanitize(data.position),
+        department: sanitize(data.department),
+        company: data.company ? sanitize(data.company) : null,
+        team: data.team ? sanitize(data.team) : null,
+        type: sanitize(data.type),
+        counterparty: sanitizedCounterparty,
+        value: data.value,
+        submitted: sanitize(data.submitted),
+        approver: data.approver ? sanitize(data.approver) : "",
+        approverId: data.approverId || null,
+        status: "Draft",
+        priority: sanitize(data.priority),
+        description: sanitize(data.description),
+        relationship: sanitize(data.relationship),
+        receivedGiven: sanitize(data.receivedGiven),
+        fromField: sanitize(data.from),
+        contactPerson: sanitize(data.contactPerson),
+        biddingProcess: sanitize(data.biddingProcess),
+        contractNegotiation: data.contractNegotiation ? sanitize(data.contractNegotiation) : null,
+        occasion: sanitize(data.occasion),
+        date: sanitize(data.date),
+        instances: sanitize(data.instances),
+        publicOfficial: sanitize(data.publicOfficial),
+        substantiation: data.substantiation ? sanitize(data.substantiation) : null,
+        files: data.files ? JSON.stringify(data.files) : null,
+        organizationId: orgId,
+        eventDate,
+        submittedAt,
+        declarerUserId,
+        currentApproverUserId: txApproverUserId,
+        counterpartyId,
+      },
+    });
+    await captureDeclarationSnapshot(
+      id,
+      {
+        name: created.employee,
+        teamMemberNumber: created.teamMemberNumber,
+        position: created.position,
+        department: created.department,
+      },
+      created.lineManager || null,
+      tx,
+    );
+    await syncDeclarationDetail(id, created, tx);
+    return created;
+  });
 
   res.status(201).json(declarationResponse(declaration));
 }));
@@ -393,9 +385,59 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     updateData.files = JSON.stringify(data.files);
   }
 
-  const updated = await prisma.declaration.update({
-    where: { id },
-    data: updateData,
+  // Resolve relational links before the transaction (counterparty
+  // find-or-create is retry-safe on unique races outside the tx).
+  const putCounterpartyText = (updateData.counterparty as string | undefined) ?? existing.counterparty;
+  let putCounterpartyId: string | null = existing.counterpartyId;
+  if (updateData.counterparty !== undefined) {
+    if (putCounterpartyText) {
+      const contactText = (updateData.contactPerson as string | undefined) ?? existing.contactPerson;
+      const cp = await ensureCounterparty(putCounterpartyText, (updateData.organizationId as string | undefined) ?? existing.organizationId, contactText);
+      putCounterpartyId = cp?.id || null;
+    } else {
+      putCounterpartyId = null;
+    }
+  }
+  const putEventDate = updateData.date !== undefined ? parseDateSafe(updateData.date as string) : existing.eventDate;
+  const putSubmittedAt = updateData.submitted !== undefined ? parseDateSafe(updateData.submitted as string) : existing.submittedAt;
+  const putApproverId = (updateData.approverId as string | undefined) ?? existing.approverId ?? null;
+
+  // Single transaction: legacy edit plus canonical DateTime columns, links,
+  // snapshot, and detail rows. A failure returns a retryable error instead of
+  // claiming canonical data exists.
+  const updated = await prisma.$transaction(async (tx) => {
+    let putDeclarer: string | null = null;
+    const du = await tx.user.findUnique({ where: { id: existing.employeeId }, select: { id: true } });
+    if (du) putDeclarer = du.id;
+    let putApproverUser: string | null = null;
+    if (putApproverId) {
+      const au = await tx.user.findUnique({ where: { id: putApproverId }, select: { id: true } });
+      if (au) putApproverUser = au.id;
+    }
+    const upd = await tx.declaration.update({
+      where: { id },
+      data: {
+        ...updateData,
+        eventDate: putEventDate,
+        submittedAt: putSubmittedAt,
+        declarerUserId: putDeclarer,
+        currentApproverUserId: putApproverUser,
+        counterpartyId: putCounterpartyId,
+      },
+    });
+    await captureDeclarationSnapshot(
+      id,
+      {
+        name: upd.employee,
+        teamMemberNumber: upd.teamMemberNumber,
+        position: upd.position,
+        department: upd.department,
+      },
+      upd.lineManager || null,
+      tx,
+    );
+    await syncDeclarationDetail(id, upd, tx);
+    return upd;
   });
 
   // Refresh the workflow immediately when a returned declaration's value
@@ -418,10 +460,6 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
       });
     }
   }
-
-  // Synchronous for the timestamp cutover: DateTime columns must be populated
-  // before the updated declaration is returned.
-  await mirrorDeclarationRelational(updated);
 
   res.json(declarationResponse(updated));
 }));
@@ -518,22 +556,56 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
   const approverName = nextApprover ? nextApprover.assigneeName : existing.approver;
   const approverIdValue = nextApprover ? nextApprover.assignee : existing.approverId;
 
-  // Single transaction: declaration status, JSON cache, authoritative step
-  // rows, and the producing rule all commit atomically — readers never observe
-  // a half-mirrored workflow.
+  // Counterparty identity resolved before the transaction (retry-safe
+  // outside the tx); everything else commits atomically below.
+  let submitCounterpartyId: string | null = existing.counterpartyId;
+  if (existing.counterparty && !submitCounterpartyId) {
+    const cp = await ensureCounterparty(existing.counterparty, existing.organizationId, existing.contactPerson);
+    submitCounterpartyId = cp?.id || null;
+  }
+
+  // Single transaction: declaration status, legacy approver, canonical
+  // approver link, timestamps, JSON cache, authoritative step rows, the
+  // producing rule, snapshot, and detail — readers never observe a
+  // half-mirrored workflow or a success without canonical data.
   const ruleId = await resolveRuleId(existing.value);
   const [updated] = await prisma.$transaction(async (tx) => {
+    let submitDeclarer: string | null = null;
+    const du = await tx.user.findUnique({ where: { id: existing.employeeId }, select: { id: true } });
+    if (du) submitDeclarer = du.id;
+    let submitApproverUser: string | null = null;
+    if (approverIdValue) {
+      const au = await tx.user.findUnique({ where: { id: approverIdValue }, select: { id: true } });
+      if (au) submitApproverUser = au.id;
+    }
     const upd = await tx.declaration.update({
       where: { id: existing.id },
-      data: { status: "Pending", approver: approverName, approverId: approverIdValue },
+      data: {
+        status: "Pending",
+        approver: approverName,
+        approverId: approverIdValue,
+        eventDate: parseDateSafe(existing.date) ?? existing.eventDate,
+        submittedAt: parseDateSafe(existing.submitted) ?? existing.submittedAt,
+        declarerUserId: submitDeclarer,
+        currentApproverUserId: submitApproverUser,
+        counterpartyId: submitCounterpartyId,
+      },
     });
     await writeWorkflowStepsTx(tx, existing.id, workflowSteps, ruleId);
+    await captureDeclarationSnapshot(
+      existing.id,
+      {
+        name: upd.employee,
+        teamMemberNumber: upd.teamMemberNumber,
+        position: upd.position,
+        department: upd.department,
+      },
+      upd.lineManager || null,
+      tx,
+    );
+    await syncDeclarationDetail(existing.id, upd, tx);
     return [upd];
   });
-
-  // Canonical timestamps/snapshot/detail are populated synchronously so the
-  // DateTime columns are never observed empty after a write.
-  await mirrorDeclarationRelational(updated);
 
   res.json(declarationResponse(updated));
   if (nextApprover) {
