@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import xss from "xss";
 import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
@@ -7,6 +8,10 @@ import { writeWorkflowStepsTx, readWorkflowSteps } from "../services/normalizati
 import { sendNotification } from "../services/notificationService";
 
 const router = Router();
+
+function sanitize(val: string): string {
+  return xss(val, { whiteList: {}, stripIgnoreTag: true });
+}
 
 type StepStatus = "pending" | "approved" | "declined" | "returned";
 
@@ -45,6 +50,66 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
   const offsetRaw = req.query.offset as string | undefined;
   const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 100) : undefined;
   const offset = offsetRaw ? Math.max(parseInt(offsetRaw, 10) || 0, 0) : 0;
+
+  // Direct step query: only this user's pending steps — no full-declaration
+  // prefetch, no full instance scan, no per-instance sequential reads.
+  // Sibling steps (for actionability) and declarations are batch-fetched.
+  try {
+    const mySteps: any[] = await (prisma as any).workflowInstanceStep.findMany({
+      where: { status: "pending", assigneeId: userId },
+      select: { declarationId: true },
+    });
+    const declIds: string[] = [...new Set(mySteps.map((s: any) => s.declarationId as string))];
+    if (declIds.length === 0) {
+      res.json([]);
+      return;
+    }
+    const [allRows, declarations] = await Promise.all([
+      (prisma as any).workflowInstanceStep.findMany({
+        where: { declarationId: { in: declIds } },
+        orderBy: [{ declarationId: "asc" }, { stepOrder: "asc" }],
+      }),
+      prisma.declaration.findMany({ where: { id: { in: declIds } } }),
+    ]);
+    const toStep = (r: any): WorkflowStep => ({
+      order: r.stepOrder, role: r.role, assignee: r.assigneeId || "",
+      assigneeName: r.assigneeName, label: r.label, status: r.status,
+      decision: r.decision ?? null,
+      approvedAt: r.status === "approved" && r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
+      notes: r.notes ?? "", decidedAt: r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
+      decidedById: r.decidedById ?? null, decidedByName: r.decidedByName ?? null,
+    });
+    const stepsByDecl = new Map<string, WorkflowStep[]>();
+    for (const r of allRows) {
+      const arr = stepsByDecl.get(r.declarationId) || [];
+      arr.push(toStep(r));
+      stepsByDecl.set(r.declarationId, arr);
+    }
+    const declMap = new Map(declarations.map((d) => [d.id, d]));
+    const pending: any[] = [];
+    for (const declId of declIds) {
+      const steps = stepsByDecl.get(declId) || [];
+      const pendingStep = findActionablePendingStep(steps, userId);
+      if (!pendingStep) continue;
+      const declaration = declMap.get(declId) as any;
+      if (!declaration) continue;
+      // Org isolation: skip cross-org pending (defense-in-depth, HR mis-assignment fallback)
+      if (userOrg && declaration.organizationId && declaration.organizationId !== userOrg) continue;
+      pending.push({ declaration: declarationResponse(declaration), step: pendingStep });
+    }
+    const paged = limit !== undefined ? pending.slice(offset, offset + limit) : pending;
+    res.json(paged);
+    return;
+  } catch (err: any) {
+    // Pre-migration databases have no step table — fall back to the legacy
+    // instance scan below. Any other error propagates as a 500.
+    const missingTable =
+      err?.code === "P2021" ||
+      /no such table|does not exist|undefined table/i.test(err?.message || "");
+    if (!missingTable) throw err;
+  }
+
+  // Legacy fallback (pre-migration databases without relational step rows).
   const pending: any[] = [];
 
   // DB-level org filter: only fetch declarations for user's org (if any)
@@ -193,7 +258,9 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
         ...steps[currentStepIndex],
         status: newStepStatus,
         decision,
-        notes: notes || "",
+        // Free text is sanitized like every other user-supplied field on the
+        // declaration paths — step notes persist into JSON + rows.
+        notes: sanitize(String(notes || "")),
         decidedAt: now,
         decidedById: req.user!.id,
         decidedByName: req.user!.name,

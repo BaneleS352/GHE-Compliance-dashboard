@@ -175,10 +175,11 @@ describe("Organization — multi-tenant flows", () => {
     const hbTeamToken = tokenFor(hbTeam as any);
     const npnTeamToken = tokenFor(npnTeam as any);
     const decl = await request(app).post("/api/declarations").set("Authorization", `Bearer ${hbTeamToken}`).send({ ...BASE_DECL, employee: hbTeam.name, employeeId: hbTeam.id, teamMemberNumber: hbTeam.teamMemberNumber, lineManager: hbLm.name, department: hbTeam.department, counterparty: "FileOrgTest", value: 100 });
-    await request(app).patch(`/api/declarations/${decl.body.id}/submit`).set("Authorization", `Bearer ${hbTeamToken}`);
+    // Upload while Draft (uploads to decided/submitted declarations are rejected)
     const fileRes = await request(app).post("/api/files/upload").set("Authorization", `Bearer ${hbTeamToken}`).attach("file", Buffer.from("hello"), "test.txt").field("declarationId", decl.body.id);
     expect(fileRes.status).toBe(201);
     const fileId = fileRes.body.id;
+    await request(app).patch(`/api/declarations/${decl.body.id}/submit`).set("Authorization", `Bearer ${hbTeamToken}`);
     // NPN user tries to download HB's file
     const cross = await request(app).get(`/api/files/${fileId}`).set("Authorization", `Bearer ${npnTeamToken}`);
     expect(cross.status).toBe(403);

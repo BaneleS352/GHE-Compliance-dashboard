@@ -126,14 +126,41 @@ export async function verifyNormalization(): Promise<VerifyResult> {
     const snap = await (prisma as any).declarationSnapshot.findUnique({ where: { declarationId: d.id } });
     if (!snap) {
       drifts.push({ scope: "declaration", id: d.id, detail: "missing snapshot" });
-    } else if (snap.declarerName !== d.employee || snap.department !== d.department) {
+    } else if (
+      snap.declarerName !== d.employee ||
+      snap.employeeNumber !== d.teamMemberNumber ||
+      snap.positionTitle !== d.position ||
+      snap.department !== d.department
+    ) {
       drifts.push({ scope: "declaration", id: d.id, detail: "snapshot differs from declaration" });
     }
+    // managerDisplayName intentionally not compared: the snapshot keeps the
+    // submission-time manager while declaration.lineManager stays editable.
     const detail = await (prisma as any).declarationDetail.findUnique({ where: { declarationId: d.id } });
     if (!detail) {
       drifts.push({ scope: "declaration", id: d.id, detail: "missing detail" });
-    } else if (detail.description !== d.description || detail.contactPerson !== d.contactPerson) {
-      drifts.push({ scope: "declaration", id: d.id, detail: "detail differs from declaration" });
+    } else {
+      // decidedBy*/managerDisplayName intentionally not compared (see above);
+      // every other mirrored field must match exactly.
+      const detailPairs: [string, any, any][] = [
+        ["description", detail.description, d.description],
+        ["occasion", detail.occasion, d.occasion],
+        ["relationship", detail.relationship, d.relationship],
+        ["receivedGiven", detail.receivedGiven, d.receivedGiven],
+        ["fromField", detail.fromField, d.fromField],
+        ["contactPerson", detail.contactPerson, d.contactPerson],
+        ["biddingProcess", detail.biddingProcess, d.biddingProcess],
+        ["contractNegotiation", detail.contractNegotiation ?? null, d.contractNegotiation ?? null],
+        ["instances", detail.instances, d.instances],
+        ["publicOfficial", detail.publicOfficial, d.publicOfficial],
+        ["substantiation", detail.substantiation ?? null, d.substantiation ?? null],
+      ];
+      for (const [field, a, b] of detailPairs) {
+        if (String(a ?? "") !== String(b ?? "")) {
+          drifts.push({ scope: "declaration", id: d.id, detail: `detail.${field} differs from declaration` });
+          break;
+        }
+      }
     }
     const eventDate = parseDateSafe(d.date)?.toISOString() ?? null;
     const rowEvent = d.eventDate ? new Date(d.eventDate).toISOString() : null;

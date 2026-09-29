@@ -15,9 +15,27 @@ const createdFileIds: string[] = [];
 
 describe("File and report export contracts", () => {
   beforeAll(async () => {
-    const declaration = await prisma.declaration.findFirst({ where: { employeeId: "user-team" } });
-    if (!declaration) throw new Error("Seed declaration for user-team is required");
-    declarationId = declaration.id;
+    // Uploads require a Draft/Returned declaration — pick a draft (earlier
+    // suites may have submitted the first user-team declaration).
+    const draft = await prisma.declaration.findFirst({ where: { employeeId: "user-team", status: "Draft" } });
+    if (draft) {
+      declarationId = draft.id;
+      return;
+    }
+    const created = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({
+        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+        type: "Gift", counterparty: "FileContractTest", value: 10, submitted: "2026-07-03",
+        approver: "Sipho Approver", priority: "Low", description: "file contract",
+        relationship: "Test", receivedGiven: "Received", from: "Supplier",
+        contactPerson: "T", biddingProcess: "No", occasion: "Business Meeting",
+        date: "2026-07-03", instances: "1", publicOfficial: "No",
+      });
+    if (created.status !== 201) throw new Error("Seed draft declaration for user-team is required");
+    declarationId = created.body.id;
   });
 
   afterAll(async () => {

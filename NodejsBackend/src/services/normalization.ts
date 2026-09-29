@@ -24,9 +24,20 @@ export function parseDateSafe(val: string | null | undefined): Date | null {
   const s = String(val).trim();
   if (!s) return null;
   // Accept YYYY-MM-DD (legacy Declaration.date/submitted) and ISO strings.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (m) {
     const d = new Date(`${s}T00:00:00.000Z`);
-    return Number.isNaN(d.getTime()) ? null : d;
+    // Reject impossible calendar dates: JS rolls "2026-02-30" over to Mar 2
+    // instead of failing, which would store a wrong-but-plausible eventDate.
+    if (
+      Number.isNaN(d.getTime()) ||
+      d.getUTCFullYear() !== Number(m[1]) ||
+      d.getUTCMonth() + 1 !== Number(m[2]) ||
+      d.getUTCDate() !== Number(m[3])
+    ) {
+      return null;
+    }
+    return d;
   }
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? null : d;
@@ -120,22 +131,13 @@ export async function syncDeclarationDetail(
     await (db as any).declarationDetail.create({ data });
     return;
   }
+  // Update uses the identical mapping (including the legacy received_given /
+  // from aliases) so create and update can never skew a field.
+  const { declarationId: _omit, ...fields } = data;
   await (db as any).declarationDetail.upsert({
     where: { declarationId },
     create: data,
-    update: {
-      description: String(d.description ?? ""),
-      occasion: String(d.occasion ?? ""),
-      relationship: String(d.relationship ?? ""),
-      receivedGiven: String(d.receivedGiven ?? ""),
-      fromField: String(d.fromField ?? d.from ?? ""),
-      contactPerson: String(d.contactPerson ?? ""),
-      biddingProcess: String(d.biddingProcess ?? ""),
-      contractNegotiation: d.contractNegotiation ?? null,
-      instances: String(d.instances ?? ""),
-      publicOfficial: String(d.publicOfficial ?? ""),
-      substantiation: d.substantiation ?? null,
-    },
+    update: fields,
   });
 }
 
@@ -205,7 +207,11 @@ export async function writeWorkflowStepsTx(
   steps: WorkflowStep[],
   ruleId?: string | null,
 ): Promise<void> {
-  if (!declarationId || !Array.isArray(steps)) return;
+  // Loud on bad input: silently writing nothing would leave the JSON cache
+  // and the authoritative rows diverged with no signal.
+  if (!declarationId || !Array.isArray(steps)) {
+    throw new Error("writeWorkflowStepsTx requires a declarationId and a step array");
+  }
   const ids = new Set<string>();
   for (const s of steps) {
     if (s.assignee) ids.add(s.assignee);
@@ -252,7 +258,9 @@ export async function persistWorkflowInstanceSteps(
   steps: WorkflowStep[],
   ruleId?: string | null,
 ): Promise<void> {
-  if (!declarationId || !Array.isArray(steps)) return;
+  if (!declarationId || !Array.isArray(steps)) {
+    throw new Error("persistWorkflowInstanceSteps requires a declarationId and a step array");
+  }
   await (prisma as any).$transaction(async (tx: any) => {
     await writeWorkflowStepsTx(tx, declarationId, steps, ruleId);
   });
@@ -281,8 +289,11 @@ export async function readWorkflowSteps(declarationId: string): Promise<Workflow
         decidedByName: r.decidedByName ?? null,
       }));
     }
-  } catch {
-    // Relational tables may not exist on a pre-migration database.
+  } catch (err) {
+    // Relational tables may not exist on a pre-migration database — but any
+    // other failure (connection, permissions) is logged so degraded reads
+    // don't masquerade as healthy fallback traffic.
+    console.warn(`readWorkflowSteps: relational read failed for ${declarationId}, using JSON fallback:`, (err as Error)?.message || err);
   }
   const inst = await prisma.workflowInstance.findUnique({ where: { declarationId } });
   if (!inst) return null;

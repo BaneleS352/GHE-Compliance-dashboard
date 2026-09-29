@@ -14,11 +14,13 @@ echo "Running versioned migrations..."
 NODE_TLS_REJECT_UNAUTHORIZED=0 ./node_modules/.bin/prisma migrate deploy
 echo "Migrations applied."
 
-# Seeding must never overwrite operational data: only seed on explicit request.
-# Set SEED_ON_BOOT=true for the very first deploy of an empty database.
+# Seeding must never overwrite operational data: seed-if-empty checks the
+# database is empty (0 users) before seeding, so a stale SEED_ON_BOOT=true
+# is harmless on redeploys. Set SEED_ON_BOOT=true for the very first deploy
+# of an empty database.
 if [ "${SEED_ON_BOOT}" = "true" ]; then
-  echo "Seeding database (SEED_ON_BOOT=true)..."
-  node dist/seed.js
+  echo "Seeding empty database if needed (SEED_ON_BOOT=true)..."
+  node dist/scripts/seed-if-empty.js
 else
   echo "Skipping seed (set SEED_ON_BOOT=true to seed an empty database)."
 fi
@@ -31,6 +33,13 @@ fi
 echo "Running idempotent normalization backfill..."
 node dist/scripts/run-backfill.js
 echo "Backfill complete."
+
+# Zero-drift gate: workflow reads are rows-first, so starting with drifted
+# relational data would serve wrong approval state. A non-zero verify stops
+# startup, mirroring the local `db:pg:up` bring-up.
+echo "Verifying zero drift..."
+node dist/scripts/run-verify.js
+echo "Verify clean."
 
 echo "Starting server..."
 node dist/index.js

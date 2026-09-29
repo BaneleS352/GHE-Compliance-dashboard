@@ -112,9 +112,11 @@ export async function ensureReportingViews(): Promise<void> {
       : `CREATE VIEW IF NOT EXISTS "${v.name}" AS ${select}`;
     try {
       await prisma.$executeRawUnsafe(ddl);
-    } catch {
-      // Older database or limited permissions: callers fall back to legacy.
-      break;
+    } catch (err) {
+      // Continue with the remaining views and log loudly: callers fall back
+      // to legacy aggregation per view, but a broken DDL must be visible
+      // instead of silently disabling reporting until restart.
+      console.warn(`reportingViews: failed to ensure view ${v.name}:`, (err as Error)?.message || err);
     }
   }
   ensured = true;
@@ -133,7 +135,10 @@ export async function viewStatusSummary(organizationId?: string) {
   const rows = await viewStatusSummaryFull(organizationId);
   if (!rows) return null;
   const out: Record<string, number> = {};
-  for (const r of rows) out[r.status] = r.count;
+  // Number() conversion: PostgreSQL COUNT(*) arrives as BigInt via raw
+  // queries and JSON.stringify(BigInt) throws — this runs on the reports
+  // path that returns straight to res.json.
+  for (const r of rows) out[r.status] = Number(r.count);
   return out;
 }
 

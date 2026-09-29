@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import request from "supertest";
 import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } from "./helpers";
 import path from "path";
@@ -32,12 +32,33 @@ describe("Edge-Case Tests", () => {
   // ── FILE UPLOADS ──
   describe("File uploads", () => {
     let uploadedId: string;
+    let draftDeclId: string;
+
+    beforeAll(async () => {
+      // Uploads require a Draft/Returned declaration — create a fresh draft
+      // owned by user-team (GHE-TEST-001 is Pending and rejects uploads).
+      const created = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({
+          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+          type: "Gift", counterparty: "UploadDraftTest", value: 10, submitted: "2026-07-01",
+          approver: "Sipho Approver", priority: "Low", description: "upload draft",
+          relationship: "Test", receivedGiven: "Received", from: "Supplier",
+          contactPerson: "T", biddingProcess: "No", occasion: "Business Meeting",
+          date: "2026-07-01", instances: "1", publicOfficial: "No",
+        });
+      expect(created.status).toBe(201);
+      draftDeclId = created.body.id;
+      cleanupDeclIds.push(draftDeclId);
+    });
 
     it("POST /api/files/upload — upload a valid text file", async () => {
       const res = await request(app)
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getAdminToken()}`)
-        .field("declarationId", "GHE-TEST-001")
+        .field("declarationId", draftDeclId)
         .attach("file", Buffer.from("hello world"), "test.txt");
       expect(res.status).toBe(201);
       expect(res.body.id).toBeDefined();
@@ -52,7 +73,7 @@ describe("Edge-Case Tests", () => {
       const res = await request(app)
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getAdminToken()}`)
-        .field("declarationId", "GHE-TEST-001")
+        .field("declarationId", draftDeclId)
         .attach("file", Buffer.from("linked file"), "linked.txt");
       expect(res.status).toBe(201);
       expect(res.body.name).toBe("linked.txt");
@@ -88,7 +109,7 @@ describe("Edge-Case Tests", () => {
       const res = await request(app)
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getTeamToken()}`)
-        .field("declarationId", "GHE-TEST-001")
+        .field("declarationId", draftDeclId)
         .attach("file", Buffer.from("team file"), "team.txt");
       expect(res.status).toBe(201);
     });

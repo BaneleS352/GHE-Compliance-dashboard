@@ -78,6 +78,11 @@ const PRESET_USERS = [
 ];
 
 router.get("/preset-users", (_req: Request, res: Response): void => {
+  // Demo login emails aid password spraying — never serve them in production.
+  if (process.env.NODE_ENV === "production") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
   res.json(PRESET_USERS);
 });
 

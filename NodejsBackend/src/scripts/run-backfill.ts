@@ -13,6 +13,12 @@ async function main() {
   if (report.declarations.missingDeclarers.length > 0 || report.declarations.missingApprovers.length > 0) {
     console.warn(`missing user references: declarers=${report.declarations.missingDeclarers.length} approvers=${report.declarations.missingApprovers.length}`);
   }
+  // Corrupt workflow JSON is skipped (never mirrored), so a success exit
+  // would deploy green while serving degraded reads — fail loudly instead.
+  if (report.workflows.corruptJson.length > 0) {
+    console.error(`corrupt workflow JSON (not backfilled): ${report.workflows.corruptJson.join(", ")}`);
+    process.exitCode = 1;
+  }
 }
 
 main()

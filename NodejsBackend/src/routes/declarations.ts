@@ -17,6 +17,7 @@ import {
   readWorkflowSteps,
 } from "../services/normalization";
 import { sendNotification } from "../services/notificationService";
+import { containedUploadPath } from "./files";
 import {
   viewStatusSummaryFull,
   viewMonthly,
@@ -34,6 +35,26 @@ function generateDeclarationId(): string {
 
 function sanitize(val: string): string {
   return xss(val, { whiteList: {}, stripIgnoreTag: true });
+}
+
+/**
+ * Line-Manager department scoping for direct-ID routes. The list endpoint
+ * filters LMs to their own department; without this, an LM could read/edit/
+ * delete/submit another department's declarations by ID. Returns true when
+ * access is denied (response already sent).
+ */
+function denyCrossDepartmentLM(req: AuthRequest, res: Response, declaration: { department: string }): boolean {
+  if (
+    req.user!.role !== "admin" &&
+    req.user!.role === "approver" &&
+    req.user!.department &&
+    req.user!.position === "Line Manager" &&
+    declaration.department !== req.user!.department
+  ) {
+    res.status(403).json({ error: "Access denied: declaration is outside your department" });
+    return true;
+  }
+  return false;
 }
 
 function safeParseWorkflowSteps(data: string | null | undefined): any[] {
@@ -131,13 +152,18 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
     // Try DB contains first; for SQLite we still filter case-insensitively in memory after
     declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" } });
     const qLower = q.toLowerCase();
+    // String() guards: legacy rows can hold nulls in text columns.
     declarations = declarations.filter(
       (d) =>
-        d.employee.toLowerCase().includes(qLower) ||
-        d.counterparty.toLowerCase().includes(qLower) ||
-        d.id.toLowerCase().includes(qLower) ||
-        d.description.toLowerCase().includes(qLower)
+        String(d.employee || "").toLowerCase().includes(qLower) ||
+        String(d.counterparty || "").toLowerCase().includes(qLower) ||
+        String(d.id || "").toLowerCase().includes(qLower) ||
+        String(d.description || "").toLowerCase().includes(qLower)
     );
+  } else if (limit !== undefined) {
+    // Bounded DB page when no search is involved (no shape change: the
+    // in-memory slice below becomes a no-op for exact pages).
+    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, take: limit, skip: offset });
   } else {
     declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" } });
   }
@@ -165,7 +191,8 @@ const createSchema = z.object({
   submitted: z.string(),
   approver: z.string().optional(),
   approverId: z.string().optional(),
-  status: z.enum(VALID_STATUSES).default("Draft"),
+  // No `status` key: the server owns it ("Draft" on create). Accepting it
+  // would silently discard a client-supplied Pending and mislead callers.
   priority: z.string(),
   description: z.string().max(10000),
   relationship: z.string(),
@@ -342,6 +369,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(403).json({ error: "Cannot view declaration from another organization" });
     return;
   }
+  if (denyCrossDepartmentLM(req, res, declaration)) return;
 
   const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: declaration.id } });
   // Rows-first; legacy JSON cache is the fallback.
@@ -383,6 +411,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(403).json({ error: "Cannot edit another user's declaration" });
     return;
   }
+  if (denyCrossDepartmentLM(req, res, existing)) return;
 
   const parsed = createSchema.partial().safeParse(req.body);
   if (!parsed.success) {
@@ -414,10 +443,15 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
   const updateData: Record<string, unknown> = {};
 
+  // Editable via PUT: everything EXCEPT the immutable declarer identity
+  // (employee, teamMemberNumber, position, department). Those four are
+  // captured once into DeclarationSnapshot at creation and the verify gate
+  // asserts they never diverge — allowing them here would red the gate
+  // permanently with no self-heal. Identity corrections require admin
+  // recreation. lineManager stays editable (manager changes are legitimate);
+  // the snapshot keeps the submission-time value by design.
   const fieldMap: Record<string, string> = {
-    employee: "employee",
-    teamMemberNumber: "teamMemberNumber",
-    lineManager: "lineManager", position: "position", department: "department",
+    lineManager: "lineManager",
     organizationId: "organizationId",
     company: "company", team: "team", type: "type", counterparty: "counterparty",
     value: "value", submitted: "submitted",
@@ -429,7 +463,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     approverId: "approverId",
   };
 
-  const sanitizeFields = new Set(["employee","teamMemberNumber","lineManager","position","department","company","team","type","counterparty","priority","description","relationship","receivedGiven","contactPerson","biddingProcess","contractNegotiation","occasion","date","instances","publicOfficial","substantiation","submitted","from"]);
+  const sanitizeFields = new Set(["lineManager","company","team","type","counterparty","priority","description","relationship","receivedGiven","contactPerson","biddingProcess","contractNegotiation","occasion","date","instances","publicOfficial","substantiation","submitted","from"]);
   for (const [key, dbField] of Object.entries(fieldMap)) {
     const val = (data as Record<string, unknown>)[key];
     if (val !== undefined) {
@@ -459,13 +493,20 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
   // User-link existence is resolved before the transaction (pure reads, so the
   // transaction holds the write lock for the shortest possible time).
+  // When approverId is reassigned the approver display name moves with it —
+  // otherwise the detail view shows the previous manager's name with the new id.
   let putDeclarer: string | null = null;
   const putDu = await prisma.user.findUnique({ where: { id: existing.employeeId }, select: { id: true } });
   if (putDu) putDeclarer = putDu.id;
   let putApproverUser: string | null = null;
   if (putApproverId) {
-    const putAu = await prisma.user.findUnique({ where: { id: putApproverId }, select: { id: true } });
-    if (putAu) putApproverUser = putAu.id;
+    const putAu = await prisma.user.findUnique({ where: { id: putApproverId }, select: { id: true, name: true } });
+    if (putAu) {
+      putApproverUser = putAu.id;
+      if (updateData.approverId !== undefined) updateData.approver = putAu.name;
+    }
+  } else if (updateData.approverId !== undefined) {
+    updateData.approver = "";
   }
 
   // Single transaction: legacy edit plus canonical DateTime columns, links,
@@ -542,13 +583,15 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     res.status(403).json({ error: "Cannot delete another user's declaration" });
     return;
   }
+  if (denyCrossDepartmentLM(req, res, existing)) return;
 
   // Cascade: delete workflow instance and uploaded files before declaration.
   // Draft-only deletion is enforced above; relational children cascade at the
   // DB level, with explicit deletes here for pre-migration databases.
   const files = await prisma.uploadedFile.findMany({ where: { declarationId: id } });
   await Promise.all(files.map(async (f) => {
-    const fp = path.join(UPLOAD_DIR, f.path);
+    const fp = containedUploadPath(f.path);
+    if (!fp) return;
     try { await fs.promises.unlink(fp); } catch { /* file may have been deleted already */ }
   }));
   await Promise.all([
@@ -584,6 +627,7 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     res.status(403).json({ error: "Cannot submit another user's declaration" });
     return;
   }
+  if (denyCrossDepartmentLM(req, res, existing)) return;
 
   const existingInstance = await prisma.workflowInstance.findUnique({ where: { declarationId: existing.id } });
 
@@ -611,6 +655,11 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
   }
 
   const nextApprover = workflowSteps.find((step) => step.status === "pending");
+  // NOTE: when every step is skipped (e.g. an LM-only rule with no
+  // resolvable line manager) there is no actionable approver and the
+  // declaration sits in Pending until an admin intervenes. Rejecting here
+  // was considered, but the suite mandates that all-skipped submits succeed
+  // with the skipped steps recorded; admin status-override is the escape hatch.
   const approverName = nextApprover ? nextApprover.assigneeName : existing.approver;
   const approverIdValue = nextApprover ? nextApprover.assignee : existing.approverId;
 
@@ -704,6 +753,13 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
     const pendingStep = steps.find((s: any) => s.status === "pending");
     if (pendingStep) {
       res.status(400).json({ error: "Cannot approve/decline — pending approval step still exists" });
+      return;
+    }
+    // A terminal override needs decided workflow evidence: all-skipped (or
+    // empty) steps would desync the declaration from its step rows.
+    const decided = steps.some((s: any) => s.status !== "pending" && s.status !== "skipped");
+    if (!decided) {
+      res.status(400).json({ error: "Cannot approve/decline — no decided workflow step exists" });
       return;
     }
   }

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
 import { asyncHandler } from "../../middleware/asyncHandler";
-import { syncWorkflowRuleSteps } from "../../services/normalization";
+import { syncWorkflowRuleSteps, parseRuleStepDefs } from "../../services/normalization";
 
 const router = Router();
 
@@ -77,7 +77,10 @@ router.post("/rules", authenticate, authorize("admin"), asyncHandler(async (req:
     },
   });
 
-  void syncWorkflowRuleSteps(rule.id).catch(() => undefined);
+  // Awaited (not fire-and-forget): submissions resolve rules from these
+  // rows, so responding before they exist would build workflows from stale
+  // JSON; a sync failure is loud (500) rather than silently dropped.
+  await syncWorkflowRuleSteps(rule.id);
 
   res.status(201).json({
     id: rule.id,
@@ -116,20 +119,42 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
   }
 
   if (data.steps) {
-    const newRoles = data.steps.map((s) => s.role);
-    // Guard against redefining a role that is mid-approval: check relational
-    // rows first, legacy JSON cache as fallback.
-    for (const role of newRoles) {
+    // Guard against stranding in-flight approvals: only roles ADDED or
+    // REMOVED by this edit are checked (pure renames/reorders of existing
+    // roles cannot strand anyone), and only against instances produced by
+    // THIS rule (plus untracked pre-rule-FK history, conservatively).
+    const oldDefs = await (prisma as any).workflowRuleStep.findMany({ where: { ruleId: id }, select: { role: true } });
+    const oldRoles: string[] = oldDefs.length > 0
+      ? oldDefs.map((s: any) => s.role)
+      : parseRuleStepDefs(existing.steps).map((d) => d.role);
+    const newRoles: string[] = data.steps.map((s) => s.role);
+    const changedRoles = new Set([
+      ...newRoles.filter((r) => !oldRoles.includes(r)),
+      ...oldRoles.filter((r) => !newRoles.includes(r)),
+    ]);
+    for (const role of changedRoles) {
       let blocker: string | null = null;
+      const roleFilter = role as "lineManager" | "hr";
       try {
-        const row = await (prisma as any).workflowInstanceStep.findFirst({
-          where: { role, status: "pending" },
+        const rows = await (prisma as any).workflowInstanceStep.findMany({
+          where: { role: roleFilter, status: "pending" },
           select: { declarationId: true },
         });
-        if (row) blocker = row.declarationId;
+        if (rows.length > 0) {
+          const insts = await prisma.workflowInstance.findMany({
+            where: { declarationId: { in: rows.map((r: any) => r.declarationId) } },
+            select: { declarationId: true, ruleId: true },
+          });
+          // Same-rule instances block; untracked (null ruleId) history blocks
+          // conservatively since its producing rule is unknown.
+          const hit = insts.find((i) => (i as any).ruleId === id || (i as any).ruleId == null);
+          if (hit) blocker = hit.declarationId;
+        }
       } catch { blocker = null; }
       if (!blocker) {
-        const instances = await prisma.workflowInstance.findMany();
+        const instances = await prisma.workflowInstance.findMany({
+          where: { OR: [{ ruleId: id }, { ruleId: null }] },
+        });
         for (const inst of instances) {
           let currentSteps: any[];
           try { currentSteps = JSON.parse(inst.steps); } catch { continue; }
@@ -139,7 +164,7 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
       }
       if (blocker) {
         res.status(400).json({
-          error: `Cannot add step with role "${role}"; it is still active in workflow for declaration ${blocker}`,
+          error: `Cannot change rule while role "${role}" has a pending step in workflow for declaration ${blocker}`,
         });
         return;
       }
@@ -158,7 +183,8 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
   });
 
   if (data.steps !== undefined) {
-    void syncWorkflowRuleSteps(rule.id).catch(() => undefined);
+    // Awaited for the same reason as create: readers must see synced rows.
+    await syncWorkflowRuleSteps(rule.id);
   }
 
   res.json({

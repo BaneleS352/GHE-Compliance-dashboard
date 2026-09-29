@@ -75,6 +75,17 @@ async function isWorkflowAssignee(declarationId: string, userId: string): Promis
   } catch { return false; }
 }
 
+/**
+ * Resolve a stored file path strictly inside the upload directory.
+ * `file.path` is database data — a tainted row must not turn serve/delete
+ * into arbitrary filesystem access. Returns null when contained check fails.
+ */
+export function containedUploadPath(storedPath: string): string | null {
+  const resolved = path.resolve(UPLOAD_DIR, storedPath);
+  if (resolved !== UPLOAD_DIR && resolved.startsWith(UPLOAD_DIR + path.sep)) return resolved;
+  return null;
+}
+
 // POST /api/files/upload
 router.post(
   "/upload",
@@ -95,7 +106,10 @@ router.post(
 
     const cleanupFile = async () => {
       if (req.file) {
-        try { await fs.promises.unlink(path.join(UPLOAD_DIR, req.file.filename)); } catch {}
+        const fp = containedUploadPath(req.file.filename);
+        if (fp) {
+          try { await fs.promises.unlink(fp); } catch {}
+        }
       }
     };
 
@@ -114,6 +128,12 @@ router.post(
     if (req.user!.role !== "admin" && decl.employeeId !== req.user!.id) {
       await cleanupFile();
       res.status(403).json({ error: "Cannot upload to another user's declaration" });
+      return;
+    }
+    // Evidence is immutable after decision — same rule as PUT (Draft/Returned only).
+    if (decl.status !== "Draft" && decl.status !== "Returned") {
+      await cleanupFile();
+      res.status(400).json({ error: "Cannot upload files to a declaration that is not a draft or returned" });
       return;
     }
 
@@ -175,8 +195,8 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     }
   }
 
-  const filePath = path.join(UPLOAD_DIR, file.path);
-  if (!fs.existsSync(filePath)) {
+  const filePath = containedUploadPath(file.path);
+  if (!filePath || !fs.existsSync(filePath)) {
     res.status(404).json({ error: "File not found on disk" });
     return;
   }
@@ -215,10 +235,17 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
         return;
       }
     }
+    // Evidence is immutable after decision — no deletes once Approved/Declined.
+    if (decl && (decl.status === "Approved" || decl.status === "Declined")) {
+      res.status(400).json({ error: "Cannot delete files from a decided declaration" });
+      return;
+    }
   }
 
-  const filePath = path.join(UPLOAD_DIR, file.path);
-  try { await fs.promises.unlink(filePath); } catch { /* file may have been deleted already */ }
+  const filePath = containedUploadPath(file.path);
+  if (filePath) {
+    try { await fs.promises.unlink(filePath); } catch { /* file may have been deleted already */ }
+  }
 
   await (prisma as any).declarationFile.deleteMany({ where: { fileId: id } }).catch(() => undefined);
   await prisma.uploadedFile.delete({ where: { id } });

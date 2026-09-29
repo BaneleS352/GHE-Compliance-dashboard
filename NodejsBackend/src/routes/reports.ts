@@ -65,7 +65,8 @@ router.get("/list", authenticate, authorize("admin", "approver"), asyncHandler(a
   let result = declarations;
   if (search) {
     const q = String(search).toLowerCase();
-    result = result.filter((d) => d.employee.toLowerCase().includes(q) || d.id.toLowerCase().includes(q));
+    // String() guards: legacy rows can hold nulls in text columns.
+    result = result.filter((d) => String(d.employee || "").toLowerCase().includes(q) || String(d.id || "").toLowerCase().includes(q));
   }
 
   res.json(result);
