@@ -40,16 +40,18 @@ const VIEWS: { name: string; select: string; selectPg?: string }[] = [
   // Volume + outcomes by month from the canonical eventDate column.
   // Rows with an invalid legacy date (null eventDate) cannot be bucketed and
   // are excluded; they are counted in the backfill reconciliation report.
+  // SQLite note: Prisma stores DateTime as INTEGER millis, so the month is
+  // derived via strftime('%Y-%m', eventDate / 1000, 'unixepoch').
   {
     name: "v_declarations_monthly",
     select: `SELECT "organizationId" AS "organizationId",
-          strftime('%Y-%m', "eventDate") AS "month",
+          strftime('%Y-%m', "eventDate" / 1000, 'unixepoch') AS "month",
           COUNT(*) AS "count",
           SUM(CASE WHEN "status" = 'Approved' THEN 1 ELSE 0 END) AS "approved",
           SUM(CASE WHEN "status" = 'Declined' THEN 1 ELSE 0 END) AS "declined",
           SUM("value") AS "totalValue"
    FROM "Declaration" WHERE "eventDate" IS NOT NULL
-   GROUP BY "organizationId", strftime('%Y-%m', "eventDate")`,
+   GROUP BY "organizationId", strftime('%Y-%m', "eventDate" / 1000, 'unixepoch')`,
     selectPg: `SELECT "organizationId" AS "organizationId",
           to_char("eventDate", 'YYYY-MM') AS "month",
           COUNT(*) AS "count",
@@ -116,11 +118,6 @@ export async function ensureReportingViews(): Promise<void> {
     }
   }
   ensured = true;
-}
-
-/** Test hook: reset the ensure-once flag (tests only). */
-export function resetReportingViewsCache(): void {
-  ensured = false;
 }
 
 async function queryView<T>(sql: string, params: any[]): Promise<T[] | null> {

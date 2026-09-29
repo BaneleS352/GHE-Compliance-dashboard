@@ -30,8 +30,40 @@ if not exist .env (
 )
 
 echo.
-echo [3/5] Generating Prisma client...
+echo [3/5] Setting up database...
 
+:: Route by DATABASE_URL scheme: SQLite keeps the db-push flow, PostgreSQL
+:: uses versioned migrations + seed-if-empty + backfill/verify (db:pg:up).
+:: Only uncommented DATABASE_URL lines match (^ anchors line start, so the
+:: commented example in .env.example is ignored).
+findstr /R "^DATABASE_URL.*postgres" .env >nul
+if errorlevel 1 goto :sqlite_db
+
+echo   PostgreSQL detected - running versioned bring-up...
+call npx tsx src/scripts/pg-up.ts
+if errorlevel 1 (
+    echo.
+    echo ERROR: PostgreSQL bring-up failed. See output above.
+    pause
+    exit /b 1
+)
+goto :db_done
+
+:sqlite_db
+:: db:pg:up leaves schema.prisma on provider="postgresql" so `npm run dev`
+:: keeps working; a SQLite run needs it back on "sqlite". Refuse loudly
+:: rather than generating the wrong client.
+findstr /R "^provider.*postgresql" prisma\schema.prisma >nul
+if not errorlevel 1 (
+    echo.
+    echo ERROR: schema.prisma provider is still "postgresql" (left by db:pg:up).
+    echo Fix: git checkout -- prisma/schema.prisma
+    echo Then re-run dev.bat.
+    pause
+    exit /b 1
+)
+
+echo   SQLite detected - generating Prisma client...
 call npx prisma generate
 if errorlevel 1 (
     echo.
@@ -60,6 +92,8 @@ if errorlevel 1 (
     echo.
     echo WARNING: Database seed failed.
 )
+
+:db_done
 
 :: ── Frontend setup ─────────────────────────────────────────────────
 cd /d "%~dp0Enterprise Compliance Platform"

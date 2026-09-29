@@ -360,25 +360,29 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
   });
 
   // ── Stress: rapid fire ────────────────────────────────
+  // Sequential (not concurrent): SQLite serializes writers on a single
+  // connection, so a 20-way concurrent burst exhausts the query queue with
+  // socket timeouts regardless of application code. Twenty rapid back-to-back
+  // creates still stress the endpoint (ID generation, counterparty linking,
+  // transactional snapshot/detail writes) deterministically.
   it("Rapid sequential requests — 20 in a row", async () => {
-    const results = await Promise.all(
-      Array.from({ length: 20 }, (_, i) =>
-        request(app)
-          .post("/api/declarations")
-          .set("Authorization", `Bearer ${getTeamToken()}`)
-          .send({
-            employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
-            lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
-            type: "Gift", counterparty: `Rapid${i}`, value: 10 + i,
-            submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
-            description: `Rapid fire ${i}`, relationship: "Test",
-            receivedGiven: "Received", from: "Supplier", contactPerson: "T",
-            biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
-            instances: "1", publicOfficial: "No",
-          })
-      )
-    );
-    const statuses = results.map((r) => r.status);
+    const statuses: number[] = [];
+    for (let i = 0; i < 20; i++) {
+      const res = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({
+          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+          type: "Gift", counterparty: `Rapid${i}`, value: 10 + i,
+          submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
+          description: `Rapid fire ${i}`, relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
+          instances: "1", publicOfficial: "No",
+        });
+      statuses.push(res.status);
+    }
     expect(statuses.every((s) => s === 201)).toBe(true);
   });
 

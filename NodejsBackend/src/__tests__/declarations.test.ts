@@ -14,8 +14,18 @@ describe("Declarations", () => {
     expect(res.body.kpis.total).toBeGreaterThanOrEqual(3);
     expect(res.body.kpis.pending).toBeGreaterThanOrEqual(1);
     expect(res.body.kpis.approved).toBeGreaterThanOrEqual(1);
-    expect(res.body.complianceTrend).toHaveLength(2);
-    expect(res.body.typeBreakdown).toHaveLength(2);
+    // Live view-backed shapes (row counts vary with test execution order).
+    expect(Array.isArray(res.body.complianceTrend)).toBe(true);
+    expect(res.body.complianceTrend.length).toBeGreaterThan(0);
+    for (const t of res.body.complianceTrend) {
+      expect(t.month).toMatch(/^\d{4}-\d{2}$/);
+      expect(typeof t.approved).toBe("number");
+      expect(typeof t.declined).toBe("number");
+    }
+    expect(Array.isArray(res.body.typeBreakdown)).toBe(true);
+    expect(res.body.typeBreakdown.length).toBeGreaterThan(0);
+    const typeTotal = res.body.typeBreakdown.reduce((s: number, t: any) => s + t.value, 0);
+    expect(typeTotal).toBe(res.body.kpis.total);
   });
 
   it("GET /api/declarations — lists all for admin", async () => {

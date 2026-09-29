@@ -2,8 +2,11 @@
 
 `prisma/migrations/0000_baseline` captures the pre-normalization schema that
 production previously created with `prisma db push`. `0001_normalization`
-adds the relational model, and `0002_rule_fk` reconciles the
-`WorkflowInstance -> WorkflowRule` foreign key. All migrations are
+adds the relational model, `0002_rule_fk` reconciles the
+`WorkflowInstance -> WorkflowRule` foreign key, `0003_counterparty_unique`
+reconciles duplicate organisation-scoped counterparties and enforces scoped
+uniqueness, and `0004_monthly_eventdate` moves the monthly reporting view from
+the legacy text date to the canonical `eventDate` column. All migrations are
 forward-only; rollback is backup/restore, never DDL reversal.
 
 ## Roles
@@ -25,7 +28,8 @@ pg_dump "postgresql://ghe_user:ghe_password@db:5432/ghe_compliance?schema=public
 ## 1. New database
 
 No action needed. The Docker entrypoint runs `prisma migrate deploy`, which
-applies `0000_baseline` + `0001_normalization` + `0002_rule_fk` in order,
+applies `0000_baseline` + `0001_normalization` + `0002_rule_fk` +
+`0003_counterparty_unique` + `0004_monthly_eventdate` in order,
 then the backfill, then the server.
 
 ```sh
@@ -41,7 +45,7 @@ One-time procedure, run by the release operator:
 # 2. Mark the baseline applied without running its DDL:
 npx prisma migrate resolve --applied "0000_baseline"
 
-# 3. Confirm the plan (must list only 0001_normalization and 0002_rule_fk):
+# 3. Confirm the plan (must list 0001_normalization through 0004_monthly_eventdate):
 npx prisma migrate status
 
 # 4. Apply (or let the container entrypoint do it on next deploy):
@@ -71,9 +75,43 @@ SELECT COUNT(*) FROM "WorkflowInstance" i
 -- step rows mirror the JSON cache
 SELECT COUNT(*) FROM "WorkflowInstance";           -- N instances
 SELECT COUNT(DISTINCT "instanceId") FROM "WorkflowInstanceStep";  -- must also be N
+-- no scoped counterparty duplicates remain (global org-null rows exempt)
+SELECT "organizationId", "name", COUNT(*)
+FROM "Counterparty" WHERE "organizationId" IS NOT NULL
+GROUP BY "organizationId", "name" HAVING COUNT(*) > 1;  -- must be 0 rows
+-- every declaration counterparty link resolves
+SELECT COUNT(*) FROM "Declaration" d
+  LEFT JOIN "Counterparty" c ON c."id" = d."counterpartyId"
+  WHERE d."counterpartyId" IS NOT NULL AND c."id" IS NULL;  -- must be 0
+-- monthly view buckets from the canonical eventDate column
+SELECT "month", "count" FROM "v_declarations_monthly" ORDER BY "month" LIMIT 5;
 ```
 
-## 4. Failure / rollback
+## 4. Counterparty duplicate preflight (before deploying 0003)
+
+`0003_counterparty_unique` reconciles duplicates itself (canonical = earliest
+`createdAt`, NULLs last, id tiebreak; declarations/contacts repointed; only
+unreferenced duplicates deleted; global org-null rows untouched), but run this
+preflight on the backup first so the reconciliation is reviewed, not a surprise:
+
+```sql
+-- scoped duplicate groups and how many declarations/contacts each touches
+SELECT c."organizationId", c."name",
+       COUNT(*) AS rows,
+       COUNT(d."id") AS declarations,
+       COUNT(cc."id") AS contacts
+FROM "Counterparty" c
+LEFT JOIN "Declaration" d ON d."counterpartyId" = c."id"
+LEFT JOIN "CounterpartyContact" cc ON cc."counterpartyId" = c."id"
+WHERE c."organizationId" IS NOT NULL
+GROUP BY c."organizationId", c."name"
+HAVING COUNT(*) > 1;
+-- expected post-deploy: each group keeps exactly one row; declarations and
+-- contacts still resolve (see verification queries above); global rows unchanged
+SELECT COUNT(*) FROM "Counterparty" WHERE "organizationId" IS NULL;  -- unchanged count
+```
+
+## 5. Failure / rollback
 
 - **Migration failure**: the entrypoint exits non-zero and the old container
   keeps serving (compose does not replace a container whose entrypoint

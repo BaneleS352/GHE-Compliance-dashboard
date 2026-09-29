@@ -17,6 +17,11 @@ import {
   readWorkflowSteps,
 } from "../services/normalization";
 import { sendNotification } from "../services/notificationService";
+import {
+  viewStatusSummaryFull,
+  viewMonthly,
+  viewTypeBreakdown,
+} from "../services/reportingViews";
 
 const router = Router();
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
@@ -38,9 +43,48 @@ function safeParseWorkflowSteps(data: string | null | undefined): any[] {
 const VALID_STATUSES = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"] as const;
 
 router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const orgId = (req.user as any)?.organizationId as string | undefined;
   const orgWhere: any = {};
-  if ((req.user as any)?.organizationId) orgWhere.organizationId = (req.user as any).organizationId;
-  // Use DB aggregation instead of loading all rows
+  if (orgId) orgWhere.organizationId = orgId;
+
+  // Agreed dashboard read models come from the scoped reporting views.
+  // The Prisma aggregation below is the fallback for pre-migration databases
+  // where the views do not exist yet. All view numerics are converted with
+  // Number() — raw driver values (e.g. BigInt counts) must never reach res.json.
+  try {
+    const [statusRows, monthlyRows, typeRows] = await Promise.all([
+      viewStatusSummaryFull(orgId),
+      viewMonthly(orgId),
+      viewTypeBreakdown(orgId),
+    ]);
+    if (statusRows && monthlyRows && typeRows) {
+      const getCount = (s: string) => statusRows.find((r) => r.status === s)?.count ?? 0;
+      const kpis = {
+        total: statusRows.reduce((n, r) => n + r.count, 0),
+        pending: getCount("Pending"),
+        approved: getCount("Approved"),
+        declined: getCount("Declined"),
+        returned: getCount("Returned"),
+        escalated: getCount("Escalated"),
+        totalValue: statusRows.reduce((n, r) => n + r.totalValue, 0),
+      };
+      const complianceTrend = (monthlyRows as any[]).map((m) => ({
+        month: String(m.month),
+        approved: Number(m.approved),
+        declined: Number(m.declined),
+      }));
+      const typeBreakdown = (typeRows as any[]).map((t) => ({
+        name: String(t.type),
+        value: Number(t.count),
+      }));
+      res.json({ kpis, complianceTrend, typeBreakdown });
+      return;
+    }
+  } catch {
+    // Fall through to legacy aggregation.
+  }
+
+  // Fallback: Prisma aggregation + static seed tables (pre-migration databases).
   const [counts, totalValueAgg, trendItems, typeItems] = await Promise.all([
     prisma.declaration.groupBy({ by: ["status"], where: orgWhere, _count: { status: true } }),
     prisma.declaration.aggregate({ where: orgWhere, _sum: { value: true } }),
@@ -192,26 +236,36 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   // Counterparty identity is resolved before the transaction (find-or-create
   // is retry-safe on unique races; the declaration write itself stays atomic).
   const sanitizedCounterparty = sanitize(data.counterparty);
-  let counterpartyId: string | null = null;
-  if (sanitizedCounterparty) {
-    const cp = await ensureCounterparty(sanitizedCounterparty, orgId, data.contactPerson ? sanitize(data.contactPerson) : null);
-    counterpartyId = cp?.id || null;
-  }
   const eventDate = parseDateSafe(data.date);
   const submittedAt = parseDateSafe(data.submitted);
+
+  // Independent pre-transaction reads run concurrently so the transaction
+  // holds the write lock for the shortest possible time — this matters under
+  // concurrent creates on SQLite. The residual TOCTOU window is negligible:
+  // if a user is deleted mid-flight the FK fails the write.
+  // No lookup is needed when the declarer/approver is the authenticated
+  // caller: `authenticate` already verified that user against the database.
+  const [cp, declarerRow, approverRow] = await Promise.all([
+    sanitizedCounterparty
+      ? ensureCounterparty(sanitizedCounterparty, orgId, data.contactPerson ? sanitize(data.contactPerson) : null)
+      : Promise.resolve(null),
+    data.employeeId === req.user!.id
+      ? Promise.resolve({ id: req.user!.id })
+      : prisma.user.findUnique({ where: { id: data.employeeId }, select: { id: true } }),
+    data.approverId
+      ? data.approverId === req.user!.id
+        ? Promise.resolve({ id: req.user!.id })
+        : prisma.user.findUnique({ where: { id: data.approverId }, select: { id: true } })
+      : Promise.resolve(null),
+  ]);
+  const counterpartyId: string | null = cp?.id || null;
+  const declarerUserId: string | null = declarerRow?.id || null;
+  const txApproverUserId: string | null = approverRow?.id || null;
 
   // Single transaction: legacy columns, canonical DateTime columns and links,
   // immutable snapshot, and detail rows all commit atomically. A failure
   // returns a retryable error instead of claiming canonical data exists.
   const declaration = await prisma.$transaction(async (tx) => {
-    let declarerUserId: string | null = null;
-    const declarer = await tx.user.findUnique({ where: { id: data.employeeId }, select: { id: true } });
-    if (declarer) declarerUserId = declarer.id;
-    let txApproverUserId: string | null = null;
-    if (data.approverId) {
-      const au = await tx.user.findUnique({ where: { id: data.approverId }, select: { id: true } });
-      if (au) txApproverUserId = au.id;
-    }
     const created = await tx.declaration.create({
       data: {
         id,
@@ -262,8 +316,9 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
       },
       created.lineManager || null,
       tx,
+      true,
     );
-    await syncDeclarationDetail(id, created, tx);
+    await syncDeclarationDetail(id, created, tx, true);
     return created;
   });
 
@@ -402,18 +457,21 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   const putSubmittedAt = updateData.submitted !== undefined ? parseDateSafe(updateData.submitted as string) : existing.submittedAt;
   const putApproverId = (updateData.approverId as string | undefined) ?? existing.approverId ?? null;
 
+  // User-link existence is resolved before the transaction (pure reads, so the
+  // transaction holds the write lock for the shortest possible time).
+  let putDeclarer: string | null = null;
+  const putDu = await prisma.user.findUnique({ where: { id: existing.employeeId }, select: { id: true } });
+  if (putDu) putDeclarer = putDu.id;
+  let putApproverUser: string | null = null;
+  if (putApproverId) {
+    const putAu = await prisma.user.findUnique({ where: { id: putApproverId }, select: { id: true } });
+    if (putAu) putApproverUser = putAu.id;
+  }
+
   // Single transaction: legacy edit plus canonical DateTime columns, links,
   // snapshot, and detail rows. A failure returns a retryable error instead of
   // claiming canonical data exists.
   const updated = await prisma.$transaction(async (tx) => {
-    let putDeclarer: string | null = null;
-    const du = await tx.user.findUnique({ where: { id: existing.employeeId }, select: { id: true } });
-    if (du) putDeclarer = du.id;
-    let putApproverUser: string | null = null;
-    if (putApproverId) {
-      const au = await tx.user.findUnique({ where: { id: putApproverId }, select: { id: true } });
-      if (au) putApproverUser = au.id;
-    }
     const upd = await tx.declaration.update({
       where: { id },
       data: {
@@ -564,20 +622,23 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     submitCounterpartyId = cp?.id || null;
   }
 
+  // User-link existence is resolved before the transaction (pure reads, so the
+  // transaction holds the write lock for the shortest possible time).
+  let submitDeclarer: string | null = null;
+  const submitDu = await prisma.user.findUnique({ where: { id: existing.employeeId }, select: { id: true } });
+  if (submitDu) submitDeclarer = submitDu.id;
+  let submitApproverUser: string | null = null;
+  if (approverIdValue) {
+    const submitAu = await prisma.user.findUnique({ where: { id: approverIdValue }, select: { id: true } });
+    if (submitAu) submitApproverUser = submitAu.id;
+  }
+
   // Single transaction: declaration status, legacy approver, canonical
   // approver link, timestamps, JSON cache, authoritative step rows, the
   // producing rule, snapshot, and detail — readers never observe a
   // half-mirrored workflow or a success without canonical data.
   const ruleId = await resolveRuleId(existing.value);
   const [updated] = await prisma.$transaction(async (tx) => {
-    let submitDeclarer: string | null = null;
-    const du = await tx.user.findUnique({ where: { id: existing.employeeId }, select: { id: true } });
-    if (du) submitDeclarer = du.id;
-    let submitApproverUser: string | null = null;
-    if (approverIdValue) {
-      const au = await tx.user.findUnique({ where: { id: approverIdValue }, select: { id: true } });
-      if (au) submitApproverUser = au.id;
-    }
     const upd = await tx.declaration.update({
       where: { id: existing.id },
       data: {

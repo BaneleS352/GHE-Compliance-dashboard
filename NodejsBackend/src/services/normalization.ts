@@ -69,40 +69,60 @@ export async function captureDeclarationSnapshot(
   declarer: { name: string; teamMemberNumber: string; position: string; department: string },
   managerDisplayName: string | null,
   db: any = prisma,
+  // Insert-only fast path for brand-new declarations (fresh unique id, so no
+  // row can exist): skips the upsert's existence read. PUT/submit/backfill
+  // keep upsert because their rows may already exist.
+  insertOnly = false,
 ): Promise<void> {
+  const data = {
+    declarationId,
+    declarerName: declarer.name,
+    employeeNumber: declarer.teamMemberNumber,
+    positionTitle: declarer.position,
+    department: declarer.department,
+    managerDisplayName,
+  };
+  if (insertOnly) {
+    await (db as any).declarationSnapshot.create({ data });
+    return;
+  }
   await (db as any).declarationSnapshot.upsert({
     where: { declarationId },
-    create: {
-      declarationId,
-      declarerName: declarer.name,
-      employeeNumber: declarer.teamMemberNumber,
-      positionTitle: declarer.position,
-      department: declarer.department,
-      managerDisplayName,
-    },
+    create: data,
     // Snapshot is immutable after first capture; no update path so later calls
     // cannot rewrite historical declarer context (e.g. team moves).
     update: {},
   });
 }
 
-export async function syncDeclarationDetail(declarationId: string, d: any, db: any = prisma): Promise<void> {
+export async function syncDeclarationDetail(
+  declarationId: string,
+  d: any,
+  db: any = prisma,
+  // Insert-only fast path for brand-new declarations (see captureDeclarationSnapshot).
+  insertOnly = false,
+): Promise<void> {
+  const data = {
+    declarationId,
+    description: String(d.description ?? ""),
+    occasion: String(d.occasion ?? ""),
+    relationship: String(d.relationship ?? ""),
+    receivedGiven: String(d.receivedGiven ?? d.received_given ?? ""),
+    fromField: String(d.fromField ?? d.from ?? ""),
+    contactPerson: String(d.contactPerson ?? ""),
+    biddingProcess: String(d.biddingProcess ?? ""),
+    contractNegotiation: d.contractNegotiation ?? null,
+    instances: String(d.instances ?? ""),
+    publicOfficial: String(d.publicOfficial ?? ""),
+    substantiation: d.substantiation ?? null,
+  };
+  if (insertOnly) {
+    await (db as any).declarationDetail.create({ data });
+    return;
+  }
   await (db as any).declarationDetail.upsert({
     where: { declarationId },
-    create: {
-      declarationId,
-      description: String(d.description ?? ""),
-      occasion: String(d.occasion ?? ""),
-      relationship: String(d.relationship ?? ""),
-      receivedGiven: String(d.receivedGiven ?? d.received_given ?? ""),
-      fromField: String(d.fromField ?? d.from ?? ""),
-      contactPerson: String(d.contactPerson ?? ""),
-      biddingProcess: String(d.biddingProcess ?? ""),
-      contractNegotiation: d.contractNegotiation ?? null,
-      instances: String(d.instances ?? ""),
-      publicOfficial: String(d.publicOfficial ?? ""),
-      substantiation: d.substantiation ?? null,
-    },
+    create: data,
     update: {
       description: String(d.description ?? ""),
       occasion: String(d.occasion ?? ""),

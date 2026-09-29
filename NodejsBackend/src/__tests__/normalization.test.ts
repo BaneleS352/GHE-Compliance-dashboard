@@ -205,4 +205,37 @@ describe("Database normalization (goal)", () => {
       process.env.DATABASE_URL = prev;
     }
   });
+
+  it("dashboard /stats KPIs match legacy aggregation (view equivalence)", async () => {
+    const res = await request(app)
+      .get("/api/declarations/stats")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(res.status).toBe(200);
+    const { kpis, complianceTrend, typeBreakdown } = res.body;
+
+    // Legacy aggregation computed independently in the test.
+    const grouped = await prisma.declaration.groupBy({ by: ["status"], _count: { status: true } });
+    const legacy: Record<string, number> = {};
+    for (const g of grouped) legacy[g.status] = g._count.status;
+    const agg = await prisma.declaration.aggregate({ _sum: { value: true } });
+    const total = await prisma.declaration.count();
+
+    expect(kpis.total).toBe(total);
+    expect(kpis.pending).toBe(legacy.Pending || 0);
+    expect(kpis.approved).toBe(legacy.Approved || 0);
+    expect(kpis.declined).toBe(legacy.Declined || 0);
+    expect(kpis.returned).toBe(legacy.Returned || 0);
+    expect(kpis.totalValue).toBe(agg._sum.value || 0);
+
+    // View-backed trend/type shapes: numerics only, months bucketed YYYY-MM.
+    expect(Array.isArray(complianceTrend)).toBe(true);
+    for (const t of complianceTrend) {
+      expect(t.month).toMatch(/^\d{4}-\d{2}$/);
+      expect(typeof t.approved).toBe("number");
+      expect(typeof t.declined).toBe("number");
+    }
+    expect(Array.isArray(typeBreakdown)).toBe(true);
+    const typeTotal = typeBreakdown.reduce((s: number, t: any) => s + t.value, 0);
+    expect(typeTotal).toBe(total);
+  });
 });

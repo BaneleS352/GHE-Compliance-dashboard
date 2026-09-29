@@ -8,8 +8,10 @@
  * SQLite workflow. Also runs in CI (see
  * .github/workflows/postgres-normalization.yml).
  *
- * Covers every scoped reporting view plus FK enforcement and the
- * backfill/verify gates. Exits 0 on success, 1 with diagnostics otherwise.
+ * Covers every scoped reporting view plus FK enforcement, the
+ * backfill/verify gates, and the 0003 counterparty duplicate reconciliation
+ * (scoped duplicates with declaration/contact references, globals, NULL
+ * timestamps, no-duplicate input). Exits 0 on success, 1 with diagnostics otherwise.
  */
 import bcrypt from "bcryptjs";
 import { prisma } from "../config/prisma";
@@ -209,6 +211,108 @@ async function main() {
   await p.workflowRule.delete({ where: { id: "rule-1" } });
   const orphan = await p.workflowInstance.findUnique({ where: { declarationId: "PG-2026-0001" } });
   check("rule delete SET NULLs instance ruleId", (orphan as any)?.ruleId === null, JSON.stringify((orphan as any)?.ruleId));
+
+  // 8. Counterparty duplicate migration (0003) on production-shaped data.
+  // Seeds scoped duplicates referenced by declarations, contacts on both the
+  // survivor and the duplicate, global same-name counterparties, a NULL
+  // createdAt row, and a no-duplicate control — then executes the committed
+  // migration file verbatim and asserts preservation + canonical choice.
+  {
+    const fs = await import("fs");
+    const path = await import("path");
+    const migPath = path.resolve(process.cwd(), "prisma/migrations/0003_counterparty_unique/migration.sql");
+    const migSql = fs.readFileSync(migPath, "utf8");
+    const statements = migSql
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("--"))
+      .join("\n")
+      .split(";")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    await p.organization.create({ data: { id: "pg-org-dup", name: "PG Dup Org", shortCode: "PGD" } });
+    // Drop the deployed partial index so duplicates can be seeded, then the
+    // migration file itself must recreate it.
+    await p.$executeRawUnsafe(`DROP INDEX IF EXISTS "Counterparty_name_org_unique"`);
+    const survivor = await p.counterparty.create({
+      data: { id: "pg-cp-survivor", name: "DupCo", organizationId: "pg-org-dup", createdAt: new Date("2026-01-01T00:00:00.000Z") },
+    });
+    const loser = await p.counterparty.create({
+      data: { id: "pg-cp-loser", name: "DupCo", organizationId: "pg-org-dup", createdAt: new Date("2026-06-01T00:00:00.000Z") },
+    });
+    // NULL-createdAt legacy row: loses to any dated row via NULLS LAST.
+    await p.$executeRawUnsafe(
+      `INSERT INTO "Counterparty"("id", "organizationId", "name", "createdAt", "updatedAt") VALUES ('pg-cp-nullts', 'pg-org-dup', 'DupCo', NULL, NOW())`,
+    );
+    // Global same-name pair: exempt from scoped identity, must survive untouched.
+    await p.counterparty.create({ data: { id: "pg-cp-g1", name: "GlobalCo", organizationId: null } });
+    await p.counterparty.create({ data: { id: "pg-cp-g2", name: "GlobalCo", organizationId: null } });
+    // No-duplicate control.
+    await p.counterparty.create({ data: { id: "pg-cp-solo", name: "SoloCo", organizationId: "pg-org-dup" } });
+    // Declaration referencing the LOSER (must be repointed to the survivor).
+    await p.declaration.create({
+      data: {
+        id: "PG-DUP-0001", employee: "PG TM A", employeeId: "pg-tm-a", teamMemberNumber: "PG-X",
+        lineManager: "PG LM", position: "Rep", department: "Sales", type: "Gift",
+        counterparty: "DupCo", value: 10, submitted: "2026-04-01", approver: "PG LM",
+        status: "Pending", priority: "Low", description: "dup fixture", relationship: "Supplier",
+        receivedGiven: "Received", fromField: "Supplier", contactPerson: "C", biddingProcess: "No",
+        occasion: "Business Meeting", date: "2026-03-31", instances: "1", publicOfficial: "No",
+        organizationId: "pg-org-dup", counterpartyId: loser.id,
+      },
+    });
+    // Same-named contacts on both rows: both kept, both reparented (no dedupe).
+    await p.counterpartyContact.create({ data: { id: "pg-cc-survivor", counterpartyId: survivor.id, name: "Accounts" } });
+    await p.counterpartyContact.create({ data: { id: "pg-cc-loser", counterpartyId: loser.id, name: "Accounts" } });
+
+    for (const stmt of statements) {
+      await p.$executeRawUnsafe(stmt);
+    }
+
+    const dupRows: any[] = await p.$queryRawUnsafe(
+      `SELECT "id" FROM "Counterparty" WHERE "organizationId" = 'pg-org-dup' AND "name" = 'DupCo' ORDER BY "id"`,
+    );
+    check("dup migration keeps exactly one scoped row", dupRows.length === 1, JSON.stringify(dupRows));
+    check("dup migration canonical is earliest createdAt", dupRows.length === 1 && dupRows[0].id === survivor.id, JSON.stringify(dupRows));
+    const repointed = await p.declaration.findUnique({ where: { id: "PG-DUP-0001" } });
+    check("dup migration repoints declaration to survivor", (repointed as any)?.counterpartyId === survivor.id);
+    const contacts: any[] = await p.$queryRawUnsafe(
+      `SELECT "id", "counterpartyId" FROM "CounterpartyContact" WHERE "id" IN ('pg-cc-survivor', 'pg-cc-loser') ORDER BY "id"`,
+    );
+    check(
+      "dup migration reparents contacts without dedupe",
+      contacts.length === 2 && contacts.every((c) => c.counterpartyId === survivor.id),
+      JSON.stringify(contacts),
+    );
+    const globals: any[] = await p.$queryRawUnsafe(
+      `SELECT "id" FROM "Counterparty" WHERE "name" = 'GlobalCo' AND "organizationId" IS NULL ORDER BY "id"`,
+    );
+    check("dup migration leaves global counterparties untouched", globals.length === 2, JSON.stringify(globals));
+    const idx: any[] = await p.$queryRawUnsafe(
+      `SELECT indexname FROM pg_indexes WHERE indexname = 'Counterparty_name_org_unique'`,
+    );
+    check("dup migration recreates the partial unique index", idx.length === 1, JSON.stringify(idx));
+    let scopedRejected = false;
+    try {
+      await p.counterparty.create({ data: { name: "DupCo", organizationId: "pg-org-dup" } });
+    } catch {
+      scopedRejected = true;
+    }
+    check("scoped duplicate insert rejected after migration", scopedRejected);
+    let globalAllowed = true;
+    try {
+      await p.counterparty.create({ data: { id: "pg-cp-g3", name: "GlobalCo", organizationId: null } });
+    } catch {
+      globalAllowed = false;
+    }
+    check("global same-name insert still allowed", globalAllowed);
+
+    // Tidy up the fixture rows (keep the suite database clean for later runs).
+    await p.declaration.delete({ where: { id: "PG-DUP-0001" } }).catch(() => undefined);
+    await p.counterpartyContact.deleteMany({ where: { id: { in: ["pg-cc-survivor", "pg-cc-loser"] } } });
+    await p.counterparty.deleteMany({ where: { id: { in: ["pg-cp-survivor", "pg-cp-loser", "pg-cp-nullts", "pg-cp-g1", "pg-cp-g2", "pg-cp-g3", "pg-cp-solo"] } } });
+    await p.organization.delete({ where: { id: "pg-org-dup" } }).catch(() => undefined);
+  }
 
   console.log(`\n${checks - failures.length}/${checks} checks passed`);
   if (failures.length > 0) {
