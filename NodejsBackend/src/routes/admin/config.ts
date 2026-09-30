@@ -77,59 +77,40 @@ router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
   });
 }));
 
-// GET /api/admin/config/dropdowns — any authenticated user can read (needed for New Declaration department dropdown)
-router.get("/dropdowns", authenticate, asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
-  const dropdowns = await prisma.dropdowns.findFirst();
-  if (!dropdowns) {
-    res.status(404).json({ error: "Dropdowns not found" });
-    return;
+// GET /api/admin/config/dropdowns — any authenticated user can read (needed for New Declaration department dropdown).
+// Phase 5: served from the normalized Department master data plus the fixed
+// domain value lists. The generic Dropdowns JSON table was retired in
+// 0005_phase5_retirement; the response shape is unchanged.
+const DOMAIN_DROPDOWNS = {
+  categories: ["Gift", "Hospitality", "Entertainment"],
+  occasions: ["Business Meeting", "Milestone", "Festive", "Relationship Maintenance", "Other"],
+  receivedGiven: ["Received", "Given"],
+  biddingProcess: ["Yes", "No", "N/A"],
+  publicOfficial: ["Yes", "No"],
+  relationships: ["Yes", "No"],
+  partyTypes: ["Supplier", "Customer", "Team Member"],
+};
+router.get("/dropdowns", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const orgId = (req.query as any)?.organizationId as string | undefined;
+  const deptWhere: any = orgId ? { organizationId: orgId } : {};
+  const departments = await (prisma as any).department.findMany({
+    where: deptWhere,
+    select: { name: true },
+    orderBy: { name: "asc" },
+  }).catch(() => []);
+  let names = departments.map((d: any) => d.name);
+  if (names.length === 0) {
+    // Fallback to user departments when the master table is not seeded yet.
+    const users = await prisma.user.findMany({ where: orgId ? { organizationId: orgId } : {}, select: { department: true } });
+    names = Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort() as string[];
   }
-  let parsed: any;
-  try { parsed = JSON.parse(dropdowns.data); } catch { res.status(500).json({ error: "Corrupt dropdowns data" }); return; }
-  res.json(parsed);
+  res.json({ departments: names, ...DOMAIN_DROPDOWNS });
 }));
 
-const VALID_DROPDOWN_KEYS = new Set([
-  "departments",
-  "categories",
-  "occasions",
-  "receivedGiven",
-  "biddingProcess",
-  "publicOfficial",
-  "relationships",
-  "partyTypes",
-]);
-
-// PUT /api/admin/config/dropdowns
-router.put("/dropdowns", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const data = req.body;
-  const unknownKeys = Object.keys(data).filter((k) => !VALID_DROPDOWN_KEYS.has(k));
-  if (unknownKeys.length > 0) {
-    res.status(400).json({ error: `Unknown dropdown keys: ${unknownKeys.join(", ")}` });
-    return;
-  }
-  for (const [key, arr] of Object.entries(data)) {
-    if (!Array.isArray(arr) || arr.length === 0) {
-      res.status(400).json({ error: `Dropdown "${key}" must be a non-empty array` });
-      return;
-    }
-  }
-
-  const existing = await prisma.dropdowns.findFirst();
-  if (!existing) {
-    res.status(404).json({ error: "Dropdowns not found" });
-    return;
-  }
-
-  let existingParsed: any = {};
-  try { existingParsed = JSON.parse(existing.data); } catch {}
-  const merged = { ...existingParsed, ...data };
-  await prisma.dropdowns.update({
-    where: { id: existing.id },
-    data: { data: JSON.stringify(merged) },
-  });
-
-  res.json(merged);
+// PUT /api/admin/config/dropdowns — retired with the Dropdowns table.
+// Departments are now master data (Department model); domain lists are fixed.
+router.put("/dropdowns", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
+  res.status(410).json({ error: "Dropdowns are now served from department master data and fixed domain lists and can no longer be edited via this endpoint" });
 }));
 
 // GET /api/admin/config/approval-options

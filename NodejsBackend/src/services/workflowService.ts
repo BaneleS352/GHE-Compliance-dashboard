@@ -39,21 +39,13 @@ export async function createWorkflowSteps(_declarationId: string, employeeId: st
   const rule = await prisma.workflowRule.findUnique({ where: { id: ruleId } });
   if (!rule) throw new Error(`Workflow rule ${ruleId} not found`);
 
-  // Source of truth: relational rule-step rows; legacy JSON is a write-through cache.
-  let stepDefs: WorkflowStepDef[];
-  try {
-    const rows = await (prisma as any).workflowRuleStep.findMany({
-      where: { ruleId },
-      orderBy: { order: "asc" },
-    });
-    stepDefs = rows.length > 0
-      ? rows.map((r: any) => ({ order: r.order, role: r.role, label: r.label }))
-      : JSON.parse(rule.steps);
-    if (!Array.isArray(stepDefs)) throw new Error("bad shape");
-  } catch (err) {
-    if ((err as Error).message === "bad shape") throw new Error(`Corrupt workflow rule steps for rule ${ruleId}`);
-    try { stepDefs = JSON.parse(rule.steps); } catch { throw new Error(`Corrupt workflow rule steps for rule ${ruleId}`); }
-  }
+  // Phase 5: relational rule-step rows are the ONLY definition source.
+  const rows = await (prisma as any).workflowRuleStep.findMany({
+    where: { ruleId },
+    orderBy: { order: "asc" },
+  });
+  const stepDefs: WorkflowStepDef[] = rows.map((r: any) => ({ order: r.order, role: r.role, label: r.label }));
+  if (!Array.isArray(stepDefs) || stepDefs.length === 0) throw new Error(`Corrupt workflow rule steps for rule ${ruleId}`);
   const employee = await prisma.user.findUnique({ where: { id: employeeId } });
   if (!employee) throw new Error("Employee not found");
 
@@ -129,38 +121,28 @@ export async function createWorkflowSteps(_declarationId: string, employeeId: st
 }
 
 export async function getCurrentStep(declarationId: string): Promise<WorkflowStep | null> {
-  // Source of truth: relational step rows; legacy JSON is a read fallback.
-  try {
-    const rows = await (prisma as any).workflowInstanceStep.findMany({
-      where: { instanceId: declarationId },
-      orderBy: { stepOrder: "asc" },
-    });
-    if (rows.length > 0) {
-      const pending = rows.find((r: any) => r.status === "pending");
-      if (!pending) return null;
-      return {
-        order: pending.stepOrder,
-        role: pending.role,
-        assignee: pending.assigneeId || "",
-        assigneeName: pending.assigneeName,
-        label: pending.label,
-        status: pending.status,
-        decision: pending.decision ?? null,
-        approvedAt: null,
-        notes: pending.notes ?? "",
-        decidedAt: pending.decidedAt ? new Date(pending.decidedAt).toISOString() : null,
-        decidedById: pending.decidedById ?? null,
-        decidedByName: pending.decidedByName ?? null,
-      };
-    }
-  } catch {
-    // Fall through to legacy JSON.
-  }
-  const instance = await prisma.workflowInstance.findUnique({ where: { declarationId } });
-  if (!instance) return null;
-  let steps: WorkflowStep[];
-  try { steps = JSON.parse(instance.steps); } catch { return null; }
-  return steps.find((s) => s.status === "pending") || null;
+  // Phase 5: relational step rows are the only workflow state.
+  const rows = await (prisma as any).workflowInstanceStep.findMany({
+    where: { instanceId: declarationId },
+    orderBy: { stepOrder: "asc" },
+  });
+  if (rows.length === 0) return null;
+  const pending = rows.find((r: any) => r.status === "pending");
+  if (!pending) return null;
+  return {
+    order: pending.stepOrder,
+    role: pending.role,
+    assignee: pending.assigneeId || "",
+    assigneeName: pending.assigneeName,
+    label: pending.label,
+    status: pending.status,
+    decision: pending.decision ?? null,
+    approvedAt: null,
+    notes: pending.notes ?? "",
+    decidedAt: pending.decidedAt ? new Date(pending.decidedAt).toISOString() : null,
+    decidedById: pending.decidedById ?? null,
+    decidedByName: pending.decidedByName ?? null,
+  };
 }
 
 export function isApprovalDecision(decision: string): boolean {
@@ -173,39 +155,89 @@ export function safeJsonParse(val: string | null | undefined): any {
   try { return JSON.parse(val); } catch { return null; }
 }
 
+function toISODate(d: Date | string | null | undefined): string {
+  if (!d) return "";
+  try {
+    const dt = d instanceof Date ? d : new Date(d);
+    if (Number.isNaN(dt.getTime())) return "";
+    return dt.toISOString().slice(0, 10);
+  } catch { return ""; }
+}
+
+/**
+ * Phase 5: builds the stable user-facing Declaration shape from the
+ * normalized tables (Snapshot + Detail + Counterparty + User joins + file
+ * join rows). No legacy Declaration text/JSON column is read — the response
+ * contract is unchanged so the frontend needs no migration.
+ *
+ * Callers must include: snapshot, detail, counterpartyRef, declarer (with
+ * team + organization), currentApprover, organization, fileLinks (with file).
+ * Missing relations degrade to "" / [] rather than throwing, so list views
+ * with partial includes still render.
+ */
 export function declarationResponse(d: any) {
-  const parsed = safeJsonParse(d.files);
+  const snap = d.snapshot || null;
+  const det = d.detail || null;
+  const cpName: string = d.counterpartyRef?.name ?? d.counterparty ?? "";
+  const declarer = d.declarer || null;
+  const approverUser = d.currentApprover || null;
+  const files = Array.isArray(d.fileLinks)
+    ? d.fileLinks.map((l: any) => {
+        const f = l.file || {};
+        return {
+          id: f.id || l.fileId,
+          name: f.originalName || f.name || "",
+          size: f.size ?? 0,
+          type: f.mimeType || f.type || "",
+          url: `/api/files/${f.id || l.fileId}`,
+          uploadedAt: f.uploadedAt || l.createdAt || null,
+        };
+      })
+    : Array.isArray(d.files)
+      ? d.files
+      : [];
   return {
     id: d.id,
-    employee: d.employee,
-    employeeId: d.employeeId,
-    teamMemberNumber: d.teamMemberNumber,
-    lineManager: d.lineManager,
-    position: d.position,
-    department: d.department,
-    company: d.company,
-    team: d.team,
+    employee: snap?.declarerName ?? declarer?.name ?? "",
+    employeeId: d.declarerUserId ?? "",
+    teamMemberNumber: snap?.employeeNumber ?? declarer?.teamMemberNumber ?? "",
+    lineManager: snap?.managerDisplayName ?? "",
+    position: snap?.positionTitle ?? declarer?.position ?? "",
+    department: snap?.department ?? declarer?.department ?? "",
+    company: d.organization?.name ?? declarer?.organization?.name ?? null,
+    team: declarer?.team?.name ?? null,
     type: d.type,
-    counterparty: d.counterparty,
+    counterparty: cpName,
     value: d.value,
-    submitted: d.submitted,
-    approver: d.approver,
-    approverId: d.approverId || null,
+    submitted: toISODate(d.submittedAt),
+    approver: approverUser?.name ?? "",
+    approverId: d.currentApproverUserId || null,
     status: d.status,
     priority: d.priority,
-    description: d.description,
-    relationship: d.relationship,
-    receivedGiven: d.receivedGiven,
-    from: d.fromField,
-    contactPerson: d.contactPerson,
-    biddingProcess: d.biddingProcess,
-    contractNegotiation: d.contractNegotiation,
-    occasion: d.occasion,
-    date: d.date,
-    instances: d.instances,
-    publicOfficial: d.publicOfficial,
-    substantiation: d.substantiation,
-    files: parsed || [],
+    description: det?.description ?? "",
+    relationship: det?.relationship ?? "",
+    receivedGiven: det?.receivedGiven ?? "",
+    from: det?.fromField ?? "",
+    contactPerson: det?.contactPerson ?? "",
+    biddingProcess: det?.biddingProcess ?? "",
+    contractNegotiation: det?.contractNegotiation ?? null,
+    occasion: det?.occasion ?? "",
+    date: toISODate(d.eventDate),
+    instances: det?.instances ?? "",
+    publicOfficial: det?.publicOfficial ?? "",
+    substantiation: det?.substantiation ?? null,
+    files,
     organizationId: d.organizationId || null,
   };
 }
+
+/** Standard includes for a single/full declaration response. */
+export const declarationIncludes = {
+  snapshot: true,
+  detail: true,
+  counterpartyRef: true,
+  declarer: { include: { team: true, organization: true } },
+  currentApprover: true,
+  organization: true,
+  fileLinks: { include: { file: true } },
+} as const;

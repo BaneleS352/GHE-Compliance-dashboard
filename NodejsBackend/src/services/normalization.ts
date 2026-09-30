@@ -2,28 +2,18 @@ import { prisma } from "../config/prisma";
 import type { WorkflowStep } from "./workflowService";
 
 /**
- * Normalization helpers (DATABASE-NORMALIZATION-GOAL Phases 1–3).
+ * Phase 5 normalized writers (DATABASE-NORMALIZATION-GOAL cutover complete).
  *
- * Single source-of-truth rule for this phase:
- *   - Relational rows are authoritative whenever present.
- *   - The legacy JSON/text columns are a write-through cache maintained
- *     ATOMICALLY in the same transaction as the rows (see
- *     `writeWorkflowStepsTx`). They are read only as a fallback for
- *     pre-backfill data.
- *   - Direct database writes MUST update both stores. Application code must
- *     use `writeWorkflowStepsTx` (inside a transaction) instead of writing
- *     either store on its own.
- *
- * Strategy: dual-write. Legacy string/JSON columns remain the API contract.
- * These helpers maintain the relational read model alongside them so the
- * migration is data-preserving and rollback-safe. All helpers are idempotent.
+ * There is exactly one store: relational rows. Legacy JSON/text columns no
+ * longer exist, so there is no dual-write, no fallback read, and no mirror
+ * to keep in sync. Every writer below runs inside the caller's transaction.
  */
 
 export function parseDateSafe(val: string | null | undefined): Date | null {
   if (!val) return null;
   const s = String(val).trim();
   if (!s) return null;
-  // Accept YYYY-MM-DD (legacy Declaration.date/submitted) and ISO strings.
+  // Accept YYYY-MM-DD (declaration calendar dates) and ISO strings.
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   if (m) {
     const d = new Date(`${s}T00:00:00.000Z`);
@@ -47,16 +37,17 @@ export async function ensureCounterparty(
   name: string,
   organizationId: string | null,
   contactName?: string | null,
+  db: any = prisma,
 ): Promise<{ id: string } | null> {
   const clean = String(name || "").trim();
   if (!clean) return null;
-  const existing = await (prisma as any).counterparty.findFirst({
+  const existing = await (db as any).counterparty.findFirst({
     where: { name: clean, organizationId: organizationId || null },
     select: { id: true },
   });
   if (existing) return existing;
   try {
-    return await (prisma as any).counterparty.create({
+    return await (db as any).counterparty.create({
       data: {
         name: clean,
         organizationId: organizationId || null,
@@ -68,7 +59,7 @@ export async function ensureCounterparty(
     // P2002: unique constraint on (organizationId, name) — another request
     // created it first; fall through to the re-read below.
     if (e.code !== "P2002") throw e;
-    return await (prisma as any).counterparty.findFirst({
+    return await (db as any).counterparty.findFirst({
       where: { name: clean, organizationId: organizationId || null },
       select: { id: true },
     });
@@ -81,8 +72,8 @@ export async function captureDeclarationSnapshot(
   managerDisplayName: string | null,
   db: any = prisma,
   // Insert-only fast path for brand-new declarations (fresh unique id, so no
-  // row can exist): skips the upsert's existence read. PUT/submit/backfill
-  // keep upsert because their rows may already exist.
+  // row can exist): skips the upsert's existence read. PUT/submit keep upsert
+  // because their rows may already exist.
   insertOnly = false,
 ): Promise<void> {
   const data = {
@@ -131,8 +122,6 @@ export async function syncDeclarationDetail(
     await (db as any).declarationDetail.create({ data });
     return;
   }
-  // Update uses the identical mapping (including the legacy received_given /
-  // from aliases) so create and update can never skew a field.
   const { declarationId: _omit, ...fields } = data;
   await (db as any).declarationDetail.upsert({
     where: { declarationId },
@@ -141,26 +130,28 @@ export async function syncDeclarationDetail(
   });
 }
 
-/** Parse legacy rule JSON into step defs (shared with admin routes). */
-export function parseRuleStepDefs(raw: string): { order: number; role: string; label: string }[] {
+/** Parse admin-supplied rule step defs (array or JSON string). */
+export function parseRuleStepDefs(raw: string | any[]): { order: number; role: string; label: string }[] {
   try {
-    const v = JSON.parse(raw);
+    const v = typeof raw === "string" ? JSON.parse(raw) : raw;
     return Array.isArray(v) ? v : [];
   } catch {
     return [];
   }
 }
 
-export async function syncWorkflowRuleSteps(ruleId: string): Promise<number> {
-  const rule = await prisma.workflowRule.findUnique({ where: { id: ruleId } });
-  if (!rule) return 0;
-  const defs = parseRuleStepDefs(rule.steps);
-  const existing = await (prisma as any).workflowRuleStep.findMany({ where: { ruleId } });
+export async function syncWorkflowRuleSteps(
+  ruleId: string,
+  defsInput?: { order: number; role: string; label: string }[],
+  db: any = prisma,
+): Promise<number> {
+  const defs = defsInput ?? [];
+  const existing = await (db as any).workflowRuleStep.findMany({ where: { ruleId } });
   const existingOrders = new Set(existing.map((s: any) => s.order));
   const wantedOrders = new Set(defs.map((d) => d.order));
   await Promise.all(
     defs.map((d) =>
-      (prisma as any).workflowRuleStep.upsert({
+      (db as any).workflowRuleStep.upsert({
         where: { ruleId_order: { ruleId, order: d.order } },
         create: { ruleId, order: d.order, role: d.role, label: d.label },
         update: { role: d.role, label: d.label },
@@ -169,7 +160,7 @@ export async function syncWorkflowRuleSteps(ruleId: string): Promise<number> {
   );
   const stale = [...existingOrders].filter((o) => !wantedOrders.has(o as number));
   if (stale.length > 0) {
-    await (prisma as any).workflowRuleStep.deleteMany({ where: { ruleId, order: { in: stale as number[] } } });
+    await (db as any).workflowRuleStep.deleteMany({ where: { ruleId, order: { in: stale as number[] } } });
   }
   return defs.length;
 }
@@ -191,15 +182,13 @@ function toStepRow(declarationId: string, s: WorkflowStep, validUserIds: Set<str
 }
 
 /**
- * Write the canonical step array to BOTH stores inside the caller's
- * transaction: the legacy JSON cache on WorkflowInstance plus the
- * authoritative WorkflowInstanceStep rows (with stale-row cleanup).
+ * Write the canonical step array inside the caller's transaction:
+ * the WorkflowInstance row (id + producing rule) plus the authoritative
+ * WorkflowInstanceStep rows (with stale-row cleanup).
  *
  * `ruleId`: pass the producing rule to record it; pass `undefined` to leave
  * the recorded rule untouched (e.g. an approval that does not reselect the
- * rule). Must be called within an encompassing `$transaction` — never split
- * the JSON and row writes across transactions, or readers can observe a
- * half-mirrored workflow.
+ * rule). Must be called within an encompassing `$transaction`.
  */
 export async function writeWorkflowStepsTx(
   tx: any,
@@ -207,8 +196,6 @@ export async function writeWorkflowStepsTx(
   steps: WorkflowStep[],
   ruleId?: string | null,
 ): Promise<void> {
-  // Loud on bad input: silently writing nothing would leave the JSON cache
-  // and the authoritative rows diverged with no signal.
   if (!declarationId || !Array.isArray(steps)) {
     throw new Error("writeWorkflowStepsTx requires a declarationId and a step array");
   }
@@ -222,13 +209,19 @@ export async function writeWorkflowStepsTx(
     const users = await tx.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true } });
     validUserIds = new Set(users.map((u: any) => u.id));
   }
-  const instanceData: any = { steps: JSON.stringify(steps) };
-  if (ruleId !== undefined) instanceData.ruleId = ruleId ?? null;
-  await tx.workflowInstance.upsert({
-    where: { declarationId },
-    create: { declarationId, ...instanceData },
-    update: instanceData,
-  });
+  if (ruleId !== undefined) {
+    await tx.workflowInstance.upsert({
+      where: { declarationId },
+      create: { declarationId, ruleId: ruleId ?? null },
+      update: { ruleId: ruleId ?? null },
+    });
+  } else {
+    await tx.workflowInstance.upsert({
+      where: { declarationId },
+      create: { declarationId },
+      update: {},
+    });
+  }
   for (const s of steps) {
     const row = toStepRow(declarationId, s, validUserIds);
     await tx.workflowInstanceStep.upsert({
@@ -249,9 +242,8 @@ export async function writeWorkflowStepsTx(
 }
 
 /**
- * Standalone mirror (backfill, tests, fire-and-forget sync). Opens its own
- * transaction — request paths that already hold a transaction MUST use
- * `writeWorkflowStepsTx` instead so both stores commit atomically.
+ * Standalone writer (seed, tests). Opens its own transaction — request paths
+ * that already hold a transaction MUST use `writeWorkflowStepsTx` instead.
  */
 export async function persistWorkflowInstanceSteps(
   declarationId: string,
@@ -266,40 +258,25 @@ export async function persistWorkflowInstanceSteps(
   });
 }
 
-/** Prefer relational step rows; fall back to legacy JSON for pre-backfill data. */
+/** Read workflow steps from the authoritative step rows (no fallback). */
 export async function readWorkflowSteps(declarationId: string): Promise<WorkflowStep[] | null> {
-  try {
-    const rows = await (prisma as any).workflowInstanceStep.findMany({
-      where: { instanceId: declarationId },
-      orderBy: { stepOrder: "asc" },
-    });
-    if (rows && rows.length > 0) {
-      return rows.map((r: any) => ({
-        order: r.stepOrder,
-        role: r.role,
-        assignee: r.assigneeId || "",
-        assigneeName: r.assigneeName,
-        label: r.label,
-        status: r.status,
-        decision: r.decision ?? null,
-        approvedAt: r.status === "approved" && r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
-        notes: r.notes ?? "",
-        decidedAt: r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
-        decidedById: r.decidedById ?? null,
-        decidedByName: r.decidedByName ?? null,
-      }));
-    }
-  } catch (err) {
-    // Relational tables may not exist on a pre-migration database — but any
-    // other failure (connection, permissions) is logged so degraded reads
-    // don't masquerade as healthy fallback traffic.
-    console.warn(`readWorkflowSteps: relational read failed for ${declarationId}, using JSON fallback:`, (err as Error)?.message || err);
-  }
-  const inst = await prisma.workflowInstance.findUnique({ where: { declarationId } });
-  if (!inst) return null;
-  try {
-    return JSON.parse(inst.steps);
-  } catch {
-    return null;
-  }
+  const rows = await (prisma as any).workflowInstanceStep.findMany({
+    where: { instanceId: declarationId },
+    orderBy: { stepOrder: "asc" },
+  });
+  if (!rows || rows.length === 0) return null;
+  return rows.map((r: any) => ({
+    order: r.stepOrder,
+    role: r.role,
+    assignee: r.assigneeId || "",
+    assigneeName: r.assigneeName,
+    label: r.label,
+    status: r.status,
+    decision: r.decision ?? null,
+    approvedAt: r.status === "approved" && r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
+    notes: r.notes ?? "",
+    decidedAt: r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
+    decidedById: r.decidedById ?? null,
+    decidedByName: r.decidedByName ?? null,
+  }));
 }

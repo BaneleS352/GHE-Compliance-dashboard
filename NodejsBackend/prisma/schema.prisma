@@ -6,17 +6,32 @@ datasource db {
   // SQLite for local dev/tests. Production Docker build rewrites this to
   // "postgresql" (see Dockerfile sed step) and runs versioned migrations
   // via `prisma migrate deploy` (see entrypoint.sh and prisma/migrations/).
-  // New DateTime/FK fields use provider-agnostic Prisma types so a single
-  // schema works on both SQLite and PostgreSQL.
   //
-  // Compatibility phase (documented temporary state, see
-  // docs/DATABASE-NORMALIZATION-GOAL.md Phase 5): legacy string/JSON columns
-  // (Declaration employee-context text, files JSON, WorkflowRule/WorkflowInstance
-  // steps JSON) remain writable alongside their relational counterparts.
-  // Relational rows are authoritative whenever present; the legacy columns are
-  // a write-through cache maintained atomically in the same transaction.
-  // Database enforcement is complete for all NEW references; legacy-string
-  // enforcement arrives with the Phase 5 retirement migration.
+  // Phase 5 cutover complete (see docs/DATABASE-NORMALIZATION-GOAL.md
+  // "Full Normalized-Codebase Migration Plan" + prisma/RETIREMENT.md):
+  // the schema below is the normalized model. Legacy compatibility columns
+  // (Declaration employee-context/detail text, files JSON, approver text,
+  // WorkflowRule/WorkflowInstance steps JSON, UploadedFile.declarationId)
+  // and compatibility tables (Dropdowns, ComplianceTrendPoint,
+  // TypeBreakdownItem, AppRole, UserRole, OrganizationSetting, Ref* lookup
+  // copies) were removed in migration 0005_phase5_retirement after the
+  // backfill/verify gates passed. The API response shape is unchanged —
+  // `declarationResponse` in services/workflowService.ts builds the
+  // user-facing fields from Snapshot/Detail/Counterparty/User joins.
+  //
+  // Ownership decisions (Phase A):
+  //   - SystemConfig is the authoritative config source; OrganizationSetting removed.
+  //   - User.role is the authoritative authorization source; AppRole/UserRole removed.
+  //   - Declaration type/status/priority remain validated strings (zod +
+  //     valid-status lists); the unenforced Ref* copies were removed until a
+  //     domain-specific reference design with FKs is approved.
+  //   - Counterparty identity: unique (organizationId, name) for scoped rows
+  //     (partial unique index on PostgreSQL, see 0003); global rows
+  //     (organizationId NULL) are intentionally exempt master data.
+  //   - DeclarationFile is the only file association; UploadedFile rows must
+  //     have a join row (orphans are rejected).
+  //   - WorkflowInstanceStep / WorkflowRuleStep rows are the only workflow
+  //     state/definition; no JSON fallback exists.
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
@@ -30,7 +45,6 @@ model Organization {
   departments Department[]
   counterparties Counterparty[]
   workflowRules WorkflowRule[]
-  settings  OrganizationSetting?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -47,7 +61,6 @@ model User {
   lineManager      String?
   organizationId   String?
 
-  // ── Phase 1/2 normalized references (nullable for backfill compat) ──
   managerId    String?
   manager      User?  @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)
   directReports User[] @relation("UserManager")
@@ -63,7 +76,6 @@ model User {
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
-  userRoles UserRole[]
   declarationsOwned Declaration[] @relation("DeclarationDeclarer")
   approvalsAssigned Declaration[] @relation("DeclarationApprover")
   stepsAssigned WorkflowInstanceStep[] @relation("StepAssignee")
@@ -77,8 +89,6 @@ model User {
   @@index([departmentId])
   @@index([teamId])
 }
-
-// ── Phase 2: normalised organisation hierarchy ──
 
 model Department {
   id             String   @id @default(uuid())
@@ -111,83 +121,6 @@ model Team {
   @@unique([departmentId, name])
   @@index([departmentId])
 }
-
-model AppRole {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  assignments UserRole[]
-}
-
-model UserRole {
-  id        String   @id @default(uuid())
-  userId    String
-  roleId    String
-  grantedAt DateTime @default(now())
-
-  user User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, roleId])
-  @@index([userId])
-  @@index([roleId])
-}
-
-model OrganizationSetting {
-  id             String   @id @default(uuid())
-  organizationId String   @unique
-  highValueThreshold Float @default(1000)
-  slaEscalationDays  Int  @default(3)
-  notificationTemplates String @default("{}")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-}
-
-// ── Phase 2: controlled reference data ──
-// Lookup tables seed the allowed values observed in Dropdowns/seed data.
-// Application code validates against these; FK enforcement is introduced
-// per-field after backfill verification (Phase 5), so legacy free-text
-// columns remain the write path for now.
-
-model RefDeclarationType {
-  id    String @id @default(uuid())
-  name  String @unique
-  color String?
-}
-
-model RefDeclarationStatus {
-  id   String @id @default(uuid())
-  name String @unique
-}
-
-model RefPriority {
-  id   String @id @default(uuid())
-  name String @unique
-}
-
-model RefRelationshipType {
-  id   String @id @default(uuid())
-  name String @unique
-}
-
-model RefDirection {
-  id   String @id @default(uuid())
-  name String @unique
-}
-
-model RefWorkflowStatus {
-  id   String @id @default(uuid())
-  name String @unique
-}
-
-// ── Phase 3: counterparty ownership ──
 
 model Counterparty {
   id             String  @id @default(uuid())
@@ -222,44 +155,17 @@ model CounterpartyContact {
 
 model Declaration {
   id                  String   @id
-  employee            String
-  employeeId          String
-  teamMemberNumber    String
-  lineManager         String
-  position            String
-  department          String
-  company             String?
-  team                String?
   type                String
-  counterparty        String
   value               Float
-  submitted           String
-  approver            String
-  approverId          String?
   status              String
   priority            String
-  description         String
-  relationship        String
-  receivedGiven       String
-  fromField           String   @map("from_field")
-  contactPerson       String
-  biddingProcess      String
-  contractNegotiation String?
-  occasion            String
-  date                String
-  instances           String
-  publicOfficial      String
-  substantiation      String?
-  files               String?
   organizationId      String?
 
-  // ── Phase 1: normalized timestamps (UTC). Legacy text fields stay the
-  // API contract until Phase 5; these are backfilled from them. ──
+  // Canonical timestamps (UTC). Populated synchronously on every write from
+  // the user-supplied calendar dates.
   eventDate   DateTime?
   submittedAt DateTime?
 
-  // ── Phase 1/3: database-enforced references (nullable until backfill
-  // verification; legacy string columns remain for compat). ──
   declarerUserId       String?
   declarer             User? @relation("DeclarationDeclarer", fields: [declarerUserId], references: [id], onDelete: SetNull)
 
@@ -274,24 +180,14 @@ model Declaration {
 
   organization Organization? @relation("DeclarationOrganization", fields: [organizationId], references: [id], onDelete: Restrict)
 
-  // ── Phase 3: relational children (auditable, cascade on draft delete) ──
   snapshot  DeclarationSnapshot?
   detail    DeclarationDetail?
   fileLinks DeclarationFile[]
-  filesRel  UploadedFile[] @relation("FileDeclaration")
   workflow  WorkflowInstance? @relation("InstanceDeclaration")
   workflowSteps WorkflowInstanceStep[]
 
-  @@index([employeeId])
   @@index([status])
-  @@index([department])
-  @@index([approverId])
-  @@index([position])
-  @@index([lineManager])
-  @@index([counterparty])
   @@index([organizationId])
-  @@index([submitted])
-  @@index([date])
   @@index([value])
   @@index([declarerUserId])
   @@index([currentApproverUserId])
@@ -315,8 +211,6 @@ model DeclarationSnapshot {
   declaration Declaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
 }
 
-// Relational declaration details mirror the transactional fields for
-// query/report use; legacy Declaration columns remain the write path.
 model DeclarationDetail {
   id                  String @id @default(uuid())
   declarationId       String @unique
@@ -335,7 +229,8 @@ model DeclarationDetail {
   declaration Declaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
 }
 
-// Explicit join between declarations and uploaded file metadata.
+// Explicit join between declarations and uploaded file metadata — the only
+// file association. Orphan UploadedFile rows are rejected.
 model DeclarationFile {
   id            String   @id @default(uuid())
   declarationId String
@@ -353,7 +248,6 @@ model WorkflowRule {
   name      String
   condition String
   priority  Int
-  steps     String
   organizationId String?
 
   createdAt DateTime @default(now())
@@ -381,7 +275,6 @@ model WorkflowRuleStep {
 
 model WorkflowInstance {
   declarationId String   @id
-  steps         String
   ruleId        String?
 
   createdAt DateTime @default(now())
@@ -435,25 +328,6 @@ model SystemConfig {
   notificationTemplates   String @default("{}")
 }
 
-model Dropdowns {
-  id   String @id
-  data String
-}
-
-model ComplianceTrendPoint {
-  id       String @id
-  month    String
-  approved Int
-  declined Int
-}
-
-model TypeBreakdownItem {
-  id    String @id
-  name  String
-  value Float
-  color String
-}
-
 model ApprovalOption {
   id    String @id
   value String
@@ -466,11 +340,9 @@ model UploadedFile {
   mimeType      String
   size          Int
   path          String
-  declarationId String?
   uploadedAt    DateTime @default(now())
 
-  declaration Declaration? @relation("FileDeclaration", fields: [declarationId], references: [id], onDelete: Cascade)
   link DeclarationFile?
 
-  @@index([declarationId])
+  @@index([id])
 }

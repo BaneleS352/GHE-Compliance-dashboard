@@ -61,18 +61,11 @@ function handleMulterError(err: Error, _req: AuthRequest, res: Response, next: N
   next(err);
 }
 
-/** Rows-first assignee check; legacy JSON cache is the fallback. */
+/** Step-row assignee check (rows are the only workflow state). */
 async function isWorkflowAssignee(declarationId: string, userId: string): Promise<boolean> {
-  try {
-    const steps = await readWorkflowSteps(declarationId);
-    if (steps) return steps.some((s: any) => s.assignee === userId);
-  } catch { /* fall through to JSON */ }
-  const inst = await prisma.workflowInstance.findUnique({ where: { declarationId } });
-  if (!inst) return false;
-  try {
-    const steps: any[] = JSON.parse(inst.steps as string);
-    return steps.some((s: any) => s.assignee === userId);
-  } catch { return false; }
+  const steps = await readWorkflowSteps(declarationId);
+  if (!steps) return false;
+  return steps.some((s: any) => s.assignee === userId);
 }
 
 /**
@@ -84,6 +77,12 @@ export function containedUploadPath(storedPath: string): string | null {
   const resolved = path.resolve(UPLOAD_DIR, storedPath);
   if (resolved !== UPLOAD_DIR && resolved.startsWith(UPLOAD_DIR + path.sep)) return resolved;
   return null;
+}
+
+/** Resolve the owning declaration id via the DeclarationFile join (the only association). */
+async function declarationIdForFile(fileId: string): Promise<string | null> {
+  const link = await (prisma as any).declarationFile.findUnique({ where: { fileId } });
+  return link ? link.declarationId : null;
 }
 
 // POST /api/files/upload
@@ -125,7 +124,7 @@ router.post(
       res.status(400).json({ error: "Declaration not found" });
       return;
     }
-    if (req.user!.role !== "admin" && decl.employeeId !== req.user!.id) {
+    if (req.user!.role !== "admin" && decl.declarerUserId !== req.user!.id) {
       await cleanupFile();
       res.status(403).json({ error: "Cannot upload to another user's declaration" });
       return;
@@ -137,24 +136,23 @@ router.post(
       return;
     }
 
-    const file = await prisma.uploadedFile.create({
-      data: {
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        path: req.file.filename,
-        declarationId: declarationId || null,
-      },
-    });
-
-    // Relational join for the auditable file association (Phase 3).
-    try {
-      await (prisma as any).declarationFile.create({
-        data: { declarationId, fileId: file.id },
+    // Single transaction: file metadata + the DeclarationFile join row commit
+    // atomically. Orphan UploadedFile rows are rejected — a file without a
+    // join row is never created.
+    const file = await prisma.$transaction(async (tx) => {
+      const created = await tx.uploadedFile.create({
+        data: {
+          originalName: req.file!.originalname,
+          mimeType: req.file!.mimetype,
+          size: req.file!.size,
+          path: req.file!.filename,
+        },
       });
-    } catch {
-      // Legacy UploadedFile.declarationId remains authoritative.
-    }
+      await (tx as any).declarationFile.create({
+        data: { declarationId, fileId: created.id },
+      });
+      return created;
+    });
 
     res.status(201).json({
       id: file.id,
@@ -176,14 +174,16 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     return;
   }
 
-  // Ownership scoping — require admin or owner; orphan files (no declarationId) only admin can access
+  // Ownership scoping — require admin or owner/assignee via the join row.
+  // Files without a join row are orphaned and only admins can access them.
   if (req.user!.role !== "admin") {
-    if (!file.declarationId) {
+    const declId = await declarationIdForFile(id);
+    if (!declId) {
       res.status(403).json({ error: "Access denied" });
       return;
     }
-    const decl = await prisma.declaration.findUnique({ where: { id: file.declarationId } });
-    if (!decl || decl.employeeId !== req.user!.id) {
+    const decl = await prisma.declaration.findUnique({ where: { id: declId } });
+    if (!decl || decl.declarerUserId !== req.user!.id) {
       let isApprover = false;
       if (decl) {
         isApprover = await isWorkflowAssignee(decl.id, req.user!.id);
@@ -220,12 +220,13 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
 
   // Ownership scoping — same as GET
   if (req.user!.role !== "admin") {
-    if (!file.declarationId) {
+    const declId = await declarationIdForFile(id);
+    if (!declId) {
       res.status(403).json({ error: "Access denied" });
       return;
     }
-    const decl = await prisma.declaration.findUnique({ where: { id: file.declarationId } });
-    if (!decl || decl.employeeId !== req.user!.id) {
+    const decl = await prisma.declaration.findUnique({ where: { id: declId } });
+    if (!decl || decl.declarerUserId !== req.user!.id) {
       let isApprover = false;
       if (decl) {
         isApprover = await isWorkflowAssignee(decl.id, req.user!.id);
@@ -253,4 +254,3 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
 }));
 
 export default router;
-

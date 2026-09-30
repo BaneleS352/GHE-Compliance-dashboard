@@ -1,17 +1,16 @@
 import { prisma } from "../config/prisma";
 
 /**
- * Phase 4 reporting read models.
- *
- * Single source-of-truth rule for this phase: relational rows are
- * authoritative whenever present. The legacy JSON/text columns are a
- * write-through cache maintained atomically in the same transaction as the
- * rows (see `writeWorkflowStepsTx`); they are read only as a fallback for
- * pre-backfill data. Direct database writes MUST update both stores.
+ * Phase 5 reporting read models.
  *
  * Views are read models, not replacements for transactional tables or
  * authorization. API authorization, organisation scoping, and parameter
  * validation remain required.
+ *
+ * DDL ownership: PostgreSQL views are owned by versioned migrations
+ * (0005_phase5_retirement); the application role needs only SELECT.
+ * `ensureReportingViews()` below executes DDL on SQLite dev/test only, where
+ * `db push` does not apply migrations. On PostgreSQL it is a no-op.
  */
 
 export function isPostgresProvider(): boolean {
@@ -29,19 +28,15 @@ export function bindParams(sql: string): string {
   return sql.replace(/\?/g, () => `$${++i}`);
 }
 
-const VIEWS: { name: string; select: string; selectPg?: string }[] = [
-  // Counts + value totals by organisation and status.
+// SQLite-only DDL (dev/test via `db push`). PostgreSQL definitions live in
+// 0005_phase5_retirement and additionally carry the typed monthly view.
+const VIEWS_SQLITE: { name: string; select: string }[] = [
   {
     name: "v_declaration_status_summary",
     select: `SELECT "organizationId" AS "organizationId", "status" AS "status",
           COUNT(*) AS "count", SUM("value") AS "totalValue"
    FROM "Declaration" GROUP BY "organizationId", "status"`,
   },
-  // Volume + outcomes by month from the canonical eventDate column.
-  // Rows with an invalid legacy date (null eventDate) cannot be bucketed and
-  // are excluded; they are counted in the backfill reconciliation report.
-  // SQLite note: Prisma stores DateTime as INTEGER millis, so the month is
-  // derived via strftime('%Y-%m', eventDate / 1000, 'unixepoch').
   {
     name: "v_declarations_monthly",
     select: `SELECT "organizationId" AS "organizationId",
@@ -52,50 +47,44 @@ const VIEWS: { name: string; select: string; selectPg?: string }[] = [
           SUM("value") AS "totalValue"
    FROM "Declaration" WHERE "eventDate" IS NOT NULL
    GROUP BY "organizationId", strftime('%Y-%m', "eventDate" / 1000, 'unixepoch')`,
-    selectPg: `SELECT "organizationId" AS "organizationId",
-          to_char("eventDate", 'YYYY-MM') AS "month",
-          COUNT(*) AS "count",
-          SUM(CASE WHEN "status" = 'Approved' THEN 1 ELSE 0 END) AS "approved",
-          SUM(CASE WHEN "status" = 'Declined' THEN 1 ELSE 0 END) AS "declined",
-          SUM("value") AS "totalValue"
-   FROM "Declaration" WHERE "eventDate" IS NOT NULL
-   GROUP BY "organizationId", to_char("eventDate", 'YYYY-MM')`,
   },
-  // Type / value breakdowns.
   {
     name: "v_declaration_type_breakdown",
     select: `SELECT "organizationId" AS "organizationId", "type" AS "type",
           COUNT(*) AS "count", SUM("value") AS "totalValue"
    FROM "Declaration" GROUP BY "organizationId", "type"`,
   },
-  // Current pending step per declaration (relational audit trail).
   {
     name: "v_workflow_current_step",
     select: `SELECT "declarationId", "stepOrder", "role", "assigneeId", "assigneeName", "status"
    FROM "WorkflowInstanceStep" WHERE "status" = 'pending'`,
   },
-  // Completed-step durations: raw timestamps; day math stays in JS for portability.
   {
     name: "v_workflow_step_sla",
     select: `SELECT s."role" AS "role", s."decidedAt" AS "decidedAt",
-          d."eventDate" AS "eventDate", d."date" AS "legacyDate"
+          d."eventDate" AS "eventDate"
    FROM "WorkflowInstanceStep" s JOIN "Declaration" d ON d."id" = s."declarationId"
    WHERE s."decidedAt" IS NOT NULL`,
   },
-  // Counterparty concentration.
   {
     name: "v_counterparty_concentration",
-    select: `SELECT "organizationId" AS "organizationId", "counterparty" AS "counterparty",
-          COUNT(*) AS "count", SUM("value") AS "totalValue",
-          AVG("value") AS "avgValue"
-   FROM "Declaration" GROUP BY "organizationId", "counterparty"`,
+    select: `SELECT d."organizationId" AS "organizationId",
+          COALESCE(c."name", 'Unknown') AS "counterparty",
+          COUNT(*) AS "count", SUM(d."value") AS "totalValue",
+          AVG(d."value") AS "avgValue"
+   FROM "Declaration" d LEFT JOIN "Counterparty" c ON c."id" = d."counterpartyId"
+   GROUP BY d."organizationId", COALESCE(c."name", 'Unknown')`,
   },
-  // High-value declaration rows (threshold applied by the service).
   {
     name: "v_high_value_declarations",
-    select: `SELECT "id", "employee", "lineManager", "department", "type",
-          "counterparty", "value", "date", "status", "organizationId"
-   FROM "Declaration"`,
+    select: `SELECT d."id" AS "id", s."declarerName" AS "employee",
+          s."managerDisplayName" AS "lineManager", s."department" AS "department",
+          d."type" AS "type", COALESCE(c."name", 'Unknown') AS "counterparty",
+          d."value" AS "value", d."eventDate" AS "date", d."status" AS "status",
+          d."organizationId" AS "organizationId"
+   FROM "Declaration" d
+   LEFT JOIN "DeclarationSnapshot" s ON s."declarationId" = d."id"
+   LEFT JOIN "Counterparty" c ON c."id" = d."counterpartyId"`,
   },
 ];
 
@@ -103,19 +92,16 @@ let ensured = false;
 
 export async function ensureReportingViews(): Promise<void> {
   if (ensured) return;
-  const pg = isPostgresProvider();
-  for (const v of VIEWS) {
-    const select = pg && v.selectPg ? v.selectPg : v.select;
-    // PostgreSQL has no CREATE VIEW IF NOT EXISTS — use CREATE OR REPLACE.
-    const ddl = pg
-      ? `CREATE OR REPLACE VIEW "${v.name}" AS ${select}`
-      : `CREATE VIEW IF NOT EXISTS "${v.name}" AS ${select}`;
+  // Production PostgreSQL: migrations own the views; never require DDL here.
+  if (isPostgresProvider()) {
+    ensured = true;
+    return;
+  }
+  for (const v of VIEWS_SQLITE) {
+    const ddl = `CREATE VIEW IF NOT EXISTS "${v.name}" AS ${v.select}`;
     try {
       await prisma.$executeRawUnsafe(ddl);
     } catch (err) {
-      // Continue with the remaining views and log loudly: callers fall back
-      // to legacy aggregation per view, but a broken DDL must be visible
-      // instead of silently disabling reporting until restart.
       console.warn(`reportingViews: failed to ensure view ${v.name}:`, (err as Error)?.message || err);
     }
   }
@@ -200,7 +186,7 @@ export async function viewHighValue(organizationId: string | undefined, threshol
 }
 
 export async function viewSlaRows() {
-  return queryView<any>(`SELECT "role", "decidedAt", "eventDate", "legacyDate" FROM "v_workflow_step_sla"`, []);
+  return queryView<any>(`SELECT "role", "decidedAt", "eventDate" FROM "v_workflow_step_sla"`, []);
 }
 
 export async function viewCurrentSteps(organizationId?: string) {

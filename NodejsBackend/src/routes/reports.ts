@@ -1,5 +1,4 @@
 import { Router, Response } from "express";
-import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
@@ -10,11 +9,14 @@ const router = Router();
 
 router.get("/counterparty-concentration", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildReportWhere(req);
-  const declarations = await prisma.declaration.findMany({ where, select: { counterparty: true, value: true } });
+  const declarations = await prisma.declaration.findMany({
+    where,
+    select: { value: true, counterpartyRef: { select: { name: true } } },
+  });
 
   const groups: Record<string, { count: number; totalValue: number }> = {};
-  for (const d of declarations) {
-    const key = d.counterparty || "Unknown";
+  for (const d of declarations as any[]) {
+    const key = d.counterpartyRef?.name || "Unknown";
     if (!groups[key]) groups[key] = { count: 0, totalValue: 0 };
     groups[key].count += 1;
     groups[key].totalValue += d.value;
@@ -56,16 +58,22 @@ router.get("/list", authenticate, authorize("admin", "approver"), asyncHandler(a
   const declarations = await prisma.declaration.findMany({
     where,
     orderBy: { submittedAt: "desc" },
-    select: {
-      id: true, employee: true, department: true, type: true,
-      counterparty: true, value: true, date: true, submitted: true, status: true,
-    },
+    include: { snapshot: true, counterpartyRef: true },
   });
 
-  let result = declarations;
+  let result = (declarations as any[]).map((d) => ({
+    id: d.id,
+    employee: d.snapshot?.declarerName || "",
+    department: d.snapshot?.department || "",
+    type: d.type,
+    counterparty: d.counterpartyRef?.name || "Unknown",
+    value: d.value,
+    date: d.eventDate ? new Date(d.eventDate).toISOString().slice(0, 10) : "",
+    submitted: d.submittedAt ? new Date(d.submittedAt).toISOString().slice(0, 10) : "",
+    status: d.status,
+  }));
   if (search) {
     const q = String(search).toLowerCase();
-    // String() guards: legacy rows can hold nulls in text columns.
     result = result.filter((d) => String(d.employee || "").toLowerCase().includes(q) || String(d.id || "").toLowerCase().includes(q));
   }
 
@@ -79,10 +87,7 @@ router.get("/export", authenticate, authorize("admin", "approver"), asyncHandler
   const declarations = await prisma.declaration.findMany({
     where,
     orderBy: { submittedAt: "desc" },
-    select: {
-      id: true, employee: true, department: true, type: true,
-      counterparty: true, value: true, date: true, submitted: true, status: true,
-    },
+    include: { snapshot: true, counterpartyRef: true },
   });
 
   const title = String(reportType || "Declaration Report");
@@ -101,7 +106,16 @@ router.get("/export", authenticate, authorize("admin", "approver"), asyncHandler
     { header: "Date", key: "date", width: 14 },
   ];
 
-  const rows = declarations.map((d) => ({ ...d }));
+  const rows = (declarations as any[]).map((d) => ({
+    id: d.id,
+    employee: d.snapshot?.declarerName || "",
+    department: d.snapshot?.department || "",
+    type: d.type,
+    counterparty: d.counterpartyRef?.name || "Unknown",
+    value: d.value,
+    status: d.status,
+    date: d.eventDate ? new Date(d.eventDate).toISOString().slice(0, 10) : "",
+  }));
   const { department, status } = req.query;
   const meta: [string, string][] = [["Generated", new Date().toISOString()], ["Records", String(rows.length)]];
   if (department && department !== "All Departments") meta.push(["Department", String(department)]);

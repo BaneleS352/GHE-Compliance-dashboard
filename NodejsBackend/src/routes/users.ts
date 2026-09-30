@@ -18,22 +18,28 @@ router.get("/managers", authenticate, asyncHandler(async (req: AuthRequest, res:
   res.json(managers);
 }));
 
-// Per-org departments derived from users in that org (for NewDeclaration filtering)
+// Per-org departments from the Department master data (for NewDeclaration filtering)
 router.get("/departments", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const orgId = req.query.organizationId as string | undefined;
   if (!orgId) {
-    // Fallback to global dropdowns if no org specified
-    const dropdowns = await prisma.dropdowns.findFirst();
-    if (!dropdowns) { res.json([]); return; }
-    try {
-      const parsed = JSON.parse(dropdowns.data);
-      res.json(parsed.departments || []);
-    } catch { res.json([]); }
+    const departments = await (prisma as any).department.findMany({ select: { name: true }, orderBy: { name: "asc" } }).catch(() => []);
+    const names = departments.map((d: any) => d.name);
+    if (names.length > 0) { res.json(names); return; }
+    const users = await prisma.user.findMany({ select: { department: true } });
+    res.json(Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort());
     return;
   }
-  const users = await prisma.user.findMany({ where: { organizationId: orgId }, select: { department: true } });
-  const depts = Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort();
-  res.json(depts);
+  const departments = await (prisma as any).department.findMany({
+    where: { organizationId: orgId },
+    select: { name: true },
+    orderBy: { name: "asc" },
+  }).catch(() => []);
+  let names = departments.map((d: any) => d.name);
+  if (names.length === 0) {
+    const users = await prisma.user.findMany({ where: { organizationId: orgId }, select: { department: true } });
+    names = Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort();
+  }
+  res.json(names);
 }));
 
 router.get("/organizations", authenticate, asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {

@@ -7,7 +7,7 @@ import fs from "fs";
 import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { createWorkflowSteps, resolveRuleId, safeJsonParse, declarationResponse } from "../services/workflowService";
+import { createWorkflowSteps, resolveRuleId, declarationResponse, declarationIncludes } from "../services/workflowService";
 import {
   parseDateSafe,
   ensureCounterparty,
@@ -41,24 +41,21 @@ function sanitize(val: string): string {
  * Line-Manager department scoping for direct-ID routes. The list endpoint
  * filters LMs to their own department; without this, an LM could read/edit/
  * delete/submit another department's declarations by ID. Returns true when
- * access is denied (response already sent).
+ * access is denied (response already sent). Department comes from the
+ * immutable snapshot (submission-time context).
  */
-function denyCrossDepartmentLM(req: AuthRequest, res: Response, declaration: { department: string }): boolean {
+function denyCrossDepartmentLM(req: AuthRequest, res: Response, snapshotDepartment: string | null | undefined): boolean {
   if (
     req.user!.role !== "admin" &&
     req.user!.role === "approver" &&
     req.user!.department &&
     req.user!.position === "Line Manager" &&
-    declaration.department !== req.user!.department
+    snapshotDepartment !== req.user!.department
   ) {
     res.status(403).json({ error: "Access denied: declaration is outside your department" });
     return true;
   }
   return false;
-}
-
-function safeParseWorkflowSteps(data: string | null | undefined): any[] {
-  return safeJsonParse(data) as any[] || [];
 }
 
 const VALID_STATUSES = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"] as const;
@@ -69,8 +66,8 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
   if (orgId) orgWhere.organizationId = orgId;
 
   // Agreed dashboard read models come from the scoped reporting views.
-  // The Prisma aggregation below is the fallback for pre-migration databases
-  // where the views do not exist yet. All view numerics are converted with
+  // The direct aggregation below is the fallback for databases where the
+  // views do not exist yet. All view numerics are converted with
   // Number() — raw driver values (e.g. BigInt counts) must never reach res.json.
   try {
     const [statusRows, monthlyRows, typeRows] = await Promise.all([
@@ -102,18 +99,18 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
       return;
     }
   } catch {
-    // Fall through to legacy aggregation.
+    // Fall through to direct aggregation.
   }
 
-  // Fallback: Prisma aggregation + static seed tables (pre-migration databases).
-  const [counts, totalValueAgg, trendItems, typeItems] = await Promise.all([
+  // Fallback: direct aggregation on the normalized tables.
+  const [counts, totalValueAgg, monthly, typeRows] = await Promise.all([
     prisma.declaration.groupBy({ by: ["status"], where: orgWhere, _count: { status: true } }),
     prisma.declaration.aggregate({ where: orgWhere, _sum: { value: true } }),
-    prisma.complianceTrendPoint.findMany({ orderBy: { id: "asc" } }),
-    prisma.typeBreakdownItem.findMany(),
+    prisma.declaration.findMany({ where: { ...orgWhere, eventDate: { not: null } }, select: { eventDate: true, status: true } }),
+    prisma.declaration.groupBy({ by: ["type"], where: orgWhere, _count: { type: true } }),
   ]);
   const countMap = new Map(counts.map((c: any) => [c.status, c._count.status]));
-  const total = Array.from(countMap.values()).reduce((a: number, b: number) => a + b, 0);
+  const total = Array.from(countMap.values()).reduce((a: number, b: number) => a + (b as number), 0);
   const kpis = {
     total,
     pending: countMap.get("Pending") || 0,
@@ -123,8 +120,18 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
     escalated: countMap.get("Escalated") || 0,
     totalValue: totalValueAgg._sum.value || 0,
   };
+  const monthMap = new Map<string, { approved: number; declined: number }>();
+  for (const d of monthly as any[]) {
+    const month = new Date(d.eventDate).toISOString().slice(0, 7);
+    const e = monthMap.get(month) || { approved: 0, declined: 0 };
+    if (d.status === "Approved") e.approved++;
+    if (d.status === "Declined") e.declined++;
+    monthMap.set(month, e);
+  }
+  const complianceTrend = [...monthMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([month, v]) => ({ month, ...v }));
+  const typeBreakdown = (typeRows as any[]).map((t) => ({ name: t.type, value: t._count.type }));
 
-  res.json({ kpis, complianceTrend: trendItems, typeBreakdown: typeItems });
+  res.json({ kpis, complianceTrend, typeBreakdown });
 }));
 
 router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
@@ -138,34 +145,30 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
   // Org isolation — scope all queries by caller's org if present
   if ((req.user as any)?.organizationId) where.organizationId = (req.user as any).organizationId;
   if (req.user!.role === "teamMember") {
-    where.employeeId = req.user!.id;
+    where.declarerUserId = req.user!.id;
   } else if (req.user!.role === "approver" && req.user!.department && req.user!.position === "Line Manager") {
-    where.department = req.user!.department;
+    where.snapshot = { department: req.user!.department };
   }
 
-  // DB-side search using contains (Prisma SQLite is case-sensitive, so fallback to in-memory lowercasing after fetch for SQLite)
   // Ordering uses the canonical submittedAt DateTime column (populated
-  // synchronously on every write from the legacy `submitted` text).
+  // synchronously on every write).
   let declarations: any[];
+  const include = declarationIncludes;
   if (search) {
     const q = String(search);
-    // Try DB contains first; for SQLite we still filter case-insensitively in memory after
-    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" } });
+    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, include: include as any });
     const qLower = q.toLowerCase();
-    // String() guards: legacy rows can hold nulls in text columns.
     declarations = declarations.filter(
-      (d) =>
-        String(d.employee || "").toLowerCase().includes(qLower) ||
-        String(d.counterparty || "").toLowerCase().includes(qLower) ||
+      (d: any) =>
+        String(d.snapshot?.declarerName || "").toLowerCase().includes(qLower) ||
+        String(d.counterpartyRef?.name || "").toLowerCase().includes(qLower) ||
         String(d.id || "").toLowerCase().includes(qLower) ||
-        String(d.description || "").toLowerCase().includes(qLower)
+        String(d.detail?.description || "").toLowerCase().includes(qLower)
     );
   } else if (limit !== undefined) {
-    // Bounded DB page when no search is involved (no shape change: the
-    // in-memory slice below becomes a no-op for exact pages).
-    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, take: limit, skip: offset });
+    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, take: limit, skip: offset, include: include as any });
   } else {
-    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" } });
+    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, include: include as any });
   }
 
   // Pagination (in-memory slice after search; keeps backwards compatible when no limit)
@@ -260,107 +263,91 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
     }
   }
 
-  // Counterparty identity is resolved before the transaction (find-or-create
-  // is retry-safe on unique races; the declaration write itself stays atomic).
   const sanitizedCounterparty = sanitize(data.counterparty);
   const eventDate = parseDateSafe(data.date);
   const submittedAt = parseDateSafe(data.submitted);
 
-  // Independent pre-transaction reads run concurrently so the transaction
-  // holds the write lock for the shortest possible time — this matters under
-  // concurrent creates on SQLite. The residual TOCTOU window is negligible:
-  // if a user is deleted mid-flight the FK fails the write.
+  // Resolve user links before the transaction (pure reads, so the transaction
+  // holds the write lock for the shortest possible time).
   // No lookup is needed when the declarer/approver is the authenticated
   // caller: `authenticate` already verified that user against the database.
-  const [cp, declarerRow, approverRow] = await Promise.all([
-    sanitizedCounterparty
-      ? ensureCounterparty(sanitizedCounterparty, orgId, data.contactPerson ? sanitize(data.contactPerson) : null)
-      : Promise.resolve(null),
+  const [declarerRow, approverRow] = await Promise.all([
     data.employeeId === req.user!.id
-      ? Promise.resolve({ id: req.user!.id })
-      : prisma.user.findUnique({ where: { id: data.employeeId }, select: { id: true } }),
+      ? Promise.resolve({ id: req.user!.id, name: req.user!.name } as any)
+      : prisma.user.findUnique({ where: { id: data.employeeId }, select: { id: true, name: true } }),
     data.approverId
       ? data.approverId === req.user!.id
         ? Promise.resolve({ id: req.user!.id })
         : prisma.user.findUnique({ where: { id: data.approverId }, select: { id: true } })
       : Promise.resolve(null),
   ]);
-  const counterpartyId: string | null = cp?.id || null;
   const declarerUserId: string | null = declarerRow?.id || null;
   const txApproverUserId: string | null = approverRow?.id || null;
 
-  // Single transaction: legacy columns, canonical DateTime columns and links,
-  // immutable snapshot, and detail rows all commit atomically. A failure
-  // returns a retryable error instead of claiming canonical data exists.
-  const declaration = await prisma.$transaction(async (tx) => {
+  // Single transaction: lean declaration row, canonical DateTime columns and
+  // links, immutable snapshot, detail rows, and the counterparty identity
+  // (resolved inside the transaction so a failed create never leaves an
+  // unused counterparty row behind).
+  const declarationId = await prisma.$transaction(async (tx) => {
+    const cp = sanitizedCounterparty
+      ? await ensureCounterparty(sanitizedCounterparty, orgId, data.contactPerson ? sanitize(data.contactPerson) : null, tx)
+      : null;
     const created = await tx.declaration.create({
       data: {
         id,
-        employee: sanitize(data.employee),
-        employeeId: data.employeeId,
-        teamMemberNumber: sanitize(data.teamMemberNumber),
-        lineManager: sanitize(data.lineManager),
-        position: sanitize(data.position),
-        department: sanitize(data.department),
-        company: data.company ? sanitize(data.company) : null,
-        team: data.team ? sanitize(data.team) : null,
         type: sanitize(data.type),
-        counterparty: sanitizedCounterparty,
         value: data.value,
-        submitted: sanitize(data.submitted),
-        approver: data.approver ? sanitize(data.approver) : "",
-        approverId: data.approverId || null,
         status: "Draft",
         priority: sanitize(data.priority),
-        description: sanitize(data.description),
-        relationship: sanitize(data.relationship),
-        receivedGiven: sanitize(data.receivedGiven),
-        fromField: sanitize(data.from),
-        contactPerson: sanitize(data.contactPerson),
-        biddingProcess: sanitize(data.biddingProcess),
-        contractNegotiation: data.contractNegotiation ? sanitize(data.contractNegotiation) : null,
-        occasion: sanitize(data.occasion),
-        date: sanitize(data.date),
-        instances: sanitize(data.instances),
-        publicOfficial: sanitize(data.publicOfficial),
-        substantiation: data.substantiation ? sanitize(data.substantiation) : null,
-        files: data.files ? JSON.stringify(data.files) : null,
         organizationId: orgId,
         eventDate,
         submittedAt,
         declarerUserId,
         currentApproverUserId: txApproverUserId,
-        counterpartyId,
+        counterpartyId: cp?.id || null,
       },
     });
     await captureDeclarationSnapshot(
       id,
       {
-        name: created.employee,
-        teamMemberNumber: created.teamMemberNumber,
-        position: created.position,
-        department: created.department,
+        name: sanitize(data.employee),
+        teamMemberNumber: sanitize(data.teamMemberNumber),
+        position: sanitize(data.position),
+        department: sanitize(data.department),
       },
-      created.lineManager || null,
+      sanitize(data.lineManager) || null,
       tx,
       true,
     );
-    await syncDeclarationDetail(id, created, tx, true);
-    return created;
+    await syncDeclarationDetail(id, {
+      description: sanitize(data.description),
+      occasion: sanitize(data.occasion),
+      relationship: sanitize(data.relationship),
+      receivedGiven: sanitize(data.receivedGiven),
+      from: sanitize(data.from),
+      contactPerson: sanitize(data.contactPerson),
+      biddingProcess: sanitize(data.biddingProcess),
+      contractNegotiation: data.contractNegotiation ? sanitize(data.contractNegotiation) : null,
+      instances: sanitize(data.instances),
+      publicOfficial: sanitize(data.publicOfficial),
+      substantiation: data.substantiation ? sanitize(data.substantiation) : null,
+    }, tx, true);
+    return created.id;
   });
 
+  const declaration = await prisma.declaration.findUnique({ where: { id: declarationId }, include: declarationIncludes as any });
   res.status(201).json(declarationResponse(declaration));
 }));
 
 router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
-  const declaration = await prisma.declaration.findUnique({ where: { id } });
+  const declaration = await prisma.declaration.findUnique({ where: { id }, include: declarationIncludes as any }) as any;
   if (!declaration) {
     res.status(404).json({ error: "Declaration not found" });
     return;
   }
 
-  if (req.user!.role === "teamMember" && declaration.employeeId !== req.user!.id) {
+  if (req.user!.role === "teamMember" && declaration.declarerUserId !== req.user!.id) {
     res.status(403).json({ error: "Cannot view another user's declaration" });
     return;
   }
@@ -369,11 +356,9 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(403).json({ error: "Cannot view declaration from another organization" });
     return;
   }
-  if (denyCrossDepartmentLM(req, res, declaration)) return;
+  if (denyCrossDepartmentLM(req, res, declaration.snapshot?.department)) return;
 
-  const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: declaration.id } });
-  // Rows-first; legacy JSON cache is the fallback.
-  const rawSteps = instance ? (await readWorkflowSteps(instance.declarationId)) || safeJsonParse(instance.steps) || [] : [];
+  const rawSteps = (await readWorkflowSteps(declaration.id)) || [];
 
   const workflowSteps = req.user!.role === "admin" || req.user!.role === "approver"
     ? rawSteps
@@ -392,7 +377,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
 router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
-  const existing = await prisma.declaration.findUnique({ where: { id } });
+  const existing = await prisma.declaration.findUnique({ where: { id }, include: { snapshot: true, detail: true } }) as any;
   if (!existing) {
     res.status(404).json({ error: "Declaration not found" });
     return;
@@ -407,11 +392,11 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(403).json({ error: "Cannot edit declaration from another organization" });
     return;
   }
-  if (existing.employeeId !== req.user!.id && req.user!.role !== "admin") {
+  if (existing.declarerUserId !== req.user!.id && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot edit another user's declaration" });
     return;
   }
-  if (denyCrossDepartmentLM(req, res, existing)) return;
+  if (denyCrossDepartmentLM(req, res, existing.snapshot?.department)) return;
 
   const parsed = createSchema.partial().safeParse(req.body);
   if (!parsed.success) {
@@ -441,111 +426,103 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     }
   }
 
-  const updateData: Record<string, unknown> = {};
-
   // Editable via PUT: everything EXCEPT the immutable declarer identity
-  // (employee, teamMemberNumber, position, department). Those four are
-  // captured once into DeclarationSnapshot at creation and the verify gate
-  // asserts they never diverge — allowing them here would red the gate
-  // permanently with no self-heal. Identity corrections require admin
-  // recreation. lineManager stays editable (manager changes are legitimate);
-  // the snapshot keeps the submission-time value by design.
-  const fieldMap: Record<string, string> = {
-    lineManager: "lineManager",
-    organizationId: "organizationId",
-    company: "company", team: "team", type: "type", counterparty: "counterparty",
-    value: "value", submitted: "submitted",
-    priority: "priority", description: "description", relationship: "relationship",
-    receivedGiven: "receivedGiven", from: "fromField", contactPerson: "contactPerson",
-    biddingProcess: "biddingProcess", contractNegotiation: "contractNegotiation",
-    occasion: "occasion", date: "date", instances: "instances",
-    publicOfficial: "publicOfficial", substantiation: "substantiation",
-    approverId: "approverId",
-  };
+  // (employee name, teamMemberNumber, position, department — captured once
+  // into DeclarationSnapshot at creation). Identity corrections require admin
+  // recreation. lineManager stays editable while Draft/Returned (pre-submit
+  // context, not yet audited); the snapshot manager is updated alongside and
+  // frozen at submit.
+  const updateData: Record<string, unknown> = {};
+  if (data.type !== undefined) updateData.type = sanitize(data.type);
+  if (data.value !== undefined) updateData.value = data.value;
+  if (data.priority !== undefined) updateData.priority = sanitize(data.priority);
+  if ((data as any).organizationId !== undefined) updateData.organizationId = (data as any).organizationId;
+  if (data.date !== undefined) updateData.eventDate = parseDateSafe(data.date);
+  if (data.submitted !== undefined) updateData.submittedAt = parseDateSafe(data.submitted);
 
-  const sanitizeFields = new Set(["lineManager","company","team","type","counterparty","priority","description","relationship","receivedGiven","contactPerson","biddingProcess","contractNegotiation","occasion","date","instances","publicOfficial","substantiation","submitted","from"]);
-  for (const [key, dbField] of Object.entries(fieldMap)) {
+  const sanitizeFields = new Set(["type", "priority", "counterparty", "description", "relationship", "receivedGiven", "contactPerson", "biddingProcess", "contractNegotiation", "occasion", "instances", "publicOfficial", "substantiation", "from"]);
+  const detailPatch: Record<string, unknown> = {};
+  for (const key of ["description", "relationship", "receivedGiven", "contactPerson", "biddingProcess", "contractNegotiation", "occasion", "instances", "publicOfficial", "substantiation"] as const) {
     const val = (data as Record<string, unknown>)[key];
-    if (val !== undefined) {
-      updateData[dbField] = typeof val === "string" && sanitizeFields.has(key) ? sanitize(val) : val;
-    }
+    if (val !== undefined) detailPatch[key] = typeof val === "string" && sanitizeFields.has(key) ? sanitize(val) : val;
   }
-  if (data.files !== undefined) {
-    updateData.files = JSON.stringify(data.files);
-  }
+  if ((data as any).from !== undefined) detailPatch.from = sanitize((data as any).from);
 
-  // Resolve relational links before the transaction (counterparty
-  // find-or-create is retry-safe on unique races outside the tx).
-  const putCounterpartyText = (updateData.counterparty as string | undefined) ?? existing.counterparty;
-  let putCounterpartyId: string | null = existing.counterpartyId;
-  if (updateData.counterparty !== undefined) {
-    if (putCounterpartyText) {
-      const contactText = (updateData.contactPerson as string | undefined) ?? existing.contactPerson;
-      const cp = await ensureCounterparty(putCounterpartyText, (updateData.organizationId as string | undefined) ?? existing.organizationId, contactText);
+  // Resolve relational links before the transaction (pure reads).
+  // When approverId is reassigned the approver display name moves with it —
+  // otherwise the detail view shows the previous manager's name with the new id.
+  let putCounterpartyId: string | null | undefined;
+  if (data.counterparty !== undefined) {
+    if (data.counterparty) {
+      const contactText = (data.contactPerson as string | undefined) ?? existing.detail?.contactPerson ?? null;
+      const cp = await ensureCounterparty(sanitize(data.counterparty), ((data as any).organizationId as string | undefined) ?? existing.organizationId, contactText ? sanitize(contactText) : null);
       putCounterpartyId = cp?.id || null;
     } else {
       putCounterpartyId = null;
     }
   }
-  const putEventDate = updateData.date !== undefined ? parseDateSafe(updateData.date as string) : existing.eventDate;
-  const putSubmittedAt = updateData.submitted !== undefined ? parseDateSafe(updateData.submitted as string) : existing.submittedAt;
-  const putApproverId = (updateData.approverId as string | undefined) ?? existing.approverId ?? null;
-
-  // User-link existence is resolved before the transaction (pure reads, so the
-  // transaction holds the write lock for the shortest possible time).
-  // When approverId is reassigned the approver display name moves with it —
-  // otherwise the detail view shows the previous manager's name with the new id.
-  let putDeclarer: string | null = null;
-  const putDu = await prisma.user.findUnique({ where: { id: existing.employeeId }, select: { id: true } });
-  if (putDu) putDeclarer = putDu.id;
-  let putApproverUser: string | null = null;
-  if (putApproverId) {
-    const putAu = await prisma.user.findUnique({ where: { id: putApproverId }, select: { id: true, name: true } });
-    if (putAu) {
-      putApproverUser = putAu.id;
-      if (updateData.approverId !== undefined) updateData.approver = putAu.name;
+  let putApproverUser: string | null | undefined;
+  if (data.approverId !== undefined) {
+    if (data.approverId) {
+      const putAu = await prisma.user.findUnique({ where: { id: data.approverId }, select: { id: true } });
+      putApproverUser = putAu ? putAu.id : null;
+    } else {
+      putApproverUser = null;
     }
-  } else if (updateData.approverId !== undefined) {
-    updateData.approver = "";
   }
 
-  // Single transaction: legacy edit plus canonical DateTime columns, links,
-  // snapshot, and detail rows. A failure returns a retryable error instead of
-  // claiming canonical data exists.
-  const updated = await prisma.$transaction(async (tx) => {
-    const upd = await tx.declaration.update({
-      where: { id },
-      data: {
-        ...updateData,
-        eventDate: putEventDate,
-        submittedAt: putSubmittedAt,
-        declarerUserId: putDeclarer,
-        currentApproverUserId: putApproverUser,
-        counterpartyId: putCounterpartyId,
-      },
-    });
-    await captureDeclarationSnapshot(
-      id,
-      {
-        name: upd.employee,
-        teamMemberNumber: upd.teamMemberNumber,
-        position: upd.position,
-        department: upd.department,
-      },
-      upd.lineManager || null,
-      tx,
-    );
-    await syncDeclarationDetail(id, upd, tx);
-    return upd;
+  // Single transaction: lean row, links, pre-submit snapshot manager, detail.
+  await prisma.$transaction(async (tx) => {
+    const txData: any = { ...updateData };
+    if (putCounterpartyId !== undefined) txData.counterpartyId = putCounterpartyId;
+    if (putApproverUser !== undefined) txData.currentApproverUserId = putApproverUser;
+    await tx.declaration.update({ where: { id }, data: txData });
+    if (data.lineManager !== undefined) {
+      await tx.declarationSnapshot.upsert({
+        where: { declarationId: id },
+        create: {
+          declarationId: id,
+          declarerName: existing.snapshot?.declarerName || "",
+          employeeNumber: existing.snapshot?.employeeNumber || "",
+          positionTitle: existing.snapshot?.positionTitle || "",
+          department: existing.snapshot?.department || "",
+          managerDisplayName: sanitize(data.lineManager) || null,
+        },
+        update: { managerDisplayName: sanitize(data.lineManager) || null },
+      });
+    }
+    if (Object.keys(detailPatch).length > 0) {
+      const current = await tx.declarationDetail.findUnique({ where: { declarationId: id } });
+      const base = {
+        description: current?.description ?? "",
+        occasion: current?.occasion ?? "",
+        relationship: current?.relationship ?? "",
+        receivedGiven: current?.receivedGiven ?? "",
+        fromField: current?.fromField ?? "",
+        contactPerson: current?.contactPerson ?? "",
+        biddingProcess: current?.biddingProcess ?? "",
+        contractNegotiation: current?.contractNegotiation ?? null,
+        instances: current?.instances ?? "",
+        publicOfficial: current?.publicOfficial ?? "",
+        substantiation: current?.substantiation ?? null,
+      };
+      const aliasMap: Record<string, string> = { from: "fromField" };
+      for (const [k, v] of Object.entries(detailPatch)) {
+        (base as any)[aliasMap[k] || k] = v;
+      }
+      await tx.declarationDetail.upsert({ where: { declarationId: id }, create: { declarationId: id, ...base }, update: base });
+    }
   });
+
+  const updated = await prisma.declaration.findUnique({ where: { id }, include: declarationIncludes as any });
 
   // Refresh the workflow immediately when a returned declaration's value
   // changes, so the detail view reflects newly required approvers before submit.
   if (existing.status === "Returned" && data.value !== undefined && data.value !== existing.value) {
     const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
     if (instance) {
-      const savedSteps = (await readWorkflowSteps(id)) || safeParseWorkflowSteps(instance.steps);
-      const freshSteps = await createWorkflowSteps(id, existing.employeeId, updated.value);
+      const savedSteps = (await readWorkflowSteps(id)) || [];
+      const freshSteps = await createWorkflowSteps(id, existing.declarerUserId!, (updated as any).value);
       const approvedMap = new Map(savedSteps.filter((s: any) => s.status === "approved").map((s: any) => [s.role, s]));
       const workflowSteps = freshSteps.map((step: any) => {
         const approved = approvedMap.get(step.role);
@@ -553,7 +530,6 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
           ? { ...step, status: "approved", decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt }
           : step;
       });
-      // JSON cache and authoritative rows commit in one transaction.
       await prisma.$transaction(async (tx) => {
         await writeWorkflowStepsTx(tx, id, workflowSteps);
       });
@@ -565,7 +541,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
 router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
-  const existing = await prisma.declaration.findUnique({ where: { id } });
+  const existing = await prisma.declaration.findUnique({ where: { id }, include: { snapshot: true, fileLinks: { include: { file: true } } } }) as any;
   if (!existing) {
     res.status(404).json({ error: "Declaration not found" });
     return;
@@ -579,26 +555,27 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     res.status(403).json({ error: "Cannot delete declaration from another organization" });
     return;
   }
-  if (existing.employeeId !== req.user!.id && req.user!.role !== "admin") {
+  if (existing.declarerUserId !== req.user!.id && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot delete another user's declaration" });
     return;
   }
-  if (denyCrossDepartmentLM(req, res, existing)) return;
+  if (denyCrossDepartmentLM(req, res, existing.snapshot?.department)) return;
 
-  // Cascade: delete workflow instance and uploaded files before declaration.
-  // Draft-only deletion is enforced above; relational children cascade at the
-  // DB level, with explicit deletes here for pre-migration databases.
-  const files = await prisma.uploadedFile.findMany({ where: { declarationId: id } });
-  await Promise.all(files.map(async (f) => {
-    const fp = containedUploadPath(f.path);
+  // Delete disk files via the join rows (the only file association).
+  const links = await (prisma as any).declarationFile.findMany({ where: { declarationId: id }, include: { file: true } });
+  await Promise.all(links.map(async (l: any) => {
+    const fp = containedUploadPath(l.file.path);
     if (!fp) return;
     try { await fs.promises.unlink(fp); } catch { /* file may have been deleted already */ }
   }));
+  const fileIds = links.map((l: any) => l.fileId);
+  await (prisma as any).declarationFile.deleteMany({ where: { declarationId: id } });
+  if (fileIds.length > 0) {
+    await prisma.uploadedFile.deleteMany({ where: { id: { in: fileIds } } });
+  }
   await Promise.all([
-    prisma.uploadedFile.deleteMany({ where: { declarationId: id } }),
     prisma.workflowInstance.deleteMany({ where: { declarationId: id } }),
     (prisma as any).workflowInstanceStep.deleteMany({ where: { declarationId: id } }).catch(() => undefined),
-    (prisma as any).declarationFile.deleteMany({ where: { declarationId: id } }).catch(() => undefined),
     (prisma as any).declarationSnapshot.deleteMany({ where: { declarationId: id } }).catch(() => undefined),
     (prisma as any).declarationDetail.deleteMany({ where: { declarationId: id } }).catch(() => undefined),
   ]);
@@ -609,7 +586,7 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
 
 router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
-  const existing = await prisma.declaration.findUnique({ where: { id } });
+  const existing = await prisma.declaration.findUnique({ where: { id }, include: { snapshot: true, detail: true } }) as any;
   if (!existing) {
     res.status(404).json({ error: "Declaration not found" });
     return;
@@ -623,22 +600,22 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     res.status(403).json({ error: "Cannot submit declaration from another organization" });
     return;
   }
-  if (existing.employeeId !== req.user!.id && req.user!.role !== "admin") {
+  if (existing.declarerUserId !== req.user!.id && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot submit another user's declaration" });
     return;
   }
-  if (denyCrossDepartmentLM(req, res, existing)) return;
+  if (denyCrossDepartmentLM(req, res, existing.snapshot?.department)) return;
 
   const existingInstance = await prisma.workflowInstance.findUnique({ where: { declarationId: existing.id } });
 
   let workflowSteps: any[];
   if (existing.status === "Returned" && existingInstance) {
-    const savedSteps = (await readWorkflowSteps(existing.id)) || safeParseWorkflowSteps(existingInstance.steps);
+    const savedSteps = (await readWorkflowSteps(existing.id)) || [];
     const hasReturnedStep = savedSteps.some((step) => step.status === "returned");
     if (hasReturnedStep) {
       // Rebuild from the current value so a returned low-value declaration that
       // becomes high-value gains the HR step on resubmission.
-      const freshSteps = await createWorkflowSteps(existing.id, existing.employeeId, existing.value);
+      const freshSteps = await createWorkflowSteps(existing.id, existing.declarerUserId!, existing.value);
       // Preserve approvals only for roles present in the newly selected rule.
       const approvedMap = new Map(savedSteps.filter((s: any) => s.status === "approved").map((s: any) => [s.role, s]));
       workflowSteps = freshSteps.map((fs: any) => {
@@ -648,75 +625,69 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
           : fs;
       });
     } else {
-      workflowSteps = await createWorkflowSteps(existing.id, existing.employeeId, existing.value);
+      workflowSteps = await createWorkflowSteps(existing.id, existing.declarerUserId!, existing.value);
     }
   } else {
-    workflowSteps = await createWorkflowSteps(existing.id, existing.employeeId, existing.value);
+    workflowSteps = await createWorkflowSteps(existing.id, existing.declarerUserId!, existing.value);
   }
 
   const nextApprover = workflowSteps.find((step) => step.status === "pending");
   // NOTE: when every step is skipped (e.g. an LM-only rule with no
   // resolvable line manager) there is no actionable approver and the
-  // declaration sits in Pending until an admin intervenes. Rejecting here
-  // was considered, but the suite mandates that all-skipped submits succeed
-  // with the skipped steps recorded; admin status-override is the escape hatch.
-  const approverName = nextApprover ? nextApprover.assigneeName : existing.approver;
-  const approverIdValue = nextApprover ? nextApprover.assignee : existing.approverId;
-
-  // Counterparty identity resolved before the transaction (retry-safe
-  // outside the tx); everything else commits atomically below.
-  let submitCounterpartyId: string | null = existing.counterpartyId;
-  if (existing.counterparty && !submitCounterpartyId) {
-    const cp = await ensureCounterparty(existing.counterparty, existing.organizationId, existing.contactPerson);
-    submitCounterpartyId = cp?.id || null;
-  }
+  // declaration sits in Pending until an admin intervenes.
+  const approverIdValue = nextApprover ? nextApprover.assignee : existing.currentApproverUserId;
 
   // User-link existence is resolved before the transaction (pure reads, so the
   // transaction holds the write lock for the shortest possible time).
-  let submitDeclarer: string | null = null;
-  const submitDu = await prisma.user.findUnique({ where: { id: existing.employeeId }, select: { id: true } });
-  if (submitDu) submitDeclarer = submitDu.id;
   let submitApproverUser: string | null = null;
   if (approverIdValue) {
     const submitAu = await prisma.user.findUnique({ where: { id: approverIdValue }, select: { id: true } });
     if (submitAu) submitApproverUser = submitAu.id;
   }
 
-  // Single transaction: declaration status, legacy approver, canonical
-  // approver link, timestamps, JSON cache, authoritative step rows, the
-  // producing rule, snapshot, and detail — readers never observe a
-  // half-mirrored workflow or a success without canonical data.
+  // Single transaction: declaration status, canonical approver link, the
+  // authoritative step rows, the producing rule, and the frozen snapshot/detail.
   const ruleId = await resolveRuleId(existing.value);
-  const [updated] = await prisma.$transaction(async (tx) => {
-    const upd = await tx.declaration.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.declaration.update({
       where: { id: existing.id },
       data: {
         status: "Pending",
-        approver: approverName,
-        approverId: approverIdValue,
-        eventDate: parseDateSafe(existing.date) ?? existing.eventDate,
-        submittedAt: parseDateSafe(existing.submitted) ?? existing.submittedAt,
-        declarerUserId: submitDeclarer,
         currentApproverUserId: submitApproverUser,
-        counterpartyId: submitCounterpartyId,
       },
     });
     await writeWorkflowStepsTx(tx, existing.id, workflowSteps, ruleId);
     await captureDeclarationSnapshot(
       existing.id,
       {
-        name: upd.employee,
-        teamMemberNumber: upd.teamMemberNumber,
-        position: upd.position,
-        department: upd.department,
+        name: existing.snapshot?.declarerName || "",
+        teamMemberNumber: existing.snapshot?.employeeNumber || "",
+        position: existing.snapshot?.positionTitle || "",
+        department: existing.snapshot?.department || "",
       },
-      upd.lineManager || null,
+      existing.snapshot?.managerDisplayName || null,
       tx,
     );
-    await syncDeclarationDetail(existing.id, upd, tx);
-    return [upd];
+    const det = await tx.declarationDetail.findUnique({ where: { declarationId: existing.id } });
+    if (!det) {
+      await tx.declarationDetail.create({
+        data: {
+          declarationId: existing.id,
+          description: "",
+          occasion: "",
+          relationship: "",
+          receivedGiven: "",
+          fromField: "",
+          contactPerson: "",
+          biddingProcess: "",
+          instances: "",
+          publicOfficial: "",
+        },
+      });
+    }
   });
 
+  const updated = await prisma.declaration.findUnique({ where: { id }, include: declarationIncludes as any });
   res.json(declarationResponse(updated));
   if (nextApprover) {
     void sendNotification(nextApprover.role === "hr" ? "hrApproval" : "managerApproval", existing.id, nextApprover.assignee);
@@ -744,12 +715,7 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
   }
 
   if (status === "Approved" || status === "Declined") {
-    const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
-    if (!instance) {
-      res.status(400).json({ error: "Cannot approve/decline a declaration with no workflow instance" });
-      return;
-    }
-    const steps: any[] = (await readWorkflowSteps(id)) || safeJsonParse(instance.steps) || [];
+    const steps: any[] = (await readWorkflowSteps(id)) || [];
     const pendingStep = steps.find((s: any) => s.status === "pending");
     if (pendingStep) {
       res.status(400).json({ error: "Cannot approve/decline — pending approval step still exists" });
@@ -769,8 +735,8 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
     data: { status },
   });
 
-  res.json(declarationResponse(updated));
+  const enriched = await prisma.declaration.findUnique({ where: { id }, include: declarationIncludes as any });
+  res.json(declarationResponse(enriched));
 }));
 
 export default router;
-

@@ -213,24 +213,12 @@ router.delete("/:id", authenticate, authorize("admin"), asyncHandler(async (req:
   }
 
   // Block deletion while the user holds a pending approval step.
-  // Relational rows are the source of truth; legacy JSON cache is the fallback.
-  let hasActive = false;
-  try {
-    const pending = await (prisma as any).workflowInstanceStep.findFirst({
-      where: { assigneeId: id, status: "pending" },
-      select: { instanceId: true },
-    });
-    hasActive = !!pending;
-  } catch { hasActive = false; }
-  if (!hasActive) {
-    const activeWorkflows = await prisma.workflowInstance.findMany();
-    hasActive = activeWorkflows.some((w) => {
-      let steps: any[];
-      try { steps = JSON.parse(w.steps); } catch { return false; }
-      return steps.some((s) => s.assignee === id && s.status === "pending");
-    });
-  }
-  if (hasActive) {
+  // Step rows are the only workflow state.
+  const pending = await (prisma as any).workflowInstanceStep.findFirst({
+    where: { assigneeId: id, status: "pending" },
+    select: { instanceId: true },
+  }).catch(() => null);
+  if (pending) {
     res.status(400).json({ error: "Cannot delete user with active pending approvals" });
     return;
   }
