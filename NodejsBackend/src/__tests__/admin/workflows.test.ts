@@ -10,7 +10,12 @@ describe("Admin Workflow Rules", () => {
       .get("/api/admin/workflows/rules")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(2);
+    // Order-independent: other suites manage their own rules; the two seed
+    // rules must always be present with row-backed step arrays.
+    expect(res.body.length).toBeGreaterThanOrEqual(2);
+    const rule1 = res.body.find((r: any) => r.id === "rule-1");
+    expect(rule1).toBeDefined();
+    expect(rule1.steps).toBeInstanceOf(Array);
     expect(res.body[0].steps).toBeDefined();
     expect(res.body[0].steps).toBeInstanceOf(Array);
   });
@@ -26,8 +31,14 @@ describe("Admin Workflow Rules", () => {
   });
 
   it("PUT /api/admin/workflows/rules/:id — updates rule name", async () => {
+    // Operate on the suite-owned rule, never on the shared seed rules.
+    const list = await request(app)
+      .get("/api/admin/workflows/rules")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    const owned = list.body.find((r: any) => r.name === "Test Rule");
+    expect(owned).toBeDefined();
     const res = await request(app)
-      .put("/api/admin/workflows/rules/rule-1")
+      .put(`/api/admin/workflows/rules/${owned.id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ name: "Updated Rule Name" });
     expect(res.status).toBe(200);
@@ -35,16 +46,24 @@ describe("Admin Workflow Rules", () => {
   });
 
   it("DELETE /api/admin/workflows/rules/:id — deletes rule", async () => {
+    const list = await request(app)
+      .get("/api/admin/workflows/rules")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    const owned = list.body.find((r: any) => r.name === "Updated Rule Name");
+    expect(owned).toBeDefined();
     const res = await request(app)
-      .delete("/api/admin/workflows/rules/rule-1")
+      .delete(`/api/admin/workflows/rules/${owned.id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
 
     // Verify deleted
-    const list = await request(app)
+    const list2 = await request(app)
       .get("/api/admin/workflows/rules")
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(list.body.find((r: any) => r.id === "rule-1")).toBeUndefined();
+    expect(list2.body.find((r: any) => r.id === owned.id)).toBeUndefined();
+    // Shared seed rules are untouched.
+    expect(list2.body.find((r: any) => r.id === "rule-1")).toBeDefined();
+    expect(list2.body.find((r: any) => r.id === "rule-2")).toBeDefined();
   });
 
   it("Workflow rules — non-admin gets 403", async () => {

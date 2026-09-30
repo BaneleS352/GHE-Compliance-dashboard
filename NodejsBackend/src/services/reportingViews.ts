@@ -124,7 +124,9 @@ export async function viewStatusSummary(organizationId?: string) {
   // Number() conversion: PostgreSQL COUNT(*) arrives as BigInt via raw
   // queries and JSON.stringify(BigInt) throws — this runs on the reports
   // path that returns straight to res.json.
-  for (const r of rows) out[r.status] = Number(r.count);
+  // Unscoped queries return one row per (organisation, status) — sum across
+  // organisations so thecallers get global totals, not the last org's row.
+  for (const r of rows) out[r.status] = (out[r.status] || 0) + Number(r.count);
   return out;
 }
 
@@ -166,12 +168,30 @@ export async function viewCounterparty(organizationId?: string) {
     organizationId ? [organizationId] : [],
   );
   if (!rows) return null;
-  return rows.map((r) => ({
+  const mapped = rows.map((r) => ({
     counterparty: String(r.counterparty),
     count: Number(r.count),
     totalValue: Number(r.totalValue),
     avgValue: Math.round(Number(r.avgValue) * 100) / 100,
   }));
+  if (organizationId) return mapped;
+  // Unscoped queries return one row per (organisation, counterparty) —
+  // merge across organisations so totals are global, not per-org fragments.
+  const merged = new Map<string, { count: number; totalValue: number }>();
+  for (const m of mapped) {
+    const e = merged.get(m.counterparty) || { count: 0, totalValue: 0 };
+    e.count += m.count;
+    e.totalValue += m.totalValue;
+    merged.set(m.counterparty, e);
+  }
+  return [...merged.entries()]
+    .map(([counterparty, d]) => ({
+      counterparty,
+      count: d.count,
+      totalValue: d.totalValue,
+      avgValue: Math.round((d.totalValue / d.count) * 100) / 100,
+    }))
+    .sort((a, b) => b.totalValue - a.totalValue);
 }
 
 export async function viewHighValue(organizationId: string | undefined, threshold: number) {

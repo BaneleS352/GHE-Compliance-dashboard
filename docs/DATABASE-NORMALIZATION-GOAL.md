@@ -8,9 +8,31 @@ This is a staged modernization. The objective is to improve correctness, traceab
 
 ## Current State
 
-The implementation uses Prisma with SQLite in development and PostgreSQL in Docker production. Production starts with `prisma migrate deploy` (versioned migrations `0000_baseline`, `0001_normalization`, `0002_rule_fk`); the entrypoint fails fast with no `db push` fallback, then runs the idempotent backfill as an observable, fatal-on-error deployment step. SQLite remains the supported development/testing workflow (`prisma db push`).
+Phase 5 cutover complete (`0005_phase5_retirement`, see
+`NodejsBackend/prisma/RETIREMENT.md`). The implementation uses Prisma with
+SQLite in development and PostgreSQL in Docker production. Production starts
+with `prisma migrate deploy` (versioned migrations `0000_baseline`,
+`0001_normalization`, `0002_rule_fk`, `0003_counterparty_unique`,
+`0004_monthly_eventdate`, `0005_phase5_retirement`); the entrypoint fails fast
+with no `db push` fallback and no backfill/verify step (there is no legacy
+mirror left to reconcile). SQLite remains the supported development/testing
+workflow (`prisma db push`).
 
-The existing `Declaration` table stores both transactional data and copied employee/organisation attributes, now joined by enforced foreign keys (`declarerUserId`, `currentApproverUserId`, `counterpartyId`) and canonical `eventDate`/`submittedAt` (`date`/`timestamptz`) columns populated synchronously on every write; the legacy text fields remain the API write path. Workflow rules and workflow instances maintain their steps as relational rows (`WorkflowRuleStep`, `WorkflowInstanceStep`) written atomically in the same transaction as the legacy JSON cache, which is now read only as a fallback. Remaining string references without database foreign-key constraints are documented as the temporary Phase 5 compatibility surface (see `NodejsBackend/prisma/schema.prisma` header and `RETIREMENT.md`).
+`Declaration` is now a lean row (`type`, `value`, `status`, `priority`,
+`organizationId`, canonical `eventDate`/`submittedAt`, `declarerUserId`,
+`currentApproverUserId`, `counterpartyId` with enforced FKs). Declarer context
+lives in the immutable `DeclarationSnapshot`, transactional detail in
+`DeclarationDetail`, files in the join-only `DeclarationFile` association,
+and workflow state/definition in `WorkflowInstanceStep`/`WorkflowRuleStep`
+rows — there is no JSON/text fallback anywhere. The API response shape is
+unchanged (`declarationResponse` builds it from joins), so the frontend
+needed no migration. Ownership is frozen: `SystemConfig` over
+`OrganizationSetting`, `User.role` over `AppRole`/`UserRole`; `Dropdowns`,
+`ComplianceTrendPoint`, `TypeBreakdownItem`, and the unenforced `Ref*` copies
+are removed (dropdowns are served from Department master data + fixed domain
+lists). Reporting views are migration-owned on PostgreSQL (application role
+needs only SELECT) and power the dashboard/report endpoints with API-level
+scoping retained.
 
 These choices were practical for an early-stage application, but they prevent the database from enforcing key integrity and make detailed reporting depend heavily on API-side aggregation.
 

@@ -59,8 +59,7 @@ Run migrations:
 ```bash
 npx prisma migrate deploy
 npm run db:seed    # first deploy of an empty database only; never re-run against operational data
-npm run db:backfill  # idempotent; review the reconciliation report
-npm run db:verify    # must report zero drift before considering the deploy healthy
+# (Phase 5: db:backfill/db:verify were retired with the legacy columns.)
 ```
 
 ### 2. Environment Variables

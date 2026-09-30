@@ -90,17 +90,24 @@ Each step:
 | Field | Type | Notes |
 |-------|------|-------|
 | id | String @id | cuid |
-| declarationId | String? | Loose reference — no FK constraint |
 | originalName | String | |
 | mimeType | String | |
 | size | Int | |
 | path | String | File name on disk |
 
+File association is join-only: `DeclarationFile` links a declaration to a
+file. Orphan `UploadedFile` rows are rejected (upload creates metadata + join
+row in one transaction).
+
 ### Other Models
-- **Dropdowns** — JSON data for form dropdown options
-- **ComplianceTrendPoint** — Monthly approval/decline counts (dashboard)
-- **TypeBreakdownItem** — Declaration type stats (dashboard)
 - **ApprovalOption** — Decision options (accept, org, foundation, decline, return)
+
+Phase 5 retirements (see `NodejsBackend/prisma/RETIREMENT.md`): the
+`Dropdowns` JSON table (now Department master data + fixed domain lists),
+static `ComplianceTrendPoint`/`TypeBreakdownItem` tables (now reporting
+views), `AppRole`/`UserRole` (authorization is `User.role`),
+`OrganizationSetting` (config is `SystemConfig`), and the unenforced `Ref*`
+lookup copies were removed.
 
 ## Notification Templates
 
@@ -112,18 +119,17 @@ Each step:
 - Returned declarations are re-evaluated when saved/resubmitted; newly required approvers are added while valid completed approvals are preserved.
 - Report date filters are inclusive.
 
-## Cascade Gaps
+## Cascade behavior (Phase 5)
 
-| Action | Orphans |
-|--------|---------|
-| Delete declaration | UploadedFile records (DB + disk) remain |
-| Delete declaration | WorkflowInstance record remains |
-| Delete user | User's declarations remain (employeeId not updated) |
-| Delete workflow rule | Existing WorkflowInstance records remain |
+| Action | Result |
+|--------|--------|
+| Delete draft declaration | Workflow instance + step rows, snapshot, detail, file joins + file rows, and disk files are removed |
+| Delete user | Declarations survive with `declarerUserId`/`currentApproverUserId` set to NULL (history stays in the immutable snapshot); step assignee links NULL the same way |
+| Delete workflow rule | Existing `WorkflowInstance` rows survive with `ruleId` set to NULL |
+| Delete counterparty | Linked declarations survive with `counterpartyId` set to NULL |
 
 ## Key Business Rules (Not Enforced by DB)
 
 - Team members see only their own declarations in the list endpoint (enforced in-app, not in DB)
 - Approvers can see all declarations (no DB constraint)
-- Workflow step order is logical (order field) but not enforced in approve handler
-- File associations to declarations are loose strings, not FK constraints
+- Declaration `type`/`status`/`priority` are validated strings (zod + valid-status lists), not FK-backed references

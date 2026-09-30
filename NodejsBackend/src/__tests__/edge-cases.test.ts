@@ -867,11 +867,13 @@ describe("Edge-Case Tests", () => {
     });
 
     it("Deleting rule-2 would break new high-value submissions (read-only verification)", async () => {
-      // Verify rule-2 exists and is selected for high-value declarations
+      // Verify rule-2 exists and is selected for high-value declarations.
+      // Order-independent: other suites manage their own rules, so assert
+      // presence of the seed rules rather than an exact total.
       const rulesRes = await request(app)
         .get("/api/admin/workflows/rules")
         .set("Authorization", `Bearer ${getAdminToken()}`);
-      expect(rulesRes.body).toHaveLength(2);
+      expect(rulesRes.body.length).toBeGreaterThanOrEqual(2);
       const rule2 = rulesRes.body.find((r: any) => r.id === "rule-2");
       expect(rule2).toBeDefined();
 

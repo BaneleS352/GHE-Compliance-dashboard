@@ -76,25 +76,34 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
       viewTypeBreakdown(orgId),
     ]);
     if (statusRows && monthlyRows && typeRows) {
-      const getCount = (s: string) => statusRows.find((r) => r.status === s)?.count ?? 0;
+      // Unscoped queries return one row per (organisation, status/month/type)
+      // — sum across organisations so the KPIs are global totals.
+      const sumBy = (rows: any[], key: string, val: string, match: string) =>
+        rows.filter((r) => String(r[key]) === match).reduce((n, r) => n + Number(r[val]), 0);
       const kpis = {
         total: statusRows.reduce((n, r) => n + r.count, 0),
-        pending: getCount("Pending"),
-        approved: getCount("Approved"),
-        declined: getCount("Declined"),
-        returned: getCount("Returned"),
-        escalated: getCount("Escalated"),
+        pending: sumBy(statusRows, "status", "count", "Pending"),
+        approved: sumBy(statusRows, "status", "count", "Approved"),
+        declined: sumBy(statusRows, "status", "count", "Declined"),
+        returned: sumBy(statusRows, "status", "count", "Returned"),
+        escalated: sumBy(statusRows, "status", "count", "Escalated"),
         totalValue: statusRows.reduce((n, r) => n + r.totalValue, 0),
       };
-      const complianceTrend = (monthlyRows as any[]).map((m) => ({
-        month: String(m.month),
-        approved: Number(m.approved),
-        declined: Number(m.declined),
-      }));
-      const typeBreakdown = (typeRows as any[]).map((t) => ({
-        name: String(t.type),
-        value: Number(t.count),
-      }));
+      const monthMap = new Map<string, { approved: number; declined: number }>();
+      for (const m of monthlyRows as any[]) {
+        const e = monthMap.get(String(m.month)) || { approved: 0, declined: 0 };
+        e.approved += Number(m.approved);
+        e.declined += Number(m.declined);
+        monthMap.set(String(m.month), e);
+      }
+      const complianceTrend = [...monthMap.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([month, v]) => ({ month, ...v }));
+      const typeMap = new Map<string, number>();
+      for (const t of typeRows as any[]) {
+        typeMap.set(String(t.type), (typeMap.get(String(t.type)) || 0) + Number(t.count));
+      }
+      const typeBreakdown = [...typeMap.entries()].map(([name, value]) => ({ name, value }));
       res.json({ kpis, complianceTrend, typeBreakdown });
       return;
     }
@@ -715,6 +724,11 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
   }
 
   if (status === "Approved" || status === "Declined") {
+    const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
+    if (!instance) {
+      res.status(400).json({ error: "Cannot approve/decline a declaration with no workflow instance" });
+      return;
+    }
     const steps: any[] = (await readWorkflowSteps(id)) || [];
     const pendingStep = steps.find((s: any) => s.status === "pending");
     if (pendingStep) {

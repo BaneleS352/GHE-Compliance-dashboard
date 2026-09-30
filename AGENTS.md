@@ -150,3 +150,12 @@ All 34 documented audit findings (7 CRITICAL, 8 HIGH, 15 MEDIUM, 4 LOW) have bee
 - PG coverage without local PG (no docker/network here): `npm run pg:test` orchestrator (provider swap → generate → `migrate deploy` → checks → restore) + `pg-integration-checks.ts` (fixture, backfill, verify, all 7 org-scoped views vs Prisma aggregations, FK block + SET NULL) + `.github/workflows/postgres-normalization.yml` CI job; `bindParams` covered by unit tests
 - Docs: DOCKER.md/ARCHITECTURE.md no longer claim `db push`; DEPLOY.md seed fixed + verify step; BASELINE.md expanded to full runbook (operator, backup, verify queries, rollback); goal doc Current State updated
 - Tests: 381/381 passing (8 in `normalization.test.ts` incl. rule-FK + binding tests); `db:backfill` + `db:verify` clean on dev.db (ruleInferred=26)
+
+### Phase 5 cutover — full clean plan implemented (2026-09-30)
+- Destructive migration `0005_phase5_retirement`: drops Declaration legacy text/JSON columns, WorkflowRule/WorkflowInstance steps JSON, UploadedFile.declarationId, and tables Dropdowns/ComplianceTrendPoint/TypeBreakdownItem/AppRole/UserRole/OrganizationSetting/Ref*; recreates all 7 reporting views on the normalized schema (migration-owned on PG)
+- Ownership frozen: SystemConfig wins, User.role wins, type/status/priority stay validated strings; counterparty partial-unique policy unchanged
+- Single store everywhere: declarationResponse builds the unchanged API shape from Snapshot/Detail/Counterparty/User/file-join rows; counterparty resolves inside the declaration transaction; snapshot immutable (PUT edits pre-submit manager context only); files join-only (orphans rejected); step rows only (no JSON fallback); views summed across orgs when unscoped
+- Retired: backfill/verify scripts + db:backfill/db:verify package scripts; entrypoint is migrate + seed-if-empty + serve; PUT /dropdowns returns 410, GET serves Department master data + fixed domain lists
+- Seed/globalSetup/pg-integration-checks write the normalized model directly; client-sent files arrays are ignored (upload endpoint is the write path)
+- Test isolation fixes (shared-DB, order-independent): last-admin guards drop extra admin fixtures first; admin/workflows tests use a suite-owned rule instead of mutating rule-1; orphan-user test asserts FK SetNull + snapshot history
+- Tests: 381/381 passing (8 in normalization.test.ts); npx tsc clean; docs updated (BASELINE, RETIREMENT, SCHEMA, DOCKER, ARCHITECTURE, DEPLOY, goal Current State, CI job renamed)

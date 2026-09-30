@@ -33,7 +33,7 @@ echo.
 echo [3/5] Setting up database...
 
 :: Route by DATABASE_URL scheme: SQLite keeps the db-push flow, PostgreSQL
-:: uses versioned migrations + seed-if-empty + backfill/verify (db:pg:up).
+:: uses versioned migrations + seed-if-empty (db:pg:up).
 :: Only uncommented DATABASE_URL lines match (^ anchors line start, so the
 :: commented example in .env.example is ignored).
 findstr /R "^DATABASE_URL.*postgres" .env >nul

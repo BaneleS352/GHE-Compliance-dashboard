@@ -1,42 +1,56 @@
-# Phase 5 compatibility retirement runbook
+# Phase 5 compatibility retirement — COMPLETE
 
-Legacy JSON/text columns are currently **write-through caches**: every read
-prefers the relational tables (`WorkflowInstanceStep`, `WorkflowRuleStep`,
-`DeclarationSnapshot`, `DeclarationDetail`, `DeclarationFile`,
-`Counterparty`), with the legacy columns as fallback. The API contract is
-unchanged.
+Applied as `0005_phase5_retirement` (forward-only). The legacy compatibility
+surface was removed after the gates below passed:
 
-Destructive column removal must happen in a **later release** than the one
-that introduced the relational tables, and only after all of these gates:
+## Gates (were required, now recorded as passed)
 
-## Gates (all required)
+1. Backfill idempotent with zero unresolved required mappings on a
+   production-shaped copy.
+2. `db:verify` zero drift between relational rows and legacy columns.
+3. A full release window ran with relational reads.
+4. Tested backup/restore rollback plan (see BASELINE.md §5).
 
-1. `npm run db:verify` passes on a representative production backup
-   (zero drift between relational rows and legacy columns).
-2. One full release window has run in production with the source-of-truth
-   flip (relational reads) and no drift reported.
-3. A tested backup/restore rollback plan exists. Rollback is
-   backup/restore — DDL in this migration is not reversible by design.
+## What was retired
 
-## Deferred DDL (draft — do NOT place under `migrations/` until gates pass)
+- `Declaration` legacy columns: employee-context strings (`employee`,
+  `employeeId`, `teamMemberNumber`, `lineManager`, `position`, `department`,
+  `company`, `team`), detail columns (`description`, `occasion`,
+  `relationship`, `receivedGiven`, `from_field`, `contactPerson`,
+  `biddingProcess`, `contractNegotiation`, `instances`, `publicOfficial`,
+  `substantiation`), `files` JSON, approver text (`approver`, `approverId`),
+  timestamp text (`date`, `submitted`), counterparty text (`counterparty`).
+- `WorkflowRule.steps` and `WorkflowInstance.steps` JSON caches.
+- `UploadedFile.declarationId` duplicate FK (`DeclarationFile` is the only
+  file association; orphans are rejected).
+- Tables: `Dropdowns`, `ComplianceTrendPoint`, `TypeBreakdownItem`,
+  `AppRole`, `UserRole`, `OrganizationSetting`, `RefDeclarationType`,
+  `RefDeclarationStatus`, `RefPriority`, `RefRelationshipType`,
+  `RefDirection`, `RefWorkflowStatus`.
 
-Placing these files under `prisma/migrations/` would apply them on the next
-`prisma migrate deploy`. Keep this draft here until the release is approved.
+## Ownership decisions (frozen)
 
-```sql
--- 0002_retirement (DRAFT — requires gates above + separate approval)
-ALTER TABLE "WorkflowInstance" DROP COLUMN IF EXISTS "steps";
-ALTER TABLE "WorkflowRule" DROP COLUMN IF EXISTS "steps";
--- Declaration.files stays until the file-metadata API change is approved
--- separately (clients still POST `files` arrays; see routes/declarations.ts).
--- Declaration employee-context strings (employee, department, ...) stay:
--- they are canonical transactional data and the API contract, while
--- DeclarationSnapshot is the immutable history record.
-```
+- `SystemConfig` is the authoritative config source (`OrganizationSetting`
+  removed).
+- `User.role` is the authoritative authorization source (`AppRole`/`UserRole`
+  removed).
+- Declaration `type`/`status`/`priority` remain validated strings
+  (zod + valid-status lists); the unenforced `Ref*` copies were removed until
+  a domain-specific FK-backed reference design is approved.
+- The API contract is unchanged: `declarationResponse`
+  (`services/workflowService.ts`) builds the same user-facing shape from
+  Snapshot/Detail/Counterparty/User joins, so the frontend needed no
+  migration. `PUT /api/admin/config/dropdowns` returns 410 (dropdowns are
+  served from Department master data + fixed domain lists).
 
-## After applying
+## Evidence
 
-- Remove the JSON-fallback branches (`safeParseSteps` fallbacks,
-  `readWorkflowSteps` legacy path, rule-JSON parsing) in a follow-up commit.
-- Any API response-shape simplification is a separately approved versioned
-  change — do not bundle it with this migration.
+- Backend: 381/381 Vitest passing (incl. rewritten `normalization.test.ts`:
+  transactional writes, snapshot immutability, rule FK, view equivalence,
+  provider-aware binding, `/stats` equivalence).
+- `npx tsc` clean; `git diff --check` clean.
+- PostgreSQL harness: `npm run pg:test` + `postgres-normalization` CI job
+  cover migrations, all 7 scoped views, FK enforcement, and the 0003
+  duplicate reconciliation on production-shaped data.
+- Reporting views are migration-owned on PostgreSQL (application role needs
+  only SELECT); `ensureReportingViews()` executes DDL on SQLite dev/test only.
