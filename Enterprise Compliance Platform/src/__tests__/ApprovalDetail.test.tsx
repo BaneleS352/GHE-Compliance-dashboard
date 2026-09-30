@@ -4,7 +4,7 @@ import { ApprovalDetail } from "../app/pages/ApprovalDetail";
 import { fetchWorkflowInstance, approveWorkflowStep, fetchConfig } from "../services/api";
 
 const mockDeclaration = {
-  id: "GHE-2026-1001", employee: "Alice", employeeId: "user-1", department: "IT",
+  id: "GHE-2026-1001", employee: "Alice", employeeId: 1, department: "IT",
   type: "Gift", counterparty: "CorpA", value: 5000, submitted: "2026-07-01",
   approver: "Sipho Nkosi", status: "Pending" as const, priority: "High" as const,
   description: "Test", relationship: "Yes", teamMemberNumber: "TM-001",
@@ -17,7 +17,7 @@ const mockDeclaration = {
 const mockWorkflow = {
   declarationId: "GHE-2026-1001",
   steps: [
-    { order: 1, role: "lineManager", assignee: "user-3", assigneeName: "Sipho Nkosi",
+    { order: 1, role: "lineManager", assignee: 3, assigneeName: "Sipho Nkosi",
       label: "Line Manager Review", status: "pending" as const, decision: null, notes: "", decidedAt: null },
     { order: 2, role: "hr", assignee: "user-4", assigneeName: "Lindiwe Zulu",
       label: "HR Review", status: "pending" as const, decision: null, notes: "", decidedAt: null },

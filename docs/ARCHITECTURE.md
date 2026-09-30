@@ -70,15 +70,15 @@ Express API (port 3001)
     │       ├── Role authorization
     │       └── Prisma DB operations
     │
-    └── SQLite / PostgreSQL
+    └── PostgreSQL (BIGINT keys; Declaration.id stays the public GHE- reference)
 ```
 
 ## Key Design Decisions
 
 | Area | Choice | Rationale |
 |------|--------|-----------|
-| Database | SQLite (dev) / PostgreSQL (prod) | Prisma abstracts both; SQLite for zero-setup dev |
-| Auth | JWT (self-contained) | No session store needed; role embedded in token |
+| Database | PostgreSQL everywhere (dev, CI, prod) | Single provider; native BIGINT identity keys; versioned migrations only |
+| Auth | JWT (self-contained, numeric user id) | No session store needed; role embedded in token |
 | Validation | Zod schemas | Type-safe, composable, good DX |
 | File storage | Local disk (`uploads/`) behind authenticated API routes | Simple; replace with object storage for production |
 | Workflow | JSON steps in `WorkflowInstance` | Flexible per-declaration step definitions |
@@ -90,7 +90,7 @@ Express API (port 3001)
 
 1. User posts email+password to `/api/auth/login`
 2. Server verifies against `User.passwordHash` (bcrypt)
-3. Returns a one-hour JWT containing `id`, `email`, `role`, `name`, `department`, `position`, and `organizationId`, signed with `JWT_SECRET`
+3. Returns a one-hour JWT containing the numeric user `id`, `email`, `role`, `name`, `department`, `position`, and `organizationId`, signed with `JWT_SECRET`
 4. Client sends JWT as `Authorization: Bearer <token>`
 5. Middleware decodes JWT — role is read from token, NOT from DB
 

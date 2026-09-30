@@ -18,7 +18,7 @@ function mockFetch(status: number, body: unknown) {
 }
 
 const sampleDeclaration: Declaration = {
-  id: "GHE-2026-INT-1", employee: "Nomvula", employeeId: "u1",
+  id: "GHE-2026-INT-1", employee: "Nomvula", employeeId: 1,
   teamMemberNumber: "TM-001", lineManager: "Sipho Nkosi",
   position: "Brand Manager", department: "Marketing",
   type: "Gift", counterparty: "Acme Corp", value: 500,
@@ -163,8 +163,8 @@ describe("Integration — Journey 5: Fetch workflow (J5.1 / J5.2)", () => {
     mockFetch(200, {
       declarationId: "GHE-INT-1",
       steps: [
-        { order: 1, role: "lineManager", assignee: "user-lm", status: "pending" },
-        { order: 2, role: "hr", assignee: "user-hr", status: "pending" },
+        { order: 1, role: "lineManager", assignee: 2, status: "pending" },
+        { order: 2, role: "hr", assignee: 3, status: "pending" },
       ],
     });
     const wf = await fetchWorkflowInstance("GHE-INT-1");
@@ -270,7 +270,7 @@ describe("Integration — Journey 9: Complete workflow (J9.8 / J9.6)", () => {
       steps: [
         { order: 1, role: "lineManager", assignee: "user-lm", status: "approved", decision: "accept",
           decidedAt: "2026-07-15T10:00:00Z", notes: "OK" },
-        { order: 2, role: "hr", assignee: "user-hr", status: "approved", decision: "org",
+        { order: 2, role: "hr", assignee: 3, status: "approved", decision: "org",
           decidedAt: "2026-07-16T10:00:00Z", notes: "Approved" },
       ],
     });

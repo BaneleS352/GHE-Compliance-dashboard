@@ -6,7 +6,7 @@ import { exportRowsToXls } from "../utils/excel";
 
 const mockDeclarations = [
   {
-    id: "GHE-2026-1001", employee: "Alice", employeeId: "user-1", department: "IT",
+    id: "GHE-2026-1001", employee: "Alice", employeeId: 1, department: "IT",
     type: "Gift", counterparty: "CorpA", value: 500, submitted: "2026-07-01",
     approver: "Bob", status: "Pending" as const, priority: "Medium" as const,
     description: "Test", relationship: "Yes", teamMemberNumber: "TM-001",
@@ -16,7 +16,7 @@ const mockDeclarations = [
     publicOfficial: "No",
   },
   {
-    id: "GHE-2026-1002", employee: "Alice", employeeId: "user-1", department: "Marketing",
+    id: "GHE-2026-1002", employee: "Alice", employeeId: 1, department: "Marketing",
     type: "Hospitality", counterparty: "CorpB", value: 200, submitted: "2026-06-15",
     approver: "Carol", status: "Approved" as const, priority: "Low" as const,
     description: "Dinner", relationship: "No", teamMemberNumber: "TM-001",
@@ -26,7 +26,7 @@ const mockDeclarations = [
     publicOfficial: "No",
   },
   {
-    id: "GHE-2026-1003", employee: "Charlie", employeeId: "user-2", department: "Sales",
+    id: "GHE-2026-1003", employee: "Charlie", employeeId: 2, department: "Sales",
     type: "Entertainment", counterparty: "CorpC", value: 1500, submitted: "2026-07-10",
     approver: "Dave", status: "Pending" as const, priority: "High" as const,
     description: "Event", relationship: "Yes", teamMemberNumber: "TM-002",
@@ -40,7 +40,7 @@ const mockDeclarations = [
 const mockEmptySteps = {
   declarationId: "GHE-2026-1001",
   steps: [
-    { order: 1, role: "lineManager" as const, assignee: "user-3", assigneeName: "Bob",
+    { order: 1, role: "lineManager" as const, assignee: 3, assigneeName: "Bob",
       label: "Line Manager Review", status: "pending" as const, decision: null, notes: "", decidedAt: null },
   ],
 };
@@ -58,7 +58,7 @@ let mockUserRole = "approver";
 
 vi.mock("../app/auth/UserContext", () => ({
   useUser: () => ({
-    user: { id: "user-1", name: "Alice", email: "alice@test.com", role: mockUserRole as "approver" | "teamMember",
+    user: { id: 1, name: "Alice", email: "alice@test.com", role: mockUserRole as "approver" | "teamMember",
         teamMemberNumber: "TM-001", department: "IT", position: "Dev", lineManager: "Bob" as string | null },
   }),
 }));

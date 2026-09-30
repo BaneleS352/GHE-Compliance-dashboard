@@ -2,13 +2,12 @@
 
 REST API for managing Gifts, Hospitality & Entertainment compliance declarations, workflow approvals, reporting, and file uploads.
 
-## Quick Start
+## Quick Start (PostgreSQL required)
 
 ```bash
 npm install
-npx prisma generate
-npm run db:push
-npm run db:seed
+docker compose up -d db   # local PostgreSQL (or point DATABASE_URL at any server)
+npm run db:pg:up          # migrate deploy + seed-if-empty
 npm run dev
 ```
 
@@ -29,10 +28,12 @@ Explore and test all endpoints interactively.
 | `npm run dev` | Start dev server with hot reload (`tsx watch`) |
 | `npm run build` | Compile TypeScript to `dist/` |
 | `npm start` | Run compiled production build |
-| `npm run test` | Run all tests once |
+| `npm run test` | Run all tests once (embedded PostgreSQL) |
 | `npm run test:watch` | Run tests in watch mode |
-| `npm run db:push` | Push schema to database |
 | `npm run db:seed` | Seed with sample data |
+| `npm run db:pg:up` | Versioned bring-up: migrate deploy + seed-if-empty |
+| `npm run pg:test` | PostgreSQL integration checks (needs `TEST_PG_DATABASE_URL`) |
+| `npm run pg:smoke` | Clean-database smoke test (needs `SMOKE_PG_DATABASE_URL` + build) |
 | `npm run db:generate` | Generate Prisma client |
 
 ## Environment
@@ -40,12 +41,12 @@ Explore and test all endpoints interactively.
 Copy `.env.example` to `.env`:
 
 ```env
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://ghe_user:ghe_password@localhost:5432/ghe_compliance?schema=public"
 JWT_SECRET="change-this-to-a-random-secret"
 PORT=3001
 ```
 
-For PostgreSQL, set `DATABASE_URL` to a Postgres connection string and run `docker compose up -d` for a local instance.
+Run `docker compose up -d db` from the repository root for a local instance.
 
 ## API Endpoints
 
@@ -71,7 +72,10 @@ npm run test          # Run the current backend Vitest suite
 npm run test:watch    # Watch mode
 ```
 
-Tests use a separate SQLite database (`test.db`) that's reset before each run via `globalSetup.ts`. Tests are sequential (`maxWorkers: 1`) to avoid database lock contention.
+Tests boot an embedded PostgreSQL, apply the versioned migrations, and seed
+isolated fixtures (`globalSetup.ts`), so the full suite runs against
+PostgreSQL. Tests are sequential (`maxWorkers: 1`). Set `TEST_PG_DATABASE_URL`
+to run against an external PostgreSQL instead of the embedded one.
 
 ### Test Coverage
 
@@ -122,7 +126,8 @@ src/
     globalSetup.ts      # Test DB push + seed
     *.test.ts           # Test suites
 prisma/
-  schema.prisma         # Database schema (10 models)
+  schema.prisma         # PostgreSQL schema, BIGINT keys (see DATABASE-NORMALIZATION-GOAL.md)
+  migrations/           # Versioned migrations (0000_baseline → 0006_numeric_keys)
 ```
 
 ## Frontend Integration
@@ -135,9 +140,11 @@ dev.bat
 
 ## Database
 
-SQLite by default, PostgreSQL optional. 10 models:
+PostgreSQL only (BIGINT identity keys; `Declaration.id` stays the public
+`GHE-YYYY-NNNNNN` reference). Internal numeric identifiers are exposed as JSON
+numbers. Key relations:
 
-`User` → `Declaration` → `WorkflowInstance`/`WorkflowRule` → uploaded files, config, dropdowns, compliance trends, type breakdowns, approval options.
+`Organization` → `Department` → `Team` → `User` (self-FK `managerId`); `User` → `Declaration` (declarer/current approver) → `DeclarationSnapshot`/`DeclarationDetail`/`DeclarationFile`/`WorkflowInstance` → `WorkflowInstanceStep`; `WorkflowRule` → `WorkflowRuleStep`; `Counterparty` → declarations/contacts.
 
 ## Workflow Rules
 

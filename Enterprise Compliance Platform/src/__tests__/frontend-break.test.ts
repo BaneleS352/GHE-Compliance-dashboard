@@ -111,7 +111,7 @@ describe("httpClient — api.get", () => {
 describe("httpClient — api.post", () => {
   it("sends JSON body", async () => {
     let capturedBody: string | undefined;
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (_: string, opts: any) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_: any, opts: any) => {
       capturedBody = opts.body;
       return { ok: true, status: 201, json: () => Promise.resolve({ id: 1 }), headers: new Headers() } as Response;
     });
@@ -122,7 +122,7 @@ describe("httpClient — api.post", () => {
 
   it("sends without body", async () => {
     let capturedBody: string | undefined;
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (_: string, opts: any) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_: any, opts: any) => {
       capturedBody = opts.body;
       return { ok: true, status: 200, json: () => Promise.resolve({}), headers: new Headers() } as Response;
     });
@@ -134,7 +134,7 @@ describe("httpClient — api.post", () => {
 describe("httpClient — api.put, api.patch, api.del", () => {
   it("api.put sends PUT with body", async () => {
     let capturedMethod = "";
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (_: string, opts: any) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_: any, opts: any) => {
       capturedMethod = opts.method;
       return { ok: true, status: 200, json: () => Promise.resolve({}), headers: new Headers() } as Response;
     });
@@ -144,7 +144,7 @@ describe("httpClient — api.put, api.patch, api.del", () => {
 
   it("api.patch sends PATCH with body", async () => {
     let capturedMethod = "";
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (_: string, opts: any) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_: any, opts: any) => {
       capturedMethod = opts.method;
       return { ok: true, status: 200, json: () => Promise.resolve({}), headers: new Headers() } as Response;
     });
@@ -154,7 +154,7 @@ describe("httpClient — api.put, api.patch, api.del", () => {
 
   it("api.del sends DELETE", async () => {
     let capturedMethod = "";
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (_: string, opts: any) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_: any, opts: any) => {
       capturedMethod = opts.method;
       return { ok: true, status: 204, json: () => Promise.resolve(undefined), headers: new Headers() } as Response;
     });
@@ -166,7 +166,7 @@ describe("httpClient — api.put, api.patch, api.del", () => {
 describe("api.ts — high-level wrappers", () => {
   it("fetchDeclarations builds correct URL with no params", async () => {
     let capturedUrl = "";
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: string) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: any) => {
       capturedUrl = url;
       return { ok: true, status: 200, json: () => Promise.resolve([]), headers: new Headers() } as Response;
     });
@@ -176,7 +176,7 @@ describe("api.ts — high-level wrappers", () => {
 
   it("fetchDeclarations passes status and search params", async () => {
     let capturedUrl = "";
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: string) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: any) => {
       capturedUrl = url;
       return { ok: true, status: 200, json: () => Promise.resolve([]), headers: new Headers() } as Response;
     });
@@ -187,7 +187,7 @@ describe("api.ts — high-level wrappers", () => {
 
   it("fetchDeclarationById builds correct URL", async () => {
     let capturedUrl = "";
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: string) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: any) => {
       capturedUrl = url;
       return { ok: true, status: 200, json: () => Promise.resolve({
         id: "D-001", employee: "x", employeeId: "u1",
@@ -201,7 +201,7 @@ describe("api.ts — high-level wrappers", () => {
 
   it("createDeclaration sends via POST", async () => {
     let capturedUrl = ""; let capturedMethod = "";
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: string, opts: any) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: any, opts: any) => {
       capturedUrl = url; capturedMethod = opts.method;
       return { ok: true, status: 201, json: () => Promise.resolve({
         id: "D-NEW", employee: "x", employeeId: "u1",
@@ -215,7 +215,7 @@ describe("api.ts — high-level wrappers", () => {
 
   it("fetchDashboardStats builds correct URL", async () => {
     let capturedUrl = "";
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: string) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: any) => {
       capturedUrl = url;
       return { ok: true, status: 200, json: () => Promise.resolve({ kpis: {}, complianceTrend: [], typeBreakdown: [] }), headers: new Headers() } as Response;
     });
@@ -225,7 +225,7 @@ describe("api.ts — high-level wrappers", () => {
 
   it("fetchUsers builds URL with params", async () => {
     let capturedUrl = "";
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: string) => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url: any) => {
       capturedUrl = url;
       return { ok: true, status: 200, json: () => Promise.resolve([]), headers: new Headers() } as Response;
     });

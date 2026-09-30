@@ -19,7 +19,7 @@ function TestConsumer() {
       <span data-testid="user">{user ? user.name : "null"}</span>
       <span data-testid="role">{user ? user.role : "null"}</span>
       <button data-testid="login" onClick={() => setUser({
-        id: "user-3", name: "Sipho Nkosi", email: "sipho@hb.co.za",
+        id: 3, name: "Sipho Nkosi", email: "sipho@hb.co.za",
         passwordHash: "", role: "approver", teamMemberNumber: "HB-10001",
         department: "Marketing", position: "Line Manager", lineManager: null,
       })}>Login</button>
@@ -68,7 +68,7 @@ describe("UserContext", () => {
     const stored = localStorage.getItem("ghe.auth.user");
     expect(stored).not.toBeNull();
     const parsed = JSON.parse(stored!);
-    expect(parsed.id).toBe("user-3");
+    expect(parsed.id).toBe(3);
   });
 
   it("clears user and localStorage on logout", () => {
@@ -94,7 +94,7 @@ describe("UserContext", () => {
       department: "Marketing", position: "Line Manager", lineManager: null,
     });
     localStorage.setItem("ghe.auth.token", "valid-token");
-    localStorage.setItem("ghe.auth.user", JSON.stringify({ id: "user-3" }));
+      localStorage.setItem("ghe.auth.user", JSON.stringify({ id: 3 }));
 
     render(
       <UserProvider>

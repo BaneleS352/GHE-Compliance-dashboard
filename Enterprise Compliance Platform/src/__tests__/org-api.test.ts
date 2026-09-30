@@ -23,7 +23,7 @@ beforeEach(() => {
 
 describe("Organization API — per-org", () => {
   it("fetchOrganizations returns 2 orgs", async () => {
-    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(mockFetch(200, [{ id: "org-1", name: "HB", shortCode: "HB" }, { id: "org-2", name: "NPN", shortCode: "NPN" }]) as any);
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(mockFetch(200, [{ id: 1, name: "HB", shortCode: "HB" }, { id: 2, name: "NPN", shortCode: "NPN" }]) as any);
     const orgs = await fetchOrganizations();
     expect(orgs.length).toBe(2);
     expect(spy).toHaveBeenCalledWith(expect.stringContaining("/api/users/organizations"), expect.any(Object));
@@ -31,19 +31,19 @@ describe("Organization API — per-org", () => {
 
   it("fetchManagers with orgId filters", async () => {
     const spy = vi.spyOn(globalThis, "fetch").mockImplementation(mockFetch(200, [{ id: "m-hb", name: "Sipho" }]) as any);
-    await fetchManagers("org-1");
-    expect(spy).toHaveBeenCalledWith(expect.stringContaining("organizationId=org-1"), expect.any(Object));
+    await fetchManagers(1);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("organizationId=1"), expect.any(Object));
   });
 
   it("fetchDepartments per org", async () => {
     const spy = vi.spyOn(globalThis, "fetch").mockImplementation(mockFetch(200, ["Marketing", "Sales"]) as any);
-    const depts = await fetchDepartments("org-1");
+    const depts = await fetchDepartments(1);
     expect(depts).toContain("Marketing");
-    expect(spy).toHaveBeenCalledWith(expect.stringContaining("organizationId=org-1"), expect.any(Object));
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("organizationId=1"), expect.any(Object));
   });
 
   it("fetchAdminOrganizations admin only", async () => {
-    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(mockFetch(200, [{ id: "org-1", name: "HB" }]) as any);
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(mockFetch(200, [{ id: 1, name: "HB" }]) as any);
     const orgs = await fetchAdminOrganizations();
     expect(orgs.length).toBe(1);
     expect(spy).toHaveBeenCalledWith(expect.stringContaining("/api/admin/config/organizations"), expect.any(Object));

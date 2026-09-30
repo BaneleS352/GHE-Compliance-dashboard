@@ -6,15 +6,13 @@
 - npm
 - Docker Desktop and Compose, if using containers
 
-## Run locally
+## Run locally (PostgreSQL required)
 
 ```powershell
 cd NodejsBackend
 npm install
-npx prisma generate
-npx prisma db push
-npm run db:seed
-$env:JWT_SECRET = "local-development-secret"
+# Point .env DATABASE_URL at PostgreSQL, e.g. via docker compose up -d db
+npm run db:pg:up   # migrate deploy + seed-if-empty
 npm run dev
 ```
 
@@ -35,7 +33,7 @@ Backend loads `.env` with `dotenv`:
 | Variable | Required | Default | Meaning |
 |---|---|---|---|
 | `JWT_SECRET` | yes | — | JWT signing secret |
-| `DATABASE_URL` | yes for Prisma | — | `file:./dev.db` or PostgreSQL URL |
+| `DATABASE_URL` | yes for Prisma | — | PostgreSQL URL (SQLite is no longer supported) |
 | `PORT` | no | `3001` | API listen port |
 | `CORS_ORIGIN` | no | dev localhost origins | Comma-separated allowed origins |
 | `EMAIL_WEBHOOK_URL` | no | — | Notification webhook; absent means log-only |
@@ -45,20 +43,19 @@ Frontend accepts `VITE_API_URL` (local default `http://localhost:3001`). Docker 
 ## Database and tests
 
 ```powershell
-npx prisma db push
+npx prisma migrate deploy
 npx prisma generate
 npx prisma studio
 npm test
 npx vitest run src/__tests__/break.test.ts
 ```
 
-`db push --force-reset` destroys the selected database. Backend `globalSetup.ts` uses `file:./test.db`, resets it, and seeds isolated fixtures. Frontend tests use Vitest and Testing Library. Playwright E2E tests are under `Enterprise Compliance Platform/e2e`; install Chromium with `npx playwright install chromium`.
-
-> SQLite files resolve under `NodejsBackend/prisma/` (`dev.db`, `test.db`).
-> After the Phase 5 cutover, a `dev.db` created by an older schema can no
-> longer be pushed or seeded: back up anything you need, delete
-> `NodejsBackend/prisma/dev.db`, then re-run `npx prisma db push` +
-> `npm run db:seed` for a fresh normalized database.
+Backend `globalSetup.ts` boots an embedded PostgreSQL (or uses
+`TEST_PG_DATABASE_URL` when set), applies the versioned migrations, and seeds
+isolated normalized fixtures — the full suite runs against PostgreSQL.
+Frontend tests use Vitest and Testing Library. Playwright E2E tests are under
+`Enterprise Compliance Platform/e2e` (require `E2E_PG_DATABASE_URL`);
+install Chromium with `npx playwright install chromium`.
 
 ## Troubleshooting
 

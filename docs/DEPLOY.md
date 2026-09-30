@@ -19,7 +19,7 @@ The stack starts 3 containers:
 - **Backend** (Node, port 3001) — Express API + Prisma
 - **Database** (PostgreSQL 16, port 5432)
 
-The Docker backend build automatically swaps Prisma's `provider` from `sqlite` to `postgresql` (via `sed -i` in the Dockerfile), so no manual schema edits are needed.
+The Prisma schema is PostgreSQL-native (single provider, no rewrite step).
 
 ### Environment Variables
 
@@ -43,17 +43,9 @@ Files are stored in a named Docker volume (`uploads`). For production, replace l
 
 ## Manual Deployment
 
-### 1. Database — Switch to PostgreSQL
+### 1. Database — PostgreSQL
 
-For a manual PostgreSQL deployment, configure the datasource provider in the deployment checkout before generating the Prisma client:
-
-```prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-```
-
+The schema provider is already `postgresql`; no datasource edits are needed.
 Run migrations:
 
 ```bash
@@ -171,6 +163,6 @@ pg_dump "postgresql://user:password@host:5432/ghe_db" > backup_$(date +%Y%m%d).s
 ## Scaling Considerations
 
 - **API is stateless** — scale horizontally behind a load balancer
-- **SQLite is not suitable for production** — migrate to PostgreSQL before launching
+- **PostgreSQL is the only supported database** — run versioned migrations (`prisma migrate deploy`), never `db push`, against production
 - **File storage on local disk doesn't scale** — use S3 or similar object storage
 - **JWT tokens are not revocable** — use short expiry (15min) + refresh tokens, or maintain a denylist

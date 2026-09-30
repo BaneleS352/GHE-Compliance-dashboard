@@ -35,7 +35,7 @@ function mockFetch(status: number, body: unknown) {
 
 function mockDeclaration(id = "GHE-2026-1000"): Declaration {
   return {
-    id, employee: "Test User", employeeId: "user-1", department: "IT",
+    id, employee: "Test User", employeeId: 1, department: "IT",
     type: "Gift", counterparty: "TestCorp", value: 500, submitted: "2026-07-01",
     approver: "Sipho Nkosi", status: "Draft", priority: "Medium",
     description: "Test", relationship: "Yes", teamMemberNumber: "TM-001",
@@ -79,33 +79,33 @@ describe("fetchDeclarationById", () => {
 
 describe("file and organization API wrappers", () => {
   it("uploads a file with the declaration ID", async () => {
-    const spy = mockFetch(201, { id: "file-1", name: "receipt.txt", size: 12, type: "text/plain", url: "/api/files/file-1" });
+    const spy = mockFetch(201, { id: 1, name: "receipt.txt", size: 12, type: "text/plain", url: "/api/files/1" });
     const file = new File(["receipt"], "receipt.txt", { type: "text/plain" });
     const result = await uploadDeclarationFile(file, "GHE-1");
-    expect(result.id).toBe("file-1");
+    expect(result.id).toBe(1);
     const body = spy.mock.calls[0][1]?.body as FormData;
     expect(body.get("declarationId")).toBe("GHE-1");
     expect(body.get("file")).toBe(file);
   });
 
   it("covers organization list and admin CRUD wrappers", async () => {
-    mockFetch(200, [{ id: "org-1", name: "HB", shortCode: "HB" }]);
-    expect((await fetchOrganizations())[0].id).toBe("org-1");
-    mockFetch(200, [{ id: "org-1", name: "HB", shortCode: "HB" }]);
+    mockFetch(200, [{ id: 1, name: "HB", shortCode: "HB" }]);
+    expect((await fetchOrganizations())[0].id).toBe(1);
+    mockFetch(200, [{ id: 1, name: "HB", shortCode: "HB" }]);
     expect((await fetchAdminOrganizations())[0].shortCode).toBe("HB");
-    mockFetch(201, { id: "org-2" });
-    expect((await createOrganization({ name: "NPN", shortCode: "NPN" })).id).toBe("org-2");
-    mockFetch(200, { id: "org-2", name: "NPN Updated" });
-    expect((await updateOrganization("org-2", { name: "NPN Updated", shortCode: "NPN" })).name).toBe("NPN Updated");
+    mockFetch(201, { id: 2 });
+    expect((await createOrganization({ name: "NPN", shortCode: "NPN" })).id).toBe(2);
+    mockFetch(200, { id: 2, name: "NPN Updated" });
+    expect((await updateOrganization(2, { name: "NPN Updated", shortCode: "NPN" })).name).toBe("NPN Updated");
     mockFetch(200, { message: "Organization deleted" });
-    expect((await deleteOrganization("org-2")).message).toContain("deleted");
+    expect((await deleteOrganization(2)).message).toContain("deleted");
   });
 });
 
 describe("createDeclaration", () => {
   it("POSTs declaration and returns mapped result", async () => {
     const decl = mockDeclaration();
-    mockFetch(201, { id: "GHE-2026-1000", ...decl, status: "Draft" });
+    mockFetch(201, { ...decl, status: "Draft" });
     const result = await createDeclaration(decl);
     expect(result.id).toBe("GHE-2026-1000");
     expect(result.status).toBe("Draft");
@@ -166,24 +166,24 @@ describe("fetchUsers", () => {
 
 describe("fetchUserById", () => {
   it("GETs user by ID", async () => {
-    mockFetch(200, { id: "user-1", name: "Sipho" });
-    const result = await fetchUserById("user-1");
+    mockFetch(200, { id: 1, name: "Sipho" });
+    const result = await fetchUserById(1);
     expect(result.name).toBe("Sipho");
   });
 });
 
 describe("createUser", () => {
   it("POSTs and returns new user", async () => {
-    mockFetch(201, { id: "user-new", name: "New User" });
+    mockFetch(201, { id: 99, name: "New User" });
     const result = await createUser({ name: "New User", email: "new@test.com", role: "teamMember" });
-    expect(result.id).toBe("user-new");
+    expect(result.id).toBe(99);
   });
 });
 
 describe("updateUser", () => {
   it("PUTs and returns updated user", async () => {
-    mockFetch(200, { id: "user-1", name: "Updated" });
-    const result = await updateUser("user-1", { name: "Updated" });
+    mockFetch(200, { id: 1, name: "Updated" });
+    const result = await updateUser(1, { name: "Updated" });
     expect(result.name).toBe("Updated");
   });
 });
@@ -191,7 +191,7 @@ describe("updateUser", () => {
 describe("deleteUser", () => {
   it("DELETEs and returns result", async () => {
     mockFetch(200, { message: "Deleted" });
-    const result = await deleteUser("user-1");
+    const result = await deleteUser(1);
     expect(result.message).toBe("Deleted");
   });
 });
@@ -236,26 +236,26 @@ describe("fetchAdminDashboard", () => {
 
 describe("workflow rules CRUD", () => {
   it("fetchWorkflowRules returns rules", async () => {
-    mockFetch(200, [{ id: "rule-1", name: "Low Value" }]);
+    mockFetch(200, [{ id: 1, name: "Low Value" }]);
     const result = await fetchWorkflowRules();
     expect(result).toHaveLength(1);
   });
 
   it("createWorkflowRule POSTs", async () => {
-    mockFetch(201, { id: "rule-new", name: "New Rule" });
+    mockFetch(201, { id: 99, name: "New Rule" });
     const result = await createWorkflowRule({ name: "New Rule", steps: "[]" });
-    expect(result.id).toBe("rule-new");
+    expect(result.id).toBe(99);
   });
 
   it("updateWorkflowRule PUTs", async () => {
-    mockFetch(200, { id: "rule-1", name: "Updated" });
-    const result = await updateWorkflowRule("rule-1", { name: "Updated" });
+    mockFetch(200, { id: 1, name: "Updated" });
+    const result = await updateWorkflowRule(1, { name: "Updated" });
     expect(result.name).toBe("Updated");
   });
 
   it("deleteWorkflowRule DELETEs", async () => {
     mockFetch(200, { message: "Deleted" });
-    const result = await deleteWorkflowRule("rule-1");
+    const result = await deleteWorkflowRule(1);
     expect(result.message).toBe("Deleted");
   });
 });
@@ -266,7 +266,7 @@ describe("workflow operations", () => {
       declaration: {
         id: "GHE-1",
         employee: "A",
-        employeeId: "user-1",
+        employeeId: 1,
         teamMemberNumber: "TM-1",
         lineManager: "Sipho",
         position: "Manager",
