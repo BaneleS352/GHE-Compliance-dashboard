@@ -3,7 +3,6 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY prisma/ ./prisma/
-RUN sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
 RUN NODE_TLS_REJECT_UNAUTHORIZED=0 ./node_modules/.bin/prisma generate
 COPY tsconfig.json ./
 COPY src/ ./src/

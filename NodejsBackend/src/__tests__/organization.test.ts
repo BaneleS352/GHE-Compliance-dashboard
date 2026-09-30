@@ -8,9 +8,9 @@ import bcrypt from "bcryptjs";
 const app = buildApp();
 const prisma = new PrismaClient();
 
-function tokenFor(user: { id: string; name?: string; email: string; role: string; organizationId?: string | null; department?: string; position?: string }) {
+function tokenFor(user: { id: number | bigint; name?: string; email: string; role: string; organizationId?: number | bigint | null; department?: string; position?: string }) {
   return jwt.sign(
-    { id: user.id, email: user.email, role: user.role, name: user.name, department: user.department || "IT", position: user.position || "Staff", organizationId: user.organizationId || null },
+    { id: Number(user.id), email: user.email, role: user.role, name: user.name, department: user.department || "IT", position: user.position || "Staff", organizationId: user.organizationId === null || user.organizationId === undefined ? null : Number(user.organizationId) },
     "test-secret",
     { expiresIn: "1h" }
   );
@@ -43,25 +43,44 @@ const BASE_DECL = {
 };
 
 describe("Organization — multi-tenant flows", () => {
-  const hbOrg = { id: "org-test-hb", name: "HB Test Org", shortCode: "HBT" };
-  const npnOrg = { id: "org-test-npn", name: "NPN Test Org", shortCode: "NPNT" };
+  // Numeric identifiers are assigned in beforeAll (autoincrement); the
+  // objects below hold display data until then.
+  const hbOrg: any = { name: "HB Test Org", shortCode: "HBT" };
+  const npnOrg: any = { name: "NPN Test Org", shortCode: "NPNT" };
 
-  const hbTeam = { id: "user-hb-team", name: "HB Team", email: "hb-team@test.com", role: "teamMember", teamMemberNumber: "HB-T-001", department: "Marketing", position: "Associate", lineManager: "user-hb-lm", organizationId: hbOrg.id };
-  const hbLm = { id: "user-hb-lm", name: "HB LM", email: "hb-lm@test.com", role: "approver", teamMemberNumber: "HB-LM-001", department: "Marketing", position: "Line Manager", lineManager: null, organizationId: hbOrg.id };
-  const npnTeam = { id: "user-npn-team", name: "NPN Team", email: "npn-team@test.com", role: "teamMember", teamMemberNumber: "NPN-T-001", department: "Engineering", position: "Engineer", lineManager: "user-npn-lm", organizationId: npnOrg.id };
-  const npnLm = { id: "user-npn-lm", name: "NPN LM", email: "npn-lm@test.com", role: "approver", teamMemberNumber: "NPN-LM-001", department: "Engineering", position: "Line Manager", lineManager: null, organizationId: npnOrg.id };
-  const globalHr = { id: "user-global-hr", name: "Global HR", email: "global-hr@test.com", role: "approver", teamMemberNumber: "HR-G-001", department: "HR", position: "Head of HR", lineManager: null, organizationId: null };
-  const globalAdmin = { id: "user-global-admin", name: "Global Admin", email: "global-admin@test.com", role: "admin", teamMemberNumber: "ADM-G-001", department: "IT", position: "Admin", lineManager: null, organizationId: null };
+  const hbTeam: any = { name: "HB Team", email: "hb-team@test.com", role: "teamMember", teamMemberNumber: "HB-T-001", department: "Marketing", position: "Associate" };
+  const hbLm: any = { name: "HB LM", email: "hb-lm@test.com", role: "approver", teamMemberNumber: "HB-LM-001", department: "Marketing", position: "Line Manager", lineManager: null };
+  const npnTeam: any = { name: "NPN Team", email: "npn-team@test.com", role: "teamMember", teamMemberNumber: "NPN-T-001", department: "Engineering", position: "Engineer" };
+  const npnLm: any = { name: "NPN LM", email: "npn-lm@test.com", role: "approver", teamMemberNumber: "NPN-LM-001", department: "Engineering", position: "Line Manager", lineManager: null };
+  const globalHr: any = { name: "Global HR", email: "global-hr@test.com", role: "approver", teamMemberNumber: "HR-G-001", department: "HR", position: "Head of HR", lineManager: null, organizationId: null };
+  const globalAdmin: any = { name: "Global Admin", email: "global-admin@test.com", role: "admin", teamMemberNumber: "ADM-G-001", department: "IT", position: "Admin", lineManager: null, organizationId: null };
 
   beforeAll(async () => {
     const hash = bcrypt.hashSync("password", 10);
     for (const o of [hbOrg, npnOrg]) {
-      await prisma.organization.upsert({ where: { id: o.id }, update: o, create: o });
+      const row = await prisma.organization.upsert({
+        where: { shortCode: o.shortCode },
+        update: { name: o.name },
+        create: { name: o.name, shortCode: o.shortCode },
+      });
+      o.id = Number(row.id);
     }
+    hbTeam.organizationId = hbOrg.id;
+    hbLm.organizationId = hbOrg.id;
+    npnTeam.organizationId = npnOrg.id;
+    npnLm.organizationId = npnOrg.id;
     const users = [hbTeam, hbLm, npnTeam, npnLm, globalHr, globalAdmin];
     for (const u of users) {
-      await prisma.user.upsert({ where: { id: u.id }, update: u as any, create: { ...u, passwordHash: hash } as any });
+      const row = await prisma.user.upsert({
+        where: { email: u.email },
+        update: { name: u.name, role: u.role, organizationId: u.organizationId ?? null } as any,
+        create: { ...u, passwordHash: hash } as any,
+      });
+      u.id = Number(row.id);
     }
+    // Authoritative manager links (managerId FK); lineManager stays display text.
+    await prisma.user.update({ where: { email: hbTeam.email }, data: { managerId: hbLm.id, lineManager: hbLm.name } });
+    await prisma.user.update({ where: { email: npnTeam.email }, data: { managerId: npnLm.id, lineManager: npnLm.name } });
   });
 
   it("GET /api/users/organizations — any authenticated user can list orgs", async () => {
@@ -149,7 +168,7 @@ describe("Organization — multi-tenant flows", () => {
   it("Global HR can see pending from both orgs", async () => {
     const hbTeamToken = tokenFor(hbTeam as any);
     // Use the original HR (user-hr) which is the global HR that workflow assigns when no org-specific HR exists
-    const hrToken = jwt.sign({ id: "user-hr", email: "lindiwe@test.com", role: "approver", department: "HR", position: "Head of HR", organizationId: null }, "test-secret", { expiresIn: "1h" });
+    const hrToken = jwt.sign({ id: 3, email: "lindiwe@test.com", role: "approver", department: "HR", position: "Head of HR", organizationId: null }, "test-secret", { expiresIn: "1h" });
     const decl = await request(app).post("/api/declarations").set("Authorization", `Bearer ${hbTeamToken}`).send({ ...BASE_DECL, employee: hbTeam.name, employeeId: hbTeam.id, teamMemberNumber: hbTeam.teamMemberNumber, lineManager: hbLm.name, department: hbTeam.department, counterparty: "GlobalHRTest", value: 5000 });
     await request(app).patch(`/api/declarations/${decl.body.id}/submit`).set("Authorization", `Bearer ${hbTeamToken}`);
     const hbLmToken = tokenFor(hbLm as any);

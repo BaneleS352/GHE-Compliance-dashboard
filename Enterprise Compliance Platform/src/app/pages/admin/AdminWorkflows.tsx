@@ -10,7 +10,7 @@ const ROLE_LABELS: Record<string, string> = { lineManager: "Line Manager", hr: "
 
 export function AdminWorkflows() {
   const [rules, setRules] = useState<WorkflowRule[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [threshold, setThreshold] = useState<{ highValueThreshold: number; maximumValue: number } | null>(null);
@@ -21,7 +21,7 @@ export function AdminWorkflows() {
   const handleAdd = async () => {
     try {
       const newRule: WorkflowRule = {
-        id: `rule-${Date.now()}`,
+        id: 0,
         name: "New Rule",
         condition: "gift",
         priority: rules.length + 1,
@@ -39,7 +39,7 @@ export function AdminWorkflows() {
     setEditName(rule.name);
   };
 
-  const handleSaveEdit = async (id: string) => {
+  const handleSaveEdit = async (id: number) => {
     try {
       await updateWorkflowRule(id, { name: editName });
       setEditingId(null);
@@ -49,7 +49,7 @@ export function AdminWorkflows() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: number) => {
     if (!confirm("Delete this workflow rule?")) return;
     try {
       await deleteWorkflowRule(id);

@@ -5,9 +5,24 @@ import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
 import { asyncHandler } from "../../middleware/asyncHandler";
+import { parseIdParam, toDbId, toJsonId } from "../../services/ids";
 
 const router = Router();
 const SALT_ROUNDS = 10;
+
+function userResponse(u: any) {
+  return {
+    id: toJsonId(u.id),
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    teamMemberNumber: u.teamMemberNumber,
+    department: u.department,
+    position: u.position,
+    lineManager: u.lineManager,
+    organizationId: u.organizationId === null || u.organizationId === undefined ? null : toJsonId(u.organizationId),
+  };
+}
 
 // GET /api/admin/users
 router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
@@ -26,50 +41,35 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
 
   if (search) {
     const q = String(search);
+    const numeric = /^\d+$/.test(q.trim()) ? BigInt(q.trim()) : null;
     where.OR = [
       { name: { contains: q } },
       { email: { contains: q } },
-      { id: { contains: q } },
+      ...(numeric !== null ? [{ id: numeric }] : []),
     ];
   }
 
   const users = await prisma.user.findMany({ where, orderBy: { name: "asc" } });
 
-  res.json(
-    users.map((u) => ({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      role: u.role,
-      teamMemberNumber: u.teamMemberNumber,
-      department: u.department,
-      position: u.position,
-      lineManager: u.lineManager,
-      organizationId: u.organizationId,
-    }))
-  );
+  res.json(users.map(userResponse));
 }));
 
 // GET /api/admin/users/:id
 router.get("/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = req.params.id as string;
-  const user = await prisma.user.findUnique({ where: { id } });
+  const userPk = parseIdParam(req.params.id);
+  if (userPk === null) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  const user = await prisma.user.findUnique({ where: { id: userPk } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
   }
-  res.json({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    teamMemberNumber: user.teamMemberNumber,
-    department: user.department,
-    position: user.position,
-    lineManager: user.lineManager,
-    organizationId: user.organizationId,
-  });
+  res.json(userResponse(user));
 }));
+
+const managerInput = z.union([z.string(), z.number().int()], { errorMap: () => ({ message: "Expected a user reference" }) });
 
 const createUserSchema = z.object({
   name: z.string().min(1),
@@ -79,9 +79,30 @@ const createUserSchema = z.object({
   department: z.string().optional().default(""),
   teamMemberNumber: z.string().optional().default(""),
   position: z.string().optional().default(""),
-  lineManager: z.string().nullable().optional().default(null),
-  organizationId: z.string().nullable().optional().default(null),
+  lineManager: managerInput.nullable().optional().default(null),
+  organizationId: z.union([z.number().int(), z.string().regex(/^\d+$/)], { errorMap: () => ({ message: "Expected a numeric identifier" }) }).nullable().optional().default(null),
 });
+
+/**
+ * Resolve the authoritative managerId FK from a lineManager input. Accepts a
+ * numeric user id (as number or string) or a display name; anything else
+ * leaves the FK unset while the display text is still stored.
+ */
+async function resolveManagerId(lineManager: string | number | null | undefined): Promise<bigint | null> {
+  if (lineManager === null || lineManager === undefined) return null;
+  if (typeof lineManager === "number") {
+    const found = await prisma.user.findUnique({ where: { id: BigInt(lineManager) }, select: { id: true } });
+    return found ? found.id : null;
+  }
+  const trimmed = String(lineManager).trim();
+  if (!trimmed) return null;
+  if (/^\d+$/.test(trimmed)) {
+    const found = await prisma.user.findUnique({ where: { id: BigInt(trimmed) }, select: { id: true } });
+    if (found) return found.id;
+  }
+  const byName = await prisma.user.findFirst({ where: { name: trimmed }, select: { id: true } });
+  return byName ? byName.id : null;
+}
 
 const generatePassword = (): string => {
   const bytes = crypto.randomBytes(8);
@@ -103,13 +124,18 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
     return;
   }
 
-  const id = `USR-${Date.now()}-${crypto.randomInt(1000, 9999)}`;
-
   const password = data.password || generatePassword();
+  const orgPk = data.organizationId === null || data.organizationId === undefined ? null : toDbId(data.organizationId);
+  if (orgPk !== null) {
+    const orgExists = await prisma.organization.findUnique({ where: { id: orgPk } });
+    if (!orgExists) {
+      res.status(400).json({ error: "Invalid organizationId" });
+      return;
+    }
+  }
 
   const user = await prisma.user.create({
     data: {
-      id,
       name: data.name,
       email: data.email.toLowerCase(),
       passwordHash: bcrypt.hashSync(password, SALT_ROUNDS),
@@ -117,22 +143,13 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
       teamMemberNumber: data.teamMemberNumber,
       department: data.department,
       position: data.position,
-      lineManager: data.lineManager,
-      organizationId: data.organizationId,
+      lineManager: data.lineManager === null || data.lineManager === undefined ? null : String(data.lineManager),
+      managerId: await resolveManagerId(data.lineManager),
+      organizationId: orgPk,
     },
   });
 
-  res.status(201).json({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    teamMemberNumber: user.teamMemberNumber,
-    department: user.department,
-    position: user.position,
-    lineManager: user.lineManager,
-    organizationId: user.organizationId,
-  });
+  res.status(201).json(userResponse(user));
 }));
 
 const updateUserSchema = z.object({
@@ -142,14 +159,18 @@ const updateUserSchema = z.object({
   department: z.string().optional(),
   teamMemberNumber: z.string().optional(),
   position: z.string().optional(),
-  lineManager: z.string().nullable().optional(),
-  organizationId: z.string().nullable().optional(),
+  lineManager: managerInput.nullable().optional(),
+  organizationId: z.union([z.number().int(), z.string().regex(/^\d+$/)], { errorMap: () => ({ message: "Expected a numeric identifier" }) }).nullable().optional(),
 });
 
 // PUT /api/admin/users/:id
 router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = req.params.id as string;
-  const existing = await prisma.user.findUnique({ where: { id } });
+  const userPk = parseIdParam(req.params.id);
+  if (userPk === null) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  const existing = await prisma.user.findUnique({ where: { id: userPk } });
   if (!existing) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -164,7 +185,7 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
   const data = parsed.data;
   if (data.email) {
     const dup = await prisma.user.findUnique({ where: { email: data.email.toLowerCase() } });
-    if (dup && dup.id !== id) {
+    if (dup && dup.id !== userPk) {
       res.status(409).json({ error: "A user with this email already exists" });
       return;
     }
@@ -177,28 +198,35 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
   if (data.department !== undefined) updateData.department = data.department;
   if (data.teamMemberNumber !== undefined) updateData.teamMemberNumber = data.teamMemberNumber;
   if (data.position !== undefined) updateData.position = data.position;
-  if (data.lineManager !== undefined) updateData.lineManager = data.lineManager;
-  if (data.organizationId !== undefined) updateData.organizationId = data.organizationId;
+  if (data.lineManager !== undefined) {
+    updateData.lineManager = data.lineManager === null ? null : String(data.lineManager);
+    updateData.managerId = await resolveManagerId(data.lineManager);
+  }
+  if (data.organizationId !== undefined) {
+    const orgPk = data.organizationId === null ? null : toDbId(data.organizationId);
+    if (orgPk !== null) {
+      const orgExists = await prisma.organization.findUnique({ where: { id: orgPk } });
+      if (!orgExists) {
+        res.status(400).json({ error: "Invalid organizationId" });
+        return;
+      }
+    }
+    updateData.organizationId = orgPk;
+  }
 
-  const user = await prisma.user.update({ where: { id }, data: updateData });
+  const user = await prisma.user.update({ where: { id: userPk }, data: updateData });
 
-  res.json({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    teamMemberNumber: user.teamMemberNumber,
-    department: user.department,
-    position: user.position,
-    lineManager: user.lineManager,
-    organizationId: user.organizationId,
-  });
+  res.json(userResponse(user));
 }));
 
 // DELETE /api/admin/users/:id
 router.delete("/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = req.params.id as string;
-  const user = await prisma.user.findUnique({ where: { id } });
+  const userPk = parseIdParam(req.params.id);
+  if (userPk === null) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  const user = await prisma.user.findUnique({ where: { id: userPk } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -215,7 +243,7 @@ router.delete("/:id", authenticate, authorize("admin"), asyncHandler(async (req:
   // Block deletion while the user holds a pending approval step.
   // Step rows are the only workflow state.
   const pending = await (prisma as any).workflowInstanceStep.findFirst({
-    where: { assigneeId: id, status: "pending" },
+    where: { assigneeId: userPk, status: "pending" },
     select: { instanceId: true },
   }).catch(() => null);
   if (pending) {
@@ -223,7 +251,7 @@ router.delete("/:id", authenticate, authorize("admin"), asyncHandler(async (req:
     return;
   }
 
-  await prisma.user.delete({ where: { id } });
+  await prisma.user.delete({ where: { id: userPk } });
   res.json({ message: "User deleted" });
 }));
 

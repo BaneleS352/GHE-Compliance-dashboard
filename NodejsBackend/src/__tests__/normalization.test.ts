@@ -1,20 +1,21 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
-import { buildApp, getAdminToken, getTeamToken, getApproverToken } from "./helpers";
+import { buildApp, getAdminToken, getTeamToken, getApproverToken, pkFor } from "./helpers";
 import { readWorkflowSteps } from "../services/normalization";
-import { viewStatusSummary, viewCounterparty, viewSlaRows, bindParams, isPostgresProvider } from "../services/reportingViews";
+import { toDbId, toJsonId, parseIdParam } from "../services/ids";
+import { viewStatusSummary, viewCounterparty, viewSlaRows } from "../services/reportingViews";
 
 const app = buildApp();
 const prisma = new PrismaClient();
 
-describe("Database normalization (Phase 5 cutover)", () => {
+describe("Database normalization (numeric identifiers)", () => {
   it("creating a declaration writes snapshot, detail, timestamps and counterparty link", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "Norm Vendor", value: 250, submitted: "2026-04-10",
         status: "Draft", priority: "Low", description: "normalization mirror test",
@@ -26,6 +27,7 @@ describe("Database normalization (Phase 5 cutover)", () => {
     const id = create.body.id;
     // API contract unchanged: no relational internals leak into the response.
     expect(create.body.counterparty).toBe("Norm Vendor");
+    expect(create.body.employeeId).toBe(4);
     expect(create.body).not.toHaveProperty("declarerUserId");
     expect(create.body).not.toHaveProperty("counterpartyId");
 
@@ -34,15 +36,16 @@ describe("Database normalization (Phase 5 cutover)", () => {
     expect(decl).not.toBeNull();
     expect(decl!.eventDate).not.toBeNull();
     expect(decl!.submittedAt).not.toBeNull();
-    expect(decl!.declarerUserId).toBe("user-team");
+    expect(decl!.declarerUserId).toBe(4n);
     expect(decl!.counterpartyId).not.toBeNull();
-    const snap = await (prisma as any).declarationSnapshot.findUnique({ where: { declarationId: id } });
+    const pk = decl!.declarationPk;
+    const snap = await (prisma as any).declarationSnapshot.findUnique({ where: { declarationPk: pk } });
     expect(snap?.declarerName).toBe("Nomvula Team");
-    const detail = await (prisma as any).declarationDetail.findUnique({ where: { declarationId: id } });
+    const detail = await (prisma as any).declarationDetail.findUnique({ where: { declarationPk: pk } });
     expect(detail?.contactPerson).toBe("Nora");
 
-    await (prisma as any).declarationSnapshot.deleteMany({ where: { declarationId: id } }).catch(() => undefined);
-    await (prisma as any).declarationDetail.deleteMany({ where: { declarationId: id } }).catch(() => undefined);
+    await (prisma as any).declarationSnapshot.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
+    await (prisma as any).declarationDetail.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
     await prisma.declaration.delete({ where: { id } }).catch(() => undefined);
   });
 
@@ -51,7 +54,7 @@ describe("Database normalization (Phase 5 cutover)", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Hospitality", counterparty: "Step Mirror Co", value: 5000, submitted: "2026-04-11",
         status: "Draft", priority: "High", description: "two step flow",
@@ -60,6 +63,7 @@ describe("Database normalization (Phase 5 cutover)", () => {
         date: "2026-04-10", instances: "1", publicOfficial: "No",
       });
     const id = create.body.id;
+    const pk = await pkFor(id);
     const submit = await request(app)
       .patch(`/api/declarations/${id}/submit`)
       .set("Authorization", `Bearer ${getTeamToken()}`);
@@ -67,19 +71,19 @@ describe("Database normalization (Phase 5 cutover)", () => {
 
     // Canonical approver link tracks the current approver at submit.
     const decl = await prisma.declaration.findUnique({ where: { id } });
-    expect((decl as any)!.currentApproverUserId).toBe("user-approver");
+    expect((decl as any)!.currentApproverUserId).toBe(2n);
 
     let rows = await (prisma as any).workflowInstanceStep.findMany({
-      where: { declarationId: id }, orderBy: { stepOrder: "asc" },
+      where: { declarationPk: pk }, orderBy: { stepOrder: "asc" },
     });
     expect(rows.length).toBe(2);
-    expect(rows[0].assigneeId).toBe("user-approver");
+    expect(rows[0].assigneeId).toBe(2n);
 
     // Relational read returns the step array (no JSON cache exists).
-    const viaRelational = await readWorkflowSteps(id);
+    const viaRelational = await readWorkflowSteps(pk);
     expect(viaRelational).not.toBeNull();
     expect(viaRelational!.length).toBe(2);
-    expect(viaRelational![0].assignee).toBe("user-approver");
+    expect(viaRelational![0].assignee).toBe(2);
 
     const approve = await request(app)
       .post("/api/workflows/approve")
@@ -87,14 +91,14 @@ describe("Database normalization (Phase 5 cutover)", () => {
       .send({ declarationId: id, decision: "accept", notes: "looks good" });
     expect(approve.status).toBe(200);
     rows = await (prisma as any).workflowInstanceStep.findMany({
-      where: { declarationId: id }, orderBy: { stepOrder: "asc" },
+      where: { declarationPk: pk }, orderBy: { stepOrder: "asc" },
     });
     expect(rows[0].status).toBe("approved");
     expect(rows[0].decision).toBe("accept");
 
     // Canonical approver link moves to HR after the LM approval.
     const decl2 = await prisma.declaration.findUnique({ where: { id } });
-    expect((decl2 as any)!.currentApproverUserId).toBe("user-hr");
+    expect((decl2 as any)!.currentApproverUserId).toBe(3n);
   });
 
   it("reporting views agree with direct aggregations (result equivalence)", async () => {
@@ -125,7 +129,7 @@ describe("Database normalization (Phase 5 cutover)", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "Snapshot Co", value: 50, submitted: "2026-04-12",
         status: "Draft", priority: "Low", description: "snapshot immutability",
@@ -134,14 +138,15 @@ describe("Database normalization (Phase 5 cutover)", () => {
         date: "2026-04-11", instances: "1", publicOfficial: "No",
       });
     const id = create.body.id;
+    const pk = await pkFor(id);
     // Change the user's master data — the snapshot must not follow.
-    await prisma.user.update({ where: { id: "user-team" }, data: { department: "Engineering", position: "Principal" } });
-    const snap = await (prisma as any).declarationSnapshot.findUnique({ where: { declarationId: id } });
+    await prisma.user.update({ where: { id: 4n }, data: { department: "Engineering", position: "Principal" } });
+    const snap = await (prisma as any).declarationSnapshot.findUnique({ where: { declarationPk: pk } });
     expect(snap?.department).toBe("Marketing");
     expect(snap?.positionTitle).toBe("Brand Manager");
-    await prisma.user.update({ where: { id: "user-team" }, data: { department: "Marketing", position: "Brand Manager" } });
-    await (prisma as any).declarationSnapshot.deleteMany({ where: { declarationId: id } }).catch(() => undefined);
-    await (prisma as any).declarationDetail.deleteMany({ where: { declarationId: id } }).catch(() => undefined);
+    await prisma.user.update({ where: { id: 4n }, data: { department: "Marketing", position: "Brand Manager" } });
+    await (prisma as any).declarationSnapshot.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
+    await (prisma as any).declarationDetail.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
     await prisma.declaration.delete({ where: { id } }).catch(() => undefined);
   });
 
@@ -157,7 +162,7 @@ describe("Database normalization (Phase 5 cutover)", () => {
         ],
       });
     expect(created.status).toBe(201);
-    const steps = await (prisma as any).workflowRuleStep.findMany({ where: { ruleId: created.body.id } });
+    const steps = await (prisma as any).workflowRuleStep.findMany({ where: { ruleId: toDbId(created.body.id) } });
     expect(steps.length).toBe(2);
     await request(app)
       .delete(`/api/admin/workflows/rules/${created.body.id}`)
@@ -169,7 +174,7 @@ describe("Database normalization (Phase 5 cutover)", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "Rule FK Co", value: 5000, submitted: "2026-04-12",
         status: "Draft", priority: "High", description: "rule fk test",
@@ -178,27 +183,27 @@ describe("Database normalization (Phase 5 cutover)", () => {
         date: "2026-04-11", instances: "1", publicOfficial: "No",
       });
     const id = create.body.id;
+    const pk = await pkFor(id);
     await request(app)
       .patch(`/api/declarations/${id}/submit`)
       .set("Authorization", `Bearer ${getTeamToken()}`);
-    const inst = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
-    // 5000 >= threshold 1000 → rule-2, recorded with an enforced FK.
-    expect((inst as any).ruleId).toBe("rule-2");
+    const inst = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
+    // 5000 >= threshold 1000 → rule 2, recorded with an enforced FK.
+    expect((inst as any).ruleId).toBe(2n);
   });
 
-  it("PostgreSQL parameter binding rewrites ? to $n (provider-aware)", async () => {
-    const prev = process.env.DATABASE_URL;
-    try {
-      process.env.DATABASE_URL = "file:./test.db";
-      expect(isPostgresProvider()).toBe(false);
-      expect(bindParams(`WHERE "a" = ? AND "b" = ?`)).toBe(`WHERE "a" = ? AND "b" = ?`);
-      process.env.DATABASE_URL = "postgresql://u:p@localhost:5432/db?schema=public";
-      expect(isPostgresProvider()).toBe(true);
-      expect(bindParams(`WHERE "a" = ? AND "b" = ?`)).toBe(`WHERE "a" = $1 AND "b" = $2`);
-      expect(bindParams(`SELECT 1`)).toBe(`SELECT 1`);
-    } finally {
-      process.env.DATABASE_URL = prev;
-    }
+  it("identifier boundary converts BIGINT rows to JSON-safe numbers", async () => {
+    expect(toJsonId(4n)).toBe(4);
+    expect(toJsonId(4)).toBe(4);
+    expect(toDbId(4)).toBe(4n);
+    expect(toDbId("4")).toBe(4n);
+    expect(toDbId(4n)).toBe(4n);
+    expect(parseIdParam("4")).toBe(4n);
+    expect(parseIdParam(4)).toBe(4n);
+    expect(parseIdParam("user-admin")).toBeNull();
+    expect(parseIdParam(undefined)).toBeNull();
+    expect(() => toDbId("user-admin")).toThrow();
+    expect(() => toJsonId(2n ** 60n)).toThrow();
   });
 
   it("dashboard /stats KPIs match direct aggregation (view equivalence)", async () => {

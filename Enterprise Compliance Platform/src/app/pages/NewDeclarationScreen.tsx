@@ -46,9 +46,9 @@ export function NewDeclarationScreen({
   const { user } = useUser();
   const [config, setConfig] = useState({ highValueThreshold: DEFAULT_HIGH_VALUE_THRESHOLD, mediumValueThreshold: DEFAULT_MEDIUM_VALUE_THRESHOLD, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, maximumValue: DEFAULT_MAXIMUM_VALUE, emailTemplate: "" });
   const [lineManagerName, setLineManagerName] = useState("");
-  const [managers, setManagers] = useState<{ id: string; name: string; email: string; position: string; department: string }[]>([]);
+  const [managers, setManagers] = useState<{ id: number; name: string; email: string; position: string; department: string }[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
-  const [organizations, setOrganizations] = useState<{ id: string; name: string; shortCode: string }[]>([]);
+  const [organizations, setOrganizations] = useState<{ id: number; name: string; shortCode: string }[]>([]);
   const [managerSearch, setManagerSearch] = useState("");
   const [showManagerDropdown, setShowManagerDropdown] = useState(false);
 
@@ -59,8 +59,16 @@ export function NewDeclarationScreen({
 
   useEffect(() => {
     let cancelled = false;
-    if (user?.lineManager) {
-      fetchUserById(user.lineManager).then((u) => { if (!cancelled) setLineManagerName(u?.name || ""); }).catch((err: Error) => console.error("Failed to fetch line manager:", err));
+    // lineManager is display text; only numeric references need a lookup.
+    const lm = user?.lineManager;
+    if (!lm) {
+      setLineManagerName("");
+      return;
+    }
+    if (/^\d+$/.test(lm.trim())) {
+      fetchUserById(Number(lm)).then((u) => { if (!cancelled) setLineManagerName(u?.name || ""); }).catch((err: Error) => console.error("Failed to fetch line manager:", err));
+    } else {
+      setLineManagerName(lm);
     }
     return () => { cancelled = true; };
   }, [user]);
@@ -145,7 +153,7 @@ export function NewDeclarationScreen({
   const [receivedGiven, setReceivedGiven] = useState("Received");
   const [category, setCategory] = useState("");
   const [activeSection, setActiveSection] = useState("sec-team");
-  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [files, setFiles] = useState<(UploadedFile & { uploadId?: string })[]>([]);
   const [dragging, setDragging] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploadError, setUploadError] = useState<{ title: string; message: string } | null>(null);
@@ -162,7 +170,7 @@ export function NewDeclarationScreen({
     employeeCode: user?.teamMemberNumber || "",
     lineManager: lineManagerName,
     company: "",
-    organizationId: "",
+    organizationId: "" as number | "",
     department: user?.department || "",
     team: "",
     position: user?.position || "",
@@ -349,7 +357,7 @@ export function NewDeclarationScreen({
   const handleClear = () => {
     setFormState((prev) => ({
       employeeName: prev.employeeName, employeeCode: prev.employeeCode, lineManager: prev.lineManager,
-      company: prev.company, department: prev.department, team: prev.team, position: prev.position,
+      company: prev.company, organizationId: prev.organizationId, department: prev.department, team: prev.team, position: prev.position,
       partyType: "", Counterparty: "", contactPerson: "",
       existingRelationship: "", contractNegotiation: "", biddingProcess: "", occasion: "",
       occasionOther: "", date: "", value: "", currency: "ZAR", substantiation: "", instances: "1",

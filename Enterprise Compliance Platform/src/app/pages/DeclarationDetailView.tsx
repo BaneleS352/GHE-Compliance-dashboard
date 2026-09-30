@@ -183,7 +183,7 @@ function parseFiles(data: Record<string, string> | Declaration): UploadedFile[] 
         .split(",")
         .map((file) => file.trim())
         .filter(Boolean)
-        .map((file) => ({ name: file, size: 0, type: "", url: file }));
+        .map((file) => ({ id: 0, name: file, size: 0, type: "", url: file }));
 }
 
 export function SupportingDocuments({ data }: { data: Record<string, string> | Declaration }) {

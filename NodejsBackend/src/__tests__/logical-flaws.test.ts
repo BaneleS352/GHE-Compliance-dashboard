@@ -7,7 +7,7 @@ const app = buildApp();
 
 const BASE = {
   employee: "Nomvula Team",
-  employeeId: "user-team",
+  employeeId: 4,
   teamMemberNumber: "TM-001",
   lineManager: "Sipho Approver",
   position: "Brand Manager",
@@ -295,7 +295,7 @@ describe("Data consistency", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({
-        employee: "Sipho Approver", employeeId: "user-approver", teamMemberNumber: "APPR-001",
+        employee: "Sipho Approver", employeeId: 2, teamMemberNumber: "APPR-001",
         lineManager: "Sipho Approver", position: "Line Manager", department: "Marketing",
         type: "Gift", counterparty: "LogicalOtherOwner", value: 100,
         submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
@@ -619,7 +619,7 @@ describe("File access control", () => {
     const fileId = upload.body.id;
 
     const otherToken = require("jsonwebtoken").sign(
-      { id: "user-approver", email: "sipho@test.com", role: "approver" }, "test-secret", { expiresIn: "1h" }
+      { id: 2, email: "sipho@test.com", role: "approver" }, "test-secret", { expiresIn: "1h" }
     );
     const access = await request(app)
       .get(`/api/files/${fileId}`)
@@ -633,7 +633,7 @@ describe("File access control", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({
         ...BASE, counterparty: "FileDelTest", value: 100,
-        employee: "Admin User", employeeId: "user-admin",
+        employee: "Admin User", employeeId: 1,
       });
     expect(declRes.status).toBe(201);
     const declId = declRes.body.id;
@@ -897,13 +897,13 @@ describe("Declaration edit field mapping", () => {
     const edit = await request(app)
       .put(`/api/declarations/${id}`)
       .set("Authorization", `Bearer ${getTeamToken()}`)
-      .send({ employeeId: "user-admin" });
+      .send({ employeeId: 1 });
     expect(edit.status).toBe(200);
 
     const check = await request(app)
       .get(`/api/declarations/${id}`)
       .set("Authorization", `Bearer ${getTeamToken()}`);
-    expect(check.body.employeeId).toBe("user-team");
+    expect(check.body.employeeId).toBe(4);
   });
 
   it("PUT /api/declarations/:id — from field maps to fromField in DB", async () => {
@@ -1031,13 +1031,13 @@ describe("determineRuleId threshold boundary", () => {
     if (!config) throw new Error("System config not found");
     const { determineRuleId } = await import("../services/workflowService");
     const result = determineRuleId(config.highValueThreshold, config.highValueThreshold, config.mediumValueThreshold);
-    expect(result).toBe("rule-2");
+    expect(result).toBe(2n);
   });
 
   it("determineRuleId routes a value just below threshold to the lower rule", async () => {
     const { determineRuleId } = await import("../services/workflowService");
-    expect(determineRuleId(999, 1000, 1000)).toBe("rule-1");
-    expect(determineRuleId(1000, 1000, 1000)).toBe("rule-2");
+    expect(determineRuleId(999, 1000, 1000)).toBe(1n);
+    expect(determineRuleId(1000, 1000, 1000)).toBe(2n);
   });
 });
 
@@ -1072,14 +1072,15 @@ describe("Admin status bypass protection", () => {
       .patch(`/api/declarations/${id}/submit`)
       .set("Authorization", `Bearer ${getTeamToken()}`);
     const { readWorkflowSteps, persistWorkflowInstanceSteps } = await import("../services/normalization");
-    const steps = (await readWorkflowSteps(id)) || [];
+    const pk = (await prisma.declaration.findUnique({ where: { id }, select: { declarationPk: true } }))!.declarationPk;
+    const steps = (await readWorkflowSteps(pk)) || [];
     for (const s of steps) {
       s.status = "approved";
       s.decision = "accept";
       s.approvedAt = new Date().toISOString();
     }
     // Step rows are the only workflow state: write the resolution into them.
-    await persistWorkflowInstanceSteps(id, steps);
+    await persistWorkflowInstanceSteps(pk, steps);
     const res = await request(app)
       .patch(`/api/declarations/${id}/status`)
       .set("Authorization", `Bearer ${getAdminToken()}`)

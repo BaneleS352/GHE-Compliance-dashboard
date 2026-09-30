@@ -4,6 +4,7 @@ import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { syncWorkflowRuleSteps } from "../../services/normalization";
+import { parseIdParam, toDbId, toJsonId } from "../../services/ids";
 
 const router = Router();
 
@@ -24,7 +25,7 @@ router.get("/rules", authenticate, authorize("admin"), asyncHandler(async (_req:
         orderBy: { order: "asc" },
       });
       const s: StepDef[] = rows.map((row: any) => ({ order: row.order, role: row.role, label: row.label }));
-      return { id: r.id, name: r.name, condition: r.condition, priority: r.priority, steps: s };
+      return { id: toJsonId(r.id), name: r.name, condition: r.condition, priority: r.priority, steps: s };
     })),
   );
 }));
@@ -59,12 +60,9 @@ router.post("/rules", authenticate, authorize("admin"), asyncHandler(async (req:
     return;
   }
 
-  const id = `rule-${Date.now()}`;
-
   const rule = await prisma.$transaction(async (tx) => {
     const created = await tx.workflowRule.create({
       data: {
-        id,
         name: data.name,
         condition: data.condition,
         priority: data.priority,
@@ -77,7 +75,7 @@ router.post("/rules", authenticate, authorize("admin"), asyncHandler(async (req:
   });
 
   res.status(201).json({
-    id: rule.id,
+    id: toJsonId(rule.id),
     name: rule.name,
     condition: rule.condition,
     priority: rule.priority,
@@ -87,8 +85,12 @@ router.post("/rules", authenticate, authorize("admin"), asyncHandler(async (req:
 
 // PUT /api/admin/workflows/rules/:id
 router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = req.params.id as string;
-  const existing = await prisma.workflowRule.findUnique({ where: { id } });
+  const rulePk = parseIdParam(req.params.id);
+  if (rulePk === null) {
+    res.status(404).json({ error: "Workflow rule not found" });
+    return;
+  }
+  const existing = await prisma.workflowRule.findUnique({ where: { id: rulePk } });
   if (!existing) {
     res.status(404).json({ error: "Workflow rule not found" });
     return;
@@ -117,7 +119,7 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
     // REMOVED by this edit are checked (pure renames/reorders of existing
     // roles cannot strand anyone), and only against instances produced by
     // THIS rule (plus untracked pre-rule-FK history, conservatively).
-    const oldDefs = await (prisma as any).workflowRuleStep.findMany({ where: { ruleId: id }, select: { role: true } });
+    const oldDefs = await (prisma as any).workflowRuleStep.findMany({ where: { ruleId: rulePk }, select: { role: true } });
     const oldRoles: string[] = oldDefs.map((s: any) => s.role);
     const newRoles: string[] = data.steps.map((s) => s.role);
     const changedRoles = new Set([
@@ -127,19 +129,20 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
     for (const role of changedRoles) {
       const rows = await (prisma as any).workflowInstanceStep.findMany({
         where: { role: role as "lineManager" | "hr", status: "pending" },
-        select: { declarationId: true },
+        select: { declarationPk: true },
       });
       if (rows.length > 0) {
         const insts = await prisma.workflowInstance.findMany({
-          where: { declarationId: { in: rows.map((r: any) => r.declarationId) } },
-          select: { declarationId: true, ruleId: true },
+          where: { declarationPk: { in: rows.map((r: any) => r.declarationPk) } },
+          select: { declarationPk: true, ruleId: true },
         });
         // Same-rule instances block; untracked (null ruleId) history blocks
         // conservatively since its producing rule is unknown.
-        const hit = insts.find((i) => (i as any).ruleId === id || (i as any).ruleId == null);
+        const hit = insts.find((i) => (i as any).ruleId === rulePk || (i as any).ruleId == null);
         if (hit) {
+          const decl = await prisma.declaration.findUnique({ where: { declarationPk: (hit as any).declarationPk }, select: { id: true } });
           res.status(400).json({
-            error: `Cannot change rule while role "${role}" has a pending step in workflow for declaration ${hit.declarationId}`,
+            error: `Cannot change rule while role "${role}" has a pending step in workflow for declaration ${decl?.id}`,
           });
           return;
         }
@@ -152,16 +155,16 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
     if (data.name !== undefined) updateData.name = data.name;
     if (data.condition !== undefined) updateData.condition = data.condition;
     if (data.priority !== undefined) updateData.priority = data.priority;
-    const upd = await tx.workflowRule.update({ where: { id }, data: updateData });
+    const upd = await tx.workflowRule.update({ where: { id: rulePk }, data: updateData });
     if (data.steps !== undefined) {
       await syncWorkflowRuleSteps(upd.id, data.steps, tx);
     }
     return upd;
   });
 
-  const rows = await (prisma as any).workflowRuleStep.findMany({ where: { ruleId: id }, orderBy: { order: "asc" } });
+  const rows = await (prisma as any).workflowRuleStep.findMany({ where: { ruleId: rulePk }, orderBy: { order: "asc" } });
   res.json({
-    id: rule.id,
+    id: toJsonId(rule.id),
     name: rule.name,
     condition: rule.condition,
     priority: rule.priority,
@@ -171,15 +174,19 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
 
 // DELETE /api/admin/workflows/rules/:id
 router.delete("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = req.params.id as string;
-  const existing = await prisma.workflowRule.findUnique({ where: { id } });
+  const rulePk = parseIdParam(req.params.id);
+  if (rulePk === null) {
+    res.status(404).json({ error: "Workflow rule not found" });
+    return;
+  }
+  const existing = await prisma.workflowRule.findUnique({ where: { id: rulePk } });
   if (!existing) {
     res.status(404).json({ error: "Workflow rule not found" });
     return;
   }
 
-  await (prisma as any).workflowRuleStep.deleteMany({ where: { ruleId: id } }).catch(() => undefined);
-  await prisma.workflowRule.delete({ where: { id } });
+  await (prisma as any).workflowRuleStep.deleteMany({ where: { ruleId: rulePk } }).catch(() => undefined);
+  await prisma.workflowRule.delete({ where: { id: rulePk } });
   res.json({ message: "Workflow rule deleted" });
 }));
 

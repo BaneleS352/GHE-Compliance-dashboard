@@ -2,15 +2,52 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { execFileSync } from "child_process";
 
-const TEST_DB_URL = "file:./test.db";
+// PostgreSQL is the only supported provider (Identifier Strategy cutover).
+// The suite boots an embedded PostgreSQL, applies the versioned migrations,
+// and seeds isolated normalized fixtures — the full suite runs against
+// PostgreSQL, locally and in CI.
+const PG_PORT = Number(process.env.PG_TEST_PORT || 55433);
+const PG_URL = process.env.TEST_PG_DATABASE_URL ||
+  `postgresql://postgres:postgres@localhost:${PG_PORT}/ghe_test?schema=public`;
+
+let embedded: any = null;
+
+async function startEmbeddedPostgres(): Promise<void> {
+  if (process.env.TEST_PG_DATABASE_URL) return;
+  // ESM-only package: classic moduleResolution cannot resolve its types, but
+  // vitest/tsx load it fine at runtime.
+  // @ts-ignore
+  const mod = await import("embedded-postgres");
+  const EmbeddedPostgres = (mod as any).default || mod;
+  embedded = new EmbeddedPostgres({
+    database: "ghe_test",
+    user: "postgres",
+    password: "postgres",
+    port: PG_PORT,
+    persistent: false,
+  });
+  try {
+    await embedded.initialise();
+    await embedded.start();
+  } catch (err: any) {
+    throw new Error(
+      "Embedded PostgreSQL failed to start (port " + PG_PORT + "). " +
+        "Backend tests require PostgreSQL: free the port, or set " +
+        "TEST_PG_DATABASE_URL to a dedicated PostgreSQL database. " +
+        "CI runs the suite against a postgres service. Cause: " +
+        (err?.message || String(err)),
+    );
+  }
+}
 
 export async function setup() {
-  process.env.DATABASE_URL = TEST_DB_URL;
+  await startEmbeddedPostgres();
+  process.env.DATABASE_URL = PG_URL;
   process.env.JWT_SECRET = "test-secret";
 
   // Invoke the LOCAL Prisma CLI directly via node instead of `npx`: on hosts
-  // where npx resolves a different (or no) Prisma version, `db push` fails
-  // with a schema-engine error before any test runs.
+  // where npx resolves a different Prisma version, setup fails before any
+  // test runs.
   let prismaBin: string;
   try {
     prismaBin = require.resolve("prisma/build/index.js");
@@ -20,42 +57,39 @@ export async function setup() {
         "Ensure dependencies are installed (`npm install`, which runs `prisma generate` via postinstall).",
     );
   }
-  // Surface schema-engine failures loudly: with stdio "pipe" a failed
-  // `db push` otherwise aborts the run with no diagnostics and no tests run.
+  // Versioned migrations (not db push): the suite runs the same migration
+  // chain production deploys.
   try {
     execFileSync(
       process.execPath,
-      [prismaBin, "db", "push", "--force-reset", "--skip-generate"],
+      [prismaBin, "migrate", "deploy"],
       {
         cwd: process.cwd(),
-        env: { ...process.env, DATABASE_URL: TEST_DB_URL },
+        env: { ...process.env, DATABASE_URL: PG_URL },
         stdio: "pipe",
       },
     );
   } catch (err: any) {
     const detail =
       err?.stdout?.toString() || err?.stderr?.toString() || err?.message || String(err);
-    console.error(
-      "Test database setup failed (`prisma db push --force-reset`).\n" +
-        "Ensure dependencies are installed (`npm install`, which runs `prisma generate` via postinstall),\n" +
-        "then re-run `npm test`. Engine output:\n" + detail,
-    );
-    throw new Error(`Test database setup failed: ${detail.split("\n")[0]}`);
+    console.error("Test database migration failed (`prisma migrate deploy`). Engine output:\n" + detail);
+    throw new Error(`Test database migration failed: ${detail.split("\n")[0]}`);
   }
 
   const prisma = new PrismaClient();
   const hash = bcrypt.hashSync("password", 10);
 
+  // Numeric fixture ids (shared with helpers.ts tokens).
   await prisma.user.createMany({
     data: [
-      { id: "user-admin", name: "Admin User", email: "admin@test.com", passwordHash: hash, role: "admin", teamMemberNumber: "ADM-001", department: "IT", position: "System Admin", lineManager: null },
-      { id: "user-approver", name: "Sipho Approver", email: "sipho@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: null },
-      { id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: null },
-      { id: "user-team", name: "Nomvula Team", email: "nomvula@test.com", passwordHash: hash, role: "teamMember", teamMemberNumber: "TM-001", department: "Marketing", position: "Brand Manager", lineManager: "user-approver" },
+      { id: 1n, name: "Admin User", email: "admin@test.com", passwordHash: hash, role: "admin", teamMemberNumber: "ADM-001", department: "IT", position: "System Admin", lineManager: null },
+      { id: 2n, name: "Sipho Approver", email: "sipho@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: null },
+      { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: null },
+      { id: 4n, name: "Nomvula Team", email: "nomvula@test.com", passwordHash: hash, role: "teamMember", teamMemberNumber: "TM-001", department: "Marketing", position: "Brand Manager", lineManager: "Sipho Approver" },
     ],
   });
   // Normalized user links (manager FK).
-  await prisma.user.update({ where: { id: "user-team" }, data: { managerId: "user-approver" } });
+  await prisma.user.update({ where: { id: 4n }, data: { managerId: 2n } });
 
   await prisma.systemConfig.create({
     data: { id: "default", highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "Test {{ApproverName}}", notificationTemplates: "{}" },
@@ -64,15 +98,15 @@ export async function setup() {
   // Workflow rules + row-only step definitions.
   await prisma.workflowRule.createMany({
     data: [
-      { id: "rule-1", name: "Low Value", condition: "low", priority: 1 },
-      { id: "rule-2", name: "High Value", condition: "high", priority: 2 },
+      { id: 1n, name: "Low Value", condition: "low", priority: 1 },
+      { id: 2n, name: "High Value", condition: "high", priority: 2 },
     ],
   });
   await (prisma as any).workflowRuleStep.createMany({
     data: [
-      { ruleId: "rule-1", order: 1, role: "lineManager", label: "Line Manager Review" },
-      { ruleId: "rule-2", order: 1, role: "lineManager", label: "Line Manager Review" },
-      { ruleId: "rule-2", order: 2, role: "hr", label: "HR Review" },
+      { ruleId: 1n, order: 1, role: "lineManager", label: "Line Manager Review" },
+      { ruleId: 2n, order: 1, role: "lineManager", label: "Line Manager Review" },
+      { ruleId: 2n, order: 2, role: "hr", label: "HR Review" },
     ],
   });
 
@@ -86,45 +120,47 @@ export async function setup() {
     {
       id: "GHE-TEST-001", type: "Gift", value: 100, status: "Pending", priority: "Low",
       eventDate: new Date("2026-01-14T00:00:00.000Z"), submittedAt: new Date("2026-01-15T00:00:00.000Z"),
-      declarerUserId: "user-team", currentApproverUserId: "user-approver", counterpartyId: cpA.id,
+      declarerUserId: 4n, currentApproverUserId: 2n, counterpartyId: cpA.id,
       snap: { declarerName: "Nomvula Team", employeeNumber: "TM-001", positionTitle: "Brand Manager", department: "Marketing", managerDisplayName: "Sipho Approver" },
       det: { description: "Test declaration", occasion: "Business Meeting", relationship: "Test", receivedGiven: "Received", fromField: "Supplier", contactPerson: "John", biddingProcess: "No", instances: "1", publicOfficial: "No" },
     },
     {
       id: "GHE-TEST-002", type: "Gift", value: 500, status: "Pending", priority: "Medium",
       eventDate: new Date("2026-01-30T00:00:00.000Z"), submittedAt: new Date("2026-02-01T00:00:00.000Z"),
-      declarerUserId: "user-team", currentApproverUserId: "user-approver", counterpartyId: cpB.id,
+      declarerUserId: 4n, currentApproverUserId: 2n, counterpartyId: cpB.id,
       snap: { declarerName: "Nomvula Team", employeeNumber: "TM-001", positionTitle: "Brand Manager", department: "Marketing", managerDisplayName: "Sipho Approver" },
       det: { description: "Second test", occasion: "Milestone", relationship: "Test", receivedGiven: "Given", fromField: "Customer", contactPerson: "Jane", biddingProcess: "No", instances: "1", publicOfficial: "No" },
     },
     {
       id: "GHE-TEST-003", type: "Hospitality", value: 3000, status: "Approved", priority: "High",
       eventDate: new Date("2026-02-28T00:00:00.000Z"), submittedAt: new Date("2026-03-01T00:00:00.000Z"),
-      declarerUserId: "user-team", currentApproverUserId: null, counterpartyId: cpC.id,
+      declarerUserId: 4n, currentApproverUserId: null, counterpartyId: cpC.id,
       snap: { declarerName: "Nomvula Team", employeeNumber: "TM-001", positionTitle: "Brand Manager", department: "Marketing", managerDisplayName: "Sipho Approver" },
       det: { description: "High value", occasion: "Other", relationship: "Test", receivedGiven: "Received", fromField: "Supplier", contactPerson: "Bob", biddingProcess: "Yes", instances: "2", publicOfficial: "No" },
     },
   ];
+  const pkById = new Map<string, bigint>();
   for (const d of decls) {
     const { snap, det, ...row } = d;
-    await prisma.declaration.create({ data: row });
-    await (prisma as any).declarationSnapshot.create({ data: { declarationId: d.id, ...snap } });
-    await (prisma as any).declarationDetail.create({ data: { declarationId: d.id, ...det } });
+    const created = await prisma.declaration.create({ data: row });
+    pkById.set(d.id, created.declarationPk);
+    await (prisma as any).declarationSnapshot.create({ data: { declarationPk: created.declarationPk, ...snap } });
+    await (prisma as any).declarationDetail.create({ data: { declarationPk: created.declarationPk, ...det } });
   }
 
-  // Workflow instances: rows only (no JSON).
+  // Workflow instances: rows only.
   const { persistWorkflowInstanceSteps } = await import("../services/normalization");
-  await persistWorkflowInstanceSteps("GHE-TEST-001", [
-    { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-  ], "rule-1");
-  await persistWorkflowInstanceSteps("GHE-TEST-002", [
-    { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-    { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-  ], "rule-2");
-  await persistWorkflowInstanceSteps("GHE-TEST-003", [
-    { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "approved", decision: "accept", approvedAt: "2026-03-02T10:00:00.000Z", notes: "OK", decidedAt: "2026-03-02T10:00:00.000Z", decidedById: null, decidedByName: null },
-    { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "approved", decision: "org", approvedAt: "2026-03-03T10:00:00.000Z", notes: "Approved", decidedAt: "2026-03-03T10:00:00.000Z", decidedById: null, decidedByName: null },
-  ], "rule-2");
+  await persistWorkflowInstanceSteps(pkById.get("GHE-TEST-001")!, [
+    { order: 1, role: "lineManager", assignee: 2, assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+  ], 1n);
+  await persistWorkflowInstanceSteps(pkById.get("GHE-TEST-002")!, [
+    { order: 1, role: "lineManager", assignee: 2, assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+    { order: 2, role: "hr", assignee: 3, assigneeName: "Lindiwe HR", label: "HR Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+  ], 2n);
+  await persistWorkflowInstanceSteps(pkById.get("GHE-TEST-003")!, [
+    { order: 1, role: "lineManager", assignee: 2, assigneeName: "Sipho Approver", label: "Line Manager Review", status: "approved", decision: "accept", approvedAt: "2026-03-02T10:00:00.000Z", notes: "OK", decidedAt: "2026-03-02T10:00:00.000Z", decidedById: null, decidedByName: null },
+    { order: 2, role: "hr", assignee: 3, assigneeName: "Lindiwe HR", label: "HR Review", status: "approved", decision: "org", approvedAt: "2026-03-03T10:00:00.000Z", notes: "Approved", decidedAt: "2026-03-03T10:00:00.000Z", decidedById: null, decidedByName: null },
+  ], 2n);
 
   await prisma.approvalOption.createMany({
     data: [
@@ -136,13 +172,24 @@ export async function setup() {
     ],
   });
 
+  // Explicit fixture ids must not collide with later autoincrement inserts.
+  const { resetIdentitySequences } = await import("../services/normalization");
+  await resetIdentitySequences(prisma);
+
   await prisma.$disconnect();
 
-  // Reporting views (SQLite) are created lazily by reportingViews; nothing else to do here.
+  // Reporting views are migration-owned; nothing else to do here.
 }
 
 export async function teardown() {
   const prisma = new PrismaClient();
-  // Can't easily delete all tables, so just disconnect
   await prisma.$disconnect();
+  if (embedded) {
+    try {
+      await embedded.stop();
+    } catch {
+      // Best-effort: the OS reclaims the postmaster in any case.
+    }
+    embedded = null;
+  }
 }

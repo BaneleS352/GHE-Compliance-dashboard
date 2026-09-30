@@ -50,10 +50,10 @@ export function AdminConfig() {
   const [saved, setSaved] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [expandedTemplate, setExpandedTemplate] = useState<string | null>(null);
-  const [organizations, setOrganizations] = useState<{ id: string; name: string; shortCode: string }[]>([]);
+  const [organizations, setOrganizations] = useState<{ id: number; name: string; shortCode: string }[]>([]);
   const [newOrgName, setNewOrgName] = useState("");
   const [newOrgShortCode, setNewOrgShortCode] = useState("");
-  const [editingOrg, setEditingOrg] = useState<{ id: string; name: string; shortCode: string } | null>(null);
+  const [editingOrg, setEditingOrg] = useState<{ id: number; name: string; shortCode: string } | null>(null);
 
   useEffect(() => { fetchConfig().then(setConfig).catch((err: Error) => setFetchError(err.message)); }, []);
   useEffect(() => { fetchAdminOrganizations().then(setOrganizations).catch(() => {}); }, []);
@@ -101,7 +101,7 @@ export function AdminConfig() {
     }
   };
 
-  const handleDeleteOrg = async (id: string) => {
+  const handleDeleteOrg = async (id: number) => {
     try {
       await deleteOrganization(id);
       setOrganizations(organizations.filter((o) => o.id !== id));

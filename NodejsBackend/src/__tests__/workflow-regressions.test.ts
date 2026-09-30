@@ -7,12 +7,11 @@ const app = buildApp();
 
 describe("Workflow regressions", () => {
   it("supports the real Kabelo → James return and value increase flow", async () => {
-    await prisma.user.createMany({ data: [
-      { id: "user-20", name: "James van Wyk", email: "james@npn.co.za", passwordHash: "test", role: "approver", teamMemberNumber: "NPN-10001", department: "Engineering", position: "Line Manager", lineManager: null },
-      { id: "user-22", name: "Kabelo Molefe", email: "kabelo@npn.co.za", passwordHash: "test", role: "teamMember", teamMemberNumber: "NPN-20001", department: "Engineering", position: "Software Engineer", lineManager: "user-20" },
-      { id: "user-21", name: "Aisha Patel", email: "aisha@npn.co.za", passwordHash: "test", role: "approver", teamMemberNumber: "NPN-10002", department: "HR", position: "Head of HR", lineManager: null },
-    ] });
-    const create = await request(app).post("/api/declarations").set("Authorization", `Bearer ${getKabeloToken()}`).send({ employee: "Kabelo Molefe", employeeId: "user-22", teamMemberNumber: "NPN-20001", lineManager: "James van Wyk", position: "Software Engineer", department: "Engineering", type: "Gift", counterparty: "ActualUserFlow", value: 100, submitted: "2026-09-01", status: "Draft", priority: "Low", description: "Actual user flow", relationship: "Supplier", receivedGiven: "Received", from: "Supplier", contactPerson: "Test", biddingProcess: "No", occasion: "Business Meeting", date: "2026-09-01", instances: "1", publicOfficial: "No" });
+    // Explicit numeric ids match getJamesToken()/getKabeloToken() (12/14).
+    await prisma.user.upsert({ where: { email: "james@npn.co.za" }, update: {}, create: { id: 12n, name: "James van Wyk", email: "james@npn.co.za", passwordHash: "test", role: "approver", teamMemberNumber: "NPN-10001", department: "Engineering", position: "Line Manager", lineManager: null } });
+    await prisma.user.upsert({ where: { email: "kabelo@npn.co.za" }, update: {}, create: { id: 14n, name: "Kabelo Molefe", email: "kabelo@npn.co.za", passwordHash: "test", role: "teamMember", teamMemberNumber: "NPN-20001", department: "Engineering", position: "Software Engineer", lineManager: "James van Wyk", managerId: 12n } });
+    await prisma.user.upsert({ where: { email: "aisha@npn.co.za" }, update: {}, create: { id: 13n, name: "Aisha Patel", email: "aisha@npn.co.za", passwordHash: "test", role: "approver", teamMemberNumber: "NPN-10002", department: "HR", position: "Head of HR", lineManager: null } });
+    const create = await request(app).post("/api/declarations").set("Authorization", `Bearer ${getKabeloToken()}`).send({ employee: "Kabelo Molefe", employeeId: 14, teamMemberNumber: "NPN-20001", lineManager: "James van Wyk", position: "Software Engineer", department: "Engineering", type: "Gift", counterparty: "ActualUserFlow", value: 100, submitted: "2026-09-01", status: "Draft", priority: "Low", description: "Actual user flow", relationship: "Supplier", receivedGiven: "Received", from: "Supplier", contactPerson: "Test", biddingProcess: "No", occasion: "Business Meeting", date: "2026-09-01", instances: "1", publicOfficial: "No" });
     const id = create.body.id;
     await request(app).patch(`/api/declarations/${id}/submit`).set("Authorization", `Bearer ${getKabeloToken()}`);
     await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${getJamesToken()}`).send({ declarationId: id, decision: "return" });
@@ -27,7 +26,7 @@ describe("Workflow regressions", () => {
 
   it("adds HR when a returned low-value declaration becomes high-value", async () => {
     const create = await request(app).post("/api/declarations").set("Authorization", `Bearer ${getTeamToken()}`).send({
-      employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+      employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
       type: "Gift", counterparty: "ThresholdCrossing", value: 100, submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Low", description: "Threshold crossing test", relationship: "Test", receivedGiven: "Received", from: "Supplier", contactPerson: "T", biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-05", instances: "1", publicOfficial: "No",
     });
     const id = create.body.id;
@@ -50,7 +49,7 @@ describe("Workflow regressions", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "PendingVisibility", value: 1500,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
@@ -88,7 +87,7 @@ describe("Workflow regressions", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "ResubmitPreserve", value: 1500,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",

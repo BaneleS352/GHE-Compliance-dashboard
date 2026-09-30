@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, pkFor } from "./helpers";
 import path from "path";
 import fs from "fs";
 import { prisma } from "../config/prisma";
@@ -17,13 +17,15 @@ const cleanupDeclIds: string[] = [];
 
 afterAll(async () => {
   if (cleanupDeclIds.length === 0) return;
+  const found = await prisma.declaration.findMany({ where: { id: { in: cleanupDeclIds } }, select: { declarationPk: true } });
+  const pks = found.map((d) => d.declarationPk);
   // Join-only file association: resolve file ids via the join rows first.
   const links = await (prisma as any).declarationFile.findMany({
-    where: { declarationId: { in: cleanupDeclIds } },
+    where: { declarationPk: { in: pks } },
     select: { fileId: true },
   }).catch(() => []);
   await (prisma as any).declarationFile.deleteMany({
-    where: { declarationId: { in: cleanupDeclIds } },
+    where: { declarationPk: { in: pks } },
   }).catch(() => undefined);
   if (links.length > 0) {
     await prisma.uploadedFile.deleteMany({
@@ -31,16 +33,16 @@ afterAll(async () => {
     }).catch(() => undefined);
   }
   await (prisma as any).workflowInstanceStep.deleteMany({
-    where: { declarationId: { in: cleanupDeclIds } },
+    where: { declarationPk: { in: pks } },
   }).catch(() => undefined);
   await prisma.workflowInstance.deleteMany({
-    where: { declarationId: { in: cleanupDeclIds } },
+    where: { declarationPk: { in: pks } },
   });
   await (prisma as any).declarationSnapshot.deleteMany({
-    where: { declarationId: { in: cleanupDeclIds } },
+    where: { declarationPk: { in: pks } },
   }).catch(() => undefined);
   await (prisma as any).declarationDetail.deleteMany({
-    where: { declarationId: { in: cleanupDeclIds } },
+    where: { declarationPk: { in: pks } },
   }).catch(() => undefined);
   await prisma.declaration.deleteMany({
     where: { id: { in: cleanupDeclIds } },
@@ -60,7 +62,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
         .send({
-          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
           type: "Gift", counterparty: "UploadDraftTest", value: 10, submitted: "2026-07-01",
           approver: "Sipho Approver", priority: "Low", description: "upload draft",
@@ -192,7 +194,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
         .send({
-          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
           type: "Gift", counterparty: "MassAssign", value: 100,
           submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -219,7 +221,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
         .send({
-          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
           type: "Gift", counterparty: "EmpIdTest", value: 100,
           submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -233,10 +235,10 @@ describe("Edge-Case Tests", () => {
       const res = await request(app)
         .put(`/api/declarations/${createRes.body.id}`)
         .set("Authorization", `Bearer ${getTeamToken()}`)
-        .send({ employeeId: "user-admin" });
+        .send({ employeeId: 1 });
       expect(res.status).toBe(200);
       // employeeId is blocked by the PUT field whitelist — stays as original
-      expect(res.body.employeeId).toBe("user-team");
+      expect(res.body.employeeId).toBe(4);
     });
 
     it("PUT /api/declarations/:id — admin also cannot update status (field whitelist enforced)", async () => {
@@ -263,7 +265,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Sipho Approver", employeeId: "user-approver", teamMemberNumber: "APR-001",
+          employee: "Sipho Approver", employeeId: 2, teamMemberNumber: "APR-001",
           lineManager: "Self", position: "LM", department: "Marketing",
           type: "Gift", counterparty: "SelfApproval", value: 100,
           submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -278,8 +280,8 @@ describe("Edge-Case Tests", () => {
 
       // Create workflow instance directly (bypass submit since user-approver has no lineManager)
       const { persistWorkflowInstanceSteps } = await import("../services/normalization");
-      await persistWorkflowInstanceSteps(declId, [
-        { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+      await persistWorkflowInstanceSteps(await pkFor(declId), [
+        { order: 1, role: "lineManager", assignee: 2, assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
       ] as any);
 
       // Approve own declaration — currently succeeds (no self-approval guard)
@@ -300,7 +302,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Team Member", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Team Member", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "BM", department: "Marketing",
           type: "Gift", counterparty: "OrderTest", value: 100,
           submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -314,9 +316,9 @@ describe("Edge-Case Tests", () => {
 
       // Create a 2-step workflow: LM (user-approver), HR (user-hr)
       const { persistWorkflowInstanceSteps: persist2 } = await import("../services/normalization");
-      await persist2(declId, [
-        { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-        { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+      await persist2(await pkFor(declId), [
+        { order: 1, role: "lineManager", assignee: 2, assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+        { order: 2, role: "hr", assignee: 3, assigneeName: "Lindiwe HR", label: "HR Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
       ] as any);
 
       // HR approves their step before LM has approved — currently succeeds (no order enforcement)
@@ -337,7 +339,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Team Member", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Team Member", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "BM", department: "Marketing",
           type: "Gift", counterparty: "RaceTest", value: 100,
           submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -351,8 +353,8 @@ describe("Edge-Case Tests", () => {
 
       // Create workflow instance directly (bypass submit)
       const { persistWorkflowInstanceSteps: persist3 } = await import("../services/normalization");
-      await persist3(declId, [
-        { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+      await persist3(await pkFor(declId), [
+        { order: 1, role: "lineManager", assignee: 2, assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
       ] as any);
 
       // Fire two concurrent approve calls
@@ -397,7 +399,7 @@ describe("Edge-Case Tests", () => {
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
       for (const item of res.body) {
-        expect(item.step.assignee).toBe("user-hr");
+        expect(item.step.assignee).toBe(3);
       }
     });
   });
@@ -409,7 +411,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Sipho Approver", employeeId: "user-approver", teamMemberNumber: "APR-001",
+          employee: "Sipho Approver", employeeId: 2, teamMemberNumber: "APR-001",
           lineManager: "None", position: "LM", department: "Marketing",
           type: "Gift", counterparty: "AdminForOther", value: 200,
           submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -419,7 +421,7 @@ describe("Edge-Case Tests", () => {
           instances: "1", publicOfficial: "No",
         });
       expect(res.status).toBe(201);
-      expect(res.body.employeeId).toBe("user-approver");
+      expect(res.body.employeeId).toBe(2);
       cleanupDeclIds.push(res.body.id);
     });
 
@@ -428,7 +430,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
         .send({
-          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+          employee: "Admin User", employeeId: 1, teamMemberNumber: "ADM-001",
           lineManager: "None", position: "Admin", department: "IT",
           type: "Gift", counterparty: "TeamForAdmin", value: 100,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
@@ -445,7 +447,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getHrToken()}`)
         .send({
-          employee: "Team Member", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Team Member", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "BM", department: "Marketing",
           type: "Gift", counterparty: "ApproverForOther", value: 100,
           submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -555,7 +557,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
         .send({
-          employee: "Team Member", employeeId: "user-team", teamMemberNumber: "TM-002",
+          employee: "Team Member", employeeId: 4, teamMemberNumber: "TM-002",
           lineManager: "Sipho Approver", position: "BM", department: "Marketing",
           type: "Gift", counterparty: "IDORTest", value: 100,
           submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -613,7 +615,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+          employee: "Admin User", employeeId: 1, teamMemberNumber: "ADM-001",
           lineManager: "None", position: "Admin", department: "IT",
           type: "Gift", counterparty: "WfLeakTest", value: 100,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
@@ -627,8 +629,8 @@ describe("Edge-Case Tests", () => {
 
       // Create workflow on it
       const { persistWorkflowInstanceSteps: persist4 } = await import("../services/normalization");
-      await persist4(createRes.body.id, [
-        { order: 1, role: "lineManager", assignee: "user-admin", assigneeName: "Admin", label: "Admin Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+      await persist4(await pkFor(createRes.body.id), [
+        { order: 1, role: "lineManager", assignee: 1, assigneeName: "Admin", label: "Admin Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
       ] as any);
 
       // Team member reads admin's workflow instance
@@ -647,7 +649,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
         .send({
-          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "BM", department: "Marketing",
           type: "Gift", counterparty: "PatchEscalate", value: 100,
           submitted: "2026-07-01", approver: "", status: "Draft", priority: "Low",
@@ -675,7 +677,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+          employee: "Admin User", employeeId: 1, teamMemberNumber: "ADM-001",
           lineManager: "None", position: "Admin", department: "IT",
           type: "Gift", counterparty: "DeclLeakTest", value: 500,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
@@ -702,7 +704,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
         .send({
-          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "BM", department: "Marketing",
           type: "Gift", counterparty: "PreApproved", value: 100,
           submitted: "2026-07-01", approver: "Sipho Approver", status: "Approved", priority: "Low",
@@ -752,7 +754,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
         .send({
-          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "BM", department: "Marketing",
           type: "Gift", counterparty: "DoubleDel", value: 100,
           submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -784,7 +786,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "Developer", department: "Marketing",
           type: "Gift", counterparty: "CfgLow", value: 100,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
@@ -812,7 +814,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "Developer", department: "Marketing",
           type: "Gift", counterparty: "CfgMed", value: 1500,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
@@ -841,7 +843,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "Developer", department: "Marketing",
           type: "Gift", counterparty: "CfgHigh", value: 5000,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
@@ -874,7 +876,7 @@ describe("Edge-Case Tests", () => {
         .get("/api/admin/workflows/rules")
         .set("Authorization", `Bearer ${getAdminToken()}`);
       expect(rulesRes.body.length).toBeGreaterThanOrEqual(2);
-      const rule2 = rulesRes.body.find((r: any) => r.id === "rule-2");
+      const rule2 = rulesRes.body.find((r: any) => r.id === 2);
       expect(rule2).toBeDefined();
 
       // Submit a high-value declaration successfully
@@ -882,7 +884,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "Developer", department: "Marketing",
           type: "Gift", counterparty: "RuleAvail", value: 5000,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
@@ -907,7 +909,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "Developer", department: "Marketing",
           type: "Gift", counterparty: "FrozenFlow", value: 1500,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
@@ -987,7 +989,7 @@ describe("Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({
-          employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+          employee: "Admin User", employeeId: 1, teamMemberNumber: "ADM-001",
           lineManager: "None", position: "Admin", department: "IT",
           type: "Gift", counterparty: "CascadeGap", value: 100,
           submitted: "2026-07-01", approver: "Admin", status: "Draft", priority: "Low",
@@ -1023,7 +1025,7 @@ describe("Edge-Case Tests", () => {
 
       // Workflow instance is also cascaded (none existed in this test, but confirm no orphan)
       const { prisma } = await import("../config/prisma");
-      const orphanInst = await prisma.workflowInstance.findUnique({ where: { declarationId: declId } });
+      const orphanInst = await prisma.workflowInstance.findUnique({ where: { declarationPk: await pkFor(declId) } });
       expect(orphanInst).toBeNull();
       const orphanFile = await prisma.uploadedFile.findUnique({ where: { id: fileId } });
       expect(orphanFile).toBeNull();

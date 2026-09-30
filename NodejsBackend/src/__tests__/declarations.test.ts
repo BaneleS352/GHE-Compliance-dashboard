@@ -51,7 +51,7 @@ describe("Declarations", () => {
       .set("Authorization", `Bearer ${getTeamToken()}`);
     expect(res.status).toBe(200);
     expect(res.body.length).toBeGreaterThanOrEqual(3);
-    res.body.forEach((d: any) => expect(d.employeeId).toBe("user-team"));
+    res.body.forEach((d: any) => expect(d.employeeId).toBe(4));
   });
 
   it("GET /api/declarations/:id — returns declaration with workflow", async () => {
@@ -68,7 +68,7 @@ describe("Declarations", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "New Supplier", value: 200, submitted: "2026-07-01",
         approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -86,7 +86,7 @@ describe("Declarations", () => {
     const res = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
-      .send({ employeeId: "user-team" });
+      .send({ employeeId: 4 });
     expect(res.status).toBe(400);
   });
 
@@ -96,7 +96,7 @@ describe("Declarations", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "DraftUpdate", value: 50, submitted: "2026-07-05",
         approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -127,7 +127,7 @@ describe("Declarations", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "Temp", value: 50, submitted: "2026-07-02",
         approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -149,7 +149,7 @@ describe("Declarations", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "SubmitTest", value: 3000,
         submitted: "2026-07-03", approver: "Sipho Approver", status: "Draft", priority: "High",

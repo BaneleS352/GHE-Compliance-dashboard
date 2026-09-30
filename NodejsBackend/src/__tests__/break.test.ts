@@ -68,7 +68,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "NegTest", value: -100,
         submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -85,7 +85,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "InfTest", value: Infinity,
         submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -102,7 +102,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "XssTest", value: 100,
         submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -122,7 +122,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "LongDesc", value: 100,
         submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -139,7 +139,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({ "__proto__": { "admin": true }, "constructor": { "prototype": { "isAdmin": true } },
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "ProtoTest", value: 100,
         submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -156,7 +156,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "TypeTest", value: "abc",
         submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -173,7 +173,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Admin User", employeeId: "user-admin", teamMemberNumber: "ADM-001",
+        employee: "Admin User", employeeId: 1, teamMemberNumber: "ADM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "IdorTest", value: 100,
         submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -226,7 +226,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "BigPayload", value: 100,
         submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -252,7 +252,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "NoNotesTest", value: 1000,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
@@ -319,20 +319,20 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
     expect(res.status).toBe(400);
   });
 
-  it("DELETE /api/admin/users/user-admin — deleting last admin", async () => {
+  it("DELETE /api/admin/users/1 — deleting last admin", async () => {
     // Order-independent: other suites (e.g. organization multi-tenant flows)
     // create extra admin fixtures in the shared test database. Remove them
     // first so this test always asserts the true last-admin guard.
     const { PrismaClient } = await import("@prisma/client");
     const db = new PrismaClient();
     try {
-      const extras = await db.user.findMany({ where: { role: "admin", NOT: { id: "user-admin" } }, select: { id: true } });
+      const extras = await db.user.findMany({ where: { role: "admin", NOT: { id: 1n } }, select: { id: true } });
       for (const e of extras) await db.user.delete({ where: { id: e.id } }).catch(() => undefined);
     } finally {
       await db.$disconnect();
     }
     const res = await request(app)
-      .delete("/api/admin/users/user-admin")
+      .delete("/api/admin/users/1")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(400);
   });
@@ -383,7 +383,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
         .post("/api/declarations")
         .set("Authorization", `Bearer ${getTeamToken()}`)
         .send({
-          employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
           lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
           type: "Gift", counterparty: `Rapid${i}`, value: 10 + i,
           submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -415,7 +415,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
 
   it("GET /api/auth/me — JWT signed with different secret", async () => {
     const jwt = require("jsonwebtoken");
-    const fake = jwt.sign({ id: "user-admin", role: "admin" }, "wrong-secret");
+    const fake = jwt.sign({ id: 1, role: "admin" }, "wrong-secret");
     const res = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${fake}`);
@@ -424,7 +424,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
 
   it("GET /api/auth/me — JWT with manipulated role in payload", async () => {
     const jwt = require("jsonwebtoken");
-    const tampered = jwt.sign({ id: "user-team", role: "admin" }, "wrong-secret");
+    const tampered = jwt.sign({ id: 4, role: "admin" }, "wrong-secret");
     const res = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${tampered}`);
@@ -497,7 +497,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "ZeroVal", value: 0,
         submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -545,7 +545,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "BigArr", value: 100,
         submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -564,7 +564,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "Unicode", value: 100,
         submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -581,7 +581,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "NullByte\u0000test", value: 100,
         submitted: "2026-07-01", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -684,7 +684,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
     expect(Array.isArray(res.body)).toBe(true);
     // Team member should only see their own declarations
     for (const d of res.body) {
-      expect(d.employeeId).toBe("user-team");
+      expect(d.employeeId).toBe(4);
     }
   });
 
@@ -714,7 +714,7 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
 
   it("DELETE /api/admin/users/:id — non-existent user", async () => {
     const res = await request(app)
-      .delete("/api/admin/users/user-nonexistent")
+      .delete("/api/admin/users/999999")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(404);
   });

@@ -9,7 +9,7 @@ import type {
 
 interface UseWorkflowApprovalOptions {
     declarationId: string | null;
-    userId: string | null;
+    userId: number | null;
     initialWorkflowSteps?: any[];
     onStatusUpdate?: (status: StatusType) => void;
 }

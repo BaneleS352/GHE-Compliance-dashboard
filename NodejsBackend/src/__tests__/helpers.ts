@@ -42,32 +42,47 @@ export function buildApp() {
   return app;
 }
 
+// Numeric fixture ids shared with globalSetup.ts (1 = admin, 2 = approver,
+// 3 = HR, 4 = team member). JWTs carry numeric identifiers only.
 export function getAdminToken(): string {
   const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: "user-admin", email: "admin@test.com", role: "admin", department: "IT", position: "System Administrator" }, "test-secret", { expiresIn: "1h" });
+  return jwt.sign({ id: 1, email: "admin@test.com", role: "admin", department: "IT", position: "System Administrator" }, "test-secret", { expiresIn: "1h" });
 }
 
 export function getApproverToken(): string {
   const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: "user-approver", email: "sipho@test.com", role: "approver", department: "Marketing", position: "Line Manager" }, "test-secret", { expiresIn: "1h" });
+  return jwt.sign({ id: 2, email: "sipho@test.com", role: "approver", department: "Marketing", position: "Line Manager" }, "test-secret", { expiresIn: "1h" });
 }
 
 export function getTeamToken(): string {
   const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: "user-team", email: "nomvula@test.com", role: "teamMember", department: "Marketing", position: "Senior Brand Manager" }, "test-secret", { expiresIn: "1h" });
+  return jwt.sign({ id: 4, email: "nomvula@test.com", role: "teamMember", department: "Marketing", position: "Senior Brand Manager" }, "test-secret", { expiresIn: "1h" });
 }
 
 export function getHrToken(): string {
   const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: "user-hr", email: "lindiwe@test.com", role: "approver", department: "HR", position: "Head of HR" }, "test-secret", { expiresIn: "1h" });
+  return jwt.sign({ id: 3, email: "lindiwe@test.com", role: "approver", department: "HR", position: "Head of HR" }, "test-secret", { expiresIn: "1h" });
 }
 
 export function getKabeloToken(): string {
   const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: "user-22", email: "kabelo@npn.co.za", role: "teamMember", department: "Engineering", position: "Software Engineer" }, "test-secret", { expiresIn: "1h" });
+  return jwt.sign({ id: 14, email: "kabelo@npn.co.za", role: "teamMember", department: "Engineering", position: "Software Engineer" }, "test-secret", { expiresIn: "1h" });
 }
 
 export function getJamesToken(): string {
   const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: "user-20", email: "james@npn.co.za", role: "approver", department: "Engineering", position: "Line Manager" }, "test-secret", { expiresIn: "1h" });
+  return jwt.sign({ id: 12, email: "james@npn.co.za", role: "approver", department: "Engineering", position: "Line Manager" }, "test-secret", { expiresIn: "1h" });
+}
+
+/** Resolve the internal numeric key for a public GHE- declaration id. */
+export async function pkFor(publicId: string): Promise<bigint> {
+  const { PrismaClient } = await import("@prisma/client");
+  const db = new PrismaClient();
+  try {
+    const row = await db.declaration.findUnique({ where: { id: publicId }, select: { declarationPk: true } });
+    if (!row) throw new Error(`declaration not found: ${publicId}`);
+    return row.declarationPk;
+  } finally {
+    await db.$disconnect();
+  }
 }

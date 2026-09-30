@@ -34,7 +34,7 @@ export type ApprovalDecision =
   | null;
 
 export interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
   passwordHash?: string;
@@ -43,20 +43,20 @@ export interface User {
   department: string;
   position: string;
   lineManager: string | null;
-  organizationId?: string;
+  organizationId?: number | null;
 }
 
 export interface Declaration {
   id: string;
   employee: string;
-  employeeId: string;
+  employeeId: number | null;
   department: string;
   type: string;
   counterparty: string;
   value: number;
   submitted: string;
   approver: string;
-  approverId?: string;
+  approverId?: number | null;
   status: StatusType;
   priority: "High" | "Medium" | "Low";
   description: string;
@@ -77,21 +77,21 @@ export interface Declaration {
   team?: string;
   substantiation?: string;
   files?: UploadedFile[];
-  organizationId?: string;
+  organizationId?: number | null;
   workflowSteps?: WorkflowStep[];
 }
 
 export interface WorkflowStep {
   order: number;
   role: "lineManager" | "hr";
-  assignee: string;
+  assignee: number | null;
   assigneeName: string;
   label: string;
   status: "pending" | "approved" | "declined" | "returned";
   decision: ApprovalDecision;
   notes: string;
   decidedAt: string | null;
-  decidedById: string | null;
+  decidedById: number | null;
   decidedByName: string | null;
 }
 
@@ -101,7 +101,7 @@ export interface WorkflowInstance {
 }
 
 export interface WorkflowRule {
-  id: string;
+  id: number;
   name: string;
   condition: string;
   priority: number;
@@ -138,6 +138,7 @@ export interface Dropdowns {
 }
 
 export interface UploadedFile {
+  id: number;
   name: string;
   size: number;
   type: string;

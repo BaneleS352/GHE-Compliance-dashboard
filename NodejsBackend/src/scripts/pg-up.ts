@@ -1,34 +1,25 @@
 /**
  * Local PostgreSQL bring-up (`npm run db:pg:up`).
  *
- * You changed `.env` DATABASE_URL to Postgres and want to run the server:
- * this script performs every step the Docker entrypoint performs, adapted
- * for a local checkout. Steps (fail-fast, like production):
+ * PostgreSQL is the only supported provider. Point `.env` DATABASE_URL at a
+ * PostgreSQL database and run this script: it performs every step the Docker
+ * entrypoint performs, adapted for a local checkout. Steps (fail-fast, like
+ * production):
  *
- *   1. Guard: DATABASE_URL must be a postgres(ql) URL (never SQLite here).
- *   2. Swap prisma/schema.prisma provider sqlite -> postgresql (in place;
- *      left swapped so `npm run dev` keeps working — see restore note below).
- *   3. Regenerate the Prisma client for PostgreSQL.
- *   4. `prisma migrate deploy` (0000_baseline -> 0005_phase5_retirement).
- *      On failure nothing is retried and no `db push` fallback runs; an
- *      existing pre-migration database needs the one-time BASELINE.md
- *      resolve procedure instead.
- *   5. Seed ONLY if the database is empty (0 users); never overwrites.
- *      (Phase 5: no backfill/verify step exists — the normalized schema is
- *      written directly; see prisma/RETIREMENT.md.)
+ *   1. Guard: DATABASE_URL must be a postgres(ql) URL.
+ *   2. Regenerate the Prisma client.
+ *   3. `prisma migrate deploy` (0000_baseline -> 0006_numeric_keys).
+ *      On failure nothing is retried; an existing pre-migration database
+ *      needs the one-time BASELINE.md resolve procedure instead.
+ *   4. Seed ONLY if the database is empty (0 users); never overwrites.
  *
- * Afterwards run `npm run dev`. To go back to SQLite:
- *   git checkout -- prisma/schema.prisma && npm run db:generate
+ * Afterwards run `npm run dev`. To start over with a clean database, drop
+ * and recreate the PostgreSQL database, then re-run this script.
  */
 import "dotenv/config";
 import { execFileSync, spawnSync } from "child_process";
-import fs from "fs";
-import path from "path";
 
 const ROOT = process.cwd();
-const SCHEMA = path.join(ROOT, "prisma", "schema.prisma");
-const MARKER = 'provider = "sqlite"';
-const PG_MARKER = 'provider = "postgresql"';
 
 function mask(url: string): string {
   return url.replace(/:[^:@/]+@/, ":***@");
@@ -81,26 +72,15 @@ async function main() {
     console.error(
       "db:pg:up requires DATABASE_URL to be a PostgreSQL URL " +
         `(got ${url ? mask(url) : "(unset)"}).\n` +
-        "This script never touches SQLite databases — local SQLite dev/test " +
-        "needs no setup step beyond `npm install`.",
+        "SQLite is no longer supported — set DATABASE_URL to PostgreSQL (see docs/SETUP.md).",
     );
     process.exit(2);
   }
   console.log(`Target: ${mask(url)}`);
 
   const env = { ...process.env, DATABASE_URL: url };
-  const schema = fs.readFileSync(SCHEMA, "utf8");
-  if (schema.includes(MARKER)) {
-    fs.writeFileSync(SCHEMA, schema.replace(MARKER, PG_MARKER));
-    console.log("--- provider swapped to postgresql (left in place for `npm run dev`) ---");
-  } else if (!schema.includes(PG_MARKER)) {
-    console.error("Refusing to run: prisma/schema.prisma has an unexpected provider line.");
-    process.exit(2);
-  } else {
-    console.log("--- provider already postgresql ---");
-  }
 
-  console.log("--- prisma generate (postgresql) ---");
+  console.log("--- prisma generate ---");
   prismaCmd(["generate"], env, "Run `npm install` and retry.");
 
   console.log("--- prisma migrate deploy ---");
@@ -115,7 +95,6 @@ async function main() {
   tsxScript("src/scripts/seed-if-empty.ts", env, "Fix the seed error and re-run.");
 
   console.log("\nPostgreSQL bring-up complete. Run the server with `npm run dev`.");
-  console.log("To return to SQLite: git checkout -- prisma/schema.prisma && npm run db:generate");
 }
 
 main().catch((e) => {

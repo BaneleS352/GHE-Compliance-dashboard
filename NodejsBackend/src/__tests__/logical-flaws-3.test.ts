@@ -10,30 +10,30 @@ const app = buildApp();
 // Earlier integrity tests intentionally delete users. Re-establish the users
 // needed by this file so the suite is order-independent when run as a whole.
 beforeEach(async () => {
-  const existing = await prisma.user.findUnique({ where: { id: "user-hr" } });
+  const existing = await prisma.user.findUnique({ where: { id: 3n } });
   await prisma.user.upsert({
-    where: { id: "user-hr" },
+    where: { id: 3n },
     update: { name: "Lindiwe HR", role: "approver", department: "HR", position: "Head of HR", lineManager: null },
-    create: { id: "user-hr", name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: existing?.passwordHash || "test", role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: null },
+    create: { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: existing?.passwordHash || "test", role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: null },
   });
   await prisma.user.upsert({
-    where: { id: "user-approver" },
+    where: { id: 2n },
     update: { name: "Sipho Approver", role: "approver", department: "Marketing", position: "Line Manager", lineManager: null },
-    create: { id: "user-approver", name: "Sipho Approver", email: "sipho@test.com", passwordHash: existing?.passwordHash || "test", role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: null },
+    create: { id: 2n, name: "Sipho Approver", email: "sipho@test.com", passwordHash: existing?.passwordHash || "test", role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: null },
   });
   await prisma.workflowRule.upsert({
-    where: { id: "rule-2" },
+    where: { id: 2n },
     update: { name: "High Value", condition: "high", priority: 2 },
-    create: { id: "rule-2", name: "High Value", condition: "high", priority: 2 },
+    create: { id: 2n, name: "High Value", condition: "high", priority: 2 },
   });
   await (prisma as any).workflowRuleStep.upsert({
-    where: { ruleId_order: { ruleId: "rule-2", order: 1 } },
-    create: { ruleId: "rule-2", order: 1, role: "lineManager", label: "Line Manager Review" },
+    where: { ruleId_order: { ruleId: 2n, order: 1 } },
+    create: { ruleId: 2n, order: 1, role: "lineManager", label: "Line Manager Review" },
     update: { role: "lineManager", label: "Line Manager Review" },
   });
   await (prisma as any).workflowRuleStep.upsert({
-    where: { ruleId_order: { ruleId: "rule-2", order: 2 } },
-    create: { ruleId: "rule-2", order: 2, role: "hr", label: "HR Review" },
+    where: { ruleId_order: { ruleId: 2n, order: 2 } },
+    create: { ruleId: 2n, order: 2, role: "hr", label: "HR Review" },
     update: { role: "hr", label: "HR Review" },
   });
   await prisma.systemConfig.update({ where: { id: "default" }, data: { highValueThreshold: 1000, mediumValueThreshold: 1000 } });
@@ -41,7 +41,7 @@ beforeEach(async () => {
 
 const BASE = {
   employee: "Nomvula Team",
-  employeeId: "user-team",
+  employeeId: 4,
   teamMemberNumber: "TM-001",
   lineManager: "Sipho Approver",
   position: "Brand Manager",
@@ -188,8 +188,8 @@ describe("Admin workflow rules correspond to submission steps", () => {
       .get("/api/admin/workflows/rules")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
-    const rule1 = res.body.find((r: any) => r.id === "rule-1");
-    const rule2 = res.body.find((r: any) => r.id === "rule-2");
+    const rule1 = res.body.find((r: any) => r.id === 1);
+    const rule2 = res.body.find((r: any) => r.id === 2);
     expect(rule1).toBeDefined();
     expect(rule2).toBeDefined();
     expect(rule1.steps).toHaveLength(1);
@@ -389,9 +389,9 @@ describe("PUT ignores non-whitelisted fields", () => {
     const edit = await request(app)
       .put(`/api/declarations/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ employeeId: "user-admin" });
+      .send({ employeeId: 1 });
     expect(edit.status).toBe(200);
-    expect(edit.body.employeeId).toBe("user-team");
+    expect(edit.body.employeeId).toBe(4);
   });
 });
 
@@ -400,7 +400,7 @@ describe("Declaration with null optional fields", () => {
   it("POST /api/declarations — missing optional fields stored as null", async () => {
     const minimal = {
       employee: "Nomvula Team",
-      employeeId: "user-team",
+      employeeId: 4,
       teamMemberNumber: "TM-001",
       lineManager: "Sipho Approver",
       position: "Brand Manager",
@@ -503,7 +503,7 @@ describe("Submit with null lineManager", () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ ...BASE, employeeId: "user-admin", counterparty: "NullLM", value: 1500 });
+      .send({ ...BASE, employeeId: 1, counterparty: "NullLM", value: 1500 });
     expect(create.status).toBe(201);
     const id = create.body.id;
 
@@ -519,7 +519,7 @@ describe("Submit with null lineManager", () => {
     expect(inst.body.steps[0].status).toBe("skipped");
     expect(inst.body.steps[0].role).toBe("lineManager");
     expect(inst.body.steps[1].role).toBe("hr");
-    expect(inst.body.steps[1].assignee).toBe("user-hr");
+    expect(inst.body.steps[1].assignee).toBe(3);
   });
 });
 
@@ -527,13 +527,13 @@ describe("Submit with null lineManager", () => {
 describe("Delete workflow rule in use", () => {
   afterAll(async () => {
     await prisma.workflowRule.upsert({
-      where: { id: "rule-1" },
+      where: { id: 1n },
       update: { name: "Low Value", condition: "low", priority: 1 },
-      create: { id: "rule-1", name: "Low Value", condition: "low", priority: 1 },
+      create: { id: 1n, name: "Low Value", condition: "low", priority: 1 },
     });
     await (prisma as any).workflowRuleStep.upsert({
-      where: { ruleId_order: { ruleId: "rule-1", order: 1 } },
-      create: { ruleId: "rule-1", order: 1, role: "lineManager", label: "Line Manager Review" },
+      where: { ruleId_order: { ruleId: 1n, order: 1 } },
+      create: { ruleId: 1n, order: 1, role: "lineManager", label: "Line Manager Review" },
       update: { role: "lineManager", label: "Line Manager Review" },
     });
     await prisma.$disconnect();
@@ -541,7 +541,7 @@ describe("Delete workflow rule in use", () => {
 
   it("DELETE /api/admin/workflows/rules/:id — deleting a rule breaks new submissions relying on it", async () => {
     const del = await request(app)
-      .delete("/api/admin/workflows/rules/rule-1")
+      .delete("/api/admin/workflows/rules/1")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(del.status).toBe(200);
 
@@ -693,7 +693,7 @@ describe("Upload file with non-owned declarationId", () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ ...BASE, employeeId: "user-approver", counterparty: "OtherFileTest" });
+      .send({ ...BASE, employeeId: 2, counterparty: "OtherFileTest" });
     expect(create.status).toBe(201);
     const id = create.body.id;
 
@@ -735,13 +735,13 @@ afterAll(async () => {
     create: { id: "default", highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "Test {{ApproverName}}", notificationTemplates: "{}" },
   });
   await prisma.workflowRule.upsert({
-    where: { id: "rule-1" },
+    where: { id: 1n },
     update: { name: "Low Value", condition: "low", priority: 1 },
-    create: { id: "rule-1", name: "Low Value", condition: "low", priority: 1 },
+    create: { id: 1n, name: "Low Value", condition: "low", priority: 1 },
   });
   await (prisma as any).workflowRuleStep.upsert({
-    where: { ruleId_order: { ruleId: "rule-1", order: 1 } },
-    create: { ruleId: "rule-1", order: 1, role: "lineManager", label: "Line Manager Review" },
+    where: { ruleId_order: { ruleId: 1n, order: 1 } },
+    create: { ruleId: 1n, order: 1, role: "lineManager", label: "Line Manager Review" },
     update: { role: "lineManager", label: "Line Manager Review" },
   });
   await prisma.$disconnect();

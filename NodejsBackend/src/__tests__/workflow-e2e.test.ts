@@ -6,7 +6,7 @@ const app = buildApp();
 
 function createDeclarationPayload(overrides: Record<string, unknown> = {}) {
   return {
-    employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+    employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
     lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
     type: "Gift", counterparty: "E2ETest", value: 1000,
     submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",

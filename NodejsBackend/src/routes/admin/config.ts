@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
 import { asyncHandler } from "../../middleware/asyncHandler";
+import { parseIdParam, toJsonId } from "../../services/ids";
 
 const router = Router();
 
@@ -91,8 +92,13 @@ const DOMAIN_DROPDOWNS = {
   partyTypes: ["Supplier", "Customer", "Team Member"],
 };
 router.get("/dropdowns", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const orgId = (req.query as any)?.organizationId as string | undefined;
-  const deptWhere: any = orgId ? { organizationId: orgId } : {};
+  const orgRaw = (req.query as any)?.organizationId as string | undefined;
+  const orgPk = orgRaw !== undefined ? parseIdParam(orgRaw) : undefined;
+  if (orgRaw !== undefined && orgPk === null) {
+    res.status(400).json({ error: "Invalid organizationId" });
+    return;
+  }
+  const deptWhere: any = orgPk !== undefined ? { organizationId: orgPk } : {};
   const departments = await (prisma as any).department.findMany({
     where: deptWhere,
     select: { name: true },
@@ -101,7 +107,7 @@ router.get("/dropdowns", authenticate, asyncHandler(async (req: AuthRequest, res
   let names = departments.map((d: any) => d.name);
   if (names.length === 0) {
     // Fallback to user departments when the master table is not seeded yet.
-    const users = await prisma.user.findMany({ where: orgId ? { organizationId: orgId } : {}, select: { department: true } });
+    const users = await prisma.user.findMany({ where: orgPk !== undefined ? { organizationId: orgPk } : {}, select: { department: true } });
     names = Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort() as string[];
   }
   res.json({ departments: names, ...DOMAIN_DROPDOWNS });
@@ -174,7 +180,7 @@ const orgSchema = z.object({
 // GET /api/admin/config/organizations
 router.get("/organizations", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const orgs = await prisma.organization.findMany({ orderBy: { name: "asc" } });
-  res.json(orgs.map((o) => ({ id: o.id, name: o.name, shortCode: o.shortCode })));
+  res.json(orgs.map((o) => ({ id: toJsonId(o.id), name: o.name, shortCode: o.shortCode })));
 }));
 
 // POST /api/admin/config/organizations
@@ -191,12 +197,16 @@ router.post("/organizations", authenticate, authorize("admin"), asyncHandler(asy
     return;
   }
   const org = await prisma.organization.create({ data: { name, shortCode } });
-  res.status(201).json({ id: org.id, name: org.name, shortCode: org.shortCode });
+  res.status(201).json({ id: toJsonId(org.id), name: org.name, shortCode: org.shortCode });
 }));
 
 // PUT /api/admin/config/organizations/:id
 router.put("/organizations/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = req.params.id as string;
+  const id = parseIdParam(req.params.id);
+  if (id === null) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
   const parsed = orgSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request" });
@@ -214,12 +224,16 @@ router.put("/organizations/:id", authenticate, authorize("admin"), asyncHandler(
     return;
   }
   const org = await prisma.organization.update({ where: { id }, data: { name, shortCode } });
-  res.json({ id: org.id, name: org.name, shortCode: org.shortCode });
+  res.json({ id: toJsonId(org.id), name: org.name, shortCode: org.shortCode });
 }));
 
 // DELETE /api/admin/config/organizations/:id
 router.delete("/organizations/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = req.params.id as string;
+  const id = parseIdParam(req.params.id);
+  if (id === null) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
   const existing = await prisma.organization.findUnique({ where: { id }, include: { users: true, declarations: true } });
   if (!existing) {
     res.status(404).json({ error: "Organization not found" });
@@ -235,13 +249,17 @@ router.delete("/organizations/:id", authenticate, authorize("admin"), asyncHandl
 
 // GET /api/admin/config/organizations/:id
 router.get("/organizations/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = req.params.id as string;
+  const id = parseIdParam(req.params.id);
+  if (id === null) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
   const org = await prisma.organization.findUnique({ where: { id } });
   if (!org) {
     res.status(404).json({ error: "Organization not found" });
     return;
   }
-  res.json({ id: org.id, name: org.name, shortCode: org.shortCode });
+  res.json({ id: toJsonId(org.id), name: org.name, shortCode: org.shortCode });
 }));
 
 export default router;

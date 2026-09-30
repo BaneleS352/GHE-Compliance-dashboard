@@ -11,13 +11,13 @@ const app = buildApp();
 const prisma = new PrismaClient();
 const uploadDir = path.resolve(process.cwd(), "uploads");
 let declarationId: string;
-const createdFileIds: string[] = [];
+const createdFileIds: bigint[] = [];
 
 describe("File and report export contracts", () => {
   beforeAll(async () => {
     // Uploads require a Draft/Returned declaration — pick a draft (earlier
     // suites may have submitted the first user-team declaration).
-    const draft = await prisma.declaration.findFirst({ where: { declarerUserId: "user-team", status: "Draft" } });
+    const draft = await prisma.declaration.findFirst({ where: { declarerUserId: 4n, status: "Draft" } });
     if (draft) {
       declarationId = draft.id;
       return;
@@ -26,7 +26,7 @@ describe("File and report export contracts", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "FileContractTest", value: 10, submitted: "2026-07-03",
         approver: "Sipho Approver", priority: "Low", description: "file contract",
@@ -71,7 +71,8 @@ describe("File and report export contracts", () => {
 
   it("returns 404 when the database record exists but the disk file is missing", async () => {
     const file = await prisma.uploadedFile.create({ data: { originalName: "gone.txt", mimeType: "text/plain", size: 1, path: "definitely-missing.txt" } });
-    await (prisma as any).declarationFile.create({ data: { declarationId, fileId: file.id } });
+    const gonePk = (await prisma.declaration.findUnique({ where: { id: declarationId }, select: { declarationPk: true } }))!.declarationPk;
+    await (prisma as any).declarationFile.create({ data: { declarationPk: gonePk, fileId: file.id } });
     createdFileIds.push(file.id);
     const response = await request(app).get(`/api/files/${file.id}`).set("Authorization", `Bearer ${getTeamToken()}`);
     expect(response.status).toBe(404);
@@ -83,7 +84,8 @@ describe("File and report export contracts", () => {
     const diskName = "header-test.txt";
     await fs.writeFile(path.join(uploadDir, diskName), "x");
     const file = await prisma.uploadedFile.create({ data: { originalName: fileName, mimeType: "text/plain", size: 1, path: diskName } });
-    await (prisma as any).declarationFile.create({ data: { declarationId, fileId: file.id } });
+    const crlfPk = (await prisma.declaration.findUnique({ where: { id: declarationId }, select: { declarationPk: true } }))!.declarationPk;
+    await (prisma as any).declarationFile.create({ data: { declarationPk: crlfPk, fileId: file.id } });
     createdFileIds.push(file.id);
     const response = await request(app).get(`/api/files/${file.id}`).set("Authorization", `Bearer ${getTeamToken()}`);
     expect(response.status).toBe(200);

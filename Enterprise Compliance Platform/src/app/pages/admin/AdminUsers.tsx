@@ -22,7 +22,7 @@ export function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState("All Roles");
   const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [organizations, setOrganizations] = useState<{ id: string; name: string; shortCode: string }[]>([]);
+  const [organizations, setOrganizations] = useState<{ id: number; name: string; shortCode: string }[]>([]);
 
   useEffect(() => {
     fetchUsers().then(setUsers).catch((err: Error) => setError(err.message));
@@ -39,7 +39,7 @@ export function AdminUsers() {
         (u) =>
           u.name.toLowerCase().includes(q) ||
           u.email.toLowerCase().includes(q) ||
-          u.id.toLowerCase().includes(q)
+          String(u.id).toLowerCase().includes(q)
       );
     }
     if (roleFilter !== "All Roles") {

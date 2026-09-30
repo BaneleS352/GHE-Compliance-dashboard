@@ -58,7 +58,7 @@ describe("Workflows", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "ReturnTest", value: 1000,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
@@ -101,7 +101,7 @@ describe("Workflows", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "DeclineTest", value: 1000,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
@@ -129,7 +129,7 @@ describe("Workflows", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "ReturnTest", value: 1000,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
@@ -157,7 +157,7 @@ describe("Workflows", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "AcceptTest", value: 1000,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
@@ -187,7 +187,7 @@ describe("Workflows", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "ProgLow", value: 100,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Low",
@@ -226,7 +226,7 @@ describe("Workflows", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "ProgMed", value: 1500,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
@@ -287,7 +287,7 @@ describe("Workflows", () => {
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
       .send({
-        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "ProgHigh", value: 3000,
         submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "High",

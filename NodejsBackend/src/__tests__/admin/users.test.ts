@@ -33,7 +33,7 @@ describe("Admin Users", () => {
 
   it("GET /api/admin/users/:id — returns single user", async () => {
     const res = await request(app)
-      .get("/api/admin/users/user-admin")
+      .get("/api/admin/users/1")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
     expect(res.body.email).toBe("admin@test.com");
@@ -45,7 +45,7 @@ describe("Admin Users", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ name: "New User", email: "new@test.com", role: "teamMember", department: "IT" });
     expect(res.status).toBe(201);
-    expect(res.body.id).toMatch(/^USR-/);
+    expect(typeof res.body.id).toBe("number");
     expect(res.body.email).toBe("new@test.com");
   });
 
@@ -59,7 +59,7 @@ describe("Admin Users", () => {
 
   it("PUT /api/admin/users/:id — updates user", async () => {
     const res = await request(app)
-      .put("/api/admin/users/user-team")
+      .put("/api/admin/users/4")
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ name: "Updated Name", department: "Finance" });
     expect(res.status).toBe(200);
@@ -85,7 +85,7 @@ describe("Admin Users", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`);
     if (admins.body.length === 1) {
       const res = await request(app)
-        .delete("/api/admin/users/user-admin")
+        .delete("/api/admin/users/1")
         .set("Authorization", `Bearer ${getAdminToken()}`);
       expect(res.status).toBe(400);
       expect(res.body.error).toContain("last admin");

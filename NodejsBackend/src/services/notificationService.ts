@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import { toDbId } from "./ids";
 
 export type NotificationEvent = "managerApproval" | "hrApproval" | "declarationReturned" | "declarationDeclined" | "declarationApproved";
 
@@ -15,11 +16,11 @@ function render(value: string, data: Record<string, string>): string {
 }
 
 /** Sends through the configured email webhook. With no webhook configured, logs a safe dev-mode message. */
-export async function sendNotification(event: NotificationEvent, declarationId: string, recipientId: string, decision = ""): Promise<void> {
+export async function sendNotification(event: NotificationEvent, declarationId: string, recipientId: number | bigint, decision = ""): Promise<void> {
   try {
     const [declaration, recipient, config] = await Promise.all([
       prisma.declaration.findUnique({ where: { id: declarationId }, include: { snapshot: true, declarer: { select: { name: true } } } }),
-      prisma.user.findUnique({ where: { id: recipientId }, select: { name: true, email: true } }),
+      prisma.user.findUnique({ where: { id: toDbId(recipientId) }, select: { name: true, email: true } }),
       prisma.systemConfig.findFirst(),
     ]);
     if (!declaration || !recipient?.email) return;

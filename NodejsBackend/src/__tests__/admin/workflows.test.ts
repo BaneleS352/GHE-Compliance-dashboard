@@ -13,7 +13,7 @@ describe("Admin Workflow Rules", () => {
     // Order-independent: other suites manage their own rules; the two seed
     // rules must always be present with row-backed step arrays.
     expect(res.body.length).toBeGreaterThanOrEqual(2);
-    const rule1 = res.body.find((r: any) => r.id === "rule-1");
+    const rule1 = res.body.find((r: any) => r.id === 1);
     expect(rule1).toBeDefined();
     expect(rule1.steps).toBeInstanceOf(Array);
     expect(res.body[0].steps).toBeDefined();
@@ -62,8 +62,8 @@ describe("Admin Workflow Rules", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(list2.body.find((r: any) => r.id === owned.id)).toBeUndefined();
     // Shared seed rules are untouched.
-    expect(list2.body.find((r: any) => r.id === "rule-1")).toBeDefined();
-    expect(list2.body.find((r: any) => r.id === "rule-2")).toBeDefined();
+    expect(list2.body.find((r: any) => r.id === 1)).toBeDefined();
+    expect(list2.body.find((r: any) => r.id === 2)).toBeDefined();
   });
 
   it("Workflow rules — non-admin gets 403", async () => {

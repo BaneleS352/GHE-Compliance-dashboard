@@ -162,11 +162,6 @@ export function isApprovalDecision(decision: string): boolean {
 }
 
 // ─── Shared helpers for route response formatting ──────────────────────────────
-export function safeJsonParse(val: string | null | undefined): any {
-  if (!val) return null;
-  try { return JSON.parse(val); } catch { return null; }
-}
-
 function toISODate(d: Date | string | null | undefined): string {
   if (!d) return "";
   try {

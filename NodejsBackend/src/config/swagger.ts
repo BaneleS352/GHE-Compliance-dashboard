@@ -31,7 +31,7 @@ const options: swaggerJsdoc.Options = {
         User: {
           type: "object",
           properties: {
-            id: { type: "string" }, name: { type: "string" }, email: { type: "string" },
+            id: { type: "integer", format: "int64", description: "Numeric user key (JSON number)" }, name: { type: "string" }, email: { type: "string" },
             role: { type: "string", enum: ["admin", "approver", "teamMember"] },
             teamMemberNumber: { type: "string" }, department: { type: "string" },
             position: { type: "string" }, lineManager: { type: "string", nullable: true },
@@ -41,7 +41,7 @@ const options: swaggerJsdoc.Options = {
           type: "object",
           required: ["employee", "employeeId", "department", "type", "counterparty", "value", "status"],
           properties: {
-            employee: { type: "string" }, employeeId: { type: "string" },
+            employee: { type: "string" }, employeeId: { type: "integer", format: "int64", description: "Numeric declarer key" },
             teamMemberNumber: { type: "string" }, lineManager: { type: "string" },
             position: { type: "string" }, department: { type: "string" },
             company: { type: "string" }, team: { type: "string" },
@@ -67,7 +67,7 @@ const options: swaggerJsdoc.Options = {
         WorkflowStep: {
           type: "object",
           properties: {
-            order: { type: "integer" }, role: { type: "string" }, assignee: { type: "string" },
+            order: { type: "integer" }, role: { type: "string" }, assignee: { type: "integer", format: "int64", nullable: true },
             assigneeName: { type: "string" }, label: { type: "string" },
             status: { type: "string", enum: ["pending", "approved", "declined", "returned"] },
             decision: { type: "string", nullable: true }, notes: { type: "string" },
@@ -113,7 +113,7 @@ const options: swaggerJsdoc.Options = {
         WorkflowRule: {
           type: "object",
           properties: {
-            id: { type: "string" }, name: { type: "string" }, condition: { type: "string" },
+            id: { type: "integer", format: "int64" }, name: { type: "string" }, condition: { type: "string" },
             priority: { type: "integer" }, steps: { type: "array", items: { type: "object" }, description: "Step definitions (relational rows)" },
           },
         },

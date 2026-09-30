@@ -103,17 +103,17 @@ export async function fetchUsers(search?: string, role?: string): Promise<any[]>
   return api.get<any[]>(`/api/admin/users${qs ? `?${qs}` : ""}`);
 }
 
-export async function fetchUserById(id: string): Promise<any> {
+export async function fetchUserById(id: number): Promise<any> {
   return api.get<any>(`/api/users/${id}`);
 }
 
-export async function fetchManagers(organizationId?: string): Promise<any[]> {
-  const qs = organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : "";
+export async function fetchManagers(organizationId?: number): Promise<any[]> {
+  const qs = organizationId !== undefined ? `?organizationId=${encodeURIComponent(organizationId)}` : "";
   return api.get<any[]>(`/api/users/managers${qs}`);
 }
 
-export async function fetchDepartments(organizationId?: string): Promise<string[]> {
-  const qs = organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : "";
+export async function fetchDepartments(organizationId?: number): Promise<string[]> {
+  const qs = organizationId !== undefined ? `?organizationId=${encodeURIComponent(organizationId)}` : "";
   return api.get<string[]>(`/api/users/departments${qs}`);
 }
 
@@ -121,11 +121,11 @@ export async function createUser(data: any): Promise<any> {
   return api.post<any>("/api/admin/users", data);
 }
 
-export async function updateUser(id: string, data: any): Promise<any> {
+export async function updateUser(id: number, data: any): Promise<any> {
   return api.put<any>(`/api/admin/users/${id}`, data);
 }
 
-export async function deleteUser(id: string): Promise<any> {
+export async function deleteUser(id: number): Promise<any> {
   return api.del<any>(`/api/admin/users/${id}`);
 }
 
@@ -161,11 +161,11 @@ export async function createWorkflowRule(data: any): Promise<any> {
   return api.post<any>("/api/admin/workflows/rules", data);
 }
 
-export async function updateWorkflowRule(id: string, data: any): Promise<any> {
+export async function updateWorkflowRule(id: number, data: any): Promise<any> {
   return api.put<any>(`/api/admin/workflows/rules/${id}`, data);
 }
 
-export async function deleteWorkflowRule(id: string): Promise<any> {
+export async function deleteWorkflowRule(id: number): Promise<any> {
   return api.del<any>(`/api/admin/workflows/rules/${id}`);
 }
 
@@ -226,23 +226,23 @@ export async function deleteApprovalOption(id: string): Promise<any> {
 }
 
 // ── Organizations ─────────────────────────────────────
-export async function fetchOrganizations(): Promise<{ id: string; name: string; shortCode: string }[]> {
-  return api.get<{ id: string; name: string; shortCode: string }[]>("/api/users/organizations");
+export async function fetchOrganizations(): Promise<{ id: number; name: string; shortCode: string }[]> {
+  return api.get<{ id: number; name: string; shortCode: string }[]>("/api/users/organizations");
 }
 
-export async function fetchAdminOrganizations(): Promise<{ id: string; name: string; shortCode: string }[]> {
-  return api.get<{ id: string; name: string; shortCode: string }[]>("/api/admin/config/organizations");
+export async function fetchAdminOrganizations(): Promise<{ id: number; name: string; shortCode: string }[]> {
+  return api.get<{ id: number; name: string; shortCode: string }[]>("/api/admin/config/organizations");
 }
 
 export async function createOrganization(data: { name: string; shortCode: string }): Promise<any> {
   return api.post<any>("/api/admin/config/organizations", data);
 }
 
-export async function updateOrganization(id: string, data: { name: string; shortCode: string }): Promise<any> {
+export async function updateOrganization(id: number, data: { name: string; shortCode: string }): Promise<any> {
   return api.put<any>(`/api/admin/config/organizations/${id}`, data);
 }
 
-export async function deleteOrganization(id: string): Promise<any> {
+export async function deleteOrganization(id: number): Promise<any> {
   return api.del<any>(`/api/admin/config/organizations/${id}`);
 }
 

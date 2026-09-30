@@ -4,24 +4,18 @@
  * Requires TEST_PG_DATABASE_URL pointing at a dedicated, disposable
  * PostgreSQL database (CI provides a `postgres:16` service).
  *
- * Flow (additive only, local workflow restored afterwards):
- *   1. Back up prisma/schema.prisma and swap provider sqlite -> postgresql.
- *   2. Regenerate the Prisma client for PostgreSQL.
- *   3. `prisma migrate deploy` against TEST_PG_DATABASE_URL (validates every
- *      migration, including baseline + normalization + rule FK + counterparty
- *      uniqueness + monthly view + Phase 5 retirement).
- *   4. Run pg-integration-checks.ts with DATABASE_URL=TEST_PG_DATABASE_URL
- *      (normalized fixture, all 7 scoped views, FK enforcement).
- *   5. Restore schema.prisma and regenerate the SQLite client, even on failure.
+ * Flow:
+ *   1. Regenerate the Prisma client.
+ *   2. `prisma migrate deploy` against TEST_PG_DATABASE_URL (validates the
+ *      full chain: baseline + normalization + rule FK + counterparty
+ *      uniqueness + monthly view + Phase 5 retirement + numeric keys).
+ *   3. Run pg-integration-checks.ts with DATABASE_URL=TEST_PG_DATABASE_URL
+ *      (numeric-key assertions, normalized fixtures, all 7 scoped views, FK
+ *      enforcement and delete rules, counterparty identity policy).
  */
 import { execSync, spawnSync } from "child_process";
-import fs from "fs";
-import path from "path";
 
 const ROOT = process.cwd();
-const SCHEMA = path.join(ROOT, "prisma", "schema.prisma");
-const MARKER = 'provider = "sqlite"';
-const PG_MARKER = 'provider = "postgresql"';
 
 function sh(cmd: string, env: NodeJS.ProcessEnv) {
   execSync(cmd, { cwd: ROOT, env, stdio: "inherit" });
@@ -33,38 +27,21 @@ async function main() {
     console.error("pg:test requires TEST_PG_DATABASE_URL (dedicated PostgreSQL database). Skipping.");
     process.exit(2);
   }
-  const original = fs.readFileSync(SCHEMA, "utf8");
-  if (!original.includes(MARKER)) {
-    console.error("Refusing to run: prisma/schema.prisma does not contain the expected sqlite provider marker.");
-    process.exit(2);
-  }
   const pgEnv = { ...process.env, DATABASE_URL: pgUrl };
-  try {
-    fs.writeFileSync(SCHEMA, original.replace(MARKER, PG_MARKER));
-    console.log("--- prisma generate (postgresql) ---");
-    sh("npx prisma generate", pgEnv);
-    console.log("--- prisma migrate deploy ---");
-    sh("npx prisma migrate deploy", pgEnv);
-    console.log("--- integration checks ---");
-    const res = spawnSync("npx", ["tsx", "src/scripts/pg-integration-checks.ts"], {
-      cwd: ROOT,
-      env: { ...pgEnv, DATABASE_URL: pgUrl },
-      stdio: "inherit",
-      shell: true,
-    });
-    if (res.status !== 0) {
-      console.error(`pg-integration-checks failed with status ${res.status}`);
-      process.exitCode = 1;
-    }
-  } finally {
-    fs.writeFileSync(SCHEMA, original);
-    console.log("--- restoring sqlite client ---");
-    try {
-      execSync("npx prisma generate", { cwd: ROOT, env: { ...process.env }, stdio: "inherit" });
-    } catch (e) {
-      console.error("WARNING: failed to regenerate the SQLite Prisma client; run `npx prisma generate` manually.");
-      process.exitCode = process.exitCode || 1;
-    }
+  console.log("--- prisma generate ---");
+  sh("npx prisma generate", pgEnv);
+  console.log("--- prisma migrate deploy ---");
+  sh("npx prisma migrate deploy", pgEnv);
+  console.log("--- integration checks ---");
+  const res = spawnSync("npx", ["tsx", "src/scripts/pg-integration-checks.ts"], {
+    cwd: ROOT,
+    env: { ...pgEnv, DATABASE_URL: pgUrl },
+    stdio: "inherit",
+    shell: true,
+  });
+  if (res.status !== 0) {
+    console.error(`pg-integration-checks failed with status ${res.status}`);
+    process.exitCode = 1;
   }
 }
 

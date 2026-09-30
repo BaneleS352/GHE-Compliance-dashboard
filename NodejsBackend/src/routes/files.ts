@@ -6,7 +6,8 @@ import crypto from "crypto";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { readWorkflowSteps } from "../services/normalization";
+import { readWorkflowSteps, getDeclarationPk } from "../services/normalization";
+import { parseIdParam, toDbId, toJsonId } from "../services/ids";
 
 const router = Router();
 
@@ -62,10 +63,10 @@ function handleMulterError(err: Error, _req: AuthRequest, res: Response, next: N
 }
 
 /** Step-row assignee check (rows are the only workflow state). */
-async function isWorkflowAssignee(declarationId: string, userId: string): Promise<boolean> {
-  const steps = await readWorkflowSteps(declarationId);
+async function isWorkflowAssignee(declarationPk: bigint, userPkJson: number): Promise<boolean> {
+  const steps = await readWorkflowSteps(declarationPk);
   if (!steps) return false;
-  return steps.some((s: any) => s.assignee === userId);
+  return steps.some((s: any) => s.assignee === userPkJson);
 }
 
 /**
@@ -79,10 +80,10 @@ export function containedUploadPath(storedPath: string): string | null {
   return null;
 }
 
-/** Resolve the owning declaration id via the DeclarationFile join (the only association). */
-async function declarationIdForFile(fileId: string): Promise<string | null> {
-  const link = await (prisma as any).declarationFile.findUnique({ where: { fileId } });
-  return link ? link.declarationId : null;
+/** Resolve the owning declaration key via the DeclarationFile join (the only association). */
+async function declarationPkForFile(filePk: bigint): Promise<bigint | null> {
+  const link = await (prisma as any).declarationFile.findUnique({ where: { fileId: filePk } });
+  return link ? (link.declarationPk as bigint) : null;
 }
 
 // POST /api/files/upload
@@ -118,13 +119,19 @@ router.post(
       return;
     }
 
-    const decl = await prisma.declaration.findUnique({ where: { id: declarationId } });
+    const pk = await getDeclarationPk(String(declarationId));
+    if (!pk) {
+      await cleanupFile();
+      res.status(400).json({ error: "Declaration not found" });
+      return;
+    }
+    const decl = await prisma.declaration.findUnique({ where: { declarationPk: pk } });
     if (!decl) {
       await cleanupFile();
       res.status(400).json({ error: "Declaration not found" });
       return;
     }
-    if (req.user!.role !== "admin" && decl.declarerUserId !== req.user!.id) {
+    if (req.user!.role !== "admin" && decl.declarerUserId !== toDbId(req.user!.id)) {
       await cleanupFile();
       res.status(403).json({ error: "Cannot upload to another user's declaration" });
       return;
@@ -149,17 +156,17 @@ router.post(
         },
       });
       await (tx as any).declarationFile.create({
-        data: { declarationId, fileId: created.id },
+        data: { declarationPk: pk, fileId: created.id },
       });
       return created;
     });
 
     res.status(201).json({
-      id: file.id,
+      id: toJsonId(file.id),
       name: file.originalName,
       size: file.size,
       type: file.mimeType,
-      url: `/api/files/${file.id}`,
+      url: `/api/files/${toJsonId(file.id)}`,
       uploadedAt: file.uploadedAt,
     });
   })
@@ -167,8 +174,12 @@ router.post(
 
 // GET /api/files/:id
 router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = req.params.id as string;
-  const file = await prisma.uploadedFile.findUnique({ where: { id } });
+  const filePk = parseIdParam(req.params.id);
+  if (filePk === null) {
+    res.status(404).json({ error: "File not found" });
+    return;
+  }
+  const file = await prisma.uploadedFile.findUnique({ where: { id: filePk } });
   if (!file) {
     res.status(404).json({ error: "File not found" });
     return;
@@ -176,17 +187,18 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
   // Ownership scoping — require admin or owner/assignee via the join row.
   // Files without a join row are orphaned and only admins can access them.
+  const userPkJson = toJsonId(req.user!.id);
   if (req.user!.role !== "admin") {
-    const declId = await declarationIdForFile(id);
-    if (!declId) {
+    const declPk = await declarationPkForFile(filePk);
+    if (declPk === null) {
       res.status(403).json({ error: "Access denied" });
       return;
     }
-    const decl = await prisma.declaration.findUnique({ where: { id: declId } });
-    if (!decl || decl.declarerUserId !== req.user!.id) {
+    const decl = await prisma.declaration.findUnique({ where: { declarationPk: declPk } });
+    if (!decl || decl.declarerUserId !== toDbId(req.user!.id)) {
       let isApprover = false;
       if (decl) {
-        isApprover = await isWorkflowAssignee(decl.id, req.user!.id);
+        isApprover = await isWorkflowAssignee(decl.declarationPk, userPkJson);
       }
       if (!isApprover) {
         res.status(403).json({ error: "Access denied" });
@@ -211,25 +223,30 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
 // DELETE /api/files/:id
 router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const id = req.params.id as string;
-  const file = await prisma.uploadedFile.findUnique({ where: { id } });
+  const filePk = parseIdParam(req.params.id);
+  if (filePk === null) {
+    res.status(404).json({ error: "File not found" });
+    return;
+  }
+  const file = await prisma.uploadedFile.findUnique({ where: { id: filePk } });
   if (!file) {
     res.status(404).json({ error: "File not found" });
     return;
   }
 
   // Ownership scoping — same as GET
+  const userPkJson = toJsonId(req.user!.id);
   if (req.user!.role !== "admin") {
-    const declId = await declarationIdForFile(id);
-    if (!declId) {
+    const declPk = await declarationPkForFile(filePk);
+    if (declPk === null) {
       res.status(403).json({ error: "Access denied" });
       return;
     }
-    const decl = await prisma.declaration.findUnique({ where: { id: declId } });
-    if (!decl || decl.declarerUserId !== req.user!.id) {
+    const decl = await prisma.declaration.findUnique({ where: { declarationPk: declPk } });
+    if (!decl || decl.declarerUserId !== toDbId(req.user!.id)) {
       let isApprover = false;
       if (decl) {
-        isApprover = await isWorkflowAssignee(decl.id, req.user!.id);
+        isApprover = await isWorkflowAssignee(decl.declarationPk, userPkJson);
       }
       if (!isApprover) {
         res.status(403).json({ error: "Access denied" });
@@ -248,8 +265,8 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     try { await fs.promises.unlink(filePath); } catch { /* file may have been deleted already */ }
   }
 
-  await (prisma as any).declarationFile.deleteMany({ where: { fileId: id } }).catch(() => undefined);
-  await prisma.uploadedFile.delete({ where: { id } });
+  await (prisma as any).declarationFile.deleteMany({ where: { fileId: filePk } }).catch(() => undefined);
+  await prisma.uploadedFile.delete({ where: { id: filePk } });
   res.json({ message: "File deleted" });
 }));
 

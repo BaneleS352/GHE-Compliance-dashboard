@@ -6,7 +6,7 @@ const app = buildApp();
 
 const BASE = {
   employee: "Nomvula Team",
-  employeeId: "user-team",
+  employeeId: 4,
   teamMemberNumber: "TM-001",
   lineManager: "Sipho Approver",
   position: "Brand Manager",
@@ -47,7 +47,7 @@ describe("Auth & token edge cases", () => {
   it("GET /api/declarations — expired token returns 401", async () => {
     const jwt = require("jsonwebtoken");
     const expired = jwt.sign(
-      { id: "user-team", email: "nomvula@test.com", role: "teamMember" },
+      { id: 4, email: "nomvula@test.com", role: "teamMember" },
       "test-secret",
       { expiresIn: "0s" }
     );
@@ -168,7 +168,7 @@ describe("Input validation & injection", () => {
     const res = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
-      .send({ ...BASE, employeeId: "user-approver", counterparty: "NotOwnEmp" });
+      .send({ ...BASE, employeeId: 2, counterparty: "NotOwnEmp" });
     expect(res.status).toBe(403);
   });
 
@@ -176,7 +176,7 @@ describe("Input validation & injection", () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ ...BASE, employeeId: "user-approver", counterparty: "OtherView" });
+      .send({ ...BASE, employeeId: 2, counterparty: "OtherView" });
     expect(create.status).toBe(201);
     const res = await request(app)
       .get(`/api/declarations/${create.body.id}`)
@@ -341,7 +341,7 @@ describe("Declaration CRUD limits", () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ ...BASE, employeeId: "user-approver", counterparty: "OtherDraftDel", value: 100 });
+      .send({ ...BASE, employeeId: 2, counterparty: "OtherDraftDel", value: 100 });
     expect(create.status).toBe(201);
     const res = await request(app)
       .delete(`/api/declarations/${create.body.id}`)
@@ -452,13 +452,13 @@ describe("Admin user operations integrity", () => {
     const { PrismaClient } = await import("@prisma/client");
     const db = new PrismaClient();
     try {
-      const extras = await db.user.findMany({ where: { role: "admin", NOT: { id: "user-admin" } }, select: { id: true } });
+      const extras = await db.user.findMany({ where: { role: "admin", NOT: { id: 1n } }, select: { id: true } });
       for (const e of extras) await db.user.delete({ where: { id: e.id } }).catch(() => undefined);
     } finally {
       await db.$disconnect();
     }
     const res = await request(app)
-      .delete("/api/admin/users/user-admin")
+      .delete("/api/admin/users/1")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/last admin/i);
@@ -466,7 +466,7 @@ describe("Admin user operations integrity", () => {
 
   it("PUT /api/admin/users/:id — changing email to existing email returns 409", async () => {
     const res = await request(app)
-      .put("/api/admin/users/user-team")
+      .put("/api/admin/users/4")
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ email: "sipho@test.com" });
     expect(res.status).toBe(409);
@@ -574,7 +574,7 @@ describe("Workflow pending query", () => {
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBeGreaterThanOrEqual(1);
     res.body.forEach((item: any) => {
-      expect(item.step.assignee).toBe("user-approver");
+      expect(item.step.assignee).toBe(2);
       expect(item.step.status).toBe("pending");
     });
   });

@@ -30,14 +30,21 @@ if not exist .env (
 )
 
 echo.
-echo [3/5] Setting up database...
+echo [3/5] Setting up database (PostgreSQL required)...
 
-:: Route by DATABASE_URL scheme: SQLite keeps the db-push flow, PostgreSQL
-:: uses versioned migrations + seed-if-empty (db:pg:up).
-:: Only uncommented DATABASE_URL lines match (^ anchors line start, so the
-:: commented example in .env.example is ignored).
+:: PostgreSQL is the only supported provider. DATABASE_URL must be a
+:: postgres(ql) URL (see .env.example). Only uncommented DATABASE_URL lines
+:: match (^ anchors line start, so the commented example in .env.example is
+:: ignored).
 findstr /R "^DATABASE_URL.*postgres" .env >nul
-if errorlevel 1 goto :sqlite_db
+if errorlevel 1 (
+    echo.
+    echo ERROR: DATABASE_URL must be a PostgreSQL URL.
+    echo Copy .env.example to .env and point DATABASE_URL at PostgreSQL,
+    echo e.g. via docker compose up -d db. SQLite is no longer supported.
+    pause
+    exit /b 1
+)
 
 echo   PostgreSQL detected - running versioned bring-up...
 call npx tsx src/scripts/pg-up.ts
@@ -46,51 +53,6 @@ if errorlevel 1 (
     echo ERROR: PostgreSQL bring-up failed. See output above.
     pause
     exit /b 1
-)
-goto :db_done
-
-:sqlite_db
-:: db:pg:up leaves schema.prisma on provider="postgresql" so `npm run dev`
-:: keeps working; a SQLite run needs it back on "sqlite". Refuse loudly
-:: rather than generating the wrong client.
-findstr /R "^provider.*postgresql" prisma\schema.prisma >nul
-if not errorlevel 1 (
-    echo.
-    echo ERROR: schema.prisma provider is still "postgresql" - left by db:pg:up.
-    echo Fix: git checkout -- prisma/schema.prisma
-    echo Then re-run dev.bat.
-    pause
-    exit /b 1
-)
-
-echo   SQLite detected - generating Prisma client...
-call npx prisma generate
-if errorlevel 1 (
-    echo.
-    echo ERROR: prisma generate failed.
-    pause
-    exit /b 1
-)
-
-echo.
-echo Pushing Prisma schema...
-
-call npx prisma db push --accept-data-loss
-if errorlevel 1 (
-    echo.
-    echo ERROR: prisma db push failed.
-    echo Check DATABASE_URL in .env.
-    pause
-    exit /b 1
-)
-
-echo.
-echo Seeding database...
-
-call npx tsx src/seed.ts
-if errorlevel 1 (
-    echo.
-    echo WARNING: Database seed failed.
 )
 
 :db_done

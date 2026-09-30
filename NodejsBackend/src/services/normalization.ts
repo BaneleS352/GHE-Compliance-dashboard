@@ -282,3 +282,19 @@ export async function readWorkflowSteps(declarationPk: bigint | number): Promise
   if (!rows || rows.length === 0) return null;
   return rows.map((r: any) => rowToStep(r));
 }
+
+/** Restart every BIGINT identity sequence past existing rows (call after explicit-id seeds so later autoincrement inserts never collide). PostgreSQL-only. */
+export async function resetIdentitySequences(db: any = prisma): Promise<void> {
+  const tables: [string, string][] = [
+    ["Organization", "id"], ["User", "id"], ["Department", "id"], ["Team", "id"],
+    ["Counterparty", "id"], ["CounterpartyContact", "id"], ["UploadedFile", "id"],
+    ["WorkflowRule", "id"], ["WorkflowRuleStep", "id"], ["DeclarationFile", "id"],
+    ["WorkflowInstanceStep", "id"], ["DeclarationSnapshot", "id"], ["DeclarationDetail", "id"],
+    ["Declaration", "declarationPk"], ["WorkflowInstance", "id"],
+  ];
+  for (const [table, col] of tables) {
+    await db.$executeRawUnsafe(
+      `SELECT setval(pg_get_serial_sequence('"${table}"', '${col}'), COALESCE((SELECT MAX("${col}") FROM "${table}"), 0))`,
+    );
+  }
+}

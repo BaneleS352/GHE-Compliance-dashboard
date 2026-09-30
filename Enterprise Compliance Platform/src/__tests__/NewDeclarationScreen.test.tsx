@@ -10,11 +10,11 @@ const mockConfig = {
 
 vi.mock("../services/api", () => ({
   fetchConfig: vi.fn(() => Promise.resolve(mockConfig)),
-  fetchUserById: vi.fn(() => Promise.resolve({ id: "user-3", name: "Sipho Nkosi" })),
+  fetchUserById: vi.fn(() => Promise.resolve({ id: 3, name: "Sipho Nkosi" })),
   fetchManagers: vi.fn(() => Promise.resolve([])),
   fetchDepartments: vi.fn(() => Promise.resolve(["Marketing", "Sales", "Finance"])),
   fetchDropdowns: vi.fn(() => Promise.resolve({ departments: [] })),
-  fetchOrganizations: vi.fn(() => Promise.resolve([{ id: "org-1", name: "Hollywoodbets Group", shortCode: "HB" }])),
+  fetchOrganizations: vi.fn(() => Promise.resolve([{ id: 1, name: "Hollywoodbets Group", shortCode: "HB" }])),
   createDeclaration: vi.fn(),
   submitDeclaration: vi.fn(),
   updateDeclaration: vi.fn(),
@@ -34,9 +34,9 @@ vi.mock("../app/components/Sel", () => ({
 
 vi.mock("../app/auth/UserContext", () => ({
   useUser: () => ({
-    user: { id: "user-1", name: "Test User", email: "test@hb.co.za", role: "teamMember" as const,
+    user: { id: 1, name: "Test User", email: "test@hb.co.za", role: "teamMember" as const,
             teamMemberNumber: "HB-10001", department: "Marketing", position: "Brand Manager",
-            lineManager: "user-3" },
+            lineManager: "Sipho Nkosi" },
   }),
 }));
 
@@ -117,7 +117,7 @@ describe("NewDeclarationScreen", () => {
 
   it("calls createDeclaration + submitDeclaration on valid submit", async () => {
     vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
-    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: "file-1", name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/file-1" } as any);
+    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: 1, name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/1" } as any);
     vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
     vi.mocked(submitDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Pending", approver: "Sipho Nkosi" } as any);
 
@@ -142,7 +142,7 @@ describe("NewDeclarationScreen", () => {
 
   it("calls createDeclaration on Save Draft", async () => {
     vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
-    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: "file-1", name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/file-1" } as any);
+    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: 1, name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/1" } as any);
     vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
 
     const onDraftSaved = vi.fn();
@@ -161,7 +161,7 @@ describe("NewDeclarationScreen", () => {
 
   it("saves partially filled form as draft (J2.2)", async () => {
     vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
-    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: "file-1", name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/file-1" } as any);
+    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: 1, name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/1" } as any);
     vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
 
     const onDraftSaved = vi.fn();
@@ -183,7 +183,7 @@ describe("NewDeclarationScreen", () => {
 
   it("saves draft with file upload (J2.3)", async () => {
     vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
-    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: "file-1", name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/file-1" } as any);
+    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: 1, name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/1" } as any);
     vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
 
     const onDraftSaved = vi.fn();
@@ -248,7 +248,7 @@ describe("NewDeclarationScreen", () => {
 
   it("submits with receivedGiven=Given and includes correct values (J1.5)", async () => {
     vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
-    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: "file-1", name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/file-1" } as any);
+    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: 1, name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/1" } as any);
     vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
     vi.mocked(submitDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Pending", approver: "Sipho Nkosi" } as any);
 

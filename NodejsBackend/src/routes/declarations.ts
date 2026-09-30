@@ -16,6 +16,7 @@ import {
   writeWorkflowStepsTx,
   readWorkflowSteps,
 } from "../services/normalization";
+import { toDbId, toJsonId } from "../services/ids";
 import { sendNotification } from "../services/notificationService";
 import { containedUploadPath } from "./files";
 import {
@@ -36,6 +37,11 @@ function generateDeclarationId(): string {
 function sanitize(val: string): string {
   return xss(val, { whiteList: {}, stripIgnoreTag: true });
 }
+
+// Identifiers arrive as JSON numbers (see services/ids.ts). Accept numeric
+// strings defensively (query/form edge cases); legacy text ids have no
+// mapping and are rejected by toDbId.
+const numericId = z.union([z.number().int(), z.string().regex(/^\d+$/)], { errorMap: () => ({ message: "Expected a numeric identifier" }) });
 
 /**
  * Line-Manager department scoping for direct-ID routes. The list endpoint
@@ -61,9 +67,9 @@ function denyCrossDepartmentLM(req: AuthRequest, res: Response, snapshotDepartme
 const VALID_STATUSES = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"] as const;
 
 router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const orgId = (req.user as any)?.organizationId as string | undefined;
+  const orgId = (req.user as any)?.organizationId as number | undefined;
   const orgWhere: any = {};
-  if (orgId) orgWhere.organizationId = orgId;
+  if (orgId !== undefined && orgId !== null) orgWhere.organizationId = orgId;
 
   // Agreed dashboard read models come from the scoped reporting views.
   // The direct aggregation below is the fallback for databases where the
@@ -71,9 +77,9 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
   // Number() — raw driver values (e.g. BigInt counts) must never reach res.json.
   try {
     const [statusRows, monthlyRows, typeRows] = await Promise.all([
-      viewStatusSummaryFull(orgId),
-      viewMonthly(orgId),
-      viewTypeBreakdown(orgId),
+      viewStatusSummaryFull(orgId ?? undefined),
+      viewMonthly(orgId ?? undefined),
+      viewTypeBreakdown(orgId ?? undefined),
     ]);
     if (statusRows && monthlyRows && typeRows) {
       // Unscoped queries return one row per (organisation, status/month/type)
@@ -152,9 +158,11 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
   const where: any = {};
   if (status && (VALID_STATUSES as readonly string[]).includes(status)) where.status = status;
   // Org isolation — scope all queries by caller's org if present
-  if ((req.user as any)?.organizationId) where.organizationId = (req.user as any).organizationId;
+  if ((req.user as any)?.organizationId !== undefined && (req.user as any)?.organizationId !== null) {
+    where.organizationId = (req.user as any).organizationId;
+  }
   if (req.user!.role === "teamMember") {
-    where.declarerUserId = req.user!.id;
+    where.declarerUserId = toDbId(req.user!.id);
   } else if (req.user!.role === "approver" && req.user!.department && req.user!.position === "Line Manager") {
     where.snapshot = { department: req.user!.department };
   }
@@ -190,7 +198,7 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
 
 const createSchema = z.object({
   employee: z.string().min(1),
-  employeeId: z.string().min(1),
+  employeeId: numericId,
   teamMemberNumber: z.string(),
   lineManager: z.string(),
   position: z.string(),
@@ -202,7 +210,7 @@ const createSchema = z.object({
   value: z.number().nonnegative(),
   submitted: z.string(),
   approver: z.string().optional(),
-  approverId: z.string().optional(),
+  approverId: numericId.optional(),
   // No `status` key: the server owns it ("Draft" on create). Accepting it
   // would silently discard a client-supplied Pending and mislead callers.
   priority: z.string(),
@@ -219,15 +227,10 @@ const createSchema = z.object({
   publicOfficial: z.string(),
   substantiation: z.string().optional(),
   files: z.any().optional(),
-  organizationId: z.string().optional(),
+  organizationId: numericId.optional(),
 });
 
 router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  if (req.user!.role === "teamMember" && req.body.employeeId !== req.user!.id) {
-    res.status(403).json({ error: "Cannot create declaration for another user" });
-    return;
-  }
-
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request" });
@@ -235,6 +238,12 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   }
 
   const data = parsed.data;
+  const employeePk = toDbId(data.employeeId);
+  const callerPk = toDbId(req.user!.id);
+  if (req.user!.role === "teamMember" && employeePk !== callerPk) {
+    res.status(403).json({ error: "Cannot create declaration for another user" });
+    return;
+  }
   // Enforce maximum value from SystemConfig (dynamic, not hard-coded)
   const sysCfg = await prisma.systemConfig.findFirst();
   const maxVal = (sysCfg as any)?.maximumValue ?? 1000000;
@@ -252,19 +261,21 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   }
 
   // Derive organizationId server-side — prefer user's org, fallback to client value for admin
-  let orgId: string | null = null;
-  const userOrgId = (req.user as any)?.organizationId as string | undefined;
-  if (userOrgId) {
+  let orgId: bigint | null = null;
+  const userOrgId = (req.user as any)?.organizationId as number | undefined;
+  const bodyOrg = (data as any).organizationId !== undefined ? toDbId((data as any).organizationId) : null;
+  if (userOrgId !== undefined && userOrgId !== null) {
+    const userOrgPk = toDbId(userOrgId);
     // Non-admin must stay in own org
-    if (data.organizationId && data.organizationId !== userOrgId && req.user!.role !== "admin") {
+    if (bodyOrg !== null && bodyOrg !== userOrgPk && req.user!.role !== "admin") {
       res.status(403).json({ error: "Cannot create declaration for another organization" });
       return;
     }
-    orgId = data.organizationId && req.user!.role === "admin" ? data.organizationId : userOrgId;
+    orgId = bodyOrg !== null && req.user!.role === "admin" ? bodyOrg : userOrgPk;
   } else {
-    orgId = data.organizationId || null;
+    orgId = bodyOrg;
   }
-  if (orgId) {
+  if (orgId !== null) {
     const orgExists = await prisma.organization.findUnique({ where: { id: orgId } });
     if (!orgExists) {
       res.status(400).json({ error: "Invalid organizationId" });
@@ -281,23 +292,23 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   // No lookup is needed when the declarer/approver is the authenticated
   // caller: `authenticate` already verified that user against the database.
   const [declarerRow, approverRow] = await Promise.all([
-    data.employeeId === req.user!.id
-      ? Promise.resolve({ id: req.user!.id, name: req.user!.name } as any)
-      : prisma.user.findUnique({ where: { id: data.employeeId }, select: { id: true, name: true } }),
-    data.approverId
-      ? data.approverId === req.user!.id
-        ? Promise.resolve({ id: req.user!.id })
-        : prisma.user.findUnique({ where: { id: data.approverId }, select: { id: true } })
+    employeePk === callerPk
+      ? Promise.resolve({ id: callerPk, name: req.user!.name } as any)
+      : prisma.user.findUnique({ where: { id: employeePk }, select: { id: true, name: true } }),
+    data.approverId !== undefined
+      ? toDbId(data.approverId) === callerPk
+        ? Promise.resolve({ id: callerPk })
+        : prisma.user.findUnique({ where: { id: toDbId(data.approverId) }, select: { id: true } })
       : Promise.resolve(null),
   ]);
-  const declarerUserId: string | null = declarerRow?.id || null;
-  const txApproverUserId: string | null = approverRow?.id || null;
+  const declarerUserId: bigint | null = declarerRow?.id || null;
+  const txApproverUserId: bigint | null = approverRow?.id || null;
 
   // Single transaction: lean declaration row, canonical DateTime columns and
   // links, immutable snapshot, detail rows, and the counterparty identity
   // (resolved inside the transaction so a failed create never leaves an
   // unused counterparty row behind).
-  const declarationId = await prisma.$transaction(async (tx) => {
+  const declarationPk = await prisma.$transaction(async (tx) => {
     const cp = sanitizedCounterparty
       ? await ensureCounterparty(sanitizedCounterparty, orgId, data.contactPerson ? sanitize(data.contactPerson) : null, tx)
       : null;
@@ -317,7 +328,7 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
       },
     });
     await captureDeclarationSnapshot(
-      id,
+      created.declarationPk,
       {
         name: sanitize(data.employee),
         teamMemberNumber: sanitize(data.teamMemberNumber),
@@ -328,7 +339,7 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
       tx,
       true,
     );
-    await syncDeclarationDetail(id, {
+    await syncDeclarationDetail(created.declarationPk, {
       description: sanitize(data.description),
       occasion: sanitize(data.occasion),
       relationship: sanitize(data.relationship),
@@ -341,10 +352,10 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
       publicOfficial: sanitize(data.publicOfficial),
       substantiation: data.substantiation ? sanitize(data.substantiation) : null,
     }, tx, true);
-    return created.id;
+    return created.declarationPk;
   });
 
-  const declaration = await prisma.declaration.findUnique({ where: { id: declarationId }, include: declarationIncludes as any });
+  const declaration = await prisma.declaration.findUnique({ where: { declarationPk }, include: declarationIncludes as any });
   res.status(201).json(declarationResponse(declaration));
 }));
 
@@ -356,18 +367,18 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     return;
   }
 
-  if (req.user!.role === "teamMember" && declaration.declarerUserId !== req.user!.id) {
+  if (req.user!.role === "teamMember" && declaration.declarerUserId !== toDbId(req.user!.id)) {
     res.status(403).json({ error: "Cannot view another user's declaration" });
     return;
   }
-  const userOrgIdGet = (req.user as any)?.organizationId as string | undefined;
-  if (declaration.organizationId && userOrgIdGet && declaration.organizationId !== userOrgIdGet && req.user!.role !== "admin") {
+  const userOrgIdGet = (req.user as any)?.organizationId as number | undefined;
+  if (declaration.organizationId !== null && userOrgIdGet !== undefined && userOrgIdGet !== null && declaration.organizationId !== toDbId(userOrgIdGet) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot view declaration from another organization" });
     return;
   }
   if (denyCrossDepartmentLM(req, res, declaration.snapshot?.department)) return;
 
-  const rawSteps = (await readWorkflowSteps(declaration.id)) || [];
+  const rawSteps = (await readWorkflowSteps(declaration.declarationPk)) || [];
 
   const workflowSteps = req.user!.role === "admin" || req.user!.role === "approver"
     ? rawSteps
@@ -396,12 +407,12 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     return;
   }
   // Org isolation
-  const userOrgIdPut = (req.user as any)?.organizationId as string | undefined;
-  if (existing.organizationId && userOrgIdPut && existing.organizationId !== userOrgIdPut && req.user!.role !== "admin") {
+  const userOrgIdPut = (req.user as any)?.organizationId as number | undefined;
+  if (existing.organizationId !== null && userOrgIdPut !== undefined && userOrgIdPut !== null && existing.organizationId !== toDbId(userOrgIdPut) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot edit declaration from another organization" });
     return;
   }
-  if (existing.declarerUserId !== req.user!.id && req.user!.role !== "admin") {
+  if (existing.declarerUserId !== toDbId(req.user!.id) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot edit another user's declaration" });
     return;
   }
@@ -423,12 +434,13 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     }
   }
   // Prevent org spoof on update — non-admin cannot change org
-  if ((data as any).organizationId && userOrgIdPut && (data as any).organizationId !== userOrgIdPut && req.user!.role !== "admin") {
+  const bodyOrgPut = (data as any).organizationId !== undefined ? toDbId((data as any).organizationId) : undefined;
+  if (bodyOrgPut !== undefined && userOrgIdPut !== undefined && userOrgIdPut !== null && bodyOrgPut !== toDbId(userOrgIdPut) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot move declaration to another organization" });
     return;
   }
-  if ((data as any).organizationId) {
-    const orgExists = await prisma.organization.findUnique({ where: { id: (data as any).organizationId } });
+  if (bodyOrgPut !== undefined) {
+    const orgExists = await prisma.organization.findUnique({ where: { id: bodyOrgPut } });
     if (!orgExists) {
       res.status(400).json({ error: "Invalid organizationId" });
       return;
@@ -445,7 +457,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   if (data.type !== undefined) updateData.type = sanitize(data.type);
   if (data.value !== undefined) updateData.value = data.value;
   if (data.priority !== undefined) updateData.priority = sanitize(data.priority);
-  if ((data as any).organizationId !== undefined) updateData.organizationId = (data as any).organizationId;
+  if (bodyOrgPut !== undefined) updateData.organizationId = bodyOrgPut;
   if (data.date !== undefined) updateData.eventDate = parseDateSafe(data.date);
   if (data.submitted !== undefined) updateData.submittedAt = parseDateSafe(data.submitted);
 
@@ -460,37 +472,35 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   // Resolve relational links before the transaction (pure reads).
   // When approverId is reassigned the approver display name moves with it —
   // otherwise the detail view shows the previous manager's name with the new id.
-  let putCounterpartyId: string | null | undefined;
+  let putCounterpartyId: bigint | null | undefined;
   if (data.counterparty !== undefined) {
     if (data.counterparty) {
       const contactText = (data.contactPerson as string | undefined) ?? existing.detail?.contactPerson ?? null;
-      const cp = await ensureCounterparty(sanitize(data.counterparty), ((data as any).organizationId as string | undefined) ?? existing.organizationId, contactText ? sanitize(contactText) : null);
+      const cp = await ensureCounterparty(sanitize(data.counterparty), (bodyOrgPut as bigint | undefined) ?? existing.organizationId, contactText ? sanitize(contactText) : null);
       putCounterpartyId = cp?.id || null;
     } else {
       putCounterpartyId = null;
     }
   }
-  let putApproverUser: string | null | undefined;
+  let putApproverUser: bigint | null | undefined;
   if (data.approverId !== undefined) {
-    if (data.approverId) {
-      const putAu = await prisma.user.findUnique({ where: { id: data.approverId }, select: { id: true } });
-      putApproverUser = putAu ? putAu.id : null;
-    } else {
-      putApproverUser = null;
-    }
+    const approverPk = toDbId(data.approverId);
+    const putAu = await prisma.user.findUnique({ where: { id: approverPk }, select: { id: true } });
+    putApproverUser = putAu ? putAu.id : null;
   }
 
   // Single transaction: lean row, links, pre-submit snapshot manager, detail.
+  const pk = existing.declarationPk as bigint;
   await prisma.$transaction(async (tx) => {
     const txData: any = { ...updateData };
     if (putCounterpartyId !== undefined) txData.counterpartyId = putCounterpartyId;
     if (putApproverUser !== undefined) txData.currentApproverUserId = putApproverUser;
-    await tx.declaration.update({ where: { id }, data: txData });
+    await tx.declaration.update({ where: { declarationPk: pk }, data: txData });
     if (data.lineManager !== undefined) {
       await tx.declarationSnapshot.upsert({
-        where: { declarationId: id },
+        where: { declarationPk: pk },
         create: {
-          declarationId: id,
+          declarationPk: pk,
           declarerName: existing.snapshot?.declarerName || "",
           employeeNumber: existing.snapshot?.employeeNumber || "",
           positionTitle: existing.snapshot?.positionTitle || "",
@@ -501,7 +511,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
       });
     }
     if (Object.keys(detailPatch).length > 0) {
-      const current = await tx.declarationDetail.findUnique({ where: { declarationId: id } });
+      const current = await tx.declarationDetail.findUnique({ where: { declarationPk: pk } });
       const base = {
         description: current?.description ?? "",
         occasion: current?.occasion ?? "",
@@ -519,19 +529,19 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
       for (const [k, v] of Object.entries(detailPatch)) {
         (base as any)[aliasMap[k] || k] = v;
       }
-      await tx.declarationDetail.upsert({ where: { declarationId: id }, create: { declarationId: id, ...base }, update: base });
+      await tx.declarationDetail.upsert({ where: { declarationPk: pk }, create: { declarationPk: pk, ...base }, update: base });
     }
   });
 
-  const updated = await prisma.declaration.findUnique({ where: { id }, include: declarationIncludes as any });
+  const updated = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes as any });
 
   // Refresh the workflow immediately when a returned declaration's value
   // changes, so the detail view reflects newly required approvers before submit.
   if (existing.status === "Returned" && data.value !== undefined && data.value !== existing.value) {
-    const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
+    const instance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
     if (instance) {
-      const savedSteps = (await readWorkflowSteps(id)) || [];
-      const freshSteps = await createWorkflowSteps(id, existing.declarerUserId!, (updated as any).value);
+      const savedSteps = (await readWorkflowSteps(pk)) || [];
+      const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId!, (updated as any).value);
       const approvedMap = new Map(savedSteps.filter((s: any) => s.status === "approved").map((s: any) => [s.role, s]));
       const workflowSteps = freshSteps.map((step: any) => {
         const approved = approvedMap.get(step.role);
@@ -540,7 +550,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
           : step;
       });
       await prisma.$transaction(async (tx) => {
-        await writeWorkflowStepsTx(tx, id, workflowSteps);
+        await writeWorkflowStepsTx(tx, pk, workflowSteps);
       });
     }
   }
@@ -559,36 +569,37 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     res.status(400).json({ error: "Only draft declarations can be deleted" });
     return;
   }
-  const userOrgIdDel = (req.user as any)?.organizationId as string | undefined;
-  if (existing.organizationId && userOrgIdDel && existing.organizationId !== userOrgIdDel && req.user!.role !== "admin") {
+  const userOrgIdDel = (req.user as any)?.organizationId as number | undefined;
+  if (existing.organizationId !== null && userOrgIdDel !== undefined && userOrgIdDel !== null && existing.organizationId !== toDbId(userOrgIdDel) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot delete declaration from another organization" });
     return;
   }
-  if (existing.declarerUserId !== req.user!.id && req.user!.role !== "admin") {
+  if (existing.declarerUserId !== toDbId(req.user!.id) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot delete another user's declaration" });
     return;
   }
   if (denyCrossDepartmentLM(req, res, existing.snapshot?.department)) return;
 
   // Delete disk files via the join rows (the only file association).
-  const links = await (prisma as any).declarationFile.findMany({ where: { declarationId: id }, include: { file: true } });
+  const pk = existing.declarationPk as bigint;
+  const links = await (prisma as any).declarationFile.findMany({ where: { declarationPk: pk }, include: { file: true } });
   await Promise.all(links.map(async (l: any) => {
     const fp = containedUploadPath(l.file.path);
     if (!fp) return;
     try { await fs.promises.unlink(fp); } catch { /* file may have been deleted already */ }
   }));
   const fileIds = links.map((l: any) => l.fileId);
-  await (prisma as any).declarationFile.deleteMany({ where: { declarationId: id } });
+  await (prisma as any).declarationFile.deleteMany({ where: { declarationPk: pk } });
   if (fileIds.length > 0) {
     await prisma.uploadedFile.deleteMany({ where: { id: { in: fileIds } } });
   }
   await Promise.all([
-    prisma.workflowInstance.deleteMany({ where: { declarationId: id } }),
-    (prisma as any).workflowInstanceStep.deleteMany({ where: { declarationId: id } }).catch(() => undefined),
-    (prisma as any).declarationSnapshot.deleteMany({ where: { declarationId: id } }).catch(() => undefined),
-    (prisma as any).declarationDetail.deleteMany({ where: { declarationId: id } }).catch(() => undefined),
+    prisma.workflowInstance.deleteMany({ where: { declarationPk: pk } }),
+    (prisma as any).workflowInstanceStep.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined),
+    (prisma as any).declarationSnapshot.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined),
+    (prisma as any).declarationDetail.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined),
   ]);
-  await prisma.declaration.delete({ where: { id } });
+  await prisma.declaration.delete({ where: { declarationPk: pk } });
 
   res.json({ message: "Declaration deleted" });
 }));
@@ -604,27 +615,28 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     res.status(400).json({ error: "Only drafts or returned declarations can be submitted" });
     return;
   }
-  const userOrgIdSub = (req.user as any)?.organizationId as string | undefined;
-  if (existing.organizationId && userOrgIdSub && existing.organizationId !== userOrgIdSub && req.user!.role !== "admin") {
+  const userOrgIdSub = (req.user as any)?.organizationId as number | undefined;
+  if (existing.organizationId !== null && userOrgIdSub !== undefined && userOrgIdSub !== null && existing.organizationId !== toDbId(userOrgIdSub) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot submit declaration from another organization" });
     return;
   }
-  if (existing.declarerUserId !== req.user!.id && req.user!.role !== "admin") {
+  if (existing.declarerUserId !== toDbId(req.user!.id) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot submit another user's declaration" });
     return;
   }
   if (denyCrossDepartmentLM(req, res, existing.snapshot?.department)) return;
 
-  const existingInstance = await prisma.workflowInstance.findUnique({ where: { declarationId: existing.id } });
+  const pk = existing.declarationPk as bigint;
+  const existingInstance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
 
   let workflowSteps: any[];
   if (existing.status === "Returned" && existingInstance) {
-    const savedSteps = (await readWorkflowSteps(existing.id)) || [];
+    const savedSteps = (await readWorkflowSteps(pk)) || [];
     const hasReturnedStep = savedSteps.some((step) => step.status === "returned");
     if (hasReturnedStep) {
       // Rebuild from the current value so a returned low-value declaration that
       // becomes high-value gains the HR step on resubmission.
-      const freshSteps = await createWorkflowSteps(existing.id, existing.declarerUserId!, existing.value);
+      const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId!, existing.value);
       // Preserve approvals only for roles present in the newly selected rule.
       const approvedMap = new Map(savedSteps.filter((s: any) => s.status === "approved").map((s: any) => [s.role, s]));
       workflowSteps = freshSteps.map((fs: any) => {
@@ -634,23 +646,23 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
           : fs;
       });
     } else {
-      workflowSteps = await createWorkflowSteps(existing.id, existing.declarerUserId!, existing.value);
+      workflowSteps = await createWorkflowSteps(pk, existing.declarerUserId!, existing.value);
     }
   } else {
-    workflowSteps = await createWorkflowSteps(existing.id, existing.declarerUserId!, existing.value);
+    workflowSteps = await createWorkflowSteps(pk, existing.declarerUserId!, existing.value);
   }
 
   const nextApprover = workflowSteps.find((step) => step.status === "pending");
   // NOTE: when every step is skipped (e.g. an LM-only rule with no
   // resolvable line manager) there is no actionable approver and the
   // declaration sits in Pending until an admin intervenes.
-  const approverIdValue = nextApprover ? nextApprover.assignee : existing.currentApproverUserId;
+  const approverIdValue = nextApprover ? nextApprover.assignee : (existing.currentApproverUserId === null ? null : toJsonId(existing.currentApproverUserId));
 
   // User-link existence is resolved before the transaction (pure reads, so the
   // transaction holds the write lock for the shortest possible time).
-  let submitApproverUser: string | null = null;
-  if (approverIdValue) {
-    const submitAu = await prisma.user.findUnique({ where: { id: approverIdValue }, select: { id: true } });
+  let submitApproverUser: bigint | null = null;
+  if (approverIdValue !== null) {
+    const submitAu = await prisma.user.findUnique({ where: { id: toDbId(approverIdValue) }, select: { id: true } });
     if (submitAu) submitApproverUser = submitAu.id;
   }
 
@@ -659,15 +671,15 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
   const ruleId = await resolveRuleId(existing.value);
   await prisma.$transaction(async (tx) => {
     await tx.declaration.update({
-      where: { id: existing.id },
+      where: { declarationPk: pk },
       data: {
         status: "Pending",
         currentApproverUserId: submitApproverUser,
       },
     });
-    await writeWorkflowStepsTx(tx, existing.id, workflowSteps, ruleId);
+    await writeWorkflowStepsTx(tx, pk, workflowSteps, ruleId);
     await captureDeclarationSnapshot(
-      existing.id,
+      pk,
       {
         name: existing.snapshot?.declarerName || "",
         teamMemberNumber: existing.snapshot?.employeeNumber || "",
@@ -677,11 +689,11 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
       existing.snapshot?.managerDisplayName || null,
       tx,
     );
-    const det = await tx.declarationDetail.findUnique({ where: { declarationId: existing.id } });
+    const det = await tx.declarationDetail.findUnique({ where: { declarationPk: pk } });
     if (!det) {
       await tx.declarationDetail.create({
         data: {
-          declarationId: existing.id,
+          declarationPk: pk,
           description: "",
           occasion: "",
           relationship: "",
@@ -696,9 +708,9 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     }
   });
 
-  const updated = await prisma.declaration.findUnique({ where: { id }, include: declarationIncludes as any });
+  const updated = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes as any });
   res.json(declarationResponse(updated));
-  if (nextApprover) {
+  if (nextApprover && nextApprover.assignee !== null) {
     void sendNotification(nextApprover.role === "hr" ? "hrApproval" : "managerApproval", existing.id, nextApprover.assignee);
   }
 }));
@@ -722,14 +734,15 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
     res.status(404).json({ error: "Declaration not found" });
     return;
   }
+  const pk = existing.declarationPk;
 
   if (status === "Approved" || status === "Declined") {
-    const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
+    const instance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
     if (!instance) {
       res.status(400).json({ error: "Cannot approve/decline a declaration with no workflow instance" });
       return;
     }
-    const steps: any[] = (await readWorkflowSteps(id)) || [];
+    const steps: any[] = (await readWorkflowSteps(pk)) || [];
     const pendingStep = steps.find((s: any) => s.status === "pending");
     if (pendingStep) {
       res.status(400).json({ error: "Cannot approve/decline — pending approval step still exists" });
@@ -744,12 +757,12 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
     }
   }
 
-  const updated = await prisma.declaration.update({
-    where: { id },
+  await prisma.declaration.update({
+    where: { declarationPk: pk },
     data: { status },
   });
 
-  const enriched = await prisma.declaration.findUnique({ where: { id }, include: declarationIncludes as any });
+  const enriched = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes as any });
   res.json(declarationResponse(enriched));
 }));
 

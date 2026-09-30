@@ -8,7 +8,7 @@ import { fetchWorkflowInstance, approveWorkflowStep, fetchConfig, fetchDeclarati
 
 function makeDeclaration(overrides: Record<string, unknown> = {}) {
   return {
-    id: "GHE-2026-E2E-1", employee: "Nomvula", employeeId: "user-team",
+    id: "GHE-2026-E2E-1", employee: "Nomvula", employeeId: 4,
     teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager",
     department: "Marketing", type: "Gift", counterparty: "E2ECorp", value: 500,
     submitted: "2026-07-15", approver: "Sipho Approver", status: "Pending" as const,
@@ -21,14 +21,14 @@ function makeDeclaration(overrides: Record<string, unknown> = {}) {
 }
 
 function makeWorkflow(stepsOverrides: Array<Partial<{
-  order: number; role: "lineManager" | "hr"; assignee: string;
+  order: number; role: "lineManager" | "hr"; assignee: number | null;
   assigneeName: string; label: string; status: "pending" | "approved" | "declined" | "returned";
   decision: string | null; notes: string; decidedAt: string | null;
 }>> = []) {
   const defaultSteps = [
-    { order: 1, role: "lineManager" as const, assignee: "user-lm", assigneeName: "Sipho Approver",
+    { order: 1, role: "lineManager" as const, assignee: 2, assigneeName: "Sipho Approver",
       label: "Line Manager Review", status: "pending" as const, decision: null, notes: "", decidedAt: null },
-    { order: 2, role: "hr" as const, assignee: "user-hr", assigneeName: "Lindiwe HR",
+    { order: 2, role: "hr" as const, assignee: 3, assigneeName: "Lindiwe HR",
       label: "HR Review", status: "pending" as const, decision: null, notes: "", decidedAt: null },
   ];
   const merged = defaultSteps.map((s, i) => ({ ...s, ...stepsOverrides[i] }));
@@ -68,11 +68,11 @@ vi.mock("../services/api", () => ({
 
 function setRole(role: "approver" | "teamMember" | "admin") {
   const users: Record<string, Record<string, unknown>> = {
-    approver: { id: "user-lm", name: "Sipho Approver", email: "sipho@test.com", role: "approver",
-      teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: "user-approver" },
-    teamMember: { id: "user-team", name: "Nomvula Team", email: "nomvula@test.com", role: "teamMember",
-      teamMemberNumber: "TM-001", department: "Marketing", position: "Brand Manager", lineManager: "user-lm" },
-    admin: { id: "user-admin", name: "Admin User", email: "admin@test.com", role: "admin",
+    approver: { id: 2, name: "Sipho Approver", email: "sipho@test.com", role: "approver",
+      teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: "Admin User" },
+    teamMember: { id: 4, name: "Nomvula Team", email: "nomvula@test.com", role: "teamMember",
+      teamMemberNumber: "TM-001", department: "Marketing", position: "Brand Manager", lineManager: "Sipho Approver" },
+    admin: { id: 1, name: "Admin User", email: "admin@test.com", role: "admin",
       teamMemberNumber: "ADM-001", department: "IT", position: "System Admin", lineManager: null },
   };
   mockSession.current = users[role];
@@ -536,7 +536,7 @@ describe("Journey 9: Complete Workflow", () => {
 describe("Approval Queue E2E (Journeys 5-6)", () => {
   it("approver sees their declaration in the list", async () => {
     setRole("approver");
-    const decl = makeDeclaration({ employeeId: "user-lm" });
+    const decl = makeDeclaration({ employeeId: 2 });
     vi.mocked(fetchDeclarations).mockResolvedValue([decl]);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(makeWorkflow());
 

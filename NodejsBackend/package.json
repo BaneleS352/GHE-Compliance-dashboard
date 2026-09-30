@@ -9,11 +9,10 @@
     "start": "node dist/index.js",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev --name init",
-    "db:push": "prisma db push",
     "db:seed": "tsx src/seed.ts",
     "db:pg:up": "tsx src/scripts/pg-up.ts",
     "pg:test": "tsx src/scripts/pg-integration.ts",
+    "pg:smoke": "tsx src/scripts/smoke.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
