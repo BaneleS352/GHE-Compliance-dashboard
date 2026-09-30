@@ -89,7 +89,7 @@ describe("UserContext", () => {
 
   it("restores session from localStorage on mount", async () => {
     mockFetch(200, {
-      id: "user-3", name: "Sipho Nkosi", email: "sipho@hb.co.za",
+      id: 3, name: "Sipho Nkosi", email: "sipho@hb.co.za",
       passwordHash: "", role: "approver", teamMemberNumber: "HB-10001",
       department: "Marketing", position: "Line Manager", lineManager: null,
     });
@@ -127,7 +127,7 @@ describe("UserContext", () => {
 
   it("handles stale localStorage (deleted user) gracefully", async () => {
     localStorage.setItem("ghe.auth.token", "stale-token");
-    localStorage.setItem("ghe.auth.user", JSON.stringify({ id: "user-99999" }));
+    localStorage.setItem("ghe.auth.user", JSON.stringify({ id: 99999 }));
     mockFetch(401, { error: "Unauthorized" });
 
     render(

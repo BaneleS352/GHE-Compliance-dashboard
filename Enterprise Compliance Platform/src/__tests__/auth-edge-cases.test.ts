@@ -38,7 +38,7 @@ describe("Auth — authService", () => {
   it("authenticate returns user on success", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true, status: 200,
-      json: () => Promise.resolve({ token: "abc", user: { id: "u1", email: "admin@hb.co.za", role: "admin" } }),
+      json: () => Promise.resolve({ token: "abc", user: { id: 1, email: "admin@hb.co.za", role: "admin" } }),
       headers: new Headers(),
     } as Response);
     const r = await authenticate("admin@hb.co.za", "password");
@@ -53,8 +53,8 @@ describe("Auth — authService", () => {
   });
 
   it("fetchCurrentUser returns the refreshed server user", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ id: "u1", name: "Updated User", email: "u@test.com", role: "teamMember" }), headers: new Headers() } as Response);
-    await expect(fetchCurrentUser()).resolves.toMatchObject({ id: "u1", name: "Updated User" });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ id: 1, name: "Updated User", email: "u@test.com", role: "teamMember" }), headers: new Headers() } as Response);
+    await expect(fetchCurrentUser()).resolves.toMatchObject({ id: 1, name: "Updated User" });
   });
 
   it("authenticate returns null on network error", async () => {

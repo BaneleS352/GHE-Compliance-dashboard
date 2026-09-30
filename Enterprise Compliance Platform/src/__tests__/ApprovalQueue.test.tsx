@@ -16,7 +16,7 @@ const mockQueueItems = [
       occasion: "Business Meeting", date: "2026-07-01", instances: "1",
       publicOfficial: "No",
     },
-    step: { order: 1, role: "lineManager", assignee: "user-bob", assigneeName: "Bob", label: "Line Manager", status: "pending" as const },
+    step: { order: 1, role: "lineManager", assignee: 7, assigneeName: "Bob", label: "Line Manager", status: "pending" as const },
   },
   {
     declaration: {
@@ -29,7 +29,7 @@ const mockQueueItems = [
       occasion: "Business Meeting", date: "2026-06-10", instances: "2",
       publicOfficial: "No",
     },
-    step: { order: 2, role: "hr", assignee: "user-bob", assigneeName: "Bob", label: "HR Review", status: "pending" as const },
+    step: { order: 2, role: "hr", assignee: 7, assigneeName: "Bob", label: "HR Review", status: "pending" as const },
   },
   {
     declaration: {
@@ -42,7 +42,7 @@ const mockQueueItems = [
       occasion: "Festive Season", date: "2026-07-05", instances: "1",
       publicOfficial: "No",
     },
-    step: { order: 2, role: "hr", assignee: "user-bob", assigneeName: "Bob", label: "HR Review", status: "pending" as const },
+    step: { order: 2, role: "hr", assignee: 7, assigneeName: "Bob", label: "HR Review", status: "pending" as const },
   },
 ];
 

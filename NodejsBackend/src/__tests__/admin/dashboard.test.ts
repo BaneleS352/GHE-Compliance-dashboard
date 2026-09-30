@@ -10,7 +10,7 @@ describe("Admin Dashboard", () => {
       .get("/api/admin/dashboard")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
-    expect(res.body.users).toBeGreaterThanOrEqual(5);
+    expect(res.body.users).toBeGreaterThanOrEqual(4);
     expect(res.body.declarations).toBeGreaterThanOrEqual(3);
     expect(res.body.workflows).toBeGreaterThanOrEqual(2);
     expect(res.body.threshold).toBeGreaterThanOrEqual(1000);

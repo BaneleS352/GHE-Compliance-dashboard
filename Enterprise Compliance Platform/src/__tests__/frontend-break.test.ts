@@ -190,7 +190,7 @@ describe("api.ts — high-level wrappers", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url: any) => {
       capturedUrl = url;
       return { ok: true, status: 200, json: () => Promise.resolve({
-        id: "D-001", employee: "x", employeeId: "u1",
+        id: "D-001", employee: "x", employeeId: 1,
         type: "Gift", value: 100, status: "Draft",
       }), headers: new Headers() } as Response;
     });
@@ -204,7 +204,7 @@ describe("api.ts — high-level wrappers", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (url: any, opts: any) => {
       capturedUrl = url; capturedMethod = opts.method;
       return { ok: true, status: 201, json: () => Promise.resolve({
-        id: "D-NEW", employee: "x", employeeId: "u1",
+        id: "D-NEW", employee: "x", employeeId: 1,
         type: "Gift", value: 100, status: "Draft",
       }), headers: new Headers() } as Response;
     });

@@ -294,7 +294,7 @@ export async function resetIdentitySequences(db: any = prisma): Promise<void> {
   ];
   for (const [table, col] of tables) {
     await db.$executeRawUnsafe(
-      `SELECT setval(pg_get_serial_sequence('"${table}"', '${col}'), COALESCE((SELECT MAX("${col}") FROM "${table}"), 0))`,
+      `SELECT setval(pg_get_serial_sequence('"${table}"', '${col}'), COALESCE((SELECT MAX("${col}") FROM "${table}"), 0) + 1, false)`,
     );
   }
 }

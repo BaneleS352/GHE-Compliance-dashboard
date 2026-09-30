@@ -51,7 +51,7 @@ describe("Integration — auth + screen access", () => {
   });
 
   it("authenticates team member and grants basic screen access", async () => {
-    mockFetch(200, { token: "t", user: { id: "u1", email: "nomvula@hb.co.za", role: "teamMember" } });
+    mockFetch(200, { token: "t", user: { id: 1, email: "nomvula@hb.co.za", role: "teamMember" } });
     const user = await authenticate("nomvula@hb.co.za", "password");
     expect(user).not.toBeNull();
     expect(user!.role).toBe("teamMember");
@@ -90,7 +90,7 @@ describe("Integration — fetchDashboardStats", () => {
 describe("Integration — createDeclaration", () => {
   it("creates a declaration via POST", async () => {
     mockFetch(201, {
-      id: "NEW-1", employee: "Test", employeeId: "u1",
+      id: "NEW-1", employee: "Test", employeeId: 1,
       type: "Gift", value: 100, status: "Draft",
     });
     const dec = await createDeclaration({ employee: "Test" } as Declaration);
@@ -268,7 +268,7 @@ describe("Integration — Journey 9: Complete workflow (J9.8 / J9.6)", () => {
     mockFetch(200, {
       declarationId: "GHE-INT-1",
       steps: [
-        { order: 1, role: "lineManager", assignee: "user-lm", status: "approved", decision: "accept",
+        { order: 1, role: "lineManager", assignee: 2, status: "approved", decision: "accept",
           decidedAt: "2026-07-15T10:00:00Z", notes: "OK" },
         { order: 2, role: "hr", assignee: 3, status: "approved", decision: "org",
           decidedAt: "2026-07-16T10:00:00Z", notes: "Approved" },

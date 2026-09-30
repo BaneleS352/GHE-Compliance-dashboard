@@ -81,7 +81,7 @@ Express API (port 3001)
 | Auth | JWT (self-contained, numeric user id) | No session store needed; role embedded in token |
 | Validation | Zod schemas | Type-safe, composable, good DX |
 | File storage | Local disk (`uploads/`) behind authenticated API routes | Simple; replace with object storage for production |
-| Workflow | JSON steps in `WorkflowInstance` | Flexible per-declaration step definitions |
+| Workflow | Relational step/instance rows | Auditable per-declaration step history; no JSON fallback |
 | Notifications | Validated templates + email webhook | Provider-independent delivery with safe development logging |
 | Theme | Centralised `theme.ts` + CSS variables | Single source of truth for colours, gradients, status/priority maps |
 | Docker | Multi-stage builds | Frontend container port 80 published on host port 3000; backend port 3001; PostgreSQL port 5432; backend image swaps SQLite provider to PostgreSQL
@@ -99,12 +99,12 @@ Express API (port 3001)
 1. Declaration submitted → `createWorkflowSteps()` called
 2. Reads `SystemConfig` for `highValueThreshold`, `mediumValueThreshold`
 3. Calls `determineRuleId(value, high, medium)` to select rule
-4. Loads `WorkflowRule.steps` (JSON of step definitions)
-5. Resolves assignees from `User` table (lineManager and HR)
-6. Stores resolved steps as JSON in `WorkflowInstance.steps`
+4. Loads `WorkflowRuleStep` rows for the selected rule
+5. Resolves assignees from `User` table (managerId FK and HR)
+6. Stores resolved steps as `WorkflowInstanceStep` rows in the same transaction
 7. Steps are frozen — config/rule changes don't cascade retroactively. Returned declarations are re-evaluated on save/resubmission so value changes can add newly required approvers while preserving valid completed approvals.
 
-Workflow rule selection is `value >= highValueThreshold → rule-2`, otherwise `rule-1`. The legacy `mediumValueThreshold` remains for API compatibility but does not select a separate workflow. Line Manager assignees come from the employee record; HR resolves to an approver in the employee's organisation where possible, then a global HR approver.
+Workflow rule selection is `value >= highValueThreshold → rule 2`, otherwise `rule 1`. The legacy `mediumValueThreshold` remains for API compatibility but does not select a separate workflow. Line Manager assignees come from the employee's `managerId` FK; HR resolves to an approver in the employee's organisation where possible, then a global HR approver.
 
 ## Notifications
 

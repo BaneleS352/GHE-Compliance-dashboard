@@ -19,7 +19,7 @@ const mockWorkflow = {
   steps: [
     { order: 1, role: "lineManager", assignee: 3, assigneeName: "Sipho Nkosi",
       label: "Line Manager Review", status: "pending" as const, decision: null, notes: "", decidedAt: null },
-    { order: 2, role: "hr", assignee: "user-4", assigneeName: "Lindiwe Zulu",
+    { order: 2, role: "hr", assignee: 4, assigneeName: "Lindiwe Zulu",
       label: "HR Review", status: "pending" as const, decision: null, notes: "", decidedAt: null },
   ],
 };
@@ -37,8 +37,8 @@ vi.mock("../services/api", () => ({
 
 vi.mock("../app/auth/UserContext", () => ({
   useUser: () => ({
-    user: { id: "user-current", name: "Current User", email: "cur@test.com", role: "approver" as const,
-            teamMemberNumber: "APR-001", department: "Marketing", position: "LM", lineManager: "user-5" },
+    user: { id: 2, name: "Current User", email: "cur@test.com", role: "approver" as const,
+            teamMemberNumber: "APR-001", department: "Marketing", position: "LM", lineManager: "Sipho Nkosi" },
   }),
 }));
 
@@ -58,7 +58,7 @@ beforeEach(() => {
   mockUserStep = {
     ...mockWorkflow,
     steps: mockWorkflow.steps.map((s, i) =>
-      i === 0 ? { ...s, assignee: "user-current" } : { ...s }
+      i === 0 ? { ...s, assignee: 2 } : { ...s }
     ),
   };
 });

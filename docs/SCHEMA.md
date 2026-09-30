@@ -1,18 +1,24 @@
 # Database Schema
 
-**ORM:** Prisma 6  
-**File:** `NodejsBackend/prisma/schema.prisma`  
-**Provider:** SQLite (dev) / PostgreSQL (prod)
+**ORM:** Prisma 6
+**File:** `NodejsBackend/prisma/schema.prisma`
+**Provider:** PostgreSQL (only). All internal keys are BIGINT identity columns;
+`Declaration.id` stays the public `GHE-YYYY-NNNNNN` text reference with an
+internal numeric `declarationPk` that normalized children reference.
+Numeric ids are exposed as JSON numbers (see `services/ids.ts`).
 
 ## Entity Relationship Diagram (Text)
 
 ```
-User ──(1:N)──> Declaration  (via employeeId)
-User ──(1:N)──> Declaration  (as lineManager reference, loose)
-WorkflowRule (1:1) used by createWorkflowSteps()
+Organization ──(1:N)──> Department ──(1:N)──> Team ──(1:N)──> User
+User ──(self-FK managerId)──> User
+User ──(1:N)──> Declaration  (declarerUserId / currentApproverUserId, SetNull)
+Declaration ──(1:1)──> DeclarationSnapshot / DeclarationDetail (immutable history)
+Declaration ──(1:N)──> DeclarationFile ──(N:1)──> UploadedFile (join-only)
+Declaration ──(1:1)──> WorkflowInstance ──(1:N)──> WorkflowInstanceStep
+WorkflowRule ──(1:N)──> WorkflowRuleStep
+Counterparty ──(1:N)──> Declaration; Counterparty ──(1:N)──> CounterpartyContact
 SystemConfig (1 record) configures thresholds
-WorkflowInstance ──(1:1)──> Declaration  (via declarationId)
-UploadedFile ──(N:1)──> Declaration  (via declarationId, optional, no FK constraint)
 ```
 
 ## Models
@@ -20,43 +26,46 @@ UploadedFile ──(N:1)──> Declaration  (via declarationId, optional, no FK
 ### User
 | Field | Type | Notes |
 |-------|------|-------|
-| id | String @id | e.g. "user-admin", "user-team" |
+| id | BigInt @id | Numeric user key (JWT `id`, API ids) |
 | name | String | |
 | email | String @unique | Used for login |
 | passwordHash | String | bcrypt hash |
-| role | String | "admin", "approver", "teamMember" |
-| teamMemberNumber | String | Employee number |
-| department | String | |
-| position | String | User's job position; not used to create a CEO workflow step |
-| lineManager | String? | References another User's id. Null = no manager |
+| role | String | "admin", "approver", "teamMember" (authoritative authorization source) |
+| teamMemberNumber | String | Employee number (business code, not a key) |
+| department | String | Display/department name |
+| position | String | User's job position |
+| lineManager | String? | Display text only; the authoritative manager reference is `managerId` |
+| managerId | BigInt? | Self-FK to User.id (SetNull) |
+| organizationId / departmentId / teamId | BigInt? | FKs to master data |
 
 ### Declaration
 | Field | Type | Notes |
 |-------|------|-------|
-| id | String @id | Auto-generated: `GHE-YYYY-NNNNNN` |
-| employee | String | Employee name |
-| employeeId | String | FK to User.id (loose — no constraint) |
-| status | String | Draft, Pending, Approved, Declined, Escalated, Returned |
-| value | Float | Declaration monetary value |
-| files | String? | JSON array of file references |
-| fromField | String | Mapped from `from` (Prisma `@map("from_field")`) |
+| id | String @id | Public reference: `GHE-YYYY-NNNNNN` (never replaced) |
+| declarationPk | BigInt @unique | Internal key; all child rows reference this |
+| type / value / status / priority | String / Float / String / String | Validated strings + non-negative value |
+| eventDate / submittedAt | DateTime? | Canonical timestamps (UTC) |
+| declarerUserId / currentApproverUserId / counterpartyId / organizationId | BigInt? | Enforced FKs (SetNull / Restrict) |
 
-The Declaration model contains the complete declaration metadata and workflow fields shown in `prisma/schema.prisma`, including employee identity, organisation, department, position, counterparty, value, submission/approval fields, compliance questions, optional substantiation/files, organisation ID, and timestamps. The schema file is authoritative for exact types and defaults.
-
-`employeeId`, `lineManager`, and `UploadedFile.declarationId` are application-level references rather than Prisma-enforced foreign keys. `UploadedFile.declarationId` is optional in the schema, although the upload route requires a declaration ID for new uploads.
+The user-facing Declaration shape (employee/counterparty/approver names,
+detail fields, files) is built by `declarationResponse` from
+Snapshot/Detail/Counterparty/User joins. The schema file is authoritative for
+exact types and defaults.
 
 ### WorkflowInstance
 | Field | Type | Notes |
 |-------|------|-------|
-| declarationId | String @id | FK to Declaration.id (loose) |
-| steps | String | JSON array of WorkflowStep objects |
+| id | BigInt @id | Numeric instance key |
+| declarationPk | BigInt @unique | One-to-one numeric declaration reference |
+| ruleId | BigInt? | Producing rule (SetNull) |
 
-Each step:
+Each step (`WorkflowInstanceStep`, numeric `instanceId` + `declarationPk`,
+unique `(instanceId, stepOrder)`, numeric `assigneeId`/`decidedById`):
 ```json
 {
   "order": 1,
   "role": "lineManager",
-  "assignee": "user-approver",
+  "assignee": 2,
   "assigneeName": "Sipho Approver",
   "label": "Line Manager Review",
   "status": "pending",
@@ -69,11 +78,11 @@ Each step:
 ### WorkflowRule
 | Field | Type | Notes |
 |-------|------|-------|
-| id | String @id | rule-1, rule-2, or custom; active seed rules are rule-1 and rule-2 |
+| id | BigInt @id | Numeric rule key (seed rules are 1 and 2) |
 | name | String | |
-| condition | String | "low", "medium", "high" |
+| condition | String | "low", "high" |
 | priority | Int | Sort order |
-| steps | String | JSON array of `{ order, role, label }` |
+| steps | — | `WorkflowRuleStep` rows (unique `(ruleId, order)`); no JSON column |
 
 ### SystemConfig
 | Field | Type | Default |

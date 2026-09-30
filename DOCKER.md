@@ -25,12 +25,11 @@ Seed a new database once with `SEED_ON_BOOT=true docker compose up -d --build`
 
 The backend entrypoint runs `prisma migrate deploy` before starting — versioned
 migrations only, failing fast with no `db push` fallback — seeds an empty
-database only when `SEED_ON_BOOT=true`, then starts the API. The backend image
-switches the Prisma provider from SQLite to PostgreSQL during its build.
+database only when `SEED_ON_BOOT=true`, then starts the API. The Prisma schema
+is PostgreSQL-native (BIGINT keys; no provider rewrite at build time).
 Pre-migration databases must use the one-time baseline procedure in
-`NodejsBackend/prisma/BASELINE.md`. (Phase 5: the backfill/verify deployment
-steps were retired with the legacy columns — see
-`NodejsBackend/prisma/RETIREMENT.md.)
+`NodejsBackend/prisma/BASELINE.md` (see also
+`NodejsBackend/prisma/RETIREMENT.md` for the completed cutovers).
 
 ## Configuration and operations
 

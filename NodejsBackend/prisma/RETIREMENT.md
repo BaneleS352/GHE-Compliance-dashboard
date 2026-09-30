@@ -1,56 +1,52 @@
-# Phase 5 compatibility retirement — COMPLETE
+# Compatibility retirement — COMPLETE (Phase 5 + numeric identifier cutover)
 
-Applied as `0005_phase5_retirement` (forward-only). The legacy compatibility
-surface was removed after the gates below passed:
+## Phase 5 (0005_phase5_retirement) — applied
 
-## Gates (were required, now recorded as passed)
+Retired the legacy compatibility surface after the backfill/verify gates
+passed: `Declaration` legacy text/JSON columns, `WorkflowRule.steps` and
+`WorkflowInstance.steps` JSON, `UploadedFile.declarationId`, and the
+`Dropdowns` / `ComplianceTrendPoint` / `TypeBreakdownItem` / `AppRole` /
+`UserRole` / `OrganizationSetting` / `Ref*` tables. Ownership frozen:
+`SystemConfig` over `OrganizationSetting`, `User.role` over `UserRole`;
+`PUT /api/admin/config/dropdowns` returns 410 (dropdowns served from
+Department master data + fixed domain lists).
 
-1. Backfill idempotent with zero unresolved required mappings on a
-   production-shaped copy.
-2. `db:verify` zero drift between relational rows and legacy columns.
-3. A full release window ran with relational reads.
-4. Tested backup/restore rollback plan (see BASELINE.md §5).
+## Numeric identifier cutover (0006_numeric_keys) — applied
 
-## What was retired
+Every internal primary/foreign key is now native PostgreSQL BIGINT identity;
+`Declaration.id` (`GHE-YYYY-NNNNNN`) stays the public text reference with an
+internal `declarationPk` referenced by all child tables. `WorkflowInstance`
+uses a numeric surrogate PK with a unique numeric declaration reference.
+`SystemConfig` (`default`) and `ApprovalOption` (`opt-*`/`ao-*`) keep text
+ids as singleton/code-list rows. `UserRole`/`AppRole`,
+`OrganizationSetting`, `Ref*`, and `UploadedFile.declarationId` needed no
+numeric migration (retired in 0005); declaration `type`/`status`/`priority`
+remain validated strings per the frozen Phase 5 ownership decision.
 
-- `Declaration` legacy columns: employee-context strings (`employee`,
-  `employeeId`, `teamMemberNumber`, `lineManager`, `position`, `department`,
-  `company`, `team`), detail columns (`description`, `occasion`,
-  `relationship`, `receivedGiven`, `from_field`, `contactPerson`,
-  `biddingProcess`, `contractNegotiation`, `instances`, `publicOfficial`,
-  `substantiation`), `files` JSON, approver text (`approver`, `approverId`),
-  timestamp text (`date`, `submitted`), counterparty text (`counterparty`).
-- `WorkflowRule.steps` and `WorkflowInstance.steps` JSON caches.
-- `UploadedFile.declarationId` duplicate FK (`DeclarationFile` is the only
-  file association; orphans are rejected).
-- Tables: `Dropdowns`, `ComplianceTrendPoint`, `TypeBreakdownItem`,
-  `AppRole`, `UserRole`, `OrganizationSetting`, `RefDeclarationType`,
-  `RefDeclarationStatus`, `RefPriority`, `RefRelationshipType`,
-  `RefDirection`, `RefWorkflowStatus`.
-
-## Ownership decisions (frozen)
-
-- `SystemConfig` is the authoritative config source (`OrganizationSetting`
-  removed).
-- `User.role` is the authoritative authorization source (`AppRole`/`UserRole`
-  removed).
-- Declaration `type`/`status`/`priority` remain validated strings
-  (zod + valid-status lists); the unenforced `Ref*` copies were removed until
-  a domain-specific FK-backed reference design is approved.
-- The API contract is unchanged: `declarationResponse`
-  (`services/workflowService.ts`) builds the same user-facing shape from
-  Snapshot/Detail/Counterparty/User joins, so the frontend needed no
-  migration. `PUT /api/admin/config/dropdowns` returns 410 (dropdowns are
-  served from Department master data + fixed domain lists).
+- API contract: same response shapes; numeric ids are JSON numbers
+  (`services/ids.ts`: `toJsonId`/`toDbId`/`parseIdParam`). JWTs carry numeric
+  user ids; legacy text ids have no compatibility lookup and are rejected.
+- `User.lineManager` is display text only; the authoritative manager
+  reference is the `managerId` FK (workflow step resolution uses it).
+- Reporting views are migration-owned; the runtime DDL helper,
+  provider-branching (`bindParams`/`isPostgresProvider`), JSON fallbacks
+  (`safeJsonParse`), dual-write helpers, backfill/verify scripts, and the
+  Dockerfile provider-rewrite were removed. SQLite is no longer supported.
+- Seed, test fixtures, and PG integration fixtures write numeric keys
+  directly; identity sequences are restarted past explicit fixture ids.
 
 ## Evidence
 
-- Backend: 381/381 Vitest passing (incl. rewritten `normalization.test.ts`:
-  transactional writes, snapshot immutability, rule FK, view equivalence,
-  provider-aware binding, `/stats` equivalence).
-- `npx tsc` clean; `git diff --check` clean.
-- PostgreSQL harness: `npm run pg:test` + `postgres-normalization` CI job
-  cover migrations, all 7 scoped views, FK enforcement, and the 0003
-  duplicate reconciliation on production-shaped data.
-- Reporting views are migration-owned on PostgreSQL (application role needs
-  only SELECT); `ensureReportingViews()` executes DDL on SQLite dev/test only.
+- Backend `npx tsc` clean (sources + tests); frontend `npm run typecheck`
+  clean; `git diff --check` clean.
+- Backend suite (381 tests) runs against PostgreSQL via embedded PG in
+  `globalSetup` (versioned `migrate deploy` + normalized fixtures); frontend
+  suite green (mocked API).
+- `npm run pg:test` + `postgres-normalization` CI job cover the full
+  migration chain, all 7 scoped views, FK enforcement/delete rules,
+  information_schema key-type assertions, and the counterparty identity
+  policy on production-shaped data.
+- `npm run pg:smoke` runs `migrate deploy` on a clean database, seeds,
+  starts the built API, exercises declaration/approval/file/reporting/admin
+  flows, and asserts post-flow integrity (snapshot+detail coverage, step
+  coverage, no dangling FKs, views serving rows).

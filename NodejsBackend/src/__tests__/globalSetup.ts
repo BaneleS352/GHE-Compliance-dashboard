@@ -1,12 +1,16 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { execFileSync } from "child_process";
+import os from "os";
+import path from "path";
 
 // PostgreSQL is the only supported provider (Identifier Strategy cutover).
 // The suite boots an embedded PostgreSQL, applies the versioned migrations,
 // and seeds isolated normalized fixtures — the full suite runs against
 // PostgreSQL, locally and in CI.
 const PG_PORT = Number(process.env.PG_TEST_PORT || 55433);
+// The embedded cluster lives outside the repo so test runs never dirty it.
+const PG_DATA_DIR = process.env.PG_TEST_DATA_DIR || path.join(os.tmpdir(), "ghe-pg-test");
 const PG_URL = process.env.TEST_PG_DATABASE_URL ||
   `postgresql://postgres:postgres@localhost:${PG_PORT}/ghe_test?schema=public`;
 
@@ -20,15 +24,19 @@ async function startEmbeddedPostgres(): Promise<void> {
   const mod = await import("embedded-postgres");
   const EmbeddedPostgres = (mod as any).default || mod;
   embedded = new EmbeddedPostgres({
-    database: "ghe_test",
     user: "postgres",
     password: "postgres",
     port: PG_PORT,
     persistent: false,
+    databaseDir: PG_DATA_DIR,
+    // UTF8/C regardless of host locale: the migration SQL contains non-ASCII
+    // comment text and the suite must not depend on OS locale settings.
+    initdbFlags: ["-E", "UTF8", "--locale=C"],
   });
   try {
     await embedded.initialise();
     await embedded.start();
+    await embedded.createDatabase("ghe_test");
   } catch (err: any) {
     throw new Error(
       "Embedded PostgreSQL failed to start (port " + PG_PORT + "). " +

@@ -8,31 +8,40 @@ This is a staged modernization. The objective is to improve correctness, traceab
 
 ## Current State
 
-Phase 5 cutover complete (`0005_phase5_retirement`, see
+Numeric identifier cutover complete (`0006_numeric_keys`, see
 `NodejsBackend/prisma/RETIREMENT.md`). The implementation uses Prisma with
-SQLite in development and PostgreSQL in Docker production. Production starts
-with `prisma migrate deploy` (versioned migrations `0000_baseline`,
-`0001_normalization`, `0002_rule_fk`, `0003_counterparty_unique`,
-`0004_monthly_eventdate`, `0005_phase5_retirement`); the entrypoint fails fast
-with no `db push` fallback and no backfill/verify step (there is no legacy
-mirror left to reconcile). SQLite remains the supported development/testing
-workflow (`prisma db push`).
+PostgreSQL as the single provider for development, CI, and Docker
+production. Production starts with `prisma migrate deploy` (versioned
+migrations `0000_baseline`, `0001_normalization`, `0002_rule_fk`,
+`0003_counterparty_unique`, `0004_monthly_eventdate`,
+`0005_phase5_retirement`, `0006_numeric_keys`); the entrypoint fails fast
+with no `db push` fallback. SQLite is no longer supported anywhere (no
+`db push` path, no provider-rewrite in the Dockerfile).
 
-`Declaration` is now a lean row (`type`, `value`, `status`, `priority`,
-`organizationId`, canonical `eventDate`/`submittedAt`, `declarerUserId`,
-`currentApproverUserId`, `counterpartyId` with enforced FKs). Declarer context
-lives in the immutable `DeclarationSnapshot`, transactional detail in
-`DeclarationDetail`, files in the join-only `DeclarationFile` association,
-and workflow state/definition in `WorkflowInstanceStep`/`WorkflowRuleStep`
-rows — there is no JSON/text fallback anywhere. The API response shape is
-unchanged (`declarationResponse` builds it from joins), so the frontend
-needed no migration. Ownership is frozen: `SystemConfig` over
-`OrganizationSetting`, `User.role` over `AppRole`/`UserRole`; `Dropdowns`,
-`ComplianceTrendPoint`, `TypeBreakdownItem`, and the unenforced `Ref*` copies
-are removed (dropdowns are served from Department master data + fixed domain
-lists). Reporting views are migration-owned on PostgreSQL (application role
+Every internal primary/foreign key is native PostgreSQL BIGINT identity,
+except `Declaration.id`, which remains the public `GHE-YYYY-NNNNNN` text
+business reference with an internal numeric `declarationPk` referenced by all
+normalized child tables. `WorkflowInstance` uses a numeric surrogate PK with
+a unique numeric declaration reference. `SystemConfig` (`default`) and
+`ApprovalOption` (`opt-*`/`ao-*`) keep text ids as singleton/code-list rows;
+`UserRole`/`AppRole`, `OrganizationSetting`, `Ref*`, and
+`UploadedFile.declarationId` needed no numeric migration (retired in 0005),
+and declaration `type`/`status`/`priority` remain validated strings per the
+frozen Phase 5 ownership decision.
+
+Declarer context lives in the immutable `DeclarationSnapshot`, transactional
+detail in `DeclarationDetail`, files in the join-only `DeclarationFile`
+association, and workflow state/definition in `WorkflowInstanceStep` /
+`WorkflowRuleStep` rows — there is no JSON/text fallback anywhere. The API
+response shapes are unchanged apart from identifiers: numeric ids are exposed
+as JSON numbers (`services/ids.ts`), JWTs carry numeric user ids, and
+`User.lineManager` is display text only (the authoritative manager reference
+is the `managerId` FK). Reporting views are migration-owned (application role
 needs only SELECT) and power the dashboard/report endpoints with API-level
-scoping retained.
+scoping retained. The backend suite runs against PostgreSQL (embedded PG in
+`globalSetup` with versioned `migrate deploy`); `npm run pg:test` and
+`npm run pg:smoke` cover the full migration chain, scoped views, FK rules,
+key-type assertions, and clean-database end-to-end flows in CI.
 
 These choices were practical for an early-stage application, but they prevent the database from enforcing key integrity and make detailed reporting depend heavily on API-side aggregation.
 
@@ -631,3 +640,34 @@ Create a new forward-only migration only after Phases A–E pass. In dependency 
 ### Completion criteria
 
 The migration is complete only when a fresh database contains the final normalized tables and views, an upgraded production-shaped database produces the same business results, no runtime path depends on the old tables or columns, the full test suite passes against PostgreSQL, and `rg`/static analysis finds no supported references to retired structures. The old compatibility migration history remains in the repository for existing databases; only the current schema and application code are cleaned up.
+
+## Numeric Identifier Cutover Note — 2026-09-30
+
+The Identifier Strategy above was implemented as migration
+`0006_numeric_keys` with a coordinated backend/frontend/JWT/seed/test
+release, following the development-stage simplification (pre-production:
+reset and reseed disposable databases; no legacy-ID preservation mapping).
+
+- All internal PKs/FKs are `BIGINT GENERATED BY DEFAULT AS IDENTITY`;
+  `Declaration.id` stays public text with internal `declarationPk`;
+  `WorkflowInstance` has a numeric surrogate PK + unique numeric declaration
+  reference. 0006 maps deterministically (`row_number` ordering) and fails on
+  unmapped non-null references instead of silently nulling them.
+- `UserRole`/`AppRole`, `OrganizationSetting`, `Ref*` tables, and
+  `UploadedFile.declarationId` were already retired in 0005 and needed no
+  numeric migration; declaration `type`/`status`/`priority` remain validated
+  strings per the frozen ownership decision.
+- JWTs, route params, services, seed, fixtures, frontend models, Swagger,
+  views, and exports use numeric identifiers (JSON numbers at the boundary);
+  legacy text ids have no compatibility lookup and are rejected.
+- PostgreSQL is now the only provider: the Dockerfile `sed`
+  provider-rewrite, `db:push`/`db:migrate` scripts, SQLite tests, and runtime
+  view-DDL/provider branches were removed. Backend tests boot embedded
+  PostgreSQL (or `TEST_PG_DATABASE_URL`) with versioned `migrate deploy`;
+  `pg:smoke` adds the clean-database migrate → seed → serve → exercise →
+  integrity-assert gate; CI runs backend tests, `pg:test`, smoke, and
+  frontend typecheck + tests.
+- `db:verify` was retired with the legacy mirror; its successor is the
+  smoke-test integrity assertions (snapshot/detail coverage, step coverage,
+  no dangling FKs, views serving rows) plus the `pg-integration-checks`
+  information_schema key-type assertions.
