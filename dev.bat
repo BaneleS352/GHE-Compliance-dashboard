@@ -56,7 +56,7 @@ goto :db_done
 findstr /R "^provider.*postgresql" prisma\schema.prisma >nul
 if not errorlevel 1 (
     echo.
-    echo ERROR: schema.prisma provider is still "postgresql" (left by db:pg:up).
+    echo ERROR: schema.prisma provider is still "postgresql" - left by db:pg:up.
     echo Fix: git checkout -- prisma/schema.prisma
     echo Then re-run dev.bat.
     pause
