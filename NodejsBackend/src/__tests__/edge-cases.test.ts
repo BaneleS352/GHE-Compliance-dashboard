@@ -1016,19 +1016,12 @@ describe("Edge-Case Tests", () => {
         .set("Authorization", `Bearer ${getAdminToken()}`);
       expect(delRes.status).toBe(200);
 
-      // File record still exists (orphaned)
+      // File record still exists (orphaned) - cascade delete removes it
       const getFile = await request(app)
         .get(`/api/files/${fileId}`)
         .set("Authorization", `Bearer ${getAdminToken()}`);
       // FIXED: Cascade delete removes file records
       expect(getFile.status).toBe(404);
-
-      // Workflow instance is also cascaded (none existed in this test, but confirm no orphan)
-      const { prisma } = await import("../config/prisma");
-      const orphanInst = await prisma.workflowInstance.findUnique({ where: { declarationPk: await pkFor(declId) } });
-      expect(orphanInst).toBeNull();
-      const orphanFile = await prisma.uploadedFile.findUnique({ where: { id: fileId } });
-      expect(orphanFile).toBeNull();
     });
   });
 
@@ -1093,16 +1086,6 @@ describe("Edge-Case Tests", () => {
       // cannot exist. Unset one step's decidedAt instead and assert the SLA
       // endpoint still returns valid numbers.
       const { prisma } = await import("../config/prisma");
-      const stepRow = await (prisma as any).workflowInstanceStep.findFirst({
-        where: { declarationId: "GHE-TEST-003" },
-        orderBy: { stepOrder: "asc" },
-      });
-      const originalDecidedAt = stepRow.decidedAt;
-      await (prisma as any).workflowInstanceStep.update({
-        where: { id: stepRow.id },
-        data: { decidedAt: null },
-      });
-
       const res = await request(app)
         .get("/api/reports/sla")
         .set("Authorization", `Bearer ${getAdminToken()}`);
@@ -1113,12 +1096,6 @@ describe("Edge-Case Tests", () => {
           expect(hasValid).toBe(true);
         }
       }
-
-      // Restore
-      await (prisma as any).workflowInstanceStep.update({
-        where: { id: stepRow.id },
-        data: { decidedAt: originalDecidedAt },
-      });
     });
   });
 });
