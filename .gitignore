@@ -26,4 +26,5 @@ dist-ssr
 NodejsBackend/uploads/
 NodejsBackend/prisma/dev.db
 NodejsBackend/prisma/test.db
+NodejsBackend/prisma/*.bak
 NodejsBackend/prisma/*.db-journal

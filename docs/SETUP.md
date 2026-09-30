@@ -54,6 +54,12 @@ npx vitest run src/__tests__/break.test.ts
 
 `db push --force-reset` destroys the selected database. Backend `globalSetup.ts` uses `file:./test.db`, resets it, and seeds isolated fixtures. Frontend tests use Vitest and Testing Library. Playwright E2E tests are under `Enterprise Compliance Platform/e2e`; install Chromium with `npx playwright install chromium`.
 
+> SQLite files resolve under `NodejsBackend/prisma/` (`dev.db`, `test.db`).
+> After the Phase 5 cutover, a `dev.db` created by an older schema can no
+> longer be pushed or seeded: back up anything you need, delete
+> `NodejsBackend/prisma/dev.db`, then re-run `npx prisma db push` +
+> `npm run db:seed` for a fresh normalized database.
+
 ## Troubleshooting
 
 - Missing `JWT_SECRET`: set it in `NodejsBackend/.env` or the process environment.
