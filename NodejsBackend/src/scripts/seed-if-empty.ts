@@ -4,8 +4,8 @@
  * Counts users: if any exist the database is NOT empty and seeding is
  * skipped (seeding must never overwrite operational data). Otherwise it
  * dynamically imports `../seed`, whose module side effect runs the
- * idempotent seed (users, config, rules, dropdowns, reference data) and
- * then the normalization backfill.
+ * idempotent normalized seed (users, config, rules + rule steps, departments,
+ * counterparties, declarations + snapshots/details, workflow instances).
  *
  * Exits 0 on successor skip, 1 on failure. Expects DATABASE_URL to already
  * point at the target database with a PostgreSQL-generated Prisma client.

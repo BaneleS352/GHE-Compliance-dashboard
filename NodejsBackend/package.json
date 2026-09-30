@@ -11,8 +11,6 @@
     "db:migrate": "prisma migrate dev --name init",
     "db:push": "prisma db push",
     "db:seed": "tsx src/seed.ts",
-    "db:backfill": "tsx src/scripts/run-backfill.ts",
-    "db:verify": "tsx src/scripts/run-verify.ts",
     "db:pg:up": "tsx src/scripts/pg-up.ts",
     "pg:test": "tsx src/scripts/pg-integration.ts",
     "test": "vitest run",

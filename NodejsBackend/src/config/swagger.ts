@@ -76,7 +76,7 @@ const options: swaggerJsdoc.Options = {
         },
         WorkflowInstance: {
           type: "object",
-          properties: { declarationId: { type: "string" }, steps: { type: "array", items: { $ref: "#/components/schemas/WorkflowStep" } } },
+          properties: { declarationId: { type: "string" }, steps: { type: "array", items: { $ref: "#/components/schemas/WorkflowStep" }, description: "Step rows (the only workflow state)" } },
         },
         ApproveRequest: {
           type: "object",
@@ -98,6 +98,7 @@ const options: swaggerJsdoc.Options = {
         },
         Dropdowns: {
           type: "object",
+          description: "Phase 5: served from Department master data plus fixed domain lists (no stored table)",
           properties: {
             departments: { type: "array", items: { type: "string" } },
             categories: { type: "array", items: { type: "string" } },
@@ -113,7 +114,7 @@ const options: swaggerJsdoc.Options = {
           type: "object",
           properties: {
             id: { type: "string" }, name: { type: "string" }, condition: { type: "string" },
-            priority: { type: "integer" }, steps: { type: "string", description: "JSON array of step definitions" },
+            priority: { type: "integer" }, steps: { type: "array", items: { type: "object" }, description: "Step definitions (relational rows)" },
           },
         },
         DashboardKPIs: {

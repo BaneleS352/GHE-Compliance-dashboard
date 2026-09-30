@@ -17,12 +17,31 @@ const cleanupDeclIds: string[] = [];
 
 afterAll(async () => {
   if (cleanupDeclIds.length === 0) return;
+  // Join-only file association: resolve file ids via the join rows first.
+  const links = await (prisma as any).declarationFile.findMany({
+    where: { declarationId: { in: cleanupDeclIds } },
+    select: { fileId: true },
+  }).catch(() => []);
+  await (prisma as any).declarationFile.deleteMany({
+    where: { declarationId: { in: cleanupDeclIds } },
+  }).catch(() => undefined);
+  if (links.length > 0) {
+    await prisma.uploadedFile.deleteMany({
+      where: { id: { in: links.map((l: any) => l.fileId) } },
+    }).catch(() => undefined);
+  }
+  await (prisma as any).workflowInstanceStep.deleteMany({
+    where: { declarationId: { in: cleanupDeclIds } },
+  }).catch(() => undefined);
   await prisma.workflowInstance.deleteMany({
     where: { declarationId: { in: cleanupDeclIds } },
   });
-  await prisma.uploadedFile.deleteMany({
+  await (prisma as any).declarationSnapshot.deleteMany({
     where: { declarationId: { in: cleanupDeclIds } },
-  });
+  }).catch(() => undefined);
+  await (prisma as any).declarationDetail.deleteMany({
+    where: { declarationId: { in: cleanupDeclIds } },
+  }).catch(() => undefined);
   await prisma.declaration.deleteMany({
     where: { id: { in: cleanupDeclIds } },
   });
@@ -258,13 +277,10 @@ describe("Edge-Case Tests", () => {
       cleanupDeclIds.push(declId);
 
       // Create workflow instance directly (bypass submit since user-approver has no lineManager)
-      const { prisma } = await import("../config/prisma");
-      await prisma.workflowInstance.create({
-        data: {
-          declarationId: declId,
-          steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null }]),
-        },
-      });
+      const { persistWorkflowInstanceSteps } = await import("../services/normalization");
+      await persistWorkflowInstanceSteps(declId, [
+        { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+      ] as any);
 
       // Approve own declaration — currently succeeds (no self-approval guard)
       const approveRes = await request(app)
@@ -297,16 +313,11 @@ describe("Edge-Case Tests", () => {
       cleanupDeclIds.push(declId);
 
       // Create a 2-step workflow: LM (user-approver), HR (user-hr)
-      const { prisma } = await import("../config/prisma");
-      await prisma.workflowInstance.create({
-        data: {
-          declarationId: declId,
-          steps: JSON.stringify([
-            { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-            { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-          ]),
-        },
-      });
+      const { persistWorkflowInstanceSteps: persist2 } = await import("../services/normalization");
+      await persist2(declId, [
+        { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+        { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+      ] as any);
 
       // HR approves their step before LM has approved — currently succeeds (no order enforcement)
       const hrApprove = await request(app)
@@ -339,13 +350,10 @@ describe("Edge-Case Tests", () => {
       cleanupDeclIds.push(declId);
 
       // Create workflow instance directly (bypass submit)
-      const { prisma } = await import("../config/prisma");
-      await prisma.workflowInstance.create({
-        data: {
-          declarationId: declId,
-          steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null }]),
-        },
-      });
+      const { persistWorkflowInstanceSteps: persist3 } = await import("../services/normalization");
+      await persist3(declId, [
+        { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+      ] as any);
 
       // Fire two concurrent approve calls
       const results = await Promise.all([
@@ -618,13 +626,10 @@ describe("Edge-Case Tests", () => {
       cleanupDeclIds.push(createRes.body.id);
 
       // Create workflow on it
-      const { prisma } = await import("../config/prisma");
-      await prisma.workflowInstance.create({
-        data: {
-          declarationId: createRes.body.id,
-          steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-admin", assigneeName: "Admin", label: "Admin Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null }]),
-        },
-      });
+      const { persistWorkflowInstanceSteps: persist4 } = await import("../services/normalization");
+      await persist4(createRes.body.id, [
+        { order: 1, role: "lineManager", assignee: "user-admin", assigneeName: "Admin", label: "Admin Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+      ] as any);
 
       // Team member reads admin's workflow instance
       const res = await request(app)
@@ -1079,37 +1084,36 @@ describe("Edge-Case Tests", () => {
 
   // ── SLA REPORT WITH BAD DATES ──
   describe("SLA report data quality", () => {
-    it("GET /api/reports/sla — non-parseable decidedAt produces NaN values (BUG: no date validation)", async () => {
-      // Corrupt a workflow step's decidedAt
+    it("GET /api/reports/sla — undecided steps are excluded (no NaN values)", async () => {
+      // Phase 5: decidedAt is a typed DateTime column, so corrupt date strings
+      // cannot exist. Unset one step's decidedAt instead and assert the SLA
+      // endpoint still returns valid numbers.
       const { prisma } = await import("../config/prisma");
-      const original = await prisma.workflowInstance.findUnique({ where: { declarationId: "GHE-TEST-003" } });
-      const originalSteps = original!.steps;
-      const steps = JSON.parse(originalSteps);
-      steps[0].decidedAt = "not-a-valid-date";
-      await prisma.workflowInstance.update({
+      const stepRow = await (prisma as any).workflowInstanceStep.findFirst({
         where: { declarationId: "GHE-TEST-003" },
-        data: { steps: JSON.stringify(steps) },
+        orderBy: { stepOrder: "asc" },
+      });
+      const originalDecidedAt = stepRow.decidedAt;
+      await (prisma as any).workflowInstanceStep.update({
+        where: { id: stepRow.id },
+        data: { decidedAt: null },
       });
 
       const res = await request(app)
         .get("/api/reports/sla")
         .set("Authorization", `Bearer ${getAdminToken()}`);
       expect(res.status).toBe(200);
-      // NaN values in response (toString is "NaN", so JSON serializes as null)
       for (const entry of res.body) {
-        // NaN in JSON becomes null, or the min may be NaN which serializes as null
-        // The avg/min/max might be null if computed from NaN
         if (entry.role === "Line Manager") {
-          // FIXED: Bad dates are skipped, so no NaN/null values
           const hasValid = [entry.avg, entry.min, entry.max].every((v: any) => typeof v === "number" && !isNaN(v));
           expect(hasValid).toBe(true);
         }
       }
 
       // Restore
-      await prisma.workflowInstance.update({
-        where: { declarationId: "GHE-TEST-003" },
-        data: { steps: originalSteps },
+      await (prisma as any).workflowInstanceStep.update({
+        where: { id: stepRow.id },
+        data: { decidedAt: originalDecidedAt },
       });
     });
   });

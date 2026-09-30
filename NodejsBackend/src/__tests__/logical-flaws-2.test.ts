@@ -448,6 +448,15 @@ describe("Admin user operations integrity", () => {
   });
 
   it("DELETE /api/admin/users/:id — cannot delete last admin", async () => {
+    // Order-independent: drop extra admin fixtures from other suites first.
+    const { PrismaClient } = await import("@prisma/client");
+    const db = new PrismaClient();
+    try {
+      const extras = await db.user.findMany({ where: { role: "admin", NOT: { id: "user-admin" } }, select: { id: true } });
+      for (const e of extras) await db.user.delete({ where: { id: e.id } }).catch(() => undefined);
+    } finally {
+      await db.$disconnect();
+    }
     const res = await request(app)
       .delete("/api/admin/users/user-admin")
       .set("Authorization", `Bearer ${getAdminToken()}`);

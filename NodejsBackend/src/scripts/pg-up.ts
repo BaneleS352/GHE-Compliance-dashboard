@@ -9,13 +9,13 @@
  *   2. Swap prisma/schema.prisma provider sqlite -> postgresql (in place;
  *      left swapped so `npm run dev` keeps working — see restore note below).
  *   3. Regenerate the Prisma client for PostgreSQL.
- *   4. `prisma migrate deploy` (0000_baseline -> 0004_monthly_eventdate).
+ *   4. `prisma migrate deploy` (0000_baseline -> 0005_phase5_retirement).
  *      On failure nothing is retried and no `db push` fallback runs; an
  *      existing pre-migration database needs the one-time BASELINE.md
  *      resolve procedure instead.
  *   5. Seed ONLY if the database is empty (0 users); never overwrites.
- *   6. Normalization backfill (prints the reconciliation report).
- *   7. Verify gate — zero drift required, otherwise exit 1.
+ *      (Phase 5: no backfill/verify step exists — the normalized schema is
+ *      written directly; see prisma/RETIREMENT.md.)
  *
  * Afterwards run `npm run dev`. To go back to SQLite:
  *   git checkout -- prisma/schema.prisma && npm run db:generate
@@ -113,12 +113,6 @@ async function main() {
 
   console.log("--- seed if empty ---");
   tsxScript("src/scripts/seed-if-empty.ts", env, "Fix the seed error and re-run.");
-
-  console.log("--- normalization backfill ---");
-  tsxScript("src/scripts/run-backfill.ts", env, "Fix the backfill error and re-run.");
-
-  console.log("--- verify gate (zero drift required) ---");
-  tsxScript("src/scripts/run-verify.ts", env, "Resolve the reported drift, then re-run.");
 
   console.log("\nPostgreSQL bring-up complete. Run the server with `npm run dev`.");
   console.log("To return to SQLite: git checkout -- prisma/schema.prisma && npm run db:generate");

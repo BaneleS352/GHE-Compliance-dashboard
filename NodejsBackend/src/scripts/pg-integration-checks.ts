@@ -8,17 +8,14 @@
  * SQLite workflow. Also runs in CI (see
  * .github/workflows/postgres-normalization.yml).
  *
- * Covers every scoped reporting view plus FK enforcement, the
- * backfill/verify gates, and the 0003 counterparty duplicate reconciliation
- * (scoped duplicates with declaration/contact references, globals, NULL
- * timestamps, no-duplicate input). Exits 0 on success, 1 with diagnostics otherwise.
+ * Phase 5: covers the normalized model end to end — lean declarations with
+ * snapshot/detail/counterparty links, row-only workflows, the join-only file
+ * association, every scoped reporting view, FK enforcement, and the 0003
+ * counterparty duplicate reconciliation. Exits 0 on success, 1 otherwise.
  */
 import bcrypt from "bcryptjs";
 import { prisma } from "../config/prisma";
-import { backfillNormalization, formatBackfillReport } from "./backfill-normalization";
-import { verifyNormalization, formatVerifyResult } from "./verify-normalization";
 import {
-  ensureReportingViews,
   viewStatusSummary,
   viewMonthly,
   viewTypeBreakdown,
@@ -59,11 +56,9 @@ async function wipe() {
   await p.counterparty.deleteMany();
   await p.workflowRuleStep.deleteMany();
   await p.workflowRule.deleteMany();
-  await p.userRole.deleteMany();
   await p.user.deleteMany();
   await p.team.deleteMany();
   await p.department.deleteMany();
-  await p.organizationSetting.deleteMany();
   await p.organization.deleteMany();
   await p.systemConfig.deleteMany();
 }
@@ -98,28 +93,48 @@ async function main() {
     data: { id: "default", highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "t", notificationTemplates: "{}" },
   });
   for (const r of [
-    { id: "rule-1", name: "Low", condition: "low", priority: 1, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }]) },
-    { id: "rule-2", name: "High", condition: "high", priority: 2, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }, { order: 2, role: "hr", label: "HR Review" }]) },
+    { id: "rule-1", name: "Low", condition: "low", priority: 1 },
+    { id: "rule-2", name: "High", condition: "high", priority: 2 },
   ]) {
     await p.workflowRule.create({ data: r });
   }
+  await p.workflowRuleStep.createMany({
+    data: [
+      { ruleId: "rule-1", order: 1, role: "lineManager", label: "Line Manager Review" },
+      { ruleId: "rule-2", order: 1, role: "lineManager", label: "Line Manager Review" },
+      { ruleId: "rule-2", order: 2, role: "hr", label: "HR Review" },
+    ],
+  });
+
+  const cpAcme = await p.counterparty.create({ data: { id: "pg-cp-acme", name: "Acme", organizationId: "pg-org-a" } });
+  const cpGlobex = await p.counterparty.create({ data: { id: "pg-cp-globex", name: "Globex", organizationId: "pg-org-a" } });
+  const cpInitech = await p.counterparty.create({ data: { id: "pg-cp-initech", name: "Initech", organizationId: "pg-org-b" } });
 
   const decls = [
-    { id: "PG-2026-0001", org: "pg-org-a", emp: "pg-tm-a", tm: "PG TM A", status: "Pending", type: "Gift", cp: "Acme", value: 100, date: "2026-01-10", submitted: "2026-01-11" },
-    { id: "PG-2026-0002", org: "pg-org-a", emp: "pg-tm-a", tm: "PG TM A", status: "Approved", type: "Hospitality", cp: "Acme", value: 5000, date: "2026-02-10", submitted: "2026-02-11" },
-    { id: "PG-2026-0003", org: "pg-org-a", emp: "pg-tm-a", tm: "PG TM A", status: "Declined", type: "Gift", cp: "Globex", value: 50, date: "2026-02-12", submitted: "2026-02-13" },
-    { id: "PG-2026-0004", org: "pg-org-b", emp: "pg-tm-b", tm: "PG TM B", status: "Pending", type: "Entertainment", cp: "Initech", value: 9000, date: "2026-03-01", submitted: "2026-03-02" },
+    { id: "PG-2026-0001", org: "pg-org-a", emp: "pg-tm-a", tm: "PG TM A", status: "Pending", type: "Gift", cpId: cpAcme.id, value: 100, date: "2026-01-10", submitted: "2026-01-11" },
+    { id: "PG-2026-0002", org: "pg-org-a", emp: "pg-tm-a", tm: "PG TM A", status: "Approved", type: "Hospitality", cpId: cpAcme.id, value: 5000, date: "2026-02-10", submitted: "2026-02-11" },
+    { id: "PG-2026-0003", org: "pg-org-a", emp: "pg-tm-a", tm: "PG TM A", status: "Declined", type: "Gift", cpId: cpGlobex.id, value: 50, date: "2026-02-12", submitted: "2026-02-13" },
+    { id: "PG-2026-0004", org: "pg-org-b", emp: "pg-tm-b", tm: "PG TM B", status: "Pending", type: "Entertainment", cpId: cpInitech.id, value: 9000, date: "2026-03-01", submitted: "2026-03-02" },
   ];
   for (const d of decls) {
     await p.declaration.create({
       data: {
-        id: d.id, employee: d.tm, employeeId: d.emp, teamMemberNumber: "PG-X", lineManager: "PG LM",
-        position: "Rep", department: "Sales", type: d.type, counterparty: d.cp, value: d.value,
-        submitted: d.submitted, approver: "PG LM", status: d.status, priority: "Low",
-        description: "pg fixture", relationship: "Supplier", receivedGiven: "Received",
-        fromField: "Supplier", contactPerson: "C", biddingProcess: "No",
-        occasion: "Business Meeting", date: d.date, instances: "1", publicOfficial: "No",
+        id: d.id, type: d.type, value: d.value, status: d.status, priority: "Low",
         organizationId: d.org,
+        eventDate: new Date(`${d.date}T00:00:00.000Z`),
+        submittedAt: new Date(`${d.submitted}T00:00:00.000Z`),
+        declarerUserId: d.emp,
+        counterpartyId: d.cpId,
+      },
+    });
+    await p.declarationSnapshot.create({
+      data: { declarationId: d.id, declarerName: d.tm, employeeNumber: "PG-X", positionTitle: "Rep", department: "Sales", managerDisplayName: "PG LM" },
+    });
+    await p.declarationDetail.create({
+      data: {
+        declarationId: d.id, description: "pg fixture", occasion: "Business Meeting",
+        relationship: "Supplier", receivedGiven: "Received", fromField: "Supplier",
+        contactPerson: "C", biddingProcess: "No", instances: "1", publicOfficial: "No",
       },
     });
   }
@@ -147,16 +162,6 @@ async function main() {
     ] as any,
     "rule-2",
   );
-
-  // Backfill + verify gates on PostgreSQL.
-  const bf = await backfillNormalization();
-  console.log(formatBackfillReport(bf));
-  check("backfill links all declarations", bf.declarations.total === 4 && bf.declarations.snapshots === 4);
-  const vr = await verifyNormalization();
-  console.log(formatVerifyResult(vr));
-  check("verify reports zero drift", vr.ok, formatVerifyResult(vr));
-
-  await ensureReportingViews();
 
   // 1. Status summary, org-scoped.
   const expectedA: Record<string, number> = {};
@@ -203,7 +208,7 @@ async function main() {
   // FK enforcement: bogus ruleId must fail; rule delete nulls instance ruleId.
   let fkBlocked = false;
   try {
-    await p.workflowInstance.create({ data: { declarationId: "PG-2026-0003", steps: "[]", ruleId: "rule-missing" } });
+    await p.workflowInstance.create({ data: { declarationId: "PG-2026-0003", ruleId: "rule-missing" } });
   } catch {
     fkBlocked = true;
   }
@@ -213,10 +218,6 @@ async function main() {
   check("rule delete SET NULLs instance ruleId", (orphan as any)?.ruleId === null, JSON.stringify((orphan as any)?.ruleId));
 
   // 8. Counterparty duplicate migration (0003) on production-shaped data.
-  // Seeds scoped duplicates referenced by declarations, contacts on both the
-  // survivor and the duplicate, global same-name counterparties, a NULL
-  // createdAt row, and a no-duplicate control — then executes the committed
-  // migration file verbatim and asserts preservation + canonical choice.
   {
     const fs = await import("fs");
     const path = await import("path");
@@ -250,15 +251,24 @@ async function main() {
     // No-duplicate control.
     await p.counterparty.create({ data: { id: "pg-cp-solo", name: "SoloCo", organizationId: "pg-org-dup" } });
     // Declaration referencing the LOSER (must be repointed to the survivor).
+    const dupDeclId = "PG-DUP-0001";
     await p.declaration.create({
       data: {
-        id: "PG-DUP-0001", employee: "PG TM A", employeeId: "pg-tm-a", teamMemberNumber: "PG-X",
-        lineManager: "PG LM", position: "Rep", department: "Sales", type: "Gift",
-        counterparty: "DupCo", value: 10, submitted: "2026-04-01", approver: "PG LM",
-        status: "Pending", priority: "Low", description: "dup fixture", relationship: "Supplier",
-        receivedGiven: "Received", fromField: "Supplier", contactPerson: "C", biddingProcess: "No",
-        occasion: "Business Meeting", date: "2026-03-31", instances: "1", publicOfficial: "No",
-        organizationId: "pg-org-dup", counterpartyId: loser.id,
+        id: dupDeclId, type: "Gift", value: 10, status: "Pending", priority: "Low",
+        organizationId: "pg-org-dup",
+        eventDate: new Date("2026-03-31T00:00:00.000Z"),
+        submittedAt: new Date("2026-04-01T00:00:00.000Z"),
+        declarerUserId: "pg-tm-a", counterpartyId: loser.id,
+      },
+    });
+    await p.declarationSnapshot.create({
+      data: { declarationId: dupDeclId, declarerName: "PG TM A", employeeNumber: "PG-X", positionTitle: "Rep", department: "Sales", managerDisplayName: "PG LM" },
+    });
+    await p.declarationDetail.create({
+      data: {
+        declarationId: dupDeclId, description: "dup fixture", relationship: "Supplier",
+        receivedGiven: "Received", fromField: "Supplier", contactPerson: "C",
+        biddingProcess: "No", occasion: "Business Meeting", instances: "1", publicOfficial: "No",
       },
     });
     // Same-named contacts on both rows: both kept, both reparented (no dedupe).
@@ -308,6 +318,8 @@ async function main() {
     check("global same-name insert still allowed", globalAllowed);
 
     // Tidy up the fixture rows (keep the suite database clean for later runs).
+    await p.declarationDetail.deleteMany({ where: { declarationId: "PG-DUP-0001" } });
+    await p.declarationSnapshot.deleteMany({ where: { declarationId: "PG-DUP-0001" } });
     await p.declaration.delete({ where: { id: "PG-DUP-0001" } }).catch(() => undefined);
     await p.counterpartyContact.deleteMany({ where: { id: { in: ["pg-cc-survivor", "pg-cc-loser"] } } });
     await p.counterparty.deleteMany({ where: { id: { in: ["pg-cp-survivor", "pg-cp-loser", "pg-cp-nullts", "pg-cp-g1", "pg-cp-g2", "pg-cp-g3", "pg-cp-solo"] } } });

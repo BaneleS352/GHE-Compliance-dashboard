@@ -40,21 +40,20 @@ describe("Admin Config", () => {
     expect(res.body.categories).toContain("Gift");
   });
 
-  it("PUT /api/admin/config/dropdowns — updates dropdowns", async () => {
+  it("PUT /api/admin/config/dropdowns — retired (410), GET serves master data", async () => {
     const res = await request(app)
       .put("/api/admin/config/dropdowns")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ departments: ["Marketing", "IT", "Finance"], categories: ["Gift", "Hospitality", "Entertainment"], occasions: ["Meeting"], receivedGiven: ["Received"], biddingProcess: ["Yes"], publicOfficial: ["No"], relationships: ["Yes"], partyTypes: ["Supplier"] });
-    expect(res.status).toBe(200);
-    expect(res.body.departments).toHaveLength(3);
+      .send({ departments: ["Marketing", "IT", "Finance"] });
+    expect(res.status).toBe(410);
   });
 
-  it("PUT /api/admin/config/dropdowns — rejects empty array", async () => {
+  it("PUT /api/admin/config/dropdowns — retired for empty arrays too", async () => {
     const res = await request(app)
       .put("/api/admin/config/dropdowns")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ departments: [], categories: ["Gift"], occasions: ["M"], receivedGiven: ["R"], biddingProcess: ["Y"], publicOfficial: ["N"], relationships: ["Y"], partyTypes: ["S"] });
-    expect(res.status).toBe(400);
+      .send({ departments: [] });
+    expect(res.status).toBe(410);
   });
 
   it("GET /api/admin/config/approval-options — returns options", async () => {

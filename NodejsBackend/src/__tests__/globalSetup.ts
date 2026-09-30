@@ -54,47 +54,77 @@ export async function setup() {
       { id: "user-team", name: "Nomvula Team", email: "nomvula@test.com", passwordHash: hash, role: "teamMember", teamMemberNumber: "TM-001", department: "Marketing", position: "Brand Manager", lineManager: "user-approver" },
     ],
   });
+  // Normalized user links (manager FK).
+  await prisma.user.update({ where: { id: "user-team" }, data: { managerId: "user-approver" } });
 
   await prisma.systemConfig.create({
     data: { id: "default", highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "Test {{ApproverName}}", notificationTemplates: "{}" },
   });
 
+  // Workflow rules + row-only step definitions.
   await prisma.workflowRule.createMany({
     data: [
-      { id: "rule-1", name: "Low Value", condition: "low", priority: 1, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }]) },
-      { id: "rule-2", name: "High Value", condition: "high", priority: 2, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }, { order: 2, role: "hr", label: "HR Review" }]) },
+      { id: "rule-1", name: "Low Value", condition: "low", priority: 1 },
+      { id: "rule-2", name: "High Value", condition: "high", priority: 2 },
+    ],
+  });
+  await (prisma as any).workflowRuleStep.createMany({
+    data: [
+      { ruleId: "rule-1", order: 1, role: "lineManager", label: "Line Manager Review" },
+      { ruleId: "rule-2", order: 1, role: "lineManager", label: "Line Manager Review" },
+      { ruleId: "rule-2", order: 2, role: "hr", label: "HR Review" },
     ],
   });
 
-  await prisma.declaration.createMany({
-    data: [
-      { id: "GHE-TEST-001", employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing", company: "Test Corp", team: "Brand", type: "Gift", counterparty: "Supplier A", value: 100, submitted: "2026-01-15", approver: "Sipho Approver", approverId: "user-approver", status: "Pending", priority: "Low", description: "Test declaration", relationship: "Test", receivedGiven: "Received", fromField: "Supplier", contactPerson: "John", biddingProcess: "No", occasion: "Business Meeting", date: "2026-01-14", instances: "1", publicOfficial: "No" },
-      { id: "GHE-TEST-002", employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing", company: "Test Corp", team: "Brand", type: "Gift", counterparty: "Supplier B", value: 500, submitted: "2026-02-01", approver: "Lindiwe HR", approverId: "user-hr", status: "Pending", priority: "Medium", description: "Second test", relationship: "Test", receivedGiven: "Given", fromField: "Customer", contactPerson: "Jane", biddingProcess: "No", occasion: "Milestone", date: "2026-01-30", instances: "1", publicOfficial: "No" },
-      { id: "GHE-TEST-003", employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001", lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing", company: "Test Corp", team: "Brand", type: "Hospitality", counterparty: "Supplier C", value: 3000, submitted: "2026-03-01", approver: "Lindiwe HR", approverId: "user-hr", status: "Approved", priority: "High", description: "High value", relationship: "Test", receivedGiven: "Received", fromField: "Supplier", contactPerson: "Bob", biddingProcess: "Yes", occasion: "Other", date: "2026-02-28", instances: "2", publicOfficial: "No" },
-    ],
-  });
+  // Counterparties (one row per name for the fixture org-less scope).
+  const cpA = await (prisma as any).counterparty.create({ data: { name: "Supplier A" } });
+  const cpB = await (prisma as any).counterparty.create({ data: { name: "Supplier B" } });
+  const cpC = await (prisma as any).counterparty.create({ data: { name: "Supplier C" } });
 
-  await prisma.workflowInstance.createMany({
-    data: [
-      { declarationId: "GHE-TEST-001", steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null }]) },
-      { declarationId: "GHE-TEST-002", steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null }, { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "pending", decision: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null }]) },
-      { declarationId: "GHE-TEST-003", steps: JSON.stringify([{ order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "approved", decision: "accept", notes: "OK", decidedAt: "2026-03-02T10:00:00.000Z", decidedById: null, decidedByName: null }, { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "approved", decision: "org", notes: "Approved", decidedAt: "2026-03-03T10:00:00.000Z", decidedById: null, decidedByName: null }]) },
-    ],
-  });
+  // Lean declarations + snapshots + details.
+  const decls = [
+    {
+      id: "GHE-TEST-001", type: "Gift", value: 100, status: "Pending", priority: "Low",
+      eventDate: new Date("2026-01-14T00:00:00.000Z"), submittedAt: new Date("2026-01-15T00:00:00.000Z"),
+      declarerUserId: "user-team", currentApproverUserId: "user-approver", counterpartyId: cpA.id,
+      snap: { declarerName: "Nomvula Team", employeeNumber: "TM-001", positionTitle: "Brand Manager", department: "Marketing", managerDisplayName: "Sipho Approver" },
+      det: { description: "Test declaration", occasion: "Business Meeting", relationship: "Test", receivedGiven: "Received", fromField: "Supplier", contactPerson: "John", biddingProcess: "No", instances: "1", publicOfficial: "No" },
+    },
+    {
+      id: "GHE-TEST-002", type: "Gift", value: 500, status: "Pending", priority: "Medium",
+      eventDate: new Date("2026-01-30T00:00:00.000Z"), submittedAt: new Date("2026-02-01T00:00:00.000Z"),
+      declarerUserId: "user-team", currentApproverUserId: "user-approver", counterpartyId: cpB.id,
+      snap: { declarerName: "Nomvula Team", employeeNumber: "TM-001", positionTitle: "Brand Manager", department: "Marketing", managerDisplayName: "Sipho Approver" },
+      det: { description: "Second test", occasion: "Milestone", relationship: "Test", receivedGiven: "Given", fromField: "Customer", contactPerson: "Jane", biddingProcess: "No", instances: "1", publicOfficial: "No" },
+    },
+    {
+      id: "GHE-TEST-003", type: "Hospitality", value: 3000, status: "Approved", priority: "High",
+      eventDate: new Date("2026-02-28T00:00:00.000Z"), submittedAt: new Date("2026-03-01T00:00:00.000Z"),
+      declarerUserId: "user-team", currentApproverUserId: null, counterpartyId: cpC.id,
+      snap: { declarerName: "Nomvula Team", employeeNumber: "TM-001", positionTitle: "Brand Manager", department: "Marketing", managerDisplayName: "Sipho Approver" },
+      det: { description: "High value", occasion: "Other", relationship: "Test", receivedGiven: "Received", fromField: "Supplier", contactPerson: "Bob", biddingProcess: "Yes", instances: "2", publicOfficial: "No" },
+    },
+  ];
+  for (const d of decls) {
+    const { snap, det, ...row } = d;
+    await prisma.declaration.create({ data: row });
+    await (prisma as any).declarationSnapshot.create({ data: { declarationId: d.id, ...snap } });
+    await (prisma as any).declarationDetail.create({ data: { declarationId: d.id, ...det } });
+  }
 
-  await prisma.complianceTrendPoint.createMany({
-    data: [
-      { id: "ct-1", month: "Jan", approved: 5, declined: 1 },
-      { id: "ct-2", month: "Feb", approved: 8, declined: 2 },
-    ],
-  });
-
-  await prisma.typeBreakdownItem.createMany({
-    data: [
-      { id: "tb-1", name: "Gift", value: 50, color: "#7c3aed" },
-      { id: "tb-2", name: "Hospitality", value: 30, color: "#0891b2" },
-    ],
-  });
+  // Workflow instances: rows only (no JSON).
+  const { persistWorkflowInstanceSteps } = await import("../services/normalization");
+  await persistWorkflowInstanceSteps("GHE-TEST-001", [
+    { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+  ], "rule-1");
+  await persistWorkflowInstanceSteps("GHE-TEST-002", [
+    { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+    { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+  ], "rule-2");
+  await persistWorkflowInstanceSteps("GHE-TEST-003", [
+    { order: 1, role: "lineManager", assignee: "user-approver", assigneeName: "Sipho Approver", label: "Line Manager Review", status: "approved", decision: "accept", approvedAt: "2026-03-02T10:00:00.000Z", notes: "OK", decidedAt: "2026-03-02T10:00:00.000Z", decidedById: null, decidedByName: null },
+    { order: 2, role: "hr", assignee: "user-hr", assigneeName: "Lindiwe HR", label: "HR Review", status: "approved", decision: "org", approvedAt: "2026-03-03T10:00:00.000Z", notes: "Approved", decidedAt: "2026-03-03T10:00:00.000Z", decidedById: null, decidedByName: null },
+  ], "rule-2");
 
   await prisma.approvalOption.createMany({
     data: [
@@ -106,18 +136,9 @@ export async function setup() {
     ],
   });
 
-  await prisma.dropdowns.create({
-    data: { id: "default", data: JSON.stringify({ departments: ["Marketing", "IT", "HR"], categories: ["Gift", "Hospitality"], occasions: ["Business Meeting", "Milestone"], receivedGiven: ["Received", "Given"], biddingProcess: ["Yes", "No"], publicOfficial: ["Yes", "No"], relationships: ["Yes", "No"], partyTypes: ["Supplier", "Customer"] }) },
-  });
-
   await prisma.$disconnect();
 
-  // Populate the relational read model (snapshots, details, rule/instance
-  // step rows, counterparties, roles) so tests exercise the normalized paths.
-  const { backfillNormalization } = await import("../scripts/backfill-normalization");
-  await backfillNormalization();
-
-  // Views are created lazily by reportingViews; nothing else to do here.
+  // Reporting views (SQLite) are created lazily by reportingViews; nothing else to do here.
 }
 
 export async function teardown() {

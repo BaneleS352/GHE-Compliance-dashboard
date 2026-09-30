@@ -18,7 +18,7 @@ function render(value: string, data: Record<string, string>): string {
 export async function sendNotification(event: NotificationEvent, declarationId: string, recipientId: string, decision = ""): Promise<void> {
   try {
     const [declaration, recipient, config] = await Promise.all([
-      prisma.declaration.findUnique({ where: { id: declarationId } }),
+      prisma.declaration.findUnique({ where: { id: declarationId }, include: { snapshot: true, declarer: { select: { name: true } } } }),
       prisma.user.findUnique({ where: { id: recipientId }, select: { name: true, email: true } }),
       prisma.systemConfig.findFirst(),
     ]);
@@ -27,7 +27,7 @@ export async function sendNotification(event: NotificationEvent, declarationId: 
     try { templates = JSON.parse(config?.notificationTemplates || "{}"); } catch { return; }
     const template = templates[event];
     if (!template?.subject || !template?.body) return;
-    const data = { declarationId, employee: declaration.employee, recipientName: recipient.name, decision };
+    const data = { declarationId, employee: (declaration as any).snapshot?.declarerName || (declaration as any).declarer?.name || "", recipientName: recipient.name, decision };
     const payload = { to: recipient.email, subject: render(template.subject, data), body: render(template.body, data), event, declarationId };
     const webhook = process.env.EMAIL_WEBHOOK_URL;
     if (!webhook) {

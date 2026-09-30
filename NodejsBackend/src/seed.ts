@@ -62,8 +62,14 @@ const declarations = [
 ];
 
 const workflowRules = [
-  { id: "rule-1", name: "Low Value (R0\u2013R1000)", condition: "low", priority: 1, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }]) },
-  { id: "rule-2", name: "High Value (above R1000)", condition: "high", priority: 2, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }, { order: 2, role: "hr", label: "HR Review" }]) },
+  { id: "rule-1", name: "Low Value (R0–R1000)", condition: "low", priority: 1 },
+  { id: "rule-2", name: "High Value (above R1000)", condition: "high", priority: 2 },
+];
+
+const workflowRuleSteps = [
+  { ruleId: "rule-1", order: 1, role: "lineManager", label: "Line Manager Review" },
+  { ruleId: "rule-2", order: 1, role: "lineManager", label: "Line Manager Review" },
+  { ruleId: "rule-2", order: 2, role: "hr", label: "HR Review" },
 ];
 
 const workflowInstances: { declarationId: string; steps: string }[] = [
@@ -103,41 +109,196 @@ async function main() {
   }
   console.log(`Seeded ${organizations.length} organizations`);
 
+  // Users first (manager FK resolved in a second pass once all ids exist).
   for (const u of users) {
+    const { lineManager, ...rest } = u as any;
     await prisma.user.upsert({
       where: { id: u.id },
-      update: u,
-      create: { ...u, passwordHash },
+      update: { ...rest, lineManager: lineManager ?? null },
+      create: { ...(rest as any), lineManager: lineManager ?? null, passwordHash },
+    });
+  }
+  const allUserIds = new Set(users.map((u) => u.id));
+  const userById = new Map(users.map((u) => [u.id, u]));
+  for (const u of users) {
+    const lm = (u as any).lineManager as string | null;
+    // Departments: org-scoped master data (global users stay unscoped).
+    let departmentId: string | null = null;
+    if (u.organizationId && u.department) {
+      const dept = await (prisma as any).department.upsert({
+        where: { organizationId_name: { organizationId: u.organizationId, name: u.department } },
+        create: { organizationId: u.organizationId, name: u.department },
+        update: {},
+      });
+      departmentId = dept.id;
+    }
+    await prisma.user.update({
+      where: { id: u.id },
+      data: {
+        managerId: lm && allUserIds.has(lm) ? lm : null,
+        departmentId,
+      },
     });
   }
   console.log(`Seeded ${users.length} users`);
 
-  for (const d of declarations) {
+  // Counterparties: one row per (organizationId, name) from declaration data.
+  const cpKey = new Map<string, { name: string; organizationId: string | null; contactName: string | null }>();
+  for (const d of declarations as any[]) {
+    const key = `${d.organizationId || ""}||${String(d.counterparty).trim()}`;
+    if (!cpKey.has(key)) {
+      cpKey.set(key, { name: String(d.counterparty).trim(), organizationId: d.organizationId || null, contactName: d.contactPerson || null });
+    }
+  }
+  const cpIdByKey = new Map<string, string>();
+  for (const [key, cp] of cpKey) {
+    const row = await (prisma as any).counterparty.upsert({
+      where: { name_organizationId: { name: cp.name, organizationId: cp.organizationId as string } },
+      create: cp,
+      update: {},
+    }).catch(async () => {
+      // Global (null organizationId) rows skip the composite upsert — resolve by lookup.
+      const found = await (prisma as any).counterparty.findFirst({ where: { name: cp.name, organizationId: null } });
+      if (found) return found;
+      return (prisma as any).counterparty.create({ data: cp });
+    });
+    cpIdByKey.set(key, row.id);
+  }
+  console.log(`Seeded ${cpIdByKey.size} counterparties`);
+
+  // Lean declarations + immutable snapshots + details.
+  const toDate = (s: string) => new Date(`${s}T00:00:00.000Z`);
+  for (const d of declarations as any[]) {
+    const key = `${d.organizationId || ""}||${String(d.counterparty).trim()}`;
+    const approverExists = d.approverId && allUserIds.has(d.approverId);
     await prisma.declaration.upsert({
       where: { id: d.id },
-      update: d,
-      create: d,
+      update: {
+        type: d.type,
+        value: d.value,
+        status: d.status,
+        priority: d.priority,
+        organizationId: d.organizationId || null,
+        eventDate: toDate(d.date),
+        submittedAt: toDate(d.submitted),
+        declarerUserId: allUserIds.has(d.employeeId) ? d.employeeId : null,
+        currentApproverUserId: approverExists ? d.approverId : null,
+        counterpartyId: cpIdByKey.get(key) || null,
+      },
+      create: {
+        id: d.id,
+        type: d.type,
+        value: d.value,
+        status: d.status,
+        priority: d.priority,
+        organizationId: d.organizationId || null,
+        eventDate: toDate(d.date),
+        submittedAt: toDate(d.submitted),
+        declarerUserId: allUserIds.has(d.employeeId) ? d.employeeId : null,
+        currentApproverUserId: approverExists ? d.approverId : null,
+        counterpartyId: cpIdByKey.get(key) || null,
+      },
+    });
+    await (prisma as any).declarationSnapshot.upsert({
+      where: { declarationId: d.id },
+      create: {
+        declarationId: d.id,
+        declarerName: d.employee,
+        employeeNumber: d.teamMemberNumber,
+        positionTitle: d.position,
+        department: d.department,
+        managerDisplayName: d.lineManager ? (userById.get(d.lineManager as string)?.name || d.lineManager) : null,
+      },
+      update: {},
+    });
+    await (prisma as any).declarationDetail.upsert({
+      where: { declarationId: d.id },
+      create: {
+        declarationId: d.id,
+        description: d.description,
+        occasion: d.occasion,
+        relationship: d.relationship,
+        receivedGiven: d.receivedGiven,
+        fromField: d.fromField,
+        contactPerson: d.contactPerson,
+        biddingProcess: d.biddingProcess,
+        contractNegotiation: (d as any).contractNegotiation ?? null,
+        instances: d.instances,
+        publicOfficial: d.publicOfficial,
+        substantiation: (d as any).substantiation ?? null,
+      },
+      update: {
+        description: d.description,
+        occasion: d.occasion,
+        relationship: d.relationship,
+        receivedGiven: d.receivedGiven,
+        fromField: d.fromField,
+        contactPerson: d.contactPerson,
+        biddingProcess: d.biddingProcess,
+        contractNegotiation: (d as any).contractNegotiation ?? null,
+        instances: d.instances,
+        publicOfficial: d.publicOfficial,
+        substantiation: (d as any).substantiation ?? null,
+      },
     });
   }
-  console.log(`Seeded ${declarations.length} declarations`);
+  console.log(`Seeded ${declarations.length} declarations (+ snapshots/details)`);
+
+  // Teams from declaration team strings (best-effort, under the snapshot department).
+  for (const d of declarations as any[]) {
+    if (!d.team || !d.organizationId) continue;
+    const dept = await (prisma as any).department.findUnique({
+      where: { organizationId_name: { organizationId: d.organizationId, name: d.department } },
+    });
+    if (!dept) continue;
+    await (prisma as any).team.upsert({
+      where: { departmentId_name: { departmentId: dept.id, name: d.team } },
+      create: { departmentId: dept.id, name: d.team },
+      update: {},
+    }).catch(() => undefined);
+  }
 
   for (const r of workflowRules) {
     await prisma.workflowRule.upsert({
       where: { id: r.id },
-      update: r,
+      update: { name: r.name, condition: r.condition, priority: r.priority },
       create: r,
     });
   }
-  console.log(`Seeded ${workflowRules.length} workflow rules`);
-
-  for (const w of workflowInstances) {
-    await prisma.workflowInstance.upsert({
-      where: { declarationId: w.declarationId },
-      update: w,
-      create: w,
+  for (const s of workflowRuleSteps) {
+    await (prisma as any).workflowRuleStep.upsert({
+      where: { ruleId_order: { ruleId: s.ruleId, order: s.order } },
+      create: s,
+      update: { role: s.role, label: s.label },
     });
   }
-  console.log(`Seeded ${workflowInstances.length} workflow instances`);
+  console.log(`Seeded ${workflowRules.length} workflow rules (+ ${workflowRuleSteps.length} rule steps)`);
+
+  // Workflow instances: legacy step JSON in this file is parsed into step rows.
+  const { writeWorkflowStepsTx } = await import("./services/normalization");
+  const { determineRuleId } = await import("./services/workflowService");
+  for (const w of workflowInstances) {
+    const decl = (declarations as any[]).find((d) => d.id === w.declarationId);
+    const steps = JSON.parse(w.steps).map((s: any) => ({
+      order: s.order,
+      role: s.role,
+      assignee: s.assignee || "",
+      assigneeName: s.assigneeName || "Unknown",
+      label: s.label,
+      status: s.status,
+      decision: s.decision ?? null,
+      approvedAt: null,
+      notes: s.notes ?? "",
+      decidedAt: s.decidedAt ?? null,
+      decidedById: s.decidedById ?? null,
+      decidedByName: s.decidedByName ?? null,
+    }));
+    const ruleId = determineRuleId(decl?.value ?? 0, 1000, 1000);
+    await (prisma as any).$transaction(async (tx: any) => {
+      await writeWorkflowStepsTx(tx, w.declarationId, steps, ruleId);
+    });
+  }
+  console.log(`Seeded ${workflowInstances.length} workflow instances (+ step rows)`);
 
   // System config
   const defaultNotificationTemplates = JSON.stringify({
@@ -178,56 +339,6 @@ async function main() {
     },
   });
 
-  // Dropdowns
-  await prisma.dropdowns.upsert({
-    where: { id: "default" },
-    update: {},
-    create: {
-      id: "default",
-      data: JSON.stringify({
-        departments: ["Marketing", "Sales", "Operations", "Finance", "HR", "IT", "Legal", "Executive"],
-        categories: ["Gift", "Hospitality", "Entertainment"],
-        occasions: ["Business Meeting", "Festive Season", "Milestone", "Other", "Relationship Maintenance", "Year End"],
-        receivedGiven: ["Received", "Given"],
-        biddingProcess: ["Yes", "No", "N/A"],
-        publicOfficial: ["Yes", "No"],
-        relationships: ["Yes", "No", "N/A"],
-        partyTypes: ["Supplier", "Customer", "Team Member", "Public Official"],
-      }),
-    },
-  });
-
-  // Compliance trend
-  const trendData = [
-    { id: "trend-1", month: "Jun", approved: 14, declined: 4 },
-    { id: "trend-2", month: "Jul", approved: 19, declined: 5 },
-    { id: "trend-3", month: "Aug", approved: 15, declined: 4 },
-    { id: "trend-4", month: "Sep", approved: 25, declined: 6 },
-    { id: "trend-5", month: "Oct", approved: 22, declined: 6 },
-    { id: "trend-6", month: "Nov", approved: 18, declined: 4 },
-  ];
-  for (const t of trendData) {
-    await prisma.complianceTrendPoint.upsert({
-      where: { id: t.id },
-      update: t,
-      create: t,
-    });
-  }
-
-  // Type breakdown
-  const breakdownData = [
-    { id: "type-1", name: "Gift", value: 38, color: "#7c3aed" },
-    { id: "type-2", name: "Hospitality", value: 41, color: "#0891b2" },
-    { id: "type-3", name: "Entertainment", value: 21, color: "#d97706" },
-  ];
-  for (const b of breakdownData) {
-    await prisma.typeBreakdownItem.upsert({
-      where: { id: b.id },
-      update: b,
-      create: b,
-    });
-  }
-
   // Approval options
   const approvalOptions = [
     { id: "opt-1", value: "return", label: "Return - Team member to provide additional information." },
@@ -244,30 +355,8 @@ async function main() {
     });
   }
 
-  console.log("Seeded system config, dropdowns, trend data, type breakdown, and approval options");
+  console.log("Seeded system config and approval options");
   console.log(`All passwords: "${DEFAULT_PASSWORD}"`);
-
-  // Phase 2 reference data (idempotent lookups for the normalized model).
-  for (const role of ["admin", "approver", "teamMember"]) {
-    await prisma.appRole.upsert({ where: { name: role }, create: { name: role }, update: {} });
-  }
-  const refSeeds: { model: "refDeclarationType" | "refDeclarationStatus" | "refPriority" | "refDirection" | "refWorkflowStatus"; values: string[] }[] = [
-    { model: "refDeclarationType", values: ["Gift", "Hospitality", "Entertainment"] },
-    { model: "refDeclarationStatus", values: ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"] },
-    { model: "refPriority", values: ["Low", "Medium", "High"] },
-    { model: "refDirection", values: ["Received", "Given"] },
-    { model: "refWorkflowStatus", values: ["pending", "approved", "declined", "returned", "skipped"] },
-  ];
-  for (const spec of refSeeds) {
-    for (const name of spec.values) {
-      await (prisma as any)[spec.model].upsert({ where: { name }, create: { name }, update: {} });
-    }
-  }
-
-  // Backfill the relational read model from the seeded legacy rows (idempotent).
-  const { backfillNormalization, formatBackfillReport } = await import("./scripts/backfill-normalization");
-  const report = await backfillNormalization();
-  console.log("Normalization backfill:\n" + formatBackfillReport(report));
 }
 
 main()

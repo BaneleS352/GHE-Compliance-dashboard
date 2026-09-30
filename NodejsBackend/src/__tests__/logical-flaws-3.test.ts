@@ -23,8 +23,18 @@ beforeEach(async () => {
   });
   await prisma.workflowRule.upsert({
     where: { id: "rule-2" },
-    update: { steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }, { order: 2, role: "hr", label: "HR Review" }]) },
-    create: { id: "rule-2", name: "High Value", condition: "high", priority: 2, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }, { order: 2, role: "hr", label: "HR Review" }]) },
+    update: { name: "High Value", condition: "high", priority: 2 },
+    create: { id: "rule-2", name: "High Value", condition: "high", priority: 2 },
+  });
+  await (prisma as any).workflowRuleStep.upsert({
+    where: { ruleId_order: { ruleId: "rule-2", order: 1 } },
+    create: { ruleId: "rule-2", order: 1, role: "lineManager", label: "Line Manager Review" },
+    update: { role: "lineManager", label: "Line Manager Review" },
+  });
+  await (prisma as any).workflowRuleStep.upsert({
+    where: { ruleId_order: { ruleId: "rule-2", order: 2 } },
+    create: { ruleId: "rule-2", order: 2, role: "hr", label: "HR Review" },
+    update: { role: "hr", label: "HR Review" },
   });
   await prisma.systemConfig.update({ where: { id: "default" }, data: { highValueThreshold: 1000, mediumValueThreshold: 1000 } });
 });
@@ -154,42 +164,20 @@ describe("Admin config CRUD", () => {
     expect(res.body.departments).toContain("Marketing");
   });
 
-  it("PUT /api/admin/config/dropdowns — round-trip update", async () => {
+  it("PUT /api/admin/config/dropdowns — retired with the Dropdowns table", async () => {
+    // Phase 5: dropdowns are served from department master data + fixed domain
+    // lists; the editable JSON endpoint is gone (410) while GET keeps working.
     const put = await request(app)
       .put("/api/admin/config/dropdowns")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({
-        departments: ["Engineering", "Finance"],
-        categories: ["Gift", "Travel"],
-        occasions: ["Conference"],
-        receivedGiven: ["Received"],
-        biddingProcess: ["Yes"],
-        publicOfficial: ["No"],
-        relationships: ["Yes"],
-        partyTypes: ["Vendor"],
-      });
-    expect(put.status).toBe(200);
-    expect(put.body.departments).toContain("Engineering");
+      .send({ departments: ["Engineering"] });
+    expect(put.status).toBe(410);
 
     const reread = await request(app)
       .get("/api/admin/config/dropdowns")
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(reread.body.departments).toContain("Engineering");
-    expect(reread.body.departments).not.toContain("Marketing");
-
-    await request(app)
-      .put("/api/admin/config/dropdowns")
-      .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({
-        departments: ["Marketing", "IT", "HR"],
-        categories: ["Gift", "Hospitality"],
-        occasions: ["Business Meeting", "Milestone"],
-        receivedGiven: ["Received", "Given"],
-        biddingProcess: ["Yes", "No"],
-        publicOfficial: ["Yes", "No"],
-        relationships: ["Yes", "No"],
-        partyTypes: ["Supplier", "Customer"],
-      });
+    expect(reread.status).toBe(200);
+    expect(reread.body.departments).toContain("Marketing");
   });
 });
 
@@ -540,8 +528,13 @@ describe("Delete workflow rule in use", () => {
   afterAll(async () => {
     await prisma.workflowRule.upsert({
       where: { id: "rule-1" },
-      update: { name: "Low Value", condition: "low", priority: 1, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }]) },
-      create: { id: "rule-1", name: "Low Value", condition: "low", priority: 1, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }]) },
+      update: { name: "Low Value", condition: "low", priority: 1 },
+      create: { id: "rule-1", name: "Low Value", condition: "low", priority: 1 },
+    });
+    await (prisma as any).workflowRuleStep.upsert({
+      where: { ruleId_order: { ruleId: "rule-1", order: 1 } },
+      create: { ruleId: "rule-1", order: 1, role: "lineManager", label: "Line Manager Review" },
+      update: { role: "lineManager", label: "Line Manager Review" },
     });
     await prisma.$disconnect();
   });
@@ -743,8 +736,13 @@ afterAll(async () => {
   });
   await prisma.workflowRule.upsert({
     where: { id: "rule-1" },
-    update: { name: "Low Value", condition: "low", priority: 1, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }]) },
-    create: { id: "rule-1", name: "Low Value", condition: "low", priority: 1, steps: JSON.stringify([{ order: 1, role: "lineManager", label: "Line Manager Review" }]) },
+    update: { name: "Low Value", condition: "low", priority: 1 },
+    create: { id: "rule-1", name: "Low Value", condition: "low", priority: 1 },
+  });
+  await (prisma as any).workflowRuleStep.upsert({
+    where: { ruleId_order: { ruleId: "rule-1", order: 1 } },
+    create: { ruleId: "rule-1", order: 1, role: "lineManager", label: "Line Manager Review" },
+    update: { role: "lineManager", label: "Line Manager Review" },
   });
   await prisma.$disconnect();
 });

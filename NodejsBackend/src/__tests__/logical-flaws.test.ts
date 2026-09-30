@@ -477,7 +477,10 @@ describe("User deletion integrity", () => {
       .get(`/api/declarations/${declId}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(orphanDecl.status).toBe(200);
-    expect(orphanDecl.body.employeeId).toBe(userId);
+    // FK SetNull: the declarer link is cleared, but the immutable snapshot
+    // preserves the declaration-time context (name still served from it).
+    expect(orphanDecl.body.employeeId).toBeFalsy();
+    expect(orphanDecl.body.employee).toBe("Orphan User");
   });
 
   it("DELETE /api/admin/users/:id — delete user with active pending approval steps is blocked", async () => {
@@ -975,19 +978,23 @@ describe("Config threshold change effect", () => {
   });
 });
 
-// ── DECLARATION FILES JSON FIELD ──
+// ── DECLARATION FILES JOIN ASSOCIATION ──
 describe("Declaration files metadata field", () => {
-  it("POST /api/declarations — files array is stored as JSON string and returned as array", async () => {
+  it("POST /api/declarations — client-sent files array is ignored (join-only association)", async () => {
+    // Phase 5: the legacy files JSON column is retired. File evidence is
+    // attached via POST /api/files/upload (DeclarationFile join); a raw
+    // files array in the create payload is accepted for compatibility but
+    // not stored.
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ ...BASE, counterparty: "FilesMetaTest", value: 100, files: ["file1.pdf", "file2.jpg"] });
     expect(create.status).toBe(201);
     expect(Array.isArray(create.body.files)).toBe(true);
-    expect(create.body.files).toContain("file1.pdf");
+    expect(create.body.files).toEqual([]);
   });
 
-  it("PUT /api/declarations/:id — updating files field replaces stored metadata", async () => {
+  it("PUT /api/declarations/:id — files field is ignored, upload endpoint is the write path", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
@@ -1000,7 +1007,20 @@ describe("Declaration files metadata field", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ files: ["replacement.pdf"] });
     expect(edit.status).toBe(200);
-    expect(edit.body.files).toEqual(["replacement.pdf"]);
+    expect(edit.body.files).toEqual([]);
+
+    // The supported path: upload a file, then it appears on the declaration.
+    const upload = await request(app)
+      .post("/api/files/upload")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .attach("file", Buffer.from("evidence"), "evidence.txt")
+      .field("declarationId", id);
+    expect(upload.status).toBe(201);
+    const reread = await request(app)
+      .get(`/api/declarations/${id}`)
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(reread.body.files.length).toBe(1);
+    expect(reread.body.files[0].name).toBe("evidence.txt");
   });
 });
 
@@ -1051,17 +1071,14 @@ describe("Admin status bypass protection", () => {
     await request(app)
       .patch(`/api/declarations/${id}/submit`)
       .set("Authorization", `Bearer ${getTeamToken()}`);
-    const instance = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
-    const steps = JSON.parse(instance!.steps);
+    const { readWorkflowSteps, persistWorkflowInstanceSteps } = await import("../services/normalization");
+    const steps = (await readWorkflowSteps(id)) || [];
     for (const s of steps) {
       s.status = "approved";
       s.decision = "accept";
       s.approvedAt = new Date().toISOString();
     }
-    await prisma.workflowInstance.update({ where: { declarationId: id }, data: { steps: JSON.stringify(steps) } });
-    // Relational step rows are the source of truth: mirror the direct JSON
-    // edit into them (production code always writes both stores).
-    const { persistWorkflowInstanceSteps } = await import("../services/normalization");
+    // Step rows are the only workflow state: write the resolution into them.
     await persistWorkflowInstanceSteps(id, steps);
     const res = await request(app)
       .patch(`/api/declarations/${id}/status`)

@@ -25,21 +25,8 @@ else
   echo "Skipping seed (set SEED_ON_BOOT=true to seed an empty database)."
 fi
 
-# The normalization backfill is an explicit, observable deployment step: its
-# reconciliation report is always printed, and a failure stops startup.
-# Relational rows are authoritative for workflow reads, so starting with an
-# incomplete mirror is not safe. (Emergency bypass, if ever needed, requires
-# an explicit code/deploy change — never a silent continue.)
-echo "Running idempotent normalization backfill..."
-node dist/scripts/run-backfill.js
-echo "Backfill complete."
-
-# Zero-drift gate: workflow reads are rows-first, so starting with drifted
-# relational data would serve wrong approval state. A non-zero verify stops
-# startup, mirroring the local `db:pg:up` bring-up.
-echo "Verifying zero drift..."
-node dist/scripts/run-verify.js
-echo "Verify clean."
-
+# Phase 5: no backfill/verify step exists. The normalized schema is written
+# directly by the application (see prisma/RETIREMENT.md); there is no legacy
+# mirror to reconcile, so startup proceeds straight to serving.
 echo "Starting server..."
 node dist/index.js

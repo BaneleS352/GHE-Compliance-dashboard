@@ -2,33 +2,14 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
 import { buildApp, getAdminToken, getTeamToken, getApproverToken } from "./helpers";
-import { backfillNormalization } from "../scripts/backfill-normalization";
-import { verifyNormalization } from "../scripts/verify-normalization";
 import { readWorkflowSteps } from "../services/normalization";
 import { viewStatusSummary, viewCounterparty, viewSlaRows, bindParams, isPostgresProvider } from "../services/reportingViews";
 
 const app = buildApp();
 const prisma = new PrismaClient();
 
-describe("Database normalization (goal)", () => {
-  it("backfill is idempotent and links legacy rows to relational tables", async () => {
-    const first = await backfillNormalization();
-    const second = await backfillNormalization();
-    expect(first.declarations.total).toBeGreaterThan(0);
-    expect(first.declarations.snapshots).toBe(first.declarations.total);
-    expect(first.workflows.ruleSteps).toBeGreaterThanOrEqual(3);
-    expect(first.workflows.instanceSteps).toBeGreaterThan(0);
-    // Idempotent: second run creates no new counterparties and same totals.
-    expect(second.counterparties.created).toBe(0);
-    expect(second.declarations.total).toBe(first.declarations.total);
-
-    const snapCount = await (prisma as any).declarationSnapshot.count();
-    expect(snapCount).toBe(first.declarations.total);
-    const roleCount = await (prisma as any).userRole.count();
-    expect(roleCount).toBeGreaterThanOrEqual(4);
-  });
-
-  it("creating a declaration mirrors snapshot, detail, timestamps and counterparty", async () => {
+describe("Database normalization (Phase 5 cutover)", () => {
+  it("creating a declaration writes snapshot, detail, timestamps and counterparty link", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -48,8 +29,7 @@ describe("Database normalization (goal)", () => {
     expect(create.body).not.toHaveProperty("declarerUserId");
     expect(create.body).not.toHaveProperty("counterpartyId");
 
-    // Give the fire-and-forget mirror a moment, then verify relational rows.
-    await new Promise((r) => setTimeout(r, 250));
+    // Writes are synchronous inside the request transaction — no wait needed.
     const decl = await prisma.declaration.findUnique({ where: { id } });
     expect(decl).not.toBeNull();
     expect(decl!.eventDate).not.toBeNull();
@@ -61,10 +41,12 @@ describe("Database normalization (goal)", () => {
     const detail = await (prisma as any).declarationDetail.findUnique({ where: { declarationId: id } });
     expect(detail?.contactPerson).toBe("Nora");
 
+    await (prisma as any).declarationSnapshot.deleteMany({ where: { declarationId: id } }).catch(() => undefined);
+    await (prisma as any).declarationDetail.deleteMany({ where: { declarationId: id } }).catch(() => undefined);
     await prisma.declaration.delete({ where: { id } }).catch(() => undefined);
   });
 
-  it("submit + approve persist relational workflow steps mirroring JSON", async () => {
+  it("submit + approve persist relational workflow steps (rows are the only state)", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -83,9 +65,8 @@ describe("Database normalization (goal)", () => {
       .set("Authorization", `Bearer ${getTeamToken()}`);
     expect(submit.status).toBe(200);
 
-    // Canonical approver link tracks the legacy reference at submit.
-    let decl = await prisma.declaration.findUnique({ where: { id } });
-    expect(decl!.approverId).toBe("user-approver");
+    // Canonical approver link tracks the current approver at submit.
+    const decl = await prisma.declaration.findUnique({ where: { id } });
     expect((decl as any)!.currentApproverUserId).toBe("user-approver");
 
     let rows = await (prisma as any).workflowInstanceStep.findMany({
@@ -94,30 +75,29 @@ describe("Database normalization (goal)", () => {
     expect(rows.length).toBe(2);
     expect(rows[0].assigneeId).toBe("user-approver");
 
-    // Relational read matches the legacy JSON source of truth.
+    // Relational read returns the step array (no JSON cache exists).
     const viaRelational = await readWorkflowSteps(id);
-    const inst = await prisma.workflowInstance.findUnique({ where: { declarationId: id } });
-    expect(viaRelational).toEqual(JSON.parse(inst!.steps));
+    expect(viaRelational).not.toBeNull();
+    expect(viaRelational!.length).toBe(2);
+    expect(viaRelational![0].assignee).toBe("user-approver");
 
     const approve = await request(app)
       .post("/api/workflows/approve")
       .set("Authorization", `Bearer ${getApproverToken()}`)
       .send({ declarationId: id, decision: "accept", notes: "looks good" });
     expect(approve.status).toBe(200);
-    await new Promise((r) => setTimeout(r, 250));
     rows = await (prisma as any).workflowInstanceStep.findMany({
       where: { declarationId: id }, orderBy: { stepOrder: "asc" },
     });
     expect(rows[0].status).toBe("approved");
     expect(rows[0].decision).toBe("accept");
 
-    // Canonical approver link moves to HR with the legacy reference.
-    decl = await prisma.declaration.findUnique({ where: { id } });
-    expect(decl!.approverId).toBe("user-hr");
-    expect((decl as any)!.currentApproverUserId).toBe("user-hr");
+    // Canonical approver link moves to HR after the LM approval.
+    const decl2 = await prisma.declaration.findUnique({ where: { id } });
+    expect((decl2 as any)!.currentApproverUserId).toBe("user-hr");
   });
 
-  it("reporting views agree with legacy aggregations (result equivalence)", async () => {
+  it("reporting views agree with direct aggregations (result equivalence)", async () => {
     const where: any = {};
     const grouped = await prisma.declaration.groupBy({ by: ["status"], where, _count: { status: true } });
     const legacy: Record<string, number> = {};
@@ -140,16 +120,32 @@ describe("Database normalization (goal)", () => {
     expect(slaRows!.length).toBeGreaterThan(0);
   });
 
-  it("db:verify gate passes — relational model matches legacy columns", async () => {
-    await backfillNormalization();
-    const result = await verifyNormalization();
-    expect(result.drifts).toEqual([]);
-    expect(result.ok).toBe(true);
-    expect(result.checked.instances).toBeGreaterThan(0);
-    expect(result.checked.declarations).toBeGreaterThan(0);
+  it("snapshot is immutable after creation (team moves don't rewrite history)", async () => {
+    const create = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({
+        employee: "Nomvula Team", employeeId: "user-team", teamMemberNumber: "TM-001",
+        lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+        type: "Gift", counterparty: "Snapshot Co", value: 50, submitted: "2026-04-12",
+        status: "Draft", priority: "Low", description: "snapshot immutability",
+        relationship: "Supplier", receivedGiven: "Received", from: "Supplier",
+        contactPerson: "S", biddingProcess: "No", occasion: "Business Meeting",
+        date: "2026-04-11", instances: "1", publicOfficial: "No",
+      });
+    const id = create.body.id;
+    // Change the user's master data — the snapshot must not follow.
+    await prisma.user.update({ where: { id: "user-team" }, data: { department: "Engineering", position: "Principal" } });
+    const snap = await (prisma as any).declarationSnapshot.findUnique({ where: { declarationId: id } });
+    expect(snap?.department).toBe("Marketing");
+    expect(snap?.positionTitle).toBe("Brand Manager");
+    await prisma.user.update({ where: { id: "user-team" }, data: { department: "Marketing", position: "Brand Manager" } });
+    await (prisma as any).declarationSnapshot.deleteMany({ where: { declarationId: id } }).catch(() => undefined);
+    await (prisma as any).declarationDetail.deleteMany({ where: { declarationId: id } }).catch(() => undefined);
+    await prisma.declaration.delete({ where: { id } }).catch(() => undefined);
   });
 
-  it("admin rule changes sync relational rule steps", async () => {
+  it("admin rule changes write relational rule steps in-transaction", async () => {
     const created = await request(app)
       .post("/api/admin/workflows/rules")
       .set("Authorization", `Bearer ${getAdminToken()}`)
@@ -161,7 +157,6 @@ describe("Database normalization (goal)", () => {
         ],
       });
     expect(created.status).toBe(201);
-    await new Promise((r) => setTimeout(r, 250));
     const steps = await (prisma as any).workflowRuleStep.findMany({ where: { ruleId: created.body.id } });
     expect(steps.length).toBe(2);
     await request(app)
@@ -206,14 +201,14 @@ describe("Database normalization (goal)", () => {
     }
   });
 
-  it("dashboard /stats KPIs match legacy aggregation (view equivalence)", async () => {
+  it("dashboard /stats KPIs match direct aggregation (view equivalence)", async () => {
     const res = await request(app)
       .get("/api/declarations/stats")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
     const { kpis, complianceTrend, typeBreakdown } = res.body;
 
-    // Legacy aggregation computed independently in the test.
+    // Direct aggregation computed independently in the test.
     const grouped = await prisma.declaration.groupBy({ by: ["status"], _count: { status: true } });
     const legacy: Record<string, number> = {};
     for (const g of grouped) legacy[g.status] = g._count.status;

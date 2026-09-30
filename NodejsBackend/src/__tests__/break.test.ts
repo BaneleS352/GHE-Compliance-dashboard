@@ -320,6 +320,17 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
   });
 
   it("DELETE /api/admin/users/user-admin — deleting last admin", async () => {
+    // Order-independent: other suites (e.g. organization multi-tenant flows)
+    // create extra admin fixtures in the shared test database. Remove them
+    // first so this test always asserts the true last-admin guard.
+    const { PrismaClient } = await import("@prisma/client");
+    const db = new PrismaClient();
+    try {
+      const extras = await db.user.findMany({ where: { role: "admin", NOT: { id: "user-admin" } }, select: { id: true } });
+      for (const e of extras) await db.user.delete({ where: { id: e.id } }).catch(() => undefined);
+    } finally {
+      await db.$disconnect();
+    }
     const res = await request(app)
       .delete("/api/admin/users/user-admin")
       .set("Authorization", `Bearer ${getAdminToken()}`);

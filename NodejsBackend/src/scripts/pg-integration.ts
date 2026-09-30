@@ -8,9 +8,10 @@
  *   1. Back up prisma/schema.prisma and swap provider sqlite -> postgresql.
  *   2. Regenerate the Prisma client for PostgreSQL.
  *   3. `prisma migrate deploy` against TEST_PG_DATABASE_URL (validates every
- *      migration, including baseline + normalization + rule FK + views).
+ *      migration, including baseline + normalization + rule FK + counterparty
+ *      uniqueness + monthly view + Phase 5 retirement).
  *   4. Run pg-integration-checks.ts with DATABASE_URL=TEST_PG_DATABASE_URL
- *      (fixture, backfill, verify, all 7 scoped views, FK enforcement).
+ *      (normalized fixture, all 7 scoped views, FK enforcement).
  *   5. Restore schema.prisma and regenerate the SQLite client, even on failure.
  */
 import { execSync, spawnSync } from "child_process";

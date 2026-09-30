@@ -17,7 +17,7 @@ describe("File and report export contracts", () => {
   beforeAll(async () => {
     // Uploads require a Draft/Returned declaration — pick a draft (earlier
     // suites may have submitted the first user-team declaration).
-    const draft = await prisma.declaration.findFirst({ where: { employeeId: "user-team", status: "Draft" } });
+    const draft = await prisma.declaration.findFirst({ where: { declarerUserId: "user-team", status: "Draft" } });
     if (draft) {
       declarationId = draft.id;
       return;
@@ -40,6 +40,7 @@ describe("File and report export contracts", () => {
 
   afterAll(async () => {
     for (const id of createdFileIds) {
+      await (prisma as any).declarationFile.deleteMany({ where: { fileId: id } }).catch(() => undefined);
       await prisma.uploadedFile.deleteMany({ where: { id } });
     }
     await prisma.$disconnect();
@@ -69,7 +70,8 @@ describe("File and report export contracts", () => {
   });
 
   it("returns 404 when the database record exists but the disk file is missing", async () => {
-    const file = await prisma.uploadedFile.create({ data: { originalName: "gone.txt", mimeType: "text/plain", size: 1, path: "definitely-missing.txt", declarationId } });
+    const file = await prisma.uploadedFile.create({ data: { originalName: "gone.txt", mimeType: "text/plain", size: 1, path: "definitely-missing.txt" } });
+    await (prisma as any).declarationFile.create({ data: { declarationId, fileId: file.id } });
     createdFileIds.push(file.id);
     const response = await request(app).get(`/api/files/${file.id}`).set("Authorization", `Bearer ${getTeamToken()}`);
     expect(response.status).toBe(404);
@@ -80,7 +82,8 @@ describe("File and report export contracts", () => {
     const fileName = "safe\r\nInjected.txt";
     const diskName = "header-test.txt";
     await fs.writeFile(path.join(uploadDir, diskName), "x");
-    const file = await prisma.uploadedFile.create({ data: { originalName: fileName, mimeType: "text/plain", size: 1, path: diskName, declarationId } });
+    const file = await prisma.uploadedFile.create({ data: { originalName: fileName, mimeType: "text/plain", size: 1, path: diskName } });
+    await (prisma as any).declarationFile.create({ data: { declarationId, fileId: file.id } });
     createdFileIds.push(file.id);
     const response = await request(app).get(`/api/files/${file.id}`).set("Authorization", `Bearer ${getTeamToken()}`);
     expect(response.status).toBe(200);
