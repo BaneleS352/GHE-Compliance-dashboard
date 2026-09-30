@@ -1,12 +1,11 @@
 import { Router, Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { prisma } from "../config/prisma";
-import { config } from "../config/env";
-import { authenticate, AuthRequest } from "../middleware/auth";
+import { authenticate, AuthRequest, signToken } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { toDbId, toJsonId } from "../services/ids";
 
 const router = Router();
 
@@ -45,16 +44,12 @@ router.post("/login", loginLimiter, asyncHandler(async (req: Request, res: Respo
     return;
   }
 
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, name: user.name, department: user.department, position: user.position, organizationId: user.organizationId },
-    config.jwtSecret,
-    { expiresIn: config.jwtExpiresIn as any, algorithm: "HS256" }
-  );
+  const token = signToken(user);
 
   res.json({
     token,
     user: {
-      id: user.id,
+      id: toJsonId(user.id),
       name: user.name,
       email: user.email,
       role: user.role,
@@ -62,7 +57,7 @@ router.post("/login", loginLimiter, asyncHandler(async (req: Request, res: Respo
       department: user.department,
       position: user.position,
       lineManager: user.lineManager,
-      organizationId: user.organizationId,
+      organizationId: user.organizationId === null ? null : toJsonId(user.organizationId),
     },
   });
 }));
@@ -87,14 +82,14 @@ router.get("/preset-users", (_req: Request, res: Response): void => {
 });
 
 router.get("/me", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
+  const user = await prisma.user.findUnique({ where: { id: toDbId(req.user!.id) } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
   }
 
   res.json({
-    id: user.id,
+    id: toJsonId(user.id),
     name: user.name,
     email: user.email,
     role: user.role,
@@ -102,7 +97,7 @@ router.get("/me", authenticate, asyncHandler(async (req: AuthRequest, res: Respo
     department: user.department,
     position: user.position,
     lineManager: user.lineManager,
-    organizationId: user.organizationId,
+    organizationId: user.organizationId === null ? null : toJsonId(user.organizationId),
   });
 }));
 

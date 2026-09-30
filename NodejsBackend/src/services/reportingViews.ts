@@ -1,171 +1,86 @@
 import { prisma } from "../config/prisma";
 
 /**
- * Phase 5 reporting read models.
+ * Reporting read models (numeric identifier cutover complete).
  *
  * Views are read models, not replacements for transactional tables or
  * authorization. API authorization, organisation scoping, and parameter
  * validation remain required.
  *
- * DDL ownership: PostgreSQL views are owned by versioned migrations
- * (0005_phase5_retirement); the application role needs only SELECT.
- * `ensureReportingViews()` below executes DDL on SQLite dev/test only, where
- * `db push` does not apply migrations. On PostgreSQL it is a no-op.
+ * DDL ownership: views are owned by versioned migrations
+ * (0006_numeric_keys); the application role needs only SELECT. PostgreSQL is
+ * the only supported provider, so queries use `$1..$n` positional parameters
+ * directly. Raw driver numerics (BIGINT counts arrive as JS bigint) are
+ * converted with Number() before reaching res.json.
  */
-
-export function isPostgresProvider(): boolean {
-  return (process.env.DATABASE_URL || "").startsWith("postgres");
-}
-
-/**
- * Rewrite `?` placeholders to PostgreSQL `$1..$n` positional parameters.
- * Constraint: view SQL must only use `?` as a value placeholder — never put
- * a literal `?` inside a string literal.
- */
-export function bindParams(sql: string): string {
-  if (!isPostgresProvider()) return sql;
-  let i = 0;
-  return sql.replace(/\?/g, () => `$${++i}`);
-}
-
-// SQLite-only DDL (dev/test via `db push`). PostgreSQL definitions live in
-// 0005_phase5_retirement and additionally carry the typed monthly view.
-const VIEWS_SQLITE: { name: string; select: string }[] = [
-  {
-    name: "v_declaration_status_summary",
-    select: `SELECT "organizationId" AS "organizationId", "status" AS "status",
-          COUNT(*) AS "count", SUM("value") AS "totalValue"
-   FROM "Declaration" GROUP BY "organizationId", "status"`,
-  },
-  {
-    name: "v_declarations_monthly",
-    select: `SELECT "organizationId" AS "organizationId",
-          strftime('%Y-%m', "eventDate" / 1000, 'unixepoch') AS "month",
-          COUNT(*) AS "count",
-          SUM(CASE WHEN "status" = 'Approved' THEN 1 ELSE 0 END) AS "approved",
-          SUM(CASE WHEN "status" = 'Declined' THEN 1 ELSE 0 END) AS "declined",
-          SUM("value") AS "totalValue"
-   FROM "Declaration" WHERE "eventDate" IS NOT NULL
-   GROUP BY "organizationId", strftime('%Y-%m', "eventDate" / 1000, 'unixepoch')`,
-  },
-  {
-    name: "v_declaration_type_breakdown",
-    select: `SELECT "organizationId" AS "organizationId", "type" AS "type",
-          COUNT(*) AS "count", SUM("value") AS "totalValue"
-   FROM "Declaration" GROUP BY "organizationId", "type"`,
-  },
-  {
-    name: "v_workflow_current_step",
-    select: `SELECT "declarationId", "stepOrder", "role", "assigneeId", "assigneeName", "status"
-   FROM "WorkflowInstanceStep" WHERE "status" = 'pending'`,
-  },
-  {
-    name: "v_workflow_step_sla",
-    select: `SELECT s."role" AS "role", s."decidedAt" AS "decidedAt",
-          d."eventDate" AS "eventDate"
-   FROM "WorkflowInstanceStep" s JOIN "Declaration" d ON d."id" = s."declarationId"
-   WHERE s."decidedAt" IS NOT NULL`,
-  },
-  {
-    name: "v_counterparty_concentration",
-    select: `SELECT d."organizationId" AS "organizationId",
-          COALESCE(c."name", 'Unknown') AS "counterparty",
-          COUNT(*) AS "count", SUM(d."value") AS "totalValue",
-          AVG(d."value") AS "avgValue"
-   FROM "Declaration" d LEFT JOIN "Counterparty" c ON c."id" = d."counterpartyId"
-   GROUP BY d."organizationId", COALESCE(c."name", 'Unknown')`,
-  },
-  {
-    name: "v_high_value_declarations",
-    select: `SELECT d."id" AS "id", s."declarerName" AS "employee",
-          s."managerDisplayName" AS "lineManager", s."department" AS "department",
-          d."type" AS "type", COALESCE(c."name", 'Unknown') AS "counterparty",
-          d."value" AS "value", d."eventDate" AS "date", d."status" AS "status",
-          d."organizationId" AS "organizationId"
-   FROM "Declaration" d
-   LEFT JOIN "DeclarationSnapshot" s ON s."declarationId" = d."id"
-   LEFT JOIN "Counterparty" c ON c."id" = d."counterpartyId"`,
-  },
-];
-
-let ensured = false;
-
-export async function ensureReportingViews(): Promise<void> {
-  if (ensured) return;
-  // Production PostgreSQL: migrations own the views; never require DDL here.
-  if (isPostgresProvider()) {
-    ensured = true;
-    return;
-  }
-  for (const v of VIEWS_SQLITE) {
-    const ddl = `CREATE VIEW IF NOT EXISTS "${v.name}" AS ${v.select}`;
-    try {
-      await prisma.$executeRawUnsafe(ddl);
-    } catch (err) {
-      console.warn(`reportingViews: failed to ensure view ${v.name}:`, (err as Error)?.message || err);
-    }
-  }
-  ensured = true;
-}
 
 async function queryView<T>(sql: string, params: any[]): Promise<T[] | null> {
-  await ensureReportingViews();
   try {
-    return await prisma.$queryRawUnsafe(bindParams(sql), ...params);
+    return await prisma.$queryRawUnsafe(sql, ...params);
   } catch {
     return null;
   }
 }
 
-export async function viewStatusSummary(organizationId?: string) {
+export async function viewStatusSummary(organizationId?: bigint | number) {
   const rows = await viewStatusSummaryFull(organizationId);
   if (!rows) return null;
   const out: Record<string, number> = {};
-  // Number() conversion: PostgreSQL COUNT(*) arrives as BigInt via raw
-  // queries and JSON.stringify(BigInt) throws — this runs on the reports
-  // path that returns straight to res.json.
   // Unscoped queries return one row per (organisation, status) — sum across
-  // organisations so thecallers get global totals, not the last org's row.
+  // organisations so callers get global totals, not the last org's row.
   for (const r of rows) out[r.status] = (out[r.status] || 0) + Number(r.count);
   return out;
 }
 
 /** Status rows with value totals (powers the dashboard KPIs). */
-export async function viewStatusSummaryFull(organizationId?: string): Promise<{ status: string; count: number; totalValue: number }[] | null> {
+export async function viewStatusSummaryFull(organizationId?: bigint | number): Promise<{ status: string; count: number; totalValue: number }[] | null> {
   const rows = await queryView<any>(
     `SELECT "status" AS "status", "count" AS "count", "totalValue" AS "totalValue" FROM "v_declaration_status_summary"` +
-      (organizationId ? ` WHERE "organizationId" = ?` : ""),
-    organizationId ? [organizationId] : [],
+      (organizationId !== undefined && organizationId !== null ? ` WHERE "organizationId" = $1` : ""),
+    organizationId !== undefined && organizationId !== null ? [organizationId] : [],
   );
   if (!rows) return null;
   return rows.map((r) => ({ status: String(r.status), count: Number(r.count), totalValue: Number(r.totalValue) }));
 }
 
-export async function viewMonthly(organizationId?: string) {
-  return queryView<any>(
+export async function viewMonthly(organizationId?: bigint | number) {
+  const scoped = organizationId !== undefined && organizationId !== null;
+  const rows = await queryView<any>(
     `SELECT "month" AS "month", "count" AS "count", "approved" AS "approved",` +
       ` "declined" AS "declined", "totalValue" AS "totalValue" FROM "v_declarations_monthly"` +
-      (organizationId ? ` WHERE "organizationId" = ? ORDER BY "month" ASC` : ` ORDER BY "month" ASC`),
-    organizationId ? [organizationId] : [],
+      (scoped ? ` WHERE "organizationId" = $1 ORDER BY "month" ASC` : ` ORDER BY "month" ASC`),
+    scoped ? [organizationId] : [],
   );
+  if (!rows) return null;
+  return rows.map((r) => ({
+    month: String(r.month),
+    count: Number(r.count),
+    approved: Number(r.approved),
+    declined: Number(r.declined),
+    totalValue: Number(r.totalValue),
+  }));
 }
 
-export async function viewTypeBreakdown(organizationId?: string) {
-  return queryView<any>(
+export async function viewTypeBreakdown(organizationId?: bigint | number) {
+  const scoped = organizationId !== undefined && organizationId !== null;
+  const rows = await queryView<any>(
     `SELECT "type" AS "type", "count" AS "count", "totalValue" AS "totalValue"` +
       ` FROM "v_declaration_type_breakdown"` +
-      (organizationId ? ` WHERE "organizationId" = ?` : ""),
-    organizationId ? [organizationId] : [],
+      (scoped ? ` WHERE "organizationId" = $1` : ""),
+    scoped ? [organizationId] : [],
   );
+  if (!rows) return null;
+  return rows.map((r) => ({ type: String(r.type), count: Number(r.count), totalValue: Number(r.totalValue) }));
 }
 
-export async function viewCounterparty(organizationId?: string) {
+export async function viewCounterparty(organizationId?: bigint | number) {
+  const scoped = organizationId !== undefined && organizationId !== null;
   const rows = await queryView<any>(
     `SELECT "counterparty" AS "counterparty", "count" AS "count",` +
       ` "totalValue" AS "totalValue", "avgValue" AS "avgValue"` +
       ` FROM "v_counterparty_concentration"` +
-      (organizationId ? ` WHERE "organizationId" = ? ORDER BY "totalValue" DESC` : ` ORDER BY "totalValue" DESC`),
-    organizationId ? [organizationId] : [],
+      (scoped ? ` WHERE "organizationId" = $1 ORDER BY "totalValue" DESC` : ` ORDER BY "totalValue" DESC`),
+    scoped ? [organizationId] : [],
   );
   if (!rows) return null;
   const mapped = rows.map((r) => ({
@@ -174,7 +89,7 @@ export async function viewCounterparty(organizationId?: string) {
     totalValue: Number(r.totalValue),
     avgValue: Math.round(Number(r.avgValue) * 100) / 100,
   }));
-  if (organizationId) return mapped;
+  if (scoped) return mapped;
   // Unscoped queries return one row per (organisation, counterparty) —
   // merge across organisations so totals are global, not per-org fragments.
   const merged = new Map<string, { count: number; totalValue: number }>();
@@ -194,13 +109,14 @@ export async function viewCounterparty(organizationId?: string) {
     .sort((a, b) => b.totalValue - a.totalValue);
 }
 
-export async function viewHighValue(organizationId: string | undefined, threshold: number) {
+export async function viewHighValue(organizationId: bigint | number | undefined, threshold: number) {
+  const scoped = organizationId !== undefined && organizationId !== null;
   const rows = await queryView<any>(
     `SELECT "employee", "lineManager", "department", "type", "counterparty", "value", "date", "status"` +
-      ` FROM "v_high_value_declarations" WHERE "value" >= ?` +
-      (organizationId ? ` AND "organizationId" = ?` : ` `) +
+      ` FROM "v_high_value_declarations" WHERE "value" >= $1` +
+      (scoped ? ` AND "organizationId" = $2` : ` `) +
       ` ORDER BY "employee" ASC, "value" DESC`,
-    organizationId ? [threshold, organizationId] : [threshold],
+    scoped ? [threshold, organizationId] : [threshold],
   );
   return rows;
 }
@@ -209,13 +125,23 @@ export async function viewSlaRows() {
   return queryView<any>(`SELECT "role", "decidedAt", "eventDate" FROM "v_workflow_step_sla"`, []);
 }
 
-export async function viewCurrentSteps(organizationId?: string) {
-  return queryView<any>(
-    `SELECT s."declarationId" AS "declarationId", s."stepOrder" AS "stepOrder",` +
+export async function viewCurrentSteps(organizationId?: bigint | number) {
+  const scoped = organizationId !== undefined && organizationId !== null;
+  const rows = await queryView<any>(
+    `SELECT d."id" AS "declarationId", s."stepOrder" AS "stepOrder",` +
       ` s."role" AS "role", s."assigneeId" AS "assigneeId",` +
       ` s."assigneeName" AS "assigneeName", s."status" AS "status"` +
-      ` FROM "v_workflow_current_step" s JOIN "Declaration" d ON d."id" = s."declarationId"` +
-      (organizationId ? ` WHERE d."organizationId" = ?` : ``),
-    organizationId ? [organizationId] : [],
+      ` FROM "v_workflow_current_step" s JOIN "Declaration" d ON d."declarationPk" = s."declarationPk"` +
+      (scoped ? ` WHERE d."organizationId" = $1` : ``),
+    scoped ? [organizationId] : [],
   );
+  if (!rows) return null;
+  return rows.map((r: any) => ({
+    declarationId: String(r.declarationId),
+    stepOrder: Number(r.stepOrder),
+    role: String(r.role),
+    assigneeId: r.assigneeId === null || r.assigneeId === undefined ? null : Number(r.assigneeId),
+    assigneeName: String(r.assigneeName),
+    status: String(r.status),
+  }));
 }

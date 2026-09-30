@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import { toDbId, toJsonId } from "./ids";
 
 export interface WorkflowStepDef {
   order: number;
@@ -9,7 +10,7 @@ export interface WorkflowStepDef {
 export interface WorkflowStep {
   order: number;
   role: "lineManager" | "hr";
-  assignee: string;
+  assignee: number | null;
   assigneeName: string;
   label: string;
   status: "pending" | "approved" | "declined" | "returned" | "skipped";
@@ -17,41 +18,41 @@ export interface WorkflowStep {
   approvedAt: string | null;
   notes: string;
   decidedAt: string | null;
-  decidedById: string | null;
+  decidedById: number | null;
   decidedByName: string | null;
 }
 
-export function determineRuleId(value: number, highThreshold: number, _mediumThreshold: number): string {
-  // 2-tier workflow: < high → LM only (rule-1), >= high → LM + HR (rule-2). mediumThreshold is legacy, kept for API compatibility.
-  if (value >= highThreshold) return "rule-2";
-  return "rule-1";
+export function determineRuleId(value: number, highThreshold: number, _mediumThreshold: number): bigint {
+  // 2-tier workflow: < high → LM only (rule 1), >= high → LM + HR (rule 2). mediumThreshold is legacy, kept for API compatibility.
+  if (value >= highThreshold) return 2n;
+  return 1n;
 }
 
 /** Resolve the producing rule for a declaration value under current thresholds. */
-export async function resolveRuleId(value: number): Promise<string> {
+export async function resolveRuleId(value: number): Promise<bigint> {
   const config = await prisma.systemConfig.findFirst();
   if (!config) throw new Error("System config not found");
   return determineRuleId(value, config.highValueThreshold, config.mediumValueThreshold);
 }
 
-export async function createWorkflowSteps(_declarationId: string, employeeId: string, value: number): Promise<WorkflowStep[]> {
+export async function createWorkflowSteps(_declarationPk: bigint | string | number, employeeId: bigint | number, value: number): Promise<WorkflowStep[]> {
   const ruleId = await resolveRuleId(value);
   const rule = await prisma.workflowRule.findUnique({ where: { id: ruleId } });
   if (!rule) throw new Error(`Workflow rule ${ruleId} not found`);
 
-  // Phase 5: relational rule-step rows are the ONLY definition source.
+  // Row-only step definitions (no JSON fallback exists).
   const rows = await (prisma as any).workflowRuleStep.findMany({
     where: { ruleId },
     orderBy: { order: "asc" },
   });
   const stepDefs: WorkflowStepDef[] = rows.map((r: any) => ({ order: r.order, role: r.role, label: r.label }));
   if (!Array.isArray(stepDefs) || stepDefs.length === 0) throw new Error(`Corrupt workflow rule steps for rule ${ruleId}`);
-  const employee = await prisma.user.findUnique({ where: { id: employeeId } });
+  const employee = await prisma.user.findUnique({ where: { id: toDbId(employeeId) } });
   if (!employee) throw new Error("Employee not found");
 
   // HR is global (organizationId null) — try same-org HR first, fallback to global, then any HR
   let hrUser: any = null;
-  if (employee.organizationId) {
+  if (employee.organizationId !== null && employee.organizationId !== undefined) {
     hrUser = await prisma.user.findFirst({ where: { role: "approver", department: "HR", organizationId: employee.organizationId } });
   }
   if (!hrUser) {
@@ -62,28 +63,35 @@ export async function createWorkflowSteps(_declarationId: string, employeeId: st
   }
 
   const steps: WorkflowStep[] = [];
+  const declarerPk = toJsonId(employee.id);
 
-  const lmIds = stepDefs.filter((d) => d.role === "lineManager" && employee.lineManager).map(() => employee.lineManager!);
-  const lmUsers = lmIds.length > 0 ? await prisma.user.findMany({ where: { id: { in: lmIds } } }) : [];
-  const lmMap = new Map(lmUsers.map((u) => [u.id, u]));
+  // The authoritative manager reference is the managerId FK; lineManager is
+  // display text only.
+  let lmUser: any = null;
+  if (employee.managerId !== null && employee.managerId !== undefined) {
+    lmUser = await prisma.user.findUnique({ where: { id: employee.managerId } });
+  }
 
   for (const def of stepDefs) {
-    let assigneeId = "";
+    let assigneeId: number | null = null;
     let assigneeName = "";
     let isStale = false;
 
     if (def.role === "lineManager") {
-      assigneeId = employee.lineManager || "";
-      const lm = assigneeId ? lmMap.get(assigneeId) : null;
-      if (assigneeId && !lm) isStale = true;
-      assigneeName = lm?.name || (isStale ? "Unknown" : "Unknown");
+      if (employee.managerId !== null && employee.managerId !== undefined) {
+        assigneeId = toJsonId(employee.managerId);
+        if (!lmUser) isStale = true;
+        assigneeName = lmUser?.name || "Unknown";
+      } else {
+        assigneeName = "Unknown";
+      }
     } else if (def.role === "hr") {
-      assigneeId = hrUser?.id || "";
+      assigneeId = hrUser ? toJsonId(hrUser.id) : null;
       assigneeName = hrUser?.name || "HR";
       if (assigneeId && !hrUser) isStale = true;
     }
 
-    if (!assigneeId || isStale || assigneeId === employeeId) {
+    if (assigneeId === null || isStale || assigneeId === declarerPk) {
       steps.push({
         order: def.order,
         role: def.role,
@@ -93,7 +101,7 @@ export async function createWorkflowSteps(_declarationId: string, employeeId: st
         status: "skipped",
         decision: null,
         approvedAt: null,
-        notes: !assigneeId ? "No assignee found - step skipped" : "Self-approval - step skipped",
+        notes: assigneeId === null ? "No assignee found - step skipped" : "Self-approval - step skipped",
         decidedAt: null,
         decidedById: null,
         decidedByName: null,
@@ -120,28 +128,32 @@ export async function createWorkflowSteps(_declarationId: string, employeeId: st
   return steps;
 }
 
-export async function getCurrentStep(declarationId: string): Promise<WorkflowStep | null> {
-  // Phase 5: relational step rows are the only workflow state.
+export async function getCurrentStep(declarationPk: bigint | number): Promise<WorkflowStep | null> {
+  // Relational step rows are the only workflow state.
   const rows = await (prisma as any).workflowInstanceStep.findMany({
-    where: { instanceId: declarationId },
+    where: { declarationPk: toDbId(declarationPk) },
     orderBy: { stepOrder: "asc" },
   });
   if (rows.length === 0) return null;
   const pending = rows.find((r: any) => r.status === "pending");
   if (!pending) return null;
+  return rowToStep(pending);
+}
+
+export function rowToStep(r: any): WorkflowStep {
   return {
-    order: pending.stepOrder,
-    role: pending.role,
-    assignee: pending.assigneeId || "",
-    assigneeName: pending.assigneeName,
-    label: pending.label,
-    status: pending.status,
-    decision: pending.decision ?? null,
-    approvedAt: null,
-    notes: pending.notes ?? "",
-    decidedAt: pending.decidedAt ? new Date(pending.decidedAt).toISOString() : null,
-    decidedById: pending.decidedById ?? null,
-    decidedByName: pending.decidedByName ?? null,
+    order: r.stepOrder ?? r.order,
+    role: r.role,
+    assignee: r.assigneeId === null || r.assigneeId === undefined ? null : toJsonId(r.assigneeId),
+    assigneeName: r.assigneeName,
+    label: r.label,
+    status: r.status,
+    decision: r.decision ?? null,
+    approvedAt: r.status === "approved" && r.decidedAt ? new Date(r.decidedAt).toISOString() : (r.approvedAt ?? null),
+    notes: r.notes ?? "",
+    decidedAt: r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
+    decidedById: r.decidedById === null || r.decidedById === undefined ? null : toJsonId(r.decidedById),
+    decidedByName: r.decidedByName ?? null,
   };
 }
 
@@ -165,10 +177,9 @@ function toISODate(d: Date | string | null | undefined): string {
 }
 
 /**
- * Phase 5: builds the stable user-facing Declaration shape from the
- * normalized tables (Snapshot + Detail + Counterparty + User joins + file
- * join rows). No legacy Declaration text/JSON column is read — the response
- * contract is unchanged so the frontend needs no migration.
+ * Builds the stable user-facing Declaration shape from the normalized
+ * tables (Snapshot + Detail + Counterparty + User joins + file join rows).
+ * Numeric identifiers are exposed as JSON numbers.
  *
  * Callers must include: snapshot, detail, counterpartyRef, declarer (with
  * team + organization), currentApprover, organization, fileLinks (with file).
@@ -184,12 +195,13 @@ export function declarationResponse(d: any) {
   const files = Array.isArray(d.fileLinks)
     ? d.fileLinks.map((l: any) => {
         const f = l.file || {};
+        const fid = f.id !== undefined ? toJsonId(f.id) : l.fileId;
         return {
-          id: f.id || l.fileId,
+          id: fid,
           name: f.originalName || f.name || "",
           size: f.size ?? 0,
           type: f.mimeType || f.type || "",
-          url: `/api/files/${f.id || l.fileId}`,
+          url: `/api/files/${fid}`,
           uploadedAt: f.uploadedAt || l.createdAt || null,
         };
       })
@@ -199,7 +211,7 @@ export function declarationResponse(d: any) {
   return {
     id: d.id,
     employee: snap?.declarerName ?? declarer?.name ?? "",
-    employeeId: d.declarerUserId ?? "",
+    employeeId: d.declarerUserId === null || d.declarerUserId === undefined ? null : toJsonId(d.declarerUserId),
     teamMemberNumber: snap?.employeeNumber ?? declarer?.teamMemberNumber ?? "",
     lineManager: snap?.managerDisplayName ?? "",
     position: snap?.positionTitle ?? declarer?.position ?? "",
@@ -211,7 +223,7 @@ export function declarationResponse(d: any) {
     value: d.value,
     submitted: toISODate(d.submittedAt),
     approver: approverUser?.name ?? "",
-    approverId: d.currentApproverUserId || null,
+    approverId: d.currentApproverUserId === null || d.currentApproverUserId === undefined ? null : toJsonId(d.currentApproverUserId),
     status: d.status,
     priority: d.priority,
     description: det?.description ?? "",
@@ -227,7 +239,7 @@ export function declarationResponse(d: any) {
     publicOfficial: det?.publicOfficial ?? "",
     substantiation: det?.substantiation ?? null,
     files,
-    organizationId: d.organizationId || null,
+    organizationId: d.organizationId === null || d.organizationId === undefined ? null : toJsonId(d.organizationId),
   };
 }
 

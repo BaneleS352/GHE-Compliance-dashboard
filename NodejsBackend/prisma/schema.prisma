@@ -3,41 +3,34 @@ generator client {
 }
 
 datasource db {
-  // SQLite for local dev/tests. Production Docker build rewrites this to
-  // "postgresql" (see Dockerfile sed step) and runs versioned migrations
-  // via `prisma migrate deploy` (see entrypoint.sh and prisma/migrations/).
+  // PostgreSQL is the single authoritative provider for development, CI,
+  // and production (see docs/DATABASE-NORMALIZATION-GOAL.md "Identifier
+  // Strategy"). The SQLite dev workflow and the Dockerfile provider-rewrite
+  // were removed with the numeric identifier cutover.
   //
-  // Phase 5 cutover complete (see docs/DATABASE-NORMALIZATION-GOAL.md
-  // "Full Normalized-Codebase Migration Plan" + prisma/RETIREMENT.md):
-  // the schema below is the normalized model. Legacy compatibility columns
-  // (Declaration employee-context/detail text, files JSON, approver text,
-  // WorkflowRule/WorkflowInstance steps JSON, UploadedFile.declarationId)
-  // and compatibility tables (Dropdowns, ComplianceTrendPoint,
-  // TypeBreakdownItem, AppRole, UserRole, OrganizationSetting, Ref* lookup
-  // copies) were removed in migration 0005_phase5_retirement after the
-  // backfill/verify gates passed. The API response shape is unchanged —
-  // `declarationResponse` in services/workflowService.ts builds the
-  // user-facing fields from Snapshot/Detail/Counterparty/User joins.
+  // Numeric identifier model (migration 0006_numeric_keys): every internal
+  // primary and foreign key is native PostgreSQL BIGINT (identity columns),
+  // except Declaration.id which remains the public GHE-YYYY-NNNNNN text
+  // business reference (with an internal numeric declarationPk that all
+  // normalized child tables reference). SystemConfig ("default") and
+  // ApprovalOption ("opt-*"/"ao-*") keep text ids: they are singleton /
+  // code-list rows outside the numeric-key scope.
   //
-  // Ownership decisions (Phase A):
-  //   - SystemConfig is the authoritative config source; OrganizationSetting removed.
-  //   - User.role is the authoritative authorization source; AppRole/UserRole removed.
-  //   - Declaration type/status/priority remain validated strings (zod +
-  //     valid-status lists); the unenforced Ref* copies were removed until a
-  //     domain-specific reference design with FKs is approved.
-  //   - Counterparty identity: unique (organizationId, name) for scoped rows
-  //     (partial unique index on PostgreSQL, see 0003); global rows
-  //     (organizationId NULL) are intentionally exempt master data.
-  //   - DeclarationFile is the only file association; UploadedFile rows must
-  //     have a join row (orphans are rejected).
-  //   - WorkflowInstanceStep / WorkflowRuleStep rows are the only workflow
-  //     state/definition; no JSON fallback exists.
-  provider = "sqlite"
+  // Retired in 0005 (no numeric migration needed): OrganizationSetting,
+  // AppRole/UserRole, Ref* lookup copies, Dropdowns, ComplianceTrendPoint,
+  // TypeBreakdownItem, Declaration legacy text/JSON columns,
+  // WorkflowRule/WorkflowInstance steps JSON, UploadedFile.declarationId.
+  //
+  // The API response shape is unchanged apart from identifiers: numeric ids
+  // are exposed as JSON numbers (see services/ids.ts). `declarationResponse`
+  // in services/workflowService.ts builds the user-facing Declaration shape
+  // from Snapshot/Detail/Counterparty/User joins.
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Organization {
-  id        String   @id @default(cuid())
+  id        BigInt   @id @default(autoincrement())
   name      String   @unique
   shortCode String   @unique
   users     User[]
@@ -50,7 +43,7 @@ model Organization {
 }
 
 model User {
-  id               String   @id
+  id               BigInt   @id @default(autoincrement())
   name             String
   email            String   @unique
   passwordHash     String
@@ -58,17 +51,18 @@ model User {
   teamMemberNumber String
   department       String
   position         String
+  // Display text only. The authoritative manager reference is managerId.
   lineManager      String?
-  organizationId   String?
+  organizationId   BigInt?
 
-  managerId    String?
+  managerId    BigInt?
   manager      User?  @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)
   directReports User[] @relation("UserManager")
 
-  departmentId String?
+  departmentId BigInt?
   departmentRef Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
 
-  teamId String?
+  teamId BigInt?
   team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
@@ -91,8 +85,8 @@ model User {
 }
 
 model Department {
-  id             String   @id @default(uuid())
-  organizationId String
+  id             BigInt   @id @default(autoincrement())
+  organizationId BigInt
   name           String
   code           String?
 
@@ -108,8 +102,8 @@ model Department {
 }
 
 model Team {
-  id           String   @id @default(uuid())
-  departmentId String
+  id           BigInt   @id @default(autoincrement())
+  departmentId BigInt
   name         String
 
   createdAt DateTime @default(now())
@@ -123,8 +117,8 @@ model Team {
 }
 
 model Counterparty {
-  id             String  @id @default(uuid())
-  organizationId String?
+  id             BigInt  @id @default(autoincrement())
+  organizationId BigInt?
   name           String
   contactName    String?
   contactDetails String?
@@ -141,8 +135,8 @@ model Counterparty {
 }
 
 model CounterpartyContact {
-  id             String @id @default(uuid())
-  counterpartyId String
+  id             BigInt @id @default(autoincrement())
+  counterpartyId BigInt
   name           String
   details        String?
 
@@ -154,25 +148,30 @@ model CounterpartyContact {
 }
 
 model Declaration {
+  // Public business reference (GHE-YYYY-NNNNNN). Never replaced by an
+  // integer in the API, URLs, notifications, reports, or audit records.
   id                  String   @id
+  // Internal numeric key. All normalized child tables reference this, never
+  // the public text id.
+  declarationPk       BigInt   @unique @default(autoincrement())
   type                String
   value               Float
   status              String
   priority            String
-  organizationId      String?
+  organizationId      BigInt?
 
   // Canonical timestamps (UTC). Populated synchronously on every write from
   // the user-supplied calendar dates.
   eventDate   DateTime?
   submittedAt DateTime?
 
-  declarerUserId       String?
+  declarerUserId       BigInt?
   declarer             User? @relation("DeclarationDeclarer", fields: [declarerUserId], references: [id], onDelete: SetNull)
 
-  currentApproverUserId String?
+  currentApproverUserId BigInt?
   currentApprover       User? @relation("DeclarationApprover", fields: [currentApproverUserId], references: [id], onDelete: SetNull)
 
-  counterpartyId String?
+  counterpartyId BigInt?
   counterpartyRef Counterparty? @relation("DeclarationCounterparty", fields: [counterpartyId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
@@ -199,8 +198,8 @@ model Declaration {
 // Immutable declaration-time context: preserves who/where the declarer was
 // at submission so later team moves don't rewrite history.
 model DeclarationSnapshot {
-  id                String   @id @default(uuid())
-  declarationId     String   @unique
+  id                BigInt   @id @default(autoincrement())
+  declarationPk     BigInt   @unique
   declarerName      String
   employeeNumber    String
   positionTitle     String
@@ -208,12 +207,12 @@ model DeclarationSnapshot {
   managerDisplayName String?
   capturedAt        DateTime @default(now())
 
-  declaration Declaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+  declaration Declaration @relation(fields: [declarationPk], references: [declarationPk], onDelete: Cascade)
 }
 
 model DeclarationDetail {
-  id                  String @id @default(uuid())
-  declarationId       String @unique
+  id                  BigInt @id @default(autoincrement())
+  declarationPk       BigInt @unique
   description         String
   occasion            String
   relationship        String
@@ -226,29 +225,29 @@ model DeclarationDetail {
   publicOfficial      String
   substantiation      String?
 
-  declaration Declaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+  declaration Declaration @relation(fields: [declarationPk], references: [declarationPk], onDelete: Cascade)
 }
 
 // Explicit join between declarations and uploaded file metadata — the only
 // file association. Orphan UploadedFile rows are rejected.
 model DeclarationFile {
-  id            String   @id @default(uuid())
-  declarationId String
-  fileId        String   @unique
+  id            BigInt   @id @default(autoincrement())
+  declarationPk BigInt
+  fileId        BigInt   @unique
   createdAt     DateTime @default(now())
 
-  declaration Declaration  @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+  declaration Declaration  @relation(fields: [declarationPk], references: [declarationPk], onDelete: Cascade)
   file        UploadedFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
 
-  @@index([declarationId])
+  @@index([declarationPk])
 }
 
 model WorkflowRule {
-  id        String   @id
+  id        BigInt   @id @default(autoincrement())
   name      String
   condition String
   priority  Int
-  organizationId String?
+  organizationId BigInt?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -261,8 +260,8 @@ model WorkflowRule {
 }
 
 model WorkflowRuleStep {
-  id     String @id @default(uuid())
-  ruleId String
+  id     BigInt @id @default(autoincrement())
+  ruleId BigInt
   order  Int
   role   String
   label  String
@@ -274,13 +273,14 @@ model WorkflowRuleStep {
 }
 
 model WorkflowInstance {
-  declarationId String   @id
-  ruleId        String?
+  id            BigInt   @id @default(autoincrement())
+  declarationPk BigInt   @unique
+  ruleId        BigInt?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  declaration Declaration @relation("InstanceDeclaration", fields: [declarationId], references: [id], onDelete: Cascade)
+  declaration Declaration @relation("InstanceDeclaration", fields: [declarationPk], references: [declarationPk], onDelete: Cascade)
   rule WorkflowRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
   stepRows  WorkflowInstanceStep[] @relation("InstanceSteps")
 
@@ -288,30 +288,30 @@ model WorkflowInstance {
 }
 
 model WorkflowInstanceStep {
-  id            String   @id @default(uuid())
-  instanceId    String
-  declarationId String
+  id            BigInt   @id @default(autoincrement())
+  instanceId    BigInt
+  declarationPk BigInt
   stepOrder     Int
   role          String
   label         String
-  assigneeId    String?
+  assigneeId    BigInt?
   assigneeName  String
   status        String   @default("pending")
   decision      String?
   notes         String   @default("")
   decidedAt     DateTime?
-  decidedById   String?
+  decidedById   BigInt?
   decidedByName String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  instance    WorkflowInstance @relation("InstanceSteps", fields: [instanceId], references: [declarationId], onDelete: Cascade)
-  declaration Declaration @relation(fields: [declarationId], references: [id], onDelete: Cascade)
+  instance    WorkflowInstance @relation("InstanceSteps", fields: [instanceId], references: [id], onDelete: Cascade)
+  declaration Declaration @relation(fields: [declarationPk], references: [declarationPk], onDelete: Cascade)
   assignee    User? @relation("StepAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   decidedBy   User? @relation("StepDecider", fields: [decidedById], references: [id], onDelete: SetNull)
 
   @@unique([instanceId, stepOrder])
-  @@index([declarationId])
+  @@index([declarationPk])
   @@index([assigneeId])
   @@index([status])
   @@index([role])
@@ -335,7 +335,7 @@ model ApprovalOption {
 }
 
 model UploadedFile {
-  id            String   @id @default(cuid())
+  id            BigInt   @id @default(autoincrement())
   originalName  String
   mimeType      String
   size          Int
@@ -343,6 +343,4 @@ model UploadedFile {
   uploadedAt    DateTime @default(now())
 
   link DeclarationFile?
-
-  @@index([id])
 }

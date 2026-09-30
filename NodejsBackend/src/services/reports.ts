@@ -38,18 +38,16 @@ export function buildReportWhere(req: AuthRequest): Prisma.DeclarationWhereInput
     where.status = validStatuses.includes(String(status)) ? String(status) : "__invalid_status__";
   }
   // Org isolation
-  const orgId = (req as any).user?.organizationId as string | undefined;
-  if (orgId) (where as any).organizationId = orgId;
+  const orgId = (req as any).user?.organizationId as number | undefined;
+  if (orgId !== undefined && orgId !== null) (where as any).organizationId = orgId;
   return where;
 }
 
 export async function getStatusBreakdown(req: AuthRequest): Promise<Record<string, number>> {
-  // Prefer the reporting view; fall back to direct aggregation on the
-  // normalized tables (views may not exist on a fresh SQLite database until
-  // ensureReportingViews runs).
+  // Prefer the reporting view; fall back to direct aggregation.
   try {
-    const orgId = (req as any).user?.organizationId as string | undefined;
-    const fromView = await viewStatusSummary(orgId);
+    const orgId = (req as any).user?.organizationId as number | undefined;
+    const fromView = await viewStatusSummary(orgId ?? undefined);
     if (fromView) {
       // Views are unfiltered read models — re-apply non-org filters via the
       // filtered path when present.
@@ -109,7 +107,7 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
     }
   }
   const where = buildReportWhere(req);
-  const declarations = await prisma.declaration.findMany({ where, select: { id: true, eventDate: true } });
+  const declarations = await prisma.declaration.findMany({ where, select: { declarationPk: true, eventDate: true } });
   if (declarations.length === 0) return [];
 
   const roleMap: Record<string, string> = {
@@ -117,16 +115,16 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
     hr: "HR",
   };
 
-  const declarationIds = declarations.map((d) => d.id);
+  const pks = declarations.map((d) => d.declarationPk);
   const stepRows = await (prisma as any).workflowInstanceStep.findMany({
-    where: { declarationId: { in: declarationIds }, decidedAt: { not: null } },
-    select: { declarationId: true, role: true, decidedAt: true },
+    where: { declarationPk: { in: pks }, decidedAt: { not: null } },
+    select: { declarationPk: true, role: true, decidedAt: true },
   });
-  const declMap = new Map(declarations.map((d) => [d.id, d]));
+  const declMap = new Map(declarations.map((d) => [String(d.declarationPk), d]));
 
   const byRole: Record<string, number[]> = {};
   for (const s of stepRows as any[]) {
-    const d = declMap.get(s.declarationId) as any;
+    const d = declMap.get(String(s.declarationPk)) as any;
     if (!d || !d.eventDate || !s.decidedAt) continue;
     const decided = new Date(s.decidedAt).getTime();
     const base = new Date(d.eventDate).getTime();
@@ -156,8 +154,8 @@ export async function getCounterpartyConcentration(req: AuthRequest): Promise<an
   try {
     const { startDate, endDate, department, status } = req.query;
     if (!startDate && !endDate && !department && !status) {
-      const orgId = (req as any).user?.organizationId as string | undefined;
-      const fromView = await viewCounterparty(orgId);
+      const orgId = (req as any).user?.organizationId as number | undefined;
+      const fromView = await viewCounterparty(orgId ?? undefined);
       if (fromView) return fromView;
     }
   } catch {

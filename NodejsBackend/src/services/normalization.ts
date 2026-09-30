@@ -1,12 +1,14 @@
 import { prisma } from "../config/prisma";
+import { toDbId } from "./ids";
 import type { WorkflowStep } from "./workflowService";
 
 /**
- * Phase 5 normalized writers (DATABASE-NORMALIZATION-GOAL cutover complete).
+ * Normalized writers (numeric identifier cutover complete).
  *
- * There is exactly one store: relational rows. Legacy JSON/text columns no
- * longer exist, so there is no dual-write, no fallback read, and no mirror
- * to keep in sync. Every writer below runs inside the caller's transaction.
+ * There is exactly one store: relational rows with BIGINT keys. The public
+ * declaration reference stays text (GHE-YYYY-NNNNNN); every normalized child
+ * row references the internal numeric declarationPk. All writers run inside
+ * the caller's transaction and take the numeric declarationPk.
  */
 
 export function parseDateSafe(val: string | null | undefined): Date | null {
@@ -33,16 +35,23 @@ export function parseDateSafe(val: string | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
+/** Resolve the internal numeric key for a public GHE- declaration id. */
+export async function getDeclarationPk(id: string, db: any = prisma): Promise<bigint | null> {
+  const row = await (db as any).declaration.findUnique({ where: { id }, select: { declarationPk: true } });
+  return row ? (row.declarationPk as bigint) : null;
+}
+
 export async function ensureCounterparty(
   name: string,
-  organizationId: string | null,
+  organizationId: bigint | number | null,
   contactName?: string | null,
   db: any = prisma,
-): Promise<{ id: string } | null> {
+): Promise<{ id: bigint } | null> {
   const clean = String(name || "").trim();
   if (!clean) return null;
+  const org = organizationId === null || organizationId === undefined ? null : toDbId(organizationId);
   const existing = await (db as any).counterparty.findFirst({
-    where: { name: clean, organizationId: organizationId || null },
+    where: { name: clean, organizationId: org },
     select: { id: true },
   });
   if (existing) return existing;
@@ -50,7 +59,7 @@ export async function ensureCounterparty(
     return await (db as any).counterparty.create({
       data: {
         name: clean,
-        organizationId: organizationId || null,
+        organizationId: org,
         contactName: contactName ? String(contactName).slice(0, 200) : null,
       },
       select: { id: true },
@@ -60,24 +69,25 @@ export async function ensureCounterparty(
     // created it first; fall through to the re-read below.
     if (e.code !== "P2002") throw e;
     return await (db as any).counterparty.findFirst({
-      where: { name: clean, organizationId: organizationId || null },
+      where: { name: clean, organizationId: org },
       select: { id: true },
     });
   }
 }
 
 export async function captureDeclarationSnapshot(
-  declarationId: string,
+  declarationPk: bigint | number,
   declarer: { name: string; teamMemberNumber: string; position: string; department: string },
   managerDisplayName: string | null,
   db: any = prisma,
-  // Insert-only fast path for brand-new declarations (fresh unique id, so no
+  // Insert-only fast path for brand-new declarations (fresh unique key, so no
   // row can exist): skips the upsert's existence read. PUT/submit keep upsert
   // because their rows may already exist.
   insertOnly = false,
 ): Promise<void> {
+  const pk = toDbId(declarationPk);
   const data = {
-    declarationId,
+    declarationPk: pk,
     declarerName: declarer.name,
     employeeNumber: declarer.teamMemberNumber,
     positionTitle: declarer.position,
@@ -89,7 +99,7 @@ export async function captureDeclarationSnapshot(
     return;
   }
   await (db as any).declarationSnapshot.upsert({
-    where: { declarationId },
+    where: { declarationPk: pk },
     create: data,
     // Snapshot is immutable after first capture; no update path so later calls
     // cannot rewrite historical declarer context (e.g. team moves).
@@ -98,14 +108,15 @@ export async function captureDeclarationSnapshot(
 }
 
 export async function syncDeclarationDetail(
-  declarationId: string,
+  declarationPk: bigint | number,
   d: any,
   db: any = prisma,
   // Insert-only fast path for brand-new declarations (see captureDeclarationSnapshot).
   insertOnly = false,
 ): Promise<void> {
+  const pk = toDbId(declarationPk);
   const data = {
-    declarationId,
+    declarationPk: pk,
     description: String(d.description ?? ""),
     occasion: String(d.occasion ?? ""),
     relationship: String(d.relationship ?? ""),
@@ -122,9 +133,9 @@ export async function syncDeclarationDetail(
     await (db as any).declarationDetail.create({ data });
     return;
   }
-  const { declarationId: _omit, ...fields } = data;
+  const { declarationPk: _omit, ...fields } = data;
   await (db as any).declarationDetail.upsert({
-    where: { declarationId },
+    where: { declarationPk: pk },
     create: data,
     update: fields,
   });
@@ -141,49 +152,52 @@ export function parseRuleStepDefs(raw: string | any[]): { order: number; role: s
 }
 
 export async function syncWorkflowRuleSteps(
-  ruleId: string,
+  ruleId: bigint | number,
   defsInput?: { order: number; role: string; label: string }[],
   db: any = prisma,
 ): Promise<number> {
+  const rid = toDbId(ruleId);
   const defs = defsInput ?? [];
-  const existing = await (db as any).workflowRuleStep.findMany({ where: { ruleId } });
+  const existing = await (db as any).workflowRuleStep.findMany({ where: { ruleId: rid } });
   const existingOrders = new Set(existing.map((s: any) => s.order));
   const wantedOrders = new Set(defs.map((d) => d.order));
   await Promise.all(
     defs.map((d) =>
       (db as any).workflowRuleStep.upsert({
-        where: { ruleId_order: { ruleId, order: d.order } },
-        create: { ruleId, order: d.order, role: d.role, label: d.label },
+        where: { ruleId_order: { ruleId: rid, order: d.order } },
+        create: { ruleId: rid, order: d.order, role: d.role, label: d.label },
         update: { role: d.role, label: d.label },
       }),
     ),
   );
   const stale = [...existingOrders].filter((o) => !wantedOrders.has(o as number));
   if (stale.length > 0) {
-    await (db as any).workflowRuleStep.deleteMany({ where: { ruleId, order: { in: stale as number[] } } });
+    await (db as any).workflowRuleStep.deleteMany({ where: { ruleId: rid, order: { in: stale as number[] } } });
   }
   return defs.length;
 }
 
-function toStepRow(declarationId: string, s: WorkflowStep, validUserIds: Set<string>) {
+function toStepRow(declarationPk: bigint, instanceId: bigint, s: WorkflowStep, validUserIds: Set<string>) {
+  const assigneeKey = s.assignee === null || s.assignee === undefined ? null : String(s.assignee);
+  const deciderKey = s.decidedById === null || s.decidedById === undefined ? null : String(s.decidedById);
   return {
     stepOrder: s.order,
     role: s.role,
     label: s.label,
-    assigneeId: s.assignee && validUserIds.has(s.assignee) ? s.assignee : null,
+    assigneeId: assigneeKey && validUserIds.has(assigneeKey) ? BigInt(assigneeKey) : null,
     assigneeName: s.assigneeName || "Unknown",
     status: s.status,
     decision: s.decision ?? null,
     notes: s.notes ?? "",
     decidedAt: s.decidedAt ? parseDateSafe(s.decidedAt) : null,
-    decidedById: s.decidedById && validUserIds.has(s.decidedById) ? s.decidedById : null,
+    decidedById: deciderKey && validUserIds.has(deciderKey) ? BigInt(deciderKey) : null,
     decidedByName: s.decidedByName ?? null,
   };
 }
 
 /**
- * Write the canonical step array inside the caller's transaction:
- * the WorkflowInstance row (id + producing rule) plus the authoritative
+ * Write the canonical step array inside the caller's transaction: the
+ * WorkflowInstance row (numeric PK + producing rule) plus the authoritative
  * WorkflowInstanceStep rows (with stale-row cleanup).
  *
  * `ruleId`: pass the producing rule to record it; pass `undefined` to leave
@@ -192,52 +206,52 @@ function toStepRow(declarationId: string, s: WorkflowStep, validUserIds: Set<str
  */
 export async function writeWorkflowStepsTx(
   tx: any,
-  declarationId: string,
+  declarationPk: bigint | number,
   steps: WorkflowStep[],
-  ruleId?: string | null,
+  ruleId?: bigint | number | null,
 ): Promise<void> {
-  if (!declarationId || !Array.isArray(steps)) {
-    throw new Error("writeWorkflowStepsTx requires a declarationId and a step array");
+  const pk = toDbId(declarationPk);
+  if (!Array.isArray(steps)) {
+    throw new Error("writeWorkflowStepsTx requires a step array");
   }
   const ids = new Set<string>();
   for (const s of steps) {
-    if (s.assignee) ids.add(s.assignee);
-    if (s.decidedById) ids.add(s.decidedById);
+    if (s.assignee !== null && s.assignee !== undefined) ids.add(String(s.assignee));
+    if (s.decidedById !== null && s.decidedById !== undefined) ids.add(String(s.decidedById));
   }
   let validUserIds = new Set<string>();
   if (ids.size > 0) {
-    const users = await tx.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true } });
-    validUserIds = new Set(users.map((u: any) => u.id));
+    const users = await tx.user.findMany({ where: { id: { in: [...ids].map((v) => BigInt(v)) } }, select: { id: true } });
+    validUserIds = new Set(users.map((u: any) => String(u.id)));
   }
-  if (ruleId !== undefined) {
-    await tx.workflowInstance.upsert({
-      where: { declarationId },
-      create: { declarationId, ruleId: ruleId ?? null },
-      update: { ruleId: ruleId ?? null },
+  let instance = await tx.workflowInstance.findUnique({ where: { declarationPk: pk }, select: { id: true } });
+  if (!instance) {
+    instance = await tx.workflowInstance.create({
+      data: { declarationPk: pk, ruleId: ruleId !== undefined ? (ruleId === null ? null : toDbId(ruleId)) : null },
+      select: { id: true },
     });
-  } else {
-    await tx.workflowInstance.upsert({
-      where: { declarationId },
-      create: { declarationId },
-      update: {},
+  } else if (ruleId !== undefined) {
+    await tx.workflowInstance.update({
+      where: { declarationPk: pk },
+      data: { ruleId: ruleId === null ? null : toDbId(ruleId) },
     });
   }
   for (const s of steps) {
-    const row = toStepRow(declarationId, s, validUserIds);
+    const row = toStepRow(pk, instance.id as bigint, s, validUserIds);
     await tx.workflowInstanceStep.upsert({
-      where: { instanceId_stepOrder: { instanceId: declarationId, stepOrder: s.order } },
-      create: { instanceId: declarationId, declarationId, ...row },
+      where: { instanceId_stepOrder: { instanceId: instance.id, stepOrder: s.order } },
+      create: { instanceId: instance.id, declarationPk: pk, ...row },
       update: { ...row },
     });
   }
   const wanted = new Set(steps.map((s) => s.order));
   const existing = await tx.workflowInstanceStep.findMany({
-    where: { instanceId: declarationId },
+    where: { instanceId: instance.id },
     select: { stepOrder: true },
   });
   const stale = existing.map((r: any) => r.stepOrder).filter((o: number) => !wanted.has(o));
   if (stale.length > 0) {
-    await tx.workflowInstanceStep.deleteMany({ where: { instanceId: declarationId, stepOrder: { in: stale } } });
+    await tx.workflowInstanceStep.deleteMany({ where: { instanceId: instance.id, stepOrder: { in: stale } } });
   }
 }
 
@@ -246,37 +260,25 @@ export async function writeWorkflowStepsTx(
  * that already hold a transaction MUST use `writeWorkflowStepsTx` instead.
  */
 export async function persistWorkflowInstanceSteps(
-  declarationId: string,
+  declarationPk: bigint | number,
   steps: WorkflowStep[],
-  ruleId?: string | null,
+  ruleId?: bigint | number | null,
 ): Promise<void> {
-  if (!declarationId || !Array.isArray(steps)) {
-    throw new Error("persistWorkflowInstanceSteps requires a declarationId and a step array");
+  if (!Array.isArray(steps)) {
+    throw new Error("persistWorkflowInstanceSteps requires a step array");
   }
   await (prisma as any).$transaction(async (tx: any) => {
-    await writeWorkflowStepsTx(tx, declarationId, steps, ruleId);
+    await writeWorkflowStepsTx(tx, declarationPk, steps, ruleId);
   });
 }
 
 /** Read workflow steps from the authoritative step rows (no fallback). */
-export async function readWorkflowSteps(declarationId: string): Promise<WorkflowStep[] | null> {
+export async function readWorkflowSteps(declarationPk: bigint | number): Promise<WorkflowStep[] | null> {
+  const { rowToStep } = await import("./workflowService");
   const rows = await (prisma as any).workflowInstanceStep.findMany({
-    where: { instanceId: declarationId },
+    where: { declarationPk: toDbId(declarationPk) },
     orderBy: { stepOrder: "asc" },
   });
   if (!rows || rows.length === 0) return null;
-  return rows.map((r: any) => ({
-    order: r.stepOrder,
-    role: r.role,
-    assignee: r.assigneeId || "",
-    assigneeName: r.assigneeName,
-    label: r.label,
-    status: r.status,
-    decision: r.decision ?? null,
-    approvedAt: r.status === "approved" && r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
-    notes: r.notes ?? "",
-    decidedAt: r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
-    decidedById: r.decidedById ?? null,
-    decidedByName: r.decidedByName ?? null,
-  }));
+  return rows.map((r: any) => rowToStep(r));
 }
