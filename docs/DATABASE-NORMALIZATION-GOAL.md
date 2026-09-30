@@ -342,3 +342,103 @@ Apply these only after the safe counterparty migration, PostgreSQL verification,
 - Remove legacy-date fallbacks and `Declaration.date`-based monthly view logic only after every endpoint, export, and report reads `eventDate` and reconciliation confirms valid typed values for all retained declarations.
 - Remove obsolete counterparty retry/lookup branches only after the final uniqueness policy is encoded in PostgreSQL and `ensureCounterparty()` uses one canonical transactional create-or-resolve path. Do not remove safeguards while SQLite development still has different constraint semantics.
 - Remove migration-era duplicate-cleanup scripts or diagnostics once the data-preserving migration is deployed, its reconciliation evidence is retained, and no supported deployment path uses them. Do not retain an application-startup delete/reconciliation routine.
+
+## Full Normalized-Codebase Migration Plan
+
+This is the planned cutover from the compatibility schema to the normalized model. It is intentionally phased: no legacy table or column is dropped until all application reads and writes have moved, the data has been reconciled, and rollback evidence exists.
+
+### Target source of truth
+
+| Current compatibility structure | Normalized replacement | Final action |
+|---|---|---|
+| `Declaration` employee/context strings | `declarerUserId` + `DeclarationSnapshot` + `User`/`Department`/`Team` | Retain only the immutable snapshot; drop duplicated current-state strings after API cutover |
+| `Declaration` detail columns | `DeclarationDetail` | Move all service/report reads and writes, then drop duplicates |
+| `Declaration.date`, `submitted` | `eventDate`, `submittedAt` | Backfill, validate, then drop text fields |
+| `Declaration.files` JSON | `UploadedFile` + `DeclarationFile` | Reconcile every file and remove JSON |
+| `Declaration.approver`, `approverId` | `currentApproverUserId` + `WorkflowInstanceStep` actor fields | Move current and historical approval reads, then drop text fields |
+| `WorkflowRule.steps` JSON | `WorkflowRuleStep` | Remove JSON parsing and column |
+| `WorkflowInstance.steps` JSON | `WorkflowInstanceStep` | Remove JSON parsing and column |
+| `UploadedFile.declarationId` | `DeclarationFile` | Keep the join as the only relationship and drop the duplicate FK |
+| `Dropdowns` JSON | Domain-specific reference tables and organisation master data | Migrate consumers, then drop table and endpoints |
+| `ComplianceTrendPoint` | `v_declarations_monthly` | Remove seed, fallback query, model, and table |
+| `TypeBreakdownItem` | `v_declaration_type_breakdown` | Remove seed, fallback query, model, and table |
+| `User.role` | `AppRole` + `UserRole` | Choose and enforce one authorization source, then remove the other |
+| `SystemConfig` | `OrganizationSetting` | Migrate all configuration reads to organisation scope, then remove the global table if approved |
+| `Ref*` tables without FKs | FK-backed reference columns | Add constraints and migrate declaration/workflow fields; otherwise remove unused reference tables |
+
+### Phase A — Inventory and migration contract
+
+1. Freeze the target model and decide the unresolved ownership questions: whether `OrganizationSetting` replaces `SystemConfig`, whether `UserRole` replaces `User.role`, and which `Dropdowns` values become reference entities versus organisation-managed data.
+2. Create a machine-readable inventory of every legacy table/column, Prisma model, route, service, seed path, frontend API type, test fixture, report, export, and documentation reference.
+3. Define the final API response contract. Keep response names stable where possible, but stop exposing storage-specific legacy fields to new frontend code.
+4. Add a `db:verify` report for every planned removal: row counts, null counts, unmapped values, duplicate groups, orphan rows, and source-to-target equivalence.
+5. Take a production backup and create a PostgreSQL rehearsal database. Do not begin destructive work against production data.
+
+### Phase B — Enforce normalized writes
+
+1. Make declaration creation, update, submit, approval, file upload, workflow-rule administration, and user administration write normalized tables directly inside the owning transaction.
+2. Keep legacy writes temporarily only as compatibility projections. Mark them as deprecated and prohibit new business logic from reading them.
+3. Add the remaining FK-backed reference columns for type, status, priority, relationship, direction, and workflow status after invalid values have been mapped.
+4. Make snapshots immutable after creation. Updates to a user's department, team, manager, or title must never rewrite declaration history.
+5. Make `DeclarationFile` the only file association and define whether orphan `UploadedFile` rows are rejected or periodically quarantined.
+
+### Phase C — Migrate every read path
+
+Backend:
+
+- Replace Prisma reads of legacy declaration fields with `DeclarationDetail`, `DeclarationSnapshot`, relational user/team data, and typed timestamps.
+- Replace workflow JSON parsing in approval queues, pending-workflow queries, workflow instances, authorization guards, admin workflow pages, and notifications with step-row queries.
+- Replace `Dropdowns` reads with explicit reference/master-data queries.
+- Replace `SystemConfig` reads with the approved organisation-scoped settings model.
+- Replace `User.role` checks with role assignments if `UserRole` is selected as authoritative.
+- Route dashboard and reporting aggregates through PostgreSQL views with API-level tenant and role scoping.
+
+Frontend:
+
+- Update `Declaration` mapping to consume the normalized API response while preserving the approved user-facing contract.
+- Remove form assumptions that read generic dropdown JSON; use typed options from domain endpoints.
+- Remove client-side workflow JSON parsing and use normalized step data returned by the API.
+- Remove static trend/type-breakdown fallback assumptions.
+- Update admin screens for organization settings, roles, reference data, counterparties, and files.
+
+Operational code:
+
+- Update `seed.ts`, `seed-if-empty.ts`, test global setup, PostgreSQL fixtures, and backfill scripts to seed only normalized tables.
+- Update Swagger, README, architecture, schema, workflow, deployment, and retirement documentation.
+- Remove runtime `CREATE VIEW`/`CREATE TABLE` compatibility behavior once migrations own the schema.
+
+### Phase D — Reconcile and prove equivalence
+
+Run the following gates against a production-shaped PostgreSQL copy:
+
+- `npm run db:backfill` is idempotent and emits zero unresolved required mappings.
+- `npm run db:verify` reports zero drift for declarations, dates, snapshots, details, workflow rules, workflow instances, files, counterparties, roles, and reference values.
+- Every legacy table planned for removal has either zero rows or a documented replacement count.
+- View results match the existing report results for empty data, multiple organisations, every status, date boundaries, high-value declarations, workflow queues, and counterparty aggregates.
+- API, workflow, authorization, file, frontend, and reporting tests pass against PostgreSQL.
+- A rollback rehearsal restores the backup and returns the application to the pre-cutover version.
+
+### Phase E — Cutover release
+
+1. Deploy the read-path migration and verification instrumentation.
+2. Run one complete release window with normalized reads and zero drift alerts.
+3. Disable legacy writes behind a feature flag or release configuration and monitor all deprecated-field metrics.
+4. Confirm no production requests, jobs, exports, seeds, or tests use the legacy structures.
+5. Capture final counts and obtain explicit approval for destructive DDL.
+
+### Phase F — Destructive cleanup migration
+
+Create a new forward-only migration only after Phases A–E pass. In dependency order:
+
+1. Drop static reporting tables after fallback code and seed paths are removed: `ComplianceTrendPoint`, `TypeBreakdownItem`.
+2. Drop `Dropdowns` after all consumers and admin endpoints are removed.
+3. Drop or consolidate the rejected configuration/authorization model: `SystemConfig` or `OrganizationSetting`, and `User.role` or `UserRole`.
+4. Add final reference-data foreign keys and remove unused `Ref*` tables or rename them to their final domain names.
+5. Drop duplicate file, workflow, timestamp, approver, declaration-detail, and employee-context columns.
+6. Drop `UploadedFile.declarationId` after `DeclarationFile` is verified as complete.
+7. Drop `WorkflowRule.steps` and `WorkflowInstance.steps` after JSON fallback code is deleted.
+8. Remove obsolete Prisma models, route handlers, service functions, frontend types, fixtures, seed data, and documentation in the same release family.
+
+### Completion criteria
+
+The migration is complete only when a fresh database contains the final normalized tables and views, an upgraded production-shaped database produces the same business results, no runtime path depends on the old tables or columns, the full test suite passes against PostgreSQL, and `rg`/static analysis finds no supported references to retired structures. The old compatibility migration history remains in the repository for existing databases; only the current schema and application code are cleaned up.
