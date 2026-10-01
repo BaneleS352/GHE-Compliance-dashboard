@@ -41,7 +41,7 @@ export async function createWorkflowSteps(_declarationPk: bigint | string | numb
   if (!rule) throw new Error(`Workflow rule ${ruleId} not found`);
 
   // Row-only step definitions (no JSON fallback exists).
-  const rows = await (prisma as any).workflowRuleStep.findMany({
+  const rows = await prisma.workflowRuleStep.findMany({
     where: { ruleId },
     orderBy: { order: "asc" },
   });
@@ -130,7 +130,7 @@ export async function createWorkflowSteps(_declarationPk: bigint | string | numb
 
 export async function getCurrentStep(declarationPk: bigint | number): Promise<WorkflowStep | null> {
   // Relational step rows are the only workflow state.
-  const rows = await (prisma as any).workflowInstanceStep.findMany({
+  const rows = await prisma.workflowInstanceStep.findMany({
     where: { declarationPk: toDbId(declarationPk) },
     orderBy: { stepOrder: "asc" },
   });

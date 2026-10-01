@@ -14,7 +14,7 @@ import {
   captureDeclarationSnapshot,
   syncDeclarationDetail,
   writeWorkflowStepsTx,
-  readWorkflowSteps,
+  readWorkflowStepRows,
 } from "../services/normalization";
 import { toDbId, toJsonId } from "../services/ids";
 import { sendNotification } from "../services/notificationService";
@@ -378,7 +378,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
   if (denyCrossDepartmentLM(req, res, declaration.snapshot?.department)) return;
 
-  const rawSteps = (await readWorkflowSteps(declaration.declarationPk)) || [];
+  const rawSteps = (await readWorkflowStepRows(declaration.declarationPk)) || [];
 
   const workflowSteps = req.user!.role === "admin" || req.user!.role === "approver"
     ? rawSteps
@@ -540,7 +540,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   if (existing.status === "Returned" && data.value !== undefined && data.value !== existing.value) {
     const instance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
     if (instance) {
-      const savedSteps = (await readWorkflowSteps(pk)) || [];
+      const savedSteps = (await readWorkflowStepRows(pk)) || [];
       const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId!, (updated as any).value);
       const approvedMap = new Map(savedSteps.filter((s: any) => s.status === "approved").map((s: any) => [s.role, s]));
       const workflowSteps = freshSteps.map((step: any) => {
@@ -582,22 +582,22 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
 
   // Delete disk files via the join rows (the only file association).
   const pk = existing.declarationPk as bigint;
-  const links = await (prisma as any).declarationFile.findMany({ where: { declarationPk: pk }, include: { file: true } });
+  const links = await prisma.declarationFile.findMany({ where: { declarationPk: pk }, include: { file: true } });
   await Promise.all(links.map(async (l: any) => {
     const fp = containedUploadPath(l.file.path);
     if (!fp) return;
     try { await fs.promises.unlink(fp); } catch { /* file may have been deleted already */ }
   }));
   const fileIds = links.map((l: any) => l.fileId);
-  await (prisma as any).declarationFile.deleteMany({ where: { declarationPk: pk } });
+  await prisma.declarationFile.deleteMany({ where: { declarationPk: pk } });
   if (fileIds.length > 0) {
     await prisma.uploadedFile.deleteMany({ where: { id: { in: fileIds } } });
   }
   await Promise.all([
     prisma.workflowInstance.deleteMany({ where: { declarationPk: pk } }),
-    (prisma as any).workflowInstanceStep.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined),
-    (prisma as any).declarationSnapshot.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined),
-    (prisma as any).declarationDetail.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined),
+    prisma.workflowInstanceStep.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined),
+    prisma.declarationSnapshot.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined),
+    prisma.declarationDetail.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined),
   ]);
   await prisma.declaration.delete({ where: { declarationPk: pk } });
 
@@ -631,7 +631,7 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
 
   let workflowSteps: any[];
   if (existing.status === "Returned" && existingInstance) {
-    const savedSteps = (await readWorkflowSteps(pk)) || [];
+    const savedSteps = (await readWorkflowStepRows(pk)) || [];
     const hasReturnedStep = savedSteps.some((step) => step.status === "returned");
     if (hasReturnedStep) {
       // Rebuild from the current value so a returned low-value declaration that
@@ -742,7 +742,7 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
       res.status(400).json({ error: "Cannot approve/decline a declaration with no workflow instance" });
       return;
     }
-    const steps: any[] = (await readWorkflowSteps(pk)) || [];
+    const steps: any[] = (await readWorkflowStepRows(pk)) || [];
     const pendingStep = steps.find((s: any) => s.status === "pending");
     if (pendingStep) {
       res.status(400).json({ error: "Cannot approve/decline — pending approval step still exists" });

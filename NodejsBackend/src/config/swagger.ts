@@ -96,9 +96,9 @@ const options: swaggerJsdoc.Options = {
             notificationTemplates: { type: "string" },
           },
         },
-        Dropdowns: {
+        DropdownOptions: {
           type: "object",
-          description: "Phase 5: served from Department master data plus fixed domain lists (no stored table)",
+          description: "Department master data plus fixed domain lists (no stored table; the generic Dropdowns table was retired)",
           properties: {
             departments: { type: "array", items: { type: "string" } },
             categories: { type: "array", items: { type: "string" } },
@@ -439,16 +439,15 @@ const options: swaggerJsdoc.Options = {
       "/api/admin/config/dropdowns": {
         get: {
           tags: ["Admin - Config"],
-          summary: "Get dropdown options (admin only)",
+          summary: "Get department/domain options (any authenticated user)",
           security: [{ bearerAuth: [] }],
-          responses: { 200: { description: "Dropdown options", content: { "application/json": { schema: { $ref: "#/components/schemas/Dropdowns" } } } } },
+          responses: { 200: { description: "Dropdown options from master data", content: { "application/json": { schema: { $ref: "#/components/schemas/DropdownOptions" } } } } },
         },
         put: {
           tags: ["Admin - Config"],
-          summary: "Update dropdown options (admin only)",
+          summary: "Retired (410 Gone) — options are master data / fixed lists",
           security: [{ bearerAuth: [] }],
-          requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/Dropdowns" } } } },
-          responses: { 200: { description: "Updated dropdowns" }, 400: { description: "Empty array rejected" } },
+          responses: { 410: { description: "Dropdown editing retired with the Dropdowns table" } },
         },
       },
       "/api/admin/config/approval-options": {

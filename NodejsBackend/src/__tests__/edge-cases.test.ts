@@ -20,11 +20,11 @@ afterAll(async () => {
   const found = await prisma.declaration.findMany({ where: { id: { in: cleanupDeclIds } }, select: { declarationPk: true } });
   const pks = found.map((d) => d.declarationPk);
   // Join-only file association: resolve file ids via the join rows first.
-  const links = await (prisma as any).declarationFile.findMany({
+  const links = await prisma.declarationFile.findMany({
     where: { declarationPk: { in: pks } },
     select: { fileId: true },
   }).catch(() => []);
-  await (prisma as any).declarationFile.deleteMany({
+  await prisma.declarationFile.deleteMany({
     where: { declarationPk: { in: pks } },
   }).catch(() => undefined);
   if (links.length > 0) {
@@ -32,16 +32,16 @@ afterAll(async () => {
       where: { id: { in: links.map((l: any) => l.fileId) } },
     }).catch(() => undefined);
   }
-  await (prisma as any).workflowInstanceStep.deleteMany({
+  await prisma.workflowInstanceStep.deleteMany({
     where: { declarationPk: { in: pks } },
   }).catch(() => undefined);
   await prisma.workflowInstance.deleteMany({
     where: { declarationPk: { in: pks } },
   });
-  await (prisma as any).declarationSnapshot.deleteMany({
+  await prisma.declarationSnapshot.deleteMany({
     where: { declarationPk: { in: pks } },
   }).catch(() => undefined);
-  await (prisma as any).declarationDetail.deleteMany({
+  await prisma.declarationDetail.deleteMany({
     where: { declarationPk: { in: pks } },
   }).catch(() => undefined);
   await prisma.declaration.deleteMany({

@@ -42,11 +42,24 @@ function check(name: string, cond: boolean, detail?: string) {
 }
 
 function equiv(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a) === JSON.stringify(b);
+  // Order-insensitive for flat objects: view GROUP BY row order must not
+  // affect equality (e.g. {Approved, Declined, Pending} vs insertion order).
+  const norm = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(norm);
+    if (v && typeof v === "object") {
+      return Object.fromEntries(
+        Object.entries(v as Record<string, unknown>)
+          .sort(([k1], [k2]) => (k1 < k2 ? -1 : k1 > k2 ? 1 : 0))
+          .map(([k, val]) => [k, norm(val)]),
+      );
+    }
+    return v;
+  };
+  return JSON.stringify(norm(a)) === JSON.stringify(norm(b));
 }
 
 async function wipe() {
-  const p: any = prisma;
+  const p = prisma;
   await p.workflowInstanceStep.deleteMany();
   await p.workflowInstance.deleteMany();
   await p.declarationFile.deleteMany();
@@ -192,11 +205,24 @@ async function main() {
   for (const [t, c] of [["User", "organizationId"], ["User", "managerId"], ["User", "departmentId"], ["User", "teamId"], ["Department", "organizationId"], ["Team", "departmentId"], ["Counterparty", "organizationId"], ["CounterpartyContact", "counterpartyId"], ["Declaration", "organizationId"], ["Declaration", "declarerUserId"], ["Declaration", "currentApproverUserId"], ["Declaration", "counterpartyId"], ["DeclarationSnapshot", "declarationPk"], ["DeclarationDetail", "declarationPk"], ["DeclarationFile", "declarationPk"], ["DeclarationFile", "fileId"], ["WorkflowRule", "organizationId"], ["WorkflowRuleStep", "ruleId"], ["WorkflowInstance", "declarationPk"], ["WorkflowInstance", "ruleId"], ["WorkflowInstanceStep", "instanceId"], ["WorkflowInstanceStep", "declarationPk"], ["WorkflowInstanceStep", "assigneeId"], ["WorkflowInstanceStep", "decidedById"]] as [string, string][]) {
     check(`FK ${t}.${c} is bigint`, idType(t, c) === "bigint", `${t}.${c}=${idType(t, c)}`);
   }
-  const strayTextIds: any[] = await p.$queryRawUnsafe(
-    `SELECT table_name FROM information_schema.columns
-     WHERE table_schema = 'public' AND column_name = 'id' AND data_type = 'text'`,
+  // Only the documented text identifiers may remain: Declaration.id is the
+  // public GHE-YYYY-NNNNNN reference, SystemConfig ("default") and
+  // ApprovalOption ("opt-*"/"ao-*") are singleton/code-list rows outside the
+  // numeric-key scope. Views are excluded (they project text columns).
+  const textIdTables: { table_name: string }[] = await p.$queryRawUnsafe(
+    `SELECT c.table_name AS table_name
+     FROM information_schema.columns c JOIN information_schema.tables t
+       ON t.table_name = c.table_name AND t.table_schema = c.table_schema
+     WHERE c.table_schema = 'public' AND t.table_type = 'BASE TABLE'
+       AND c.column_name = 'id' AND c.data_type = 'text'
+     ORDER BY 1`,
   );
-  check("no TEXT id columns remain on numeric entities", strayTextIds.length === 0, JSON.stringify(strayTextIds));
+  const textIdNames = textIdTables.map((r) => r.table_name);
+  check(
+    "only documented text ids remain (ApprovalOption/Declaration/SystemConfig)",
+    JSON.stringify(textIdNames) === JSON.stringify(["ApprovalOption", "Declaration", "SystemConfig"]),
+    JSON.stringify(textIdNames),
+  );
 
   // 1. Status summary, org-scoped.
   const expectedA: Record<string, number> = {};

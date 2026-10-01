@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
 import { buildApp, getAdminToken, getTeamToken, getApproverToken, pkFor } from "./helpers";
-import { readWorkflowSteps } from "../services/normalization";
+import { readWorkflowStepRows } from "../services/normalization";
 import { toDbId, toJsonId, parseIdParam } from "../services/ids";
 import { viewStatusSummary, viewCounterparty, viewSlaRows } from "../services/reportingViews";
 
@@ -39,13 +39,13 @@ describe("Database normalization (numeric identifiers)", () => {
     expect(decl!.declarerUserId).toBe(4n);
     expect(decl!.counterpartyId).not.toBeNull();
     const pk = decl!.declarationPk;
-    const snap = await (prisma as any).declarationSnapshot.findUnique({ where: { declarationPk: pk } });
+    const snap = await prisma.declarationSnapshot.findUnique({ where: { declarationPk: pk } });
     expect(snap?.declarerName).toBe("Nomvula Team");
-    const detail = await (prisma as any).declarationDetail.findUnique({ where: { declarationPk: pk } });
+    const detail = await prisma.declarationDetail.findUnique({ where: { declarationPk: pk } });
     expect(detail?.contactPerson).toBe("Nora");
 
-    await (prisma as any).declarationSnapshot.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
-    await (prisma as any).declarationDetail.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
+    await prisma.declarationSnapshot.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
+    await prisma.declarationDetail.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
     await prisma.declaration.delete({ where: { id } }).catch(() => undefined);
   });
 
@@ -73,14 +73,14 @@ describe("Database normalization (numeric identifiers)", () => {
     const decl = await prisma.declaration.findUnique({ where: { id } });
     expect((decl as any)!.currentApproverUserId).toBe(2n);
 
-    let rows = await (prisma as any).workflowInstanceStep.findMany({
+    let rows = await prisma.workflowInstanceStep.findMany({
       where: { declarationPk: pk }, orderBy: { stepOrder: "asc" },
     });
     expect(rows.length).toBe(2);
     expect(rows[0].assigneeId).toBe(2n);
 
     // Relational read returns the step array (no JSON cache exists).
-    const viaRelational = await readWorkflowSteps(pk);
+    const viaRelational = await readWorkflowStepRows(pk);
     expect(viaRelational).not.toBeNull();
     expect(viaRelational!.length).toBe(2);
     expect(viaRelational![0].assignee).toBe(2);
@@ -90,7 +90,7 @@ describe("Database normalization (numeric identifiers)", () => {
       .set("Authorization", `Bearer ${getApproverToken()}`)
       .send({ declarationId: id, decision: "accept", notes: "looks good" });
     expect(approve.status).toBe(200);
-    rows = await (prisma as any).workflowInstanceStep.findMany({
+    rows = await prisma.workflowInstanceStep.findMany({
       where: { declarationPk: pk }, orderBy: { stepOrder: "asc" },
     });
     expect(rows[0].status).toBe("approved");
@@ -141,12 +141,12 @@ describe("Database normalization (numeric identifiers)", () => {
     const pk = await pkFor(id);
     // Change the user's master data — the snapshot must not follow.
     await prisma.user.update({ where: { id: 4n }, data: { department: "Engineering", position: "Principal" } });
-    const snap = await (prisma as any).declarationSnapshot.findUnique({ where: { declarationPk: pk } });
+    const snap = await prisma.declarationSnapshot.findUnique({ where: { declarationPk: pk } });
     expect(snap?.department).toBe("Marketing");
     expect(snap?.positionTitle).toBe("Brand Manager");
     await prisma.user.update({ where: { id: 4n }, data: { department: "Marketing", position: "Brand Manager" } });
-    await (prisma as any).declarationSnapshot.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
-    await (prisma as any).declarationDetail.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
+    await prisma.declarationSnapshot.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
+    await prisma.declarationDetail.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
     await prisma.declaration.delete({ where: { id } }).catch(() => undefined);
   });
 
@@ -162,7 +162,7 @@ describe("Database normalization (numeric identifiers)", () => {
         ],
       });
     expect(created.status).toBe(201);
-    const steps = await (prisma as any).workflowRuleStep.findMany({ where: { ruleId: toDbId(created.body.id) } });
+    const steps = await prisma.workflowRuleStep.findMany({ where: { ruleId: toDbId(created.body.id) } });
     expect(steps.length).toBe(2);
     await request(app)
       .delete(`/api/admin/workflows/rules/${created.body.id}`)

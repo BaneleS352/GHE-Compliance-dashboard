@@ -26,12 +26,12 @@ beforeEach(async () => {
     update: { name: "High Value", condition: "high", priority: 2 },
     create: { id: 2n, name: "High Value", condition: "high", priority: 2 },
   });
-  await (prisma as any).workflowRuleStep.upsert({
+  await prisma.workflowRuleStep.upsert({
     where: { ruleId_order: { ruleId: 2n, order: 1 } },
     create: { ruleId: 2n, order: 1, role: "lineManager", label: "Line Manager Review" },
     update: { role: "lineManager", label: "Line Manager Review" },
   });
-  await (prisma as any).workflowRuleStep.upsert({
+  await prisma.workflowRuleStep.upsert({
     where: { ruleId_order: { ruleId: 2n, order: 2 } },
     create: { ruleId: 2n, order: 2, role: "hr", label: "HR Review" },
     update: { role: "hr", label: "HR Review" },
@@ -531,7 +531,7 @@ describe("Delete workflow rule in use", () => {
       update: { name: "Low Value", condition: "low", priority: 1 },
       create: { id: 1n, name: "Low Value", condition: "low", priority: 1 },
     });
-    await (prisma as any).workflowRuleStep.upsert({
+    await prisma.workflowRuleStep.upsert({
       where: { ruleId_order: { ruleId: 1n, order: 1 } },
       create: { ruleId: 1n, order: 1, role: "lineManager", label: "Line Manager Review" },
       update: { role: "lineManager", label: "Line Manager Review" },
@@ -739,7 +739,7 @@ afterAll(async () => {
     update: { name: "Low Value", condition: "low", priority: 1 },
     create: { id: 1n, name: "Low Value", condition: "low", priority: 1 },
   });
-  await (prisma as any).workflowRuleStep.upsert({
+  await prisma.workflowRuleStep.upsert({
     where: { ruleId_order: { ruleId: 1n, order: 1 } },
     create: { ruleId: 1n, order: 1, role: "lineManager", label: "Line Manager Review" },
     update: { role: "lineManager", label: "Line Manager Review" },

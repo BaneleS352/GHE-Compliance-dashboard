@@ -226,7 +226,7 @@ describe("Workflow integrity", () => {
 
 // ── DATA CONSISTENCY ──
 describe("Data consistency", () => {
-  it("POST /api/declarations — creating declaration with non-existent employeeId succeeds (no FK), but submit fails", async () => {
+  it("POST /api/declarations — creating declaration with non-numeric employeeId fails loudly at the boundary (no orphaned rows)", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
@@ -240,13 +240,10 @@ describe("Data consistency", () => {
         biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
         instances: "1", publicOfficial: "No",
       });
-    expect(create.status).toBe(201);
-    const id = create.body.id;
-
-    const submit = await request(app)
-      .patch(`/api/declarations/${id}/submit`)
-      .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(submit.status).toBe(500);
+    // Normalized identifiers: a non-numeric employeeId is rejected at creation
+    // (400), so no declaration/snapshot/detail/workflow rows can be orphaned
+    // by a dangling reference. Nothing is created, so there is nothing to submit.
+    expect(create.status).toBe(400);
   });
 
   it("PATCH /api/declarations/:id/submit — admin resets Approved to Draft then resubmit creates fresh workflow steps", async () => {
@@ -1071,9 +1068,9 @@ describe("Admin status bypass protection", () => {
     await request(app)
       .patch(`/api/declarations/${id}/submit`)
       .set("Authorization", `Bearer ${getTeamToken()}`);
-    const { readWorkflowSteps, persistWorkflowInstanceSteps } = await import("../services/normalization");
+    const { readWorkflowStepRows, persistWorkflowInstanceSteps } = await import("../services/normalization");
     const pk = (await prisma.declaration.findUnique({ where: { id }, select: { declarationPk: true } }))!.declarationPk;
-    const steps = (await readWorkflowSteps(pk)) || [];
+    const steps = (await readWorkflowStepRows(pk)) || [];
     for (const s of steps) {
       s.status = "approved";
       s.decision = "accept";

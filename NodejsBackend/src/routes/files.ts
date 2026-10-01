@@ -6,7 +6,7 @@ import crypto from "crypto";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { readWorkflowSteps, getDeclarationPk } from "../services/normalization";
+import { readWorkflowStepRows, getDeclarationPk } from "../services/normalization";
 import { parseIdParam, toDbId, toJsonId } from "../services/ids";
 
 const router = Router();
@@ -64,7 +64,7 @@ function handleMulterError(err: Error, _req: AuthRequest, res: Response, next: N
 
 /** Step-row assignee check (rows are the only workflow state). */
 async function isWorkflowAssignee(declarationPk: bigint, userPkJson: number): Promise<boolean> {
-  const steps = await readWorkflowSteps(declarationPk);
+  const steps = await readWorkflowStepRows(declarationPk);
   if (!steps) return false;
   return steps.some((s: any) => s.assignee === userPkJson);
 }
@@ -82,7 +82,7 @@ export function containedUploadPath(storedPath: string): string | null {
 
 /** Resolve the owning declaration key via the DeclarationFile join (the only association). */
 async function declarationPkForFile(filePk: bigint): Promise<bigint | null> {
-  const link = await (prisma as any).declarationFile.findUnique({ where: { fileId: filePk } });
+  const link = await prisma.declarationFile.findUnique({ where: { fileId: filePk } });
   return link ? (link.declarationPk as bigint) : null;
 }
 
@@ -155,7 +155,7 @@ router.post(
           path: req.file!.filename,
         },
       });
-      await (tx as any).declarationFile.create({
+      await tx.declarationFile.create({
         data: { declarationPk: pk, fileId: created.id },
       });
       return created;
@@ -265,7 +265,7 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     try { await fs.promises.unlink(filePath); } catch { /* file may have been deleted already */ }
   }
 
-  await (prisma as any).declarationFile.deleteMany({ where: { fileId: filePk } }).catch(() => undefined);
+  await prisma.declarationFile.deleteMany({ where: { fileId: filePk } }).catch(() => undefined);
   await prisma.uploadedFile.delete({ where: { id: filePk } });
   res.json({ message: "File deleted" });
 }));

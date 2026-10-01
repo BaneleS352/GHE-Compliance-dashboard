@@ -371,11 +371,10 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
   });
 
   // ── Stress: rapid fire ────────────────────────────────
-  // Sequential (not concurrent): SQLite serializes writers on a single
-  // connection, so a 20-way concurrent burst exhausts the query queue with
-  // socket timeouts regardless of application code. Twenty rapid back-to-back
-  // creates still stress the endpoint (ID generation, counterparty linking,
-  // transactional snapshot/detail writes) deterministically.
+  // Sequential (not concurrent): twenty rapid back-to-back creates still
+  // stress the endpoint (ID generation, counterparty linking, transactional
+  // snapshot/detail writes) deterministically without contending for
+  // connections in the shared PostgreSQL test database.
   it("Rapid sequential requests — 20 in a row", async () => {
     const statuses: number[] = [];
     for (let i = 0; i < 20; i++) {

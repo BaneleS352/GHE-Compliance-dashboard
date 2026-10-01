@@ -99,7 +99,7 @@ router.get("/dropdowns", authenticate, asyncHandler(async (req: AuthRequest, res
     return;
   }
   const deptWhere: any = orgPk !== undefined ? { organizationId: orgPk } : {};
-  const departments = await (prisma as any).department.findMany({
+  const departments = await prisma.department.findMany({
     where: deptWhere,
     select: { name: true },
     orderBy: { name: "asc" },

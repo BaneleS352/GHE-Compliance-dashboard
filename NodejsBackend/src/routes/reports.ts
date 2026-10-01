@@ -3,35 +3,13 @@ import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { generateExcelBuffer, ColumnDef } from "../services/excelService";
-import { getStatusBreakdown, getSLABreakdown, getHighValueDeclarations, buildReportWhere } from "../services/reports";
+import { getStatusBreakdown, getSLABreakdown, getHighValueDeclarations, getCounterpartyConcentration, buildReportWhere } from "../services/reports";
 
 const router = Router();
 
 router.get("/counterparty-concentration", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const where = buildReportWhere(req);
-  const declarations = await prisma.declaration.findMany({
-    where,
-    select: { value: true, counterpartyRef: { select: { name: true } } },
-  });
-
-  const groups: Record<string, { count: number; totalValue: number }> = {};
-  for (const d of declarations as any[]) {
-    const key = d.counterpartyRef?.name || "Unknown";
-    if (!groups[key]) groups[key] = { count: 0, totalValue: 0 };
-    groups[key].count += 1;
-    groups[key].totalValue += d.value;
-  }
-
-  const result = Object.entries(groups)
-    .map(([counterparty, data]) => ({
-      counterparty,
-      count: data.count,
-      totalValue: data.totalValue,
-      avgValue: Math.round((data.totalValue / data.count) * 100) / 100,
-    }))
-    .sort((a, b) => b.totalValue - a.totalValue);
-
-  res.json(result);
+  const data = await getCounterpartyConcentration(req);
+  res.json(data);
 }));
 
 router.get("/status-breakdown", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {

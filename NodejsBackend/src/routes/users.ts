@@ -34,7 +34,7 @@ router.get("/managers", authenticate, asyncHandler(async (req: AuthRequest, res:
 router.get("/departments", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const orgRaw = req.query.organizationId as string | undefined;
   if (orgRaw === undefined) {
-    const departments = await (prisma as any).department.findMany({ select: { name: true }, orderBy: { name: "asc" } }).catch(() => []);
+    const departments = await prisma.department.findMany({ select: { name: true }, orderBy: { name: "asc" } }).catch(() => []);
     const names = departments.map((d: any) => d.name);
     if (names.length > 0) { res.json(names); return; }
     const users = await prisma.user.findMany({ select: { department: true } });
@@ -46,7 +46,7 @@ router.get("/departments", authenticate, asyncHandler(async (req: AuthRequest, r
     res.status(400).json({ error: "Invalid organizationId" });
     return;
   }
-  const departments = await (prisma as any).department.findMany({
+  const departments = await prisma.department.findMany({
     where: { organizationId: orgPk },
     select: { name: true },
     orderBy: { name: "asc" },

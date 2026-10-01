@@ -20,7 +20,7 @@ router.get("/rules", authenticate, authorize("admin"), asyncHandler(async (_req:
   res.json(
     await Promise.all(rules.map(async (r) => {
       // Step rows are the only workflow-definition source.
-      const rows = await (prisma as any).workflowRuleStep.findMany({
+      const rows = await prisma.workflowRuleStep.findMany({
         where: { ruleId: r.id },
         orderBy: { order: "asc" },
       });
@@ -119,7 +119,7 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
     // REMOVED by this edit are checked (pure renames/reorders of existing
     // roles cannot strand anyone), and only against instances produced by
     // THIS rule (plus untracked pre-rule-FK history, conservatively).
-    const oldDefs = await (prisma as any).workflowRuleStep.findMany({ where: { ruleId: rulePk }, select: { role: true } });
+    const oldDefs = await prisma.workflowRuleStep.findMany({ where: { ruleId: rulePk }, select: { role: true } });
     const oldRoles: string[] = oldDefs.map((s: any) => s.role);
     const newRoles: string[] = data.steps.map((s) => s.role);
     const changedRoles = new Set([
@@ -127,7 +127,7 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
       ...oldRoles.filter((r) => !newRoles.includes(r)),
     ]);
     for (const role of changedRoles) {
-      const rows = await (prisma as any).workflowInstanceStep.findMany({
+      const rows = await prisma.workflowInstanceStep.findMany({
         where: { role: role as "lineManager" | "hr", status: "pending" },
         select: { declarationPk: true },
       });
@@ -162,7 +162,7 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
     return upd;
   });
 
-  const rows = await (prisma as any).workflowRuleStep.findMany({ where: { ruleId: rulePk }, orderBy: { order: "asc" } });
+  const rows = await prisma.workflowRuleStep.findMany({ where: { ruleId: rulePk }, orderBy: { order: "asc" } });
   res.json({
     id: toJsonId(rule.id),
     name: rule.name,
@@ -185,7 +185,7 @@ router.delete("/rules/:id", authenticate, authorize("admin"), asyncHandler(async
     return;
   }
 
-  await (prisma as any).workflowRuleStep.deleteMany({ where: { ruleId: rulePk } }).catch(() => undefined);
+  await prisma.workflowRuleStep.deleteMany({ where: { ruleId: rulePk } }).catch(() => undefined);
   await prisma.workflowRule.delete({ where: { id: rulePk } });
   res.json({ message: "Workflow rule deleted" });
 }));

@@ -37,7 +37,7 @@ export function parseDateSafe(val: string | null | undefined): Date | null {
 
 /** Resolve the internal numeric key for a public GHE- declaration id. */
 export async function getDeclarationPk(id: string, db: any = prisma): Promise<bigint | null> {
-  const row = await (db as any).declaration.findUnique({ where: { id }, select: { declarationPk: true } });
+  const row = await db.declaration.findUnique({ where: { id }, select: { declarationPk: true } });
   return row ? (row.declarationPk as bigint) : null;
 }
 
@@ -50,13 +50,13 @@ export async function ensureCounterparty(
   const clean = String(name || "").trim();
   if (!clean) return null;
   const org = organizationId === null || organizationId === undefined ? null : toDbId(organizationId);
-  const existing = await (db as any).counterparty.findFirst({
+  const existing = await db.counterparty.findFirst({
     where: { name: clean, organizationId: org },
     select: { id: true },
   });
   if (existing) return existing;
   try {
-    return await (db as any).counterparty.create({
+    return await db.counterparty.create({
       data: {
         name: clean,
         organizationId: org,
@@ -68,7 +68,7 @@ export async function ensureCounterparty(
     // P2002: unique constraint on (organizationId, name) — another request
     // created it first; fall through to the re-read below.
     if (e.code !== "P2002") throw e;
-    return await (db as any).counterparty.findFirst({
+    return await db.counterparty.findFirst({
       where: { name: clean, organizationId: org },
       select: { id: true },
     });
@@ -95,10 +95,10 @@ export async function captureDeclarationSnapshot(
     managerDisplayName,
   };
   if (insertOnly) {
-    await (db as any).declarationSnapshot.create({ data });
+    await db.declarationSnapshot.create({ data });
     return;
   }
-  await (db as any).declarationSnapshot.upsert({
+  await db.declarationSnapshot.upsert({
     where: { declarationPk: pk },
     create: data,
     // Snapshot is immutable after first capture; no update path so later calls
@@ -130,11 +130,11 @@ export async function syncDeclarationDetail(
     substantiation: d.substantiation ?? null,
   };
   if (insertOnly) {
-    await (db as any).declarationDetail.create({ data });
+    await db.declarationDetail.create({ data });
     return;
   }
   const { declarationPk: _omit, ...fields } = data;
-  await (db as any).declarationDetail.upsert({
+  await db.declarationDetail.upsert({
     where: { declarationPk: pk },
     create: data,
     update: fields,
@@ -158,12 +158,12 @@ export async function syncWorkflowRuleSteps(
 ): Promise<number> {
   const rid = toDbId(ruleId);
   const defs = defsInput ?? [];
-  const existing = await (db as any).workflowRuleStep.findMany({ where: { ruleId: rid } });
+  const existing = await db.workflowRuleStep.findMany({ where: { ruleId: rid } });
   const existingOrders = new Set(existing.map((s: any) => s.order));
   const wantedOrders = new Set(defs.map((d) => d.order));
   await Promise.all(
     defs.map((d) =>
-      (db as any).workflowRuleStep.upsert({
+      db.workflowRuleStep.upsert({
         where: { ruleId_order: { ruleId: rid, order: d.order } },
         create: { ruleId: rid, order: d.order, role: d.role, label: d.label },
         update: { role: d.role, label: d.label },
@@ -172,7 +172,7 @@ export async function syncWorkflowRuleSteps(
   );
   const stale = [...existingOrders].filter((o) => !wantedOrders.has(o as number));
   if (stale.length > 0) {
-    await (db as any).workflowRuleStep.deleteMany({ where: { ruleId: rid, order: { in: stale as number[] } } });
+    await db.workflowRuleStep.deleteMany({ where: { ruleId: rid, order: { in: stale as number[] } } });
   }
   return defs.length;
 }
@@ -184,13 +184,13 @@ function toStepRow(declarationPk: bigint, instanceId: bigint, s: WorkflowStep, v
     stepOrder: s.order,
     role: s.role,
     label: s.label,
-    assigneeId: assigneeKey && validUserIds.has(assigneeKey) ? BigInt(assigneeKey) : null,
+    assigneeId: assigneeKey && validUserIds.has(assigneeKey) ? toDbId(assigneeKey) : null,
     assigneeName: s.assigneeName || "Unknown",
     status: s.status,
     decision: s.decision ?? null,
     notes: s.notes ?? "",
     decidedAt: s.decidedAt ? parseDateSafe(s.decidedAt) : null,
-    decidedById: deciderKey && validUserIds.has(deciderKey) ? BigInt(deciderKey) : null,
+    decidedById: deciderKey && validUserIds.has(deciderKey) ? toDbId(deciderKey) : null,
     decidedByName: s.decidedByName ?? null,
   };
 }
@@ -221,7 +221,7 @@ export async function writeWorkflowStepsTx(
   }
   let validUserIds = new Set<string>();
   if (ids.size > 0) {
-    const users = await tx.user.findMany({ where: { id: { in: [...ids].map((v) => BigInt(v)) } }, select: { id: true } });
+    const users = await tx.user.findMany({ where: { id: { in: [...ids].map((v) => toDbId(v)) } }, select: { id: true } });
     validUserIds = new Set(users.map((u: any) => String(u.id)));
   }
   let instance = await tx.workflowInstance.findUnique({ where: { declarationPk: pk }, select: { id: true } });
@@ -267,15 +267,15 @@ export async function persistWorkflowInstanceSteps(
   if (!Array.isArray(steps)) {
     throw new Error("persistWorkflowInstanceSteps requires a step array");
   }
-  await (prisma as any).$transaction(async (tx: any) => {
+  await prisma.$transaction(async (tx: any) => {
     await writeWorkflowStepsTx(tx, declarationPk, steps, ruleId);
   });
 }
 
-/** Read workflow steps from the authoritative step rows (no fallback). */
-export async function readWorkflowSteps(declarationPk: bigint | number): Promise<WorkflowStep[] | null> {
+/** Read workflow step rows from the authoritative WorkflowInstanceStep table (rows only — no JSON fallback). */
+export async function readWorkflowStepRows(declarationPk: bigint | number): Promise<WorkflowStep[] | null> {
   const { rowToStep } = await import("./workflowService");
-  const rows = await (prisma as any).workflowInstanceStep.findMany({
+  const rows = await prisma.workflowInstanceStep.findMany({
     where: { declarationPk: toDbId(declarationPk) },
     orderBy: { stepOrder: "asc" },
   });

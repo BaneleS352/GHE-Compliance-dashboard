@@ -4,7 +4,7 @@ import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { WorkflowStep, declarationResponse, declarationIncludes, rowToStep } from "../services/workflowService";
-import { writeWorkflowStepsTx, readWorkflowSteps, getDeclarationPk } from "../services/normalization";
+import { writeWorkflowStepsTx, readWorkflowStepRows, getDeclarationPk } from "../services/normalization";
 import { toDbId, toJsonId } from "../services/ids";
 import { sendNotification } from "../services/notificationService";
 
@@ -24,7 +24,7 @@ function toStepStatus(decision: string): StepStatus {
 
 /** Step rows are the only workflow state (no JSON fallback). */
 async function loadSteps(declarationPk: bigint): Promise<WorkflowStep[]> {
-  return (await readWorkflowSteps(declarationPk)) || [];
+  return (await readWorkflowStepRows(declarationPk)) || [];
 }
 
 function findActionablePendingStep(steps: WorkflowStep[], userPk: number): WorkflowStep | null {
@@ -50,7 +50,7 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
   // Direct step query: only this user's pending steps — no full-declaration
   // prefetch, no full instance scan, no per-instance sequential reads.
   // Sibling steps (for actionability) and declarations are batch-fetched.
-  const mySteps: any[] = await (prisma as any).workflowInstanceStep.findMany({
+  const mySteps: any[] = await prisma.workflowInstanceStep.findMany({
     where: { status: "pending", assigneeId: userPk },
     select: { declarationPk: true },
   });
@@ -60,7 +60,7 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
     return;
   }
   const [allRows, declarations] = await Promise.all([
-    (prisma as any).workflowInstanceStep.findMany({
+    prisma.workflowInstanceStep.findMany({
       where: { declarationPk: { in: pks } },
       orderBy: [{ declarationPk: "asc" }, { stepOrder: "asc" }],
     }),
@@ -172,7 +172,7 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
   let resultStepIndex: number;
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const rows = await (tx as any).workflowInstanceStep.findMany({
+      const rows = await tx.workflowInstanceStep.findMany({
         where: { instanceId: instance.id },
         orderBy: { stepOrder: "asc" },
       });

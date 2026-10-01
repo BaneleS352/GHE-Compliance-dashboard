@@ -41,7 +41,7 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
 
   if (search) {
     const q = String(search);
-    const numeric = /^\d+$/.test(q.trim()) ? BigInt(q.trim()) : null;
+    const numeric = /^\d+$/.test(q.trim()) ? toDbId(q.trim()) : null;
     where.OR = [
       { name: { contains: q } },
       { email: { contains: q } },
@@ -91,13 +91,13 @@ const createUserSchema = z.object({
 async function resolveManagerId(lineManager: string | number | null | undefined): Promise<bigint | null> {
   if (lineManager === null || lineManager === undefined) return null;
   if (typeof lineManager === "number") {
-    const found = await prisma.user.findUnique({ where: { id: BigInt(lineManager) }, select: { id: true } });
+    const found = await prisma.user.findUnique({ where: { id: toDbId(lineManager) }, select: { id: true } });
     return found ? found.id : null;
   }
   const trimmed = String(lineManager).trim();
   if (!trimmed) return null;
   if (/^\d+$/.test(trimmed)) {
-    const found = await prisma.user.findUnique({ where: { id: BigInt(trimmed) }, select: { id: true } });
+    const found = await prisma.user.findUnique({ where: { id: toDbId(trimmed) }, select: { id: true } });
     if (found) return found.id;
   }
   const byName = await prisma.user.findFirst({ where: { name: trimmed }, select: { id: true } });
@@ -242,7 +242,7 @@ router.delete("/:id", authenticate, authorize("admin"), asyncHandler(async (req:
 
   // Block deletion while the user holds a pending approval step.
   // Step rows are the only workflow state.
-  const pending = await (prisma as any).workflowInstanceStep.findFirst({
+  const pending = await prisma.workflowInstanceStep.findFirst({
     where: { assigneeId: userPk, status: "pending" },
     select: { instanceId: true },
   }).catch(() => null);

@@ -40,7 +40,7 @@ describe("File and report export contracts", () => {
 
   afterAll(async () => {
     for (const id of createdFileIds) {
-      await (prisma as any).declarationFile.deleteMany({ where: { fileId: id } }).catch(() => undefined);
+      await prisma.declarationFile.deleteMany({ where: { fileId: id } }).catch(() => undefined);
       await prisma.uploadedFile.deleteMany({ where: { id } });
     }
     await prisma.$disconnect();
@@ -72,7 +72,7 @@ describe("File and report export contracts", () => {
   it("returns 404 when the database record exists but the disk file is missing", async () => {
     const file = await prisma.uploadedFile.create({ data: { originalName: "gone.txt", mimeType: "text/plain", size: 1, path: "definitely-missing.txt" } });
     const gonePk = (await prisma.declaration.findUnique({ where: { id: declarationId }, select: { declarationPk: true } }))!.declarationPk;
-    await (prisma as any).declarationFile.create({ data: { declarationPk: gonePk, fileId: file.id } });
+    await prisma.declarationFile.create({ data: { declarationPk: gonePk, fileId: file.id } });
     createdFileIds.push(file.id);
     const response = await request(app).get(`/api/files/${file.id}`).set("Authorization", `Bearer ${getTeamToken()}`);
     expect(response.status).toBe(404);
@@ -85,7 +85,7 @@ describe("File and report export contracts", () => {
     await fs.writeFile(path.join(uploadDir, diskName), "x");
     const file = await prisma.uploadedFile.create({ data: { originalName: fileName, mimeType: "text/plain", size: 1, path: diskName } });
     const crlfPk = (await prisma.declaration.findUnique({ where: { id: declarationId }, select: { declarationPk: true } }))!.declarationPk;
-    await (prisma as any).declarationFile.create({ data: { declarationPk: crlfPk, fileId: file.id } });
+    await prisma.declarationFile.create({ data: { declarationPk: crlfPk, fileId: file.id } });
     createdFileIds.push(file.id);
     const response = await request(app).get(`/api/files/${file.id}`).set("Authorization", `Bearer ${getTeamToken()}`);
     expect(response.status).toBe(200);

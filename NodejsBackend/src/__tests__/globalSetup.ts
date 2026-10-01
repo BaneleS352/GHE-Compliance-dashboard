@@ -110,7 +110,7 @@ export async function setup() {
       { id: 2n, name: "High Value", condition: "high", priority: 2 },
     ],
   });
-  await (prisma as any).workflowRuleStep.createMany({
+  await prisma.workflowRuleStep.createMany({
     data: [
       { ruleId: 1n, order: 1, role: "lineManager", label: "Line Manager Review" },
       { ruleId: 2n, order: 1, role: "lineManager", label: "Line Manager Review" },
@@ -119,9 +119,9 @@ export async function setup() {
   });
 
   // Counterparties (one row per name for the fixture org-less scope).
-  const cpA = await (prisma as any).counterparty.create({ data: { name: "Supplier A" } });
-  const cpB = await (prisma as any).counterparty.create({ data: { name: "Supplier B" } });
-  const cpC = await (prisma as any).counterparty.create({ data: { name: "Supplier C" } });
+  const cpA = await prisma.counterparty.create({ data: { name: "Supplier A" } });
+  const cpB = await prisma.counterparty.create({ data: { name: "Supplier B" } });
+  const cpC = await prisma.counterparty.create({ data: { name: "Supplier C" } });
 
   // Lean declarations + snapshots + details.
   const decls = [
@@ -152,8 +152,8 @@ export async function setup() {
     const { snap, det, ...row } = d;
     const created = await prisma.declaration.create({ data: row });
     pkById.set(d.id, created.declarationPk);
-    await (prisma as any).declarationSnapshot.create({ data: { declarationPk: created.declarationPk, ...snap } });
-    await (prisma as any).declarationDetail.create({ data: { declarationPk: created.declarationPk, ...det } });
+    await prisma.declarationSnapshot.create({ data: { declarationPk: created.declarationPk, ...snap } });
+    await prisma.declarationDetail.create({ data: { declarationPk: created.declarationPk, ...det } });
   }
 
   // Workflow instances: rows only.

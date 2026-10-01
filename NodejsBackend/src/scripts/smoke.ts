@@ -178,10 +178,10 @@ async function main() {
     try {
       const [decls, snaps, details, instances, steps] = await Promise.all([
         prisma.declaration.count(),
-        (prisma as any).declarationSnapshot.count(),
-        (prisma as any).declarationDetail.count(),
+        prisma.declarationSnapshot.count(),
+        prisma.declarationDetail.count(),
         prisma.workflowInstance.count(),
-        (prisma as any).workflowInstanceStep.count(),
+        prisma.workflowInstanceStep.count(),
       ]);
       check("every declaration has a snapshot", decls > 0 && snaps === decls, `${snaps}/${decls}`);
       check("every declaration has details", details === decls, `${details}/${decls}`);

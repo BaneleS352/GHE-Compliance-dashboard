@@ -116,7 +116,7 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
   };
 
   const pks = declarations.map((d) => d.declarationPk);
-  const stepRows = await (prisma as any).workflowInstanceStep.findMany({
+  const stepRows = await prisma.workflowInstanceStep.findMany({
     where: { declarationPk: { in: pks }, decidedAt: { not: null } },
     select: { declarationPk: true, role: true, decidedAt: true },
   });

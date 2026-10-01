@@ -85,12 +85,10 @@ export function AdminWorkflows() {
       <div className="grid grid-cols-1 gap-5">
         {rules
           .filter((r) => {
-            try {
-              const steps: any[] = JSON.parse((r as any).steps ?? "[]");
-              return !steps.some((s: any) => s.role === "ceo" || s.label?.toLowerCase().includes("ceo"));
-            } catch {
-              return true;
-            }
+            // Steps arrive as relational rows; legacy CEO-tier rules (if any
+            // remain in data) are hidden here, not parsed from JSON.
+            const steps = Array.isArray(r.steps) ? r.steps : [];
+            return !steps.some((s) => String(s.role) === "ceo" || s.label?.toLowerCase().includes("ceo"));
           })
           .map((rule) => (
           <Card key={rule.id} className="group flex flex-col justify-between gap-4 border-white/70 bg-white/80 p-5 card-shadow transition-all md:flex-row md:items-center">

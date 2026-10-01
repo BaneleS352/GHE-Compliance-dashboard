@@ -113,6 +113,10 @@ async function main() {
 
   // Users first, then department links (org-scoped master data; global
   // users stay unscoped).
+  // Two passes: identity rows first with managerId unset, then the
+  // authoritative manager links. A single pass violates the User_manager_fk
+  // self-reference on a clean database (the manager row may not exist yet);
+  // the old code only worked when re-seeding over existing rows.
   for (const u of users) {
     await prisma.user.upsert({
       where: { id: u.id },
@@ -124,16 +128,21 @@ async function main() {
         department: u.department,
         position: u.position,
         lineManager: u.lineManager,
-        managerId: u.managerId,
+        managerId: null,
         organizationId: u.organizationId,
       },
-      create: { ...u, passwordHash },
+      create: { ...u, managerId: null, passwordHash },
     });
+  }
+  for (const u of users) {
+    if (u.managerId !== null && u.managerId !== undefined) {
+      await prisma.user.update({ where: { id: u.id }, data: { managerId: u.managerId } });
+    }
   }
   for (const u of users) {
     let departmentPk: bigint | null = null;
     if (u.organizationId !== null && u.department) {
-      const dept = await (prisma as any).department.upsert({
+      const dept = await prisma.department.upsert({
         where: { organizationId_name: { organizationId: u.organizationId, name: u.department } },
         create: { organizationId: u.organizationId, name: u.department },
         update: {},
@@ -160,7 +169,7 @@ async function main() {
   for (const [key, cp] of cpKey) {
     let row: any = null;
     if (cp.organizationId !== null) {
-      row = await (prisma as any).counterparty.upsert({
+      row = await prisma.counterparty.upsert({
         where: { name_organizationId: { name: cp.name, organizationId: cp.organizationId } },
         create: cp,
         update: {},
@@ -168,8 +177,8 @@ async function main() {
     }
     if (!row) {
       // Global (null organizationId) rows skip the composite upsert — resolve by lookup.
-      row = await (prisma as any).counterparty.findFirst({ where: { name: cp.name, organizationId: null } });
-      if (!row) row = await (prisma as any).counterparty.create({ data: cp });
+      row = await prisma.counterparty.findFirst({ where: { name: cp.name, organizationId: null } });
+      if (!row) row = await prisma.counterparty.create({ data: cp });
     }
     cpIdByKey.set(key, row.id);
   }
@@ -211,7 +220,7 @@ async function main() {
       },
     });
     const pk = decl.declarationPk;
-    await (prisma as any).declarationSnapshot.upsert({
+    await prisma.declarationSnapshot.upsert({
       where: { declarationPk: pk },
       create: {
         declarationPk: pk,
@@ -223,7 +232,7 @@ async function main() {
       },
       update: {},
     });
-    await (prisma as any).declarationDetail.upsert({
+    await prisma.declarationDetail.upsert({
       where: { declarationPk: pk },
       create: {
         declarationPk: pk,
@@ -260,11 +269,11 @@ async function main() {
   for (const d of declarations as any[]) {
     if (!d.team || d.organizationId === null || d.organizationId === undefined) continue;
     const orgPk: bigint = d.organizationId;
-    const dept = await (prisma as any).department.findUnique({
+    const dept = await prisma.department.findUnique({
       where: { organizationId_name: { organizationId: orgPk, name: d.department } },
     });
     if (!dept) continue;
-    await (prisma as any).team.upsert({
+    await prisma.team.upsert({
       where: { departmentId_name: { departmentId: dept.id, name: d.team } },
       create: { departmentId: dept.id, name: d.team },
       update: {},
@@ -279,7 +288,7 @@ async function main() {
     });
   }
   for (const s of workflowRuleSteps) {
-    await (prisma as any).workflowRuleStep.upsert({
+    await prisma.workflowRuleStep.upsert({
       where: { ruleId_order: { ruleId: s.ruleId, order: s.order } },
       create: s,
       update: { role: s.role, label: s.label },
@@ -310,7 +319,7 @@ async function main() {
     const ruleId = determineRuleId(decl?.value ?? 0, 1000, 1000);
     const target = await prisma.declaration.findUnique({ where: { id: w.declarationId }, select: { declarationPk: true } });
     if (!target) continue;
-    await (prisma as any).$transaction(async (tx: any) => {
+    await prisma.$transaction(async (tx: any) => {
       await writeWorkflowStepsTx(tx, target.declarationPk, steps, ruleId);
     });
   }
