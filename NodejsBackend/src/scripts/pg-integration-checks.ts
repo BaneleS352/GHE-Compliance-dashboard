@@ -16,6 +16,7 @@
  */
 import bcrypt from "bcryptjs";
 import { prisma } from "../config/prisma";
+import type { WorkflowStep } from "../services/workflowService";
 import {
   viewStatusSummary,
   viewMonthly,
@@ -155,32 +156,40 @@ async function main() {
     });
   }
   // Instances: one 2-step (LM approved, HR pending) in org A, one 1-step pending in org B.
+  // Fixture step arrays are annotated (not `as any`) so literal roles and
+  // statuses narrow to the WorkflowStep domain at the boundary.
+  const stepsApprovedThenPending: WorkflowStep[] = [
+    { order: 1, role: "lineManager", assignee: Number(users.lmA.id), assigneeName: "PG LM A", label: "Line Manager Review", status: "approved", decision: "accept", approvedAt: "2026-02-12T10:00:00.000Z", notes: "ok", decidedAt: "2026-02-12T10:00:00.000Z", decidedById: Number(users.lmA.id), decidedByName: "PG LM A" },
+    { order: 2, role: "hr", assignee: Number(users.hrA.id), assigneeName: "PG HR A", label: "HR Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+  ];
+  const stepsPending: WorkflowStep[] = [
+    { order: 1, role: "lineManager", assignee: Number(users.lmA.id), assigneeName: "PG LM A", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+  ];
+  const stepsPendingOrgB: WorkflowStep[] = [
+    { order: 1, role: "lineManager", assignee: Number(users.lmB.id), assigneeName: "PG LM B", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+    { order: 2, role: "hr", assignee: Number(users.hrA.id), assigneeName: "PG HR A", label: "HR Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
+  ];
   await writeWorkflowStepsTx(
     p, pkById.get("PG-2026-0002")!,
-    [
-      { order: 1, role: "lineManager", assignee: Number(users.lmA.id), assigneeName: "PG LM A", label: "Line Manager Review", status: "approved", decision: "accept", approvedAt: "2026-02-12T10:00:00.000Z", notes: "ok", decidedAt: "2026-02-12T10:00:00.000Z", decidedById: Number(users.lmA.id), decidedByName: "PG LM A" },
-      { order: 2, role: "hr", assignee: Number(users.hrA.id), assigneeName: "PG HR A", label: "HR Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-    ] as any,
+    stepsApprovedThenPending,
     2n,
   );
   await writeWorkflowStepsTx(
     p, pkById.get("PG-2026-0001")!,
-    [
-      { order: 1, role: "lineManager", assignee: Number(users.lmA.id), assigneeName: "PG LM A", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-    ] as any,
+    stepsPending,
     1n,
   );
   await writeWorkflowStepsTx(
     p, pkById.get("PG-2026-0004")!,
-    [
-      { order: 1, role: "lineManager", assignee: Number(users.lmB.id), assigneeName: "PG LM B", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-      { order: 2, role: "hr", assignee: Number(users.hrA.id), assigneeName: "PG HR A", label: "HR Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-    ] as any,
+    stepsPendingOrgB,
     2n,
   );
 
   // 0. Numeric key model assertions (information_schema, no legacy text keys).
-  const keyRows: any[] = await p.$queryRawUnsafe(
+  // Boundary label: information_schema rows are untyped driver output; the
+  // single cast below fixes the projected column shape for the assertions.
+  interface KeyRow { t: string; c: string; ty: string; ident: string | null }
+  const keyRows = (await p.$queryRawUnsafe(
     `SELECT c.table_name AS t, c.column_name AS c, c.data_type AS ty, c.is_identity AS ident
      FROM information_schema.columns c JOIN information_schema.tables t
        ON t.table_name = c.table_name AND t.table_schema = c.table_schema
@@ -189,8 +198,8 @@ async function main() {
         'Declaration','DeclarationSnapshot','DeclarationDetail','DeclarationFile',
         'WorkflowRule','WorkflowRuleStep','WorkflowInstance','WorkflowInstanceStep','UploadedFile')
      ORDER BY 1, 2`,
-  );
-  const byTable = new Map<string, any[]>();
+  )) as KeyRow[];
+  const byTable = new Map<string, KeyRow[]>();
   for (const r of keyRows) {
     const arr = byTable.get(r.t) || [];
     arr.push(r);
@@ -235,25 +244,25 @@ async function main() {
   // 2. Monthly volume/outcomes.
   const monthlyA = await viewMonthly(orgA.id);
   check("view monthly org A", Array.isArray(monthlyA) && monthlyA.length === 2, JSON.stringify(monthlyA));
-  const feb = (monthlyA as any[]).find((m) => m.month === "2026-02");
+  const feb = monthlyA?.find((m) => m.month === "2026-02");
   check("view monthly Feb outcomes", !!feb && Number(feb.count) === 2 && Number(feb.approved) === 1 && Number(feb.declined) === 1, JSON.stringify(feb));
 
   // 3. Type breakdown.
   const typesA = await viewTypeBreakdown(orgA.id);
-  const gift = (typesA as any[]).find((t) => t.type === "Gift");
+  const gift = typesA?.find((t) => t.type === "Gift");
   check("view type breakdown org A", !!gift && Number(gift.count) === 2 && Number(gift.totalValue) === 150, JSON.stringify(typesA));
 
   // 4. Current step + pending assignee, org-scoped (text declaration ids served via join).
-  const curA = (await viewCurrentSteps(orgA.id)) as any[];
+  const curA = (await viewCurrentSteps(orgA.id)) ?? [];
   check("view current steps org A", Array.isArray(curA) && curA.length === 2, JSON.stringify(curA));
   const hrPending = curA.find((s) => s.role === "hr");
   check("view current step HR assignee", !!hrPending && hrPending.assigneeId === Number(users.hrA.id), JSON.stringify(hrPending));
   check("view current steps carry text declaration ids", curA.every((s) => typeof s.declarationId === "string" && s.declarationId.startsWith("PG-")), JSON.stringify(curA));
-  const curB = (await viewCurrentSteps(orgB.id)) as any[];
-  check("view current steps org B isolated", Array.isArray(curB) && curB.length === 2 && curB.every((s) => [Number(users.lmB.id), Number(users.hrA.id)].includes(s.assigneeId)), JSON.stringify(curB));
+  const curB = (await viewCurrentSteps(orgB.id)) ?? [];
+  check("view current steps org B isolated", Array.isArray(curB) && curB.length === 2 && curB.every((s) => s.assigneeId !== null && [Number(users.lmB.id), Number(users.hrA.id)].includes(s.assigneeId)), JSON.stringify(curB));
 
   // 5. SLA rows from relational steps.
-  const sla = (await viewSlaRows()) as any[];
+  const sla = await viewSlaRows();
   check("view SLA rows present", Array.isArray(sla) && sla.length === 1 && sla[0].role === "lineManager", JSON.stringify(sla));
 
   // 6. Counterparty concentration, org-scoped.
@@ -264,8 +273,8 @@ async function main() {
   check("view counterparty org B isolated", !!cpB && cpB.length === 1 && cpB[0].counterparty === "Initech", JSON.stringify(cpB));
 
   // 7. High-value declarations, org-scoped + threshold.
-  const hvA = (await viewHighValue(orgA.id, 1000)) as any[];
-  check("view high-value org A threshold", Array.isArray(hvA) && hvA.length === 1 && hvA[0].counterparty === "Acme" && Number(hvA[0].value) === 5000, JSON.stringify(hvA));
+  const hvA = await viewHighValue(orgA.id, 1000);
+  check("view high-value org A threshold", Array.isArray(hvA) && hvA.length === 1 && hvA[0].counterparty === "Acme" && hvA[0].value === 5000, JSON.stringify(hvA));
 
   // FK enforcement: bogus ruleId must fail; rule delete nulls instance ruleId.
   let fkBlocked = false;
@@ -277,11 +286,11 @@ async function main() {
   check("FK blocks unknown ruleId", fkBlocked);
   await p.workflowRule.delete({ where: { id: 1n } });
   const orphan = await p.workflowInstance.findUnique({ where: { declarationPk: pkById.get("PG-2026-0001") } });
-  check("rule delete SET NULLs instance ruleId", (orphan as any)?.ruleId === null, JSON.stringify((orphan as any)?.ruleId));
+  check("rule delete SET NULLs instance ruleId", orphan?.ruleId === null, JSON.stringify(orphan?.ruleId === null ? null : String(orphan?.ruleId)));
 
   // Scoped counterparty identity on numeric keys: scoped duplicates rejected,
   // global same-name rows allowed.
-  await p.organization.create({ data: { name: "PG Dup Org", shortCode: "PGD" } }).then(async (dupOrg: any) => {
+  await p.organization.create({ data: { name: "PG Dup Org", shortCode: "PGD" } }).then(async (dupOrg: { id: bigint }) => {
     let scopedRejected = false;
     try {
       await p.counterparty.create({ data: { name: "Acme", organizationId: orgA.id } });
@@ -304,7 +313,7 @@ async function main() {
   // Delete rules: user delete nulls declaration links (history in snapshot).
   await p.user.delete({ where: { id: users.tmB.id } });
   const orphanDecl = await p.declaration.findUnique({ where: { id: "PG-2026-0004" } });
-  check("user delete SET NULLs declarer link", (orphanDecl as any)?.declarerUserId === null);
+  check("user delete SET NULLs declarer link", orphanDecl?.declarerUserId === null);
   const orphanSnap = await p.declarationSnapshot.findFirst({ where: { declarerName: "PG TM B" } });
   check("snapshot history survives user delete", !!orphanSnap && orphanSnap.declarerName === "PG TM B");
 

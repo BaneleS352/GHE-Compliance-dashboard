@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
@@ -8,7 +9,7 @@ const router = Router();
 
 router.get("/managers", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const orgRaw = req.query.organizationId as string | undefined;
-  const where: any = { position: { contains: "Line Manager" } };
+  const where: Prisma.UserWhereInput = { position: { contains: "Line Manager" } };
   if (orgRaw !== undefined) {
     const orgPk = parseIdParam(orgRaw);
     if (orgPk === null) {
@@ -35,7 +36,7 @@ router.get("/departments", authenticate, asyncHandler(async (req: AuthRequest, r
   const orgRaw = req.query.organizationId as string | undefined;
   if (orgRaw === undefined) {
     const departments = await prisma.department.findMany({ select: { name: true }, orderBy: { name: "asc" } }).catch(() => []);
-    const names = departments.map((d: any) => d.name);
+    const names = departments.map((d) => d.name);
     if (names.length > 0) { res.json(names); return; }
     const users = await prisma.user.findMany({ select: { department: true } });
     res.json(Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort());
@@ -51,7 +52,7 @@ router.get("/departments", authenticate, asyncHandler(async (req: AuthRequest, r
     select: { name: true },
     orderBy: { name: "asc" },
   }).catch(() => []);
-  let names = departments.map((d: any) => d.name);
+  let names = departments.map((d) => d.name);
   if (names.length === 0) {
     const users = await prisma.user.findMany({ where: { organizationId: orgPk }, select: { department: true } });
     names = Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort();
@@ -76,7 +77,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     return;
   }
   // Least-privilege: allow admin, self, or same-org members (needed for NewDeclarationScreen lineManager lookup)
-  const callerOrg = (req.user as any)?.organizationId as number | undefined;
+  const callerOrg = req.user?.organizationId ?? undefined;
   if (req.user!.role !== "admin" && toDbId(req.user!.id) !== userPk && callerOrg !== undefined && callerOrg !== null && user.organizationId !== null && toDbId(callerOrg) !== user.organizationId) {
     res.status(403).json({ error: "Access denied" });
     return;

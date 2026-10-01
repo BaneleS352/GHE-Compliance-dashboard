@@ -1,3 +1,4 @@
+import { Prisma, User, WorkflowInstanceStep } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { toDbId, toJsonId } from "./ids";
 
@@ -45,13 +46,16 @@ export async function createWorkflowSteps(_declarationPk: bigint | string | numb
     where: { ruleId },
     orderBy: { order: "asc" },
   });
-  const stepDefs: WorkflowStepDef[] = rows.map((r: any) => ({ order: r.order, role: r.role, label: r.label }));
+  // Boundary label: rule roles are validated to "lineManager" | "hr" on write
+  // (admin zod schema) but stored as plain text until domain checks land, so
+  // the read narrows explicitly here instead of scattering `as any`.
+  const stepDefs: WorkflowStepDef[] = rows.map((r) => ({ order: r.order, role: r.role as WorkflowStepDef["role"], label: r.label }));
   if (!Array.isArray(stepDefs) || stepDefs.length === 0) throw new Error(`Corrupt workflow rule steps for rule ${ruleId}`);
   const employee = await prisma.user.findUnique({ where: { id: toDbId(employeeId) } });
   if (!employee) throw new Error("Employee not found");
 
   // HR is global (organizationId null) — try same-org HR first, fallback to global, then any HR
-  let hrUser: any = null;
+  let hrUser: User | null = null;
   if (employee.organizationId !== null && employee.organizationId !== undefined) {
     hrUser = await prisma.user.findFirst({ where: { role: "approver", department: "HR", organizationId: employee.organizationId } });
   }
@@ -67,7 +71,7 @@ export async function createWorkflowSteps(_declarationPk: bigint | string | numb
 
   // The authoritative manager reference is the managerId FK; lineManager is
   // display text only.
-  let lmUser: any = null;
+  let lmUser: User | null = null;
   if (employee.managerId !== null && employee.managerId !== undefined) {
     lmUser = await prisma.user.findUnique({ where: { id: employee.managerId } });
   }
@@ -135,21 +139,25 @@ export async function getCurrentStep(declarationPk: bigint | number): Promise<Wo
     orderBy: { stepOrder: "asc" },
   });
   if (rows.length === 0) return null;
-  const pending = rows.find((r: any) => r.status === "pending");
+  const pending = rows.find((r) => r.status === "pending");
   if (!pending) return null;
   return rowToStep(pending);
 }
 
-export function rowToStep(r: any): WorkflowStep {
+export function rowToStep(r: WorkflowInstanceStep): WorkflowStep {
+  // Boundary label: step role/status are validated on write but stored as
+  // plain text until domain checks land, so the read narrows explicitly.
+  // No legacy JSON shape is accepted (`r.order` / `r.approvedAt` do not exist
+  // on the row type and must not be reintroduced).
   return {
-    order: r.stepOrder ?? r.order,
-    role: r.role,
+    order: r.stepOrder,
+    role: r.role as WorkflowStep["role"],
     assignee: r.assigneeId === null || r.assigneeId === undefined ? null : toJsonId(r.assigneeId),
     assigneeName: r.assigneeName,
     label: r.label,
-    status: r.status,
+    status: r.status as WorkflowStep["status"],
     decision: r.decision ?? null,
-    approvedAt: r.status === "approved" && r.decidedAt ? new Date(r.decidedAt).toISOString() : (r.approvedAt ?? null),
+    approvedAt: r.status === "approved" && r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
     notes: r.notes ?? "",
     decidedAt: r.decidedAt ? new Date(r.decidedAt).toISOString() : null,
     decidedById: r.decidedById === null || r.decidedById === undefined ? null : toJsonId(r.decidedById),
@@ -178,31 +186,29 @@ function toISODate(d: Date | string | null | undefined): string {
  *
  * Callers must include: snapshot, detail, counterpartyRef, declarer (with
  * team + organization), currentApprover, organization, fileLinks (with file).
- * Missing relations degrade to "" / [] rather than throwing, so list views
- * with partial includes still render.
  */
-export function declarationResponse(d: any) {
-  const snap = d.snapshot || null;
-  const det = d.detail || null;
-  const cpName: string = d.counterpartyRef?.name ?? d.counterparty ?? "";
-  const declarer = d.declarer || null;
-  const approverUser = d.currentApprover || null;
-  const files = Array.isArray(d.fileLinks)
-    ? d.fileLinks.map((l: any) => {
-        const f = l.file || {};
-        const fid = f.id !== undefined ? toJsonId(f.id) : l.fileId;
-        return {
-          id: fid,
-          name: f.originalName || f.name || "",
-          size: f.size ?? 0,
-          type: f.mimeType || f.type || "",
-          url: `/api/files/${fid}`,
-          uploadedAt: f.uploadedAt || l.createdAt || null,
-        };
-      })
-    : Array.isArray(d.files)
-      ? d.files
-      : [];
+export type DeclarationWithRelations = Prisma.DeclarationGetPayload<{
+  include: typeof declarationIncludes;
+}>;
+
+export function declarationResponse(d: DeclarationWithRelations) {
+  const snap = d.snapshot;
+  const det = d.detail;
+  const cpName: string = d.counterpartyRef?.name ?? "";
+  const declarer = d.declarer;
+  const approverUser = d.currentApprover;
+  const files = d.fileLinks.map((l) => {
+    const f = l.file;
+    const fid = toJsonId(f.id);
+    return {
+      id: fid,
+      name: f.originalName,
+      size: f.size,
+      type: f.mimeType,
+      url: `/api/files/${fid}`,
+      uploadedAt: f.uploadedAt,
+    };
+  });
   return {
     id: d.id,
     employee: snap?.declarerName ?? declarer?.name ?? "",

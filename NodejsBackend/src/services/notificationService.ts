@@ -24,11 +24,14 @@ export async function sendNotification(event: NotificationEvent, declarationId: 
       prisma.systemConfig.findFirst(),
     ]);
     if (!declaration || !recipient?.email) return;
-    let templates: any = {};
+    // Boundary label: notification templates are stored as a JSON text
+    // column (free-form operatorconfiguration), so the parse result is
+    // validated by shape here instead of a Prisma type.
+    let templates: Record<string, { subject?: unknown; body?: unknown }> = {};
     try { templates = JSON.parse(config?.notificationTemplates || "{}"); } catch { return; }
     const template = templates[event];
-    if (!template?.subject || !template?.body) return;
-    const data = { declarationId, employee: (declaration as any).snapshot?.declarerName || (declaration as any).declarer?.name || "", recipientName: recipient.name, decision };
+    if (typeof template?.subject !== "string" || typeof template?.body !== "string") return;
+    const data = { declarationId, employee: declaration.snapshot?.declarerName || declaration.declarer?.name || "", recipientName: recipient.name, decision };
     const payload = { to: recipient.email, subject: render(template.subject, data), body: render(template.body, data), event, declarationId };
     const webhook = process.env.EMAIL_WEBHOOK_URL;
     if (!webhook) {

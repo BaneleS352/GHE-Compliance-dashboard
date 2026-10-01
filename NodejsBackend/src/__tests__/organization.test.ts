@@ -254,4 +254,47 @@ describe("Organization — multi-tenant flows", () => {
     // We can't assert exact counts, but should be object
     expect(typeof res.body).toBe("object");
   });
+
+  describe("Organization consistency invariant (manager must match user org)", () => {
+    it("POST /api/admin/users — scoped user with cross-org manager is rejected", async () => {
+      const res = await request(app)
+        .post("/api/admin/users")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({
+          name: "Cross Org", email: "cross-org@test.com", role: "teamMember",
+          department: "Marketing", position: "Associate", teamMemberNumber: "X-001",
+          lineManager: npnLm.id, organizationId: hbOrg.id,
+        });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/another organization/i);
+    });
+
+    it("POST /api/admin/users — scoped user with global manager is accepted", async () => {
+      const res = await request(app)
+        .post("/api/admin/users")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({
+          name: "Global Managed", email: "global-managed@test.com", role: "teamMember",
+          department: "Marketing", position: "Associate", teamMemberNumber: "X-002",
+          lineManager: globalHr.id, organizationId: hbOrg.id,
+        });
+      expect(res.status).toBe(201);
+      await request(app)
+        .delete(`/api/admin/users/${res.body.id}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+    });
+
+    it("PUT /api/admin/users/:id — moving a user across orgs with a stale manager link is rejected", async () => {
+      // hbTeam's manager (hbLm) belongs to HB; moving hbTeam to NPN would
+      // strand a cross-organization manager reference.
+      const res = await request(app)
+        .put(`/api/admin/users/${hbTeam.id}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({ organizationId: npnOrg.id });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/another organization/i);
+      const unchanged = await prisma.user.findUnique({ where: { id: hbTeam.id } });
+      expect(Number(unchanged?.organizationId)).toBe(hbOrg.id);
+    });
+  });
 });

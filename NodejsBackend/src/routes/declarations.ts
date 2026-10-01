@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import xss from "xss";
 import crypto from "crypto";
@@ -8,6 +9,7 @@ import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { createWorkflowSteps, resolveRuleId, declarationResponse, declarationIncludes } from "../services/workflowService";
+import type { DeclarationWithRelations, WorkflowStep } from "../services/workflowService";
 import {
   parseDateSafe,
   ensureCounterparty,
@@ -67,9 +69,9 @@ function denyCrossDepartmentLM(req: AuthRequest, res: Response, snapshotDepartme
 const VALID_STATUSES = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"] as const;
 
 router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const orgId = (req.user as any)?.organizationId as number | undefined;
-  const orgWhere: any = {};
-  if (orgId !== undefined && orgId !== null) orgWhere.organizationId = orgId;
+  const orgId = req.user?.organizationId ?? undefined;
+  const orgWhere: Prisma.DeclarationWhereInput = {};
+  if (orgId !== undefined && orgId !== null) orgWhere.organizationId = toDbId(orgId);
 
   // Agreed dashboard read models come from the scoped reporting views.
   // The direct aggregation below is the fallback for databases where the
@@ -84,19 +86,19 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
     if (statusRows && monthlyRows && typeRows) {
       // Unscoped queries return one row per (organisation, status/month/type)
       // — sum across organisations so the KPIs are global totals.
-      const sumBy = (rows: any[], key: string, val: string, match: string) =>
-        rows.filter((r) => String(r[key]) === match).reduce((n, r) => n + Number(r[val]), 0);
+      const sumBy = (rows: { status: string; count: number }[], match: string) =>
+        rows.filter((r) => r.status === match).reduce((n, r) => n + r.count, 0);
       const kpis = {
         total: statusRows.reduce((n, r) => n + r.count, 0),
-        pending: sumBy(statusRows, "status", "count", "Pending"),
-        approved: sumBy(statusRows, "status", "count", "Approved"),
-        declined: sumBy(statusRows, "status", "count", "Declined"),
-        returned: sumBy(statusRows, "status", "count", "Returned"),
-        escalated: sumBy(statusRows, "status", "count", "Escalated"),
+        pending: sumBy(statusRows, "Pending"),
+        approved: sumBy(statusRows, "Approved"),
+        declined: sumBy(statusRows, "Declined"),
+        returned: sumBy(statusRows, "Returned"),
+        escalated: sumBy(statusRows, "Escalated"),
         totalValue: statusRows.reduce((n, r) => n + r.totalValue, 0),
       };
       const monthMap = new Map<string, { approved: number; declined: number }>();
-      for (const m of monthlyRows as any[]) {
+      for (const m of monthlyRows) {
         const e = monthMap.get(String(m.month)) || { approved: 0, declined: 0 };
         e.approved += Number(m.approved);
         e.declined += Number(m.declined);
@@ -106,7 +108,7 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([month, v]) => ({ month, ...v }));
       const typeMap = new Map<string, number>();
-      for (const t of typeRows as any[]) {
+      for (const t of typeRows) {
         typeMap.set(String(t.type), (typeMap.get(String(t.type)) || 0) + Number(t.count));
       }
       const typeBreakdown = [...typeMap.entries()].map(([name, value]) => ({ name, value }));
@@ -124,8 +126,8 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
     prisma.declaration.findMany({ where: { ...orgWhere, eventDate: { not: null } }, select: { eventDate: true, status: true } }),
     prisma.declaration.groupBy({ by: ["type"], where: orgWhere, _count: { type: true } }),
   ]);
-  const countMap = new Map(counts.map((c: any) => [c.status, c._count.status]));
-  const total = Array.from(countMap.values()).reduce((a: number, b: number) => a + (b as number), 0);
+  const countMap = new Map(counts.map((c) => [c.status, c._count.status]));
+  const total = Array.from(countMap.values()).reduce((a: number, b: number) => a + b, 0);
   const kpis = {
     total,
     pending: countMap.get("Pending") || 0,
@@ -136,7 +138,8 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
     totalValue: totalValueAgg._sum.value || 0,
   };
   const monthMap = new Map<string, { approved: number; declined: number }>();
-  for (const d of monthly as any[]) {
+  for (const d of monthly) {
+    if (!d.eventDate) continue;
     const month = new Date(d.eventDate).toISOString().slice(0, 7);
     const e = monthMap.get(month) || { approved: 0, declined: 0 };
     if (d.status === "Approved") e.approved++;
@@ -144,7 +147,7 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
     monthMap.set(month, e);
   }
   const complianceTrend = [...monthMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([month, v]) => ({ month, ...v }));
-  const typeBreakdown = (typeRows as any[]).map((t) => ({ name: t.type, value: t._count.type }));
+  const typeBreakdown = typeRows.map((t) => ({ name: t.type, value: t._count.type }));
 
   res.json({ kpis, complianceTrend, typeBreakdown });
 }));
@@ -155,11 +158,12 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
   const limit = req.query.limit ? Math.min(Math.max(parseInt(String(req.query.limit), 10) || 0, 1), 100) : undefined;
   const offset = req.query.offset ? Math.max(parseInt(String(req.query.offset), 10) || 0, 0) : 0;
 
-  const where: any = {};
+  const where: Prisma.DeclarationWhereInput = {};
   if (status && (VALID_STATUSES as readonly string[]).includes(status)) where.status = status;
   // Org isolation — scope all queries by caller's org if present
-  if ((req.user as any)?.organizationId !== undefined && (req.user as any)?.organizationId !== null) {
-    where.organizationId = (req.user as any).organizationId;
+  const listOrgId = req.user?.organizationId ?? undefined;
+  if (listOrgId !== undefined && listOrgId !== null) {
+    where.organizationId = toDbId(listOrgId);
   }
   if (req.user!.role === "teamMember") {
     where.declarerUserId = toDbId(req.user!.id);
@@ -169,23 +173,22 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
 
   // Ordering uses the canonical submittedAt DateTime column (populated
   // synchronously on every write).
-  let declarations: any[];
-  const include = declarationIncludes;
+  let declarations: DeclarationWithRelations[];
   if (search) {
     const q = String(search);
-    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, include: include as any });
+    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, include: declarationIncludes });
     const qLower = q.toLowerCase();
     declarations = declarations.filter(
-      (d: any) =>
+      (d) =>
         String(d.snapshot?.declarerName || "").toLowerCase().includes(qLower) ||
         String(d.counterpartyRef?.name || "").toLowerCase().includes(qLower) ||
         String(d.id || "").toLowerCase().includes(qLower) ||
         String(d.detail?.description || "").toLowerCase().includes(qLower)
     );
   } else if (limit !== undefined) {
-    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, take: limit, skip: offset, include: include as any });
+    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, take: limit, skip: offset, include: declarationIncludes });
   } else {
-    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, include: include as any });
+    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, include: declarationIncludes });
   }
 
   // Pagination (in-memory slice after search; keeps backwards compatible when no limit)
@@ -246,7 +249,7 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   }
   // Enforce maximum value from SystemConfig (dynamic, not hard-coded)
   const sysCfg = await prisma.systemConfig.findFirst();
-  const maxVal = (sysCfg as any)?.maximumValue ?? 1000000;
+  const maxVal = sysCfg?.maximumValue ?? 1000000;
   if (data.value > maxVal) {
     res.status(400).json({ error: `Maximum value exceeded. Please enter an amount of R${maxVal.toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.` });
     return;
@@ -262,8 +265,8 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
 
   // Derive organizationId server-side — prefer user's org, fallback to client value for admin
   let orgId: bigint | null = null;
-  const userOrgId = (req.user as any)?.organizationId as number | undefined;
-  const bodyOrg = (data as any).organizationId !== undefined ? toDbId((data as any).organizationId) : null;
+  const userOrgId = req.user?.organizationId ?? undefined;
+  const bodyOrg = data.organizationId !== undefined ? toDbId(data.organizationId) : null;
   if (userOrgId !== undefined && userOrgId !== null) {
     const userOrgPk = toDbId(userOrgId);
     // Non-admin must stay in own org
@@ -293,7 +296,7 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   // caller: `authenticate` already verified that user against the database.
   const [declarerRow, approverRow] = await Promise.all([
     employeePk === callerPk
-      ? Promise.resolve({ id: callerPk, name: req.user!.name } as any)
+      ? Promise.resolve({ id: callerPk, name: req.user!.name })
       : prisma.user.findUnique({ where: { id: employeePk }, select: { id: true, name: true } }),
     data.approverId !== undefined
       ? toDbId(data.approverId) === callerPk
@@ -355,13 +358,17 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
     return created.declarationPk;
   });
 
-  const declaration = await prisma.declaration.findUnique({ where: { declarationPk }, include: declarationIncludes as any });
+  const declaration = await prisma.declaration.findUnique({ where: { declarationPk }, include: declarationIncludes });
+  if (!declaration) {
+    res.status(500).json({ error: "Failed to read back the created declaration" });
+    return;
+  }
   res.status(201).json(declarationResponse(declaration));
 }));
 
 router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
-  const declaration = await prisma.declaration.findUnique({ where: { id }, include: declarationIncludes as any }) as any;
+  const declaration = await prisma.declaration.findUnique({ where: { id }, include: declarationIncludes });
   if (!declaration) {
     res.status(404).json({ error: "Declaration not found" });
     return;
@@ -371,7 +378,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(403).json({ error: "Cannot view another user's declaration" });
     return;
   }
-  const userOrgIdGet = (req.user as any)?.organizationId as number | undefined;
+  const userOrgIdGet = req.user?.organizationId ?? undefined;
   if (declaration.organizationId !== null && userOrgIdGet !== undefined && userOrgIdGet !== null && declaration.organizationId !== toDbId(userOrgIdGet) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot view declaration from another organization" });
     return;
@@ -382,7 +389,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
   const workflowSteps = req.user!.role === "admin" || req.user!.role === "approver"
     ? rawSteps
-    : rawSteps.map((s: any) => ({
+    : rawSteps.map((s) => ({
         order: s.order,
         role: s.role,
         label: s.label,
@@ -397,7 +404,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
 router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
-  const existing = await prisma.declaration.findUnique({ where: { id }, include: { snapshot: true, detail: true } }) as any;
+  const existing = await prisma.declaration.findUnique({ where: { id }, include: { snapshot: true, detail: true } });
   if (!existing) {
     res.status(404).json({ error: "Declaration not found" });
     return;
@@ -407,7 +414,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     return;
   }
   // Org isolation
-  const userOrgIdPut = (req.user as any)?.organizationId as number | undefined;
+  const userOrgIdPut = req.user?.organizationId ?? undefined;
   if (existing.organizationId !== null && userOrgIdPut !== undefined && userOrgIdPut !== null && existing.organizationId !== toDbId(userOrgIdPut) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot edit declaration from another organization" });
     return;
@@ -425,16 +432,16 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
 
   const data = parsed.data;
-  if ((data as any).value !== undefined) {
+  if (data.value !== undefined) {
     const sysCfg2 = await prisma.systemConfig.findFirst();
-    const maxVal2 = (sysCfg2 as any)?.maximumValue ?? 1000000;
-    if ((data as any).value > maxVal2) {
+    const maxVal2 = sysCfg2?.maximumValue ?? 1000000;
+    if (data.value > maxVal2) {
       res.status(400).json({ error: `Maximum value exceeded. Please enter an amount of R${maxVal2.toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.` });
       return;
     }
   }
   // Prevent org spoof on update — non-admin cannot change org
-  const bodyOrgPut = (data as any).organizationId !== undefined ? toDbId((data as any).organizationId) : undefined;
+  const bodyOrgPut = data.organizationId !== undefined ? toDbId(data.organizationId) : undefined;
   if (bodyOrgPut !== undefined && userOrgIdPut !== undefined && userOrgIdPut !== null && bodyOrgPut !== toDbId(userOrgIdPut) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot move declaration to another organization" });
     return;
@@ -464,10 +471,10 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   const sanitizeFields = new Set(["type", "priority", "counterparty", "description", "relationship", "receivedGiven", "contactPerson", "biddingProcess", "contractNegotiation", "occasion", "instances", "publicOfficial", "substantiation", "from"]);
   const detailPatch: Record<string, unknown> = {};
   for (const key of ["description", "relationship", "receivedGiven", "contactPerson", "biddingProcess", "contractNegotiation", "occasion", "instances", "publicOfficial", "substantiation"] as const) {
-    const val = (data as Record<string, unknown>)[key];
+    const val = data[key];
     if (val !== undefined) detailPatch[key] = typeof val === "string" && sanitizeFields.has(key) ? sanitize(val) : val;
   }
-  if ((data as any).from !== undefined) detailPatch.from = sanitize((data as any).from);
+  if (data.from !== undefined) detailPatch.from = sanitize(data.from);
 
   // Resolve relational links before the transaction (pure reads).
   // When approverId is reassigned the approver display name moves with it —
@@ -475,7 +482,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   let putCounterpartyId: bigint | null | undefined;
   if (data.counterparty !== undefined) {
     if (data.counterparty) {
-      const contactText = (data.contactPerson as string | undefined) ?? existing.detail?.contactPerson ?? null;
+      const contactText = data.contactPerson ?? existing.detail?.contactPerson ?? null;
       const cp = await ensureCounterparty(sanitize(data.counterparty), (bodyOrgPut as bigint | undefined) ?? existing.organizationId, contactText ? sanitize(contactText) : null);
       putCounterpartyId = cp?.id || null;
     } else {
@@ -490,8 +497,11 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
 
   // Single transaction: lean row, links, pre-submit snapshot manager, detail.
-  const pk = existing.declarationPk as bigint;
+  const pk = existing.declarationPk;
   await prisma.$transaction(async (tx) => {
+    // Boundary label: updateData is assembled from individually validated
+    // zod fields above; the spread into the update input is the one place
+    // the validated pieces rejoin a Prisma input type.
     const txData: any = { ...updateData };
     if (putCounterpartyId !== undefined) txData.counterpartyId = putCounterpartyId;
     if (putApproverUser !== undefined) txData.currentApproverUserId = putApproverUser;
@@ -527,13 +537,21 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
       };
       const aliasMap: Record<string, string> = { from: "fromField" };
       for (const [k, v] of Object.entries(detailPatch)) {
-        (base as any)[aliasMap[k] || k] = v;
+        // Boundary label: keys are the fixed detail allow-list above and
+        // values are validated/sanitized strings; the base object keeps its
+        // literal detail type for the upsert below, so only this computed
+        // assignment is cast.
+        (base as Record<string, string | null>)[aliasMap[k] || k] = v as string;
       }
       await tx.declarationDetail.upsert({ where: { declarationPk: pk }, create: { declarationPk: pk, ...base }, update: base });
     }
   });
 
-  const updated = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes as any });
+  const updated = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
+  if (!updated) {
+    res.status(500).json({ error: "Failed to read back the updated declaration" });
+    return;
+  }
 
   // Refresh the workflow immediately when a returned declaration's value
   // changes, so the detail view reflects newly required approvers before submit.
@@ -541,12 +559,12 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     const instance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
     if (instance) {
       const savedSteps = (await readWorkflowStepRows(pk)) || [];
-      const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId!, (updated as any).value);
-      const approvedMap = new Map(savedSteps.filter((s: any) => s.status === "approved").map((s: any) => [s.role, s]));
-      const workflowSteps = freshSteps.map((step: any) => {
+      const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId!, updated.value);
+      const approvedMap = new Map(savedSteps.filter((s) => s.status === "approved").map((s) => [s.role, s]));
+      const workflowSteps: WorkflowStep[] = freshSteps.map((step) => {
         const approved = approvedMap.get(step.role);
         return approved
-          ? { ...step, status: "approved", decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt }
+          ? { ...step, status: "approved" as const, decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt }
           : step;
       });
       await prisma.$transaction(async (tx) => {
@@ -560,7 +578,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
 router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
-  const existing = await prisma.declaration.findUnique({ where: { id }, include: { snapshot: true, fileLinks: { include: { file: true } } } }) as any;
+  const existing = await prisma.declaration.findUnique({ where: { id }, include: { snapshot: true, fileLinks: { include: { file: true } } } });
   if (!existing) {
     res.status(404).json({ error: "Declaration not found" });
     return;
@@ -569,7 +587,7 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     res.status(400).json({ error: "Only draft declarations can be deleted" });
     return;
   }
-  const userOrgIdDel = (req.user as any)?.organizationId as number | undefined;
+  const userOrgIdDel = req.user?.organizationId ?? undefined;
   if (existing.organizationId !== null && userOrgIdDel !== undefined && userOrgIdDel !== null && existing.organizationId !== toDbId(userOrgIdDel) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot delete declaration from another organization" });
     return;
@@ -583,12 +601,12 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
   // Delete disk files via the join rows (the only file association).
   const pk = existing.declarationPk as bigint;
   const links = await prisma.declarationFile.findMany({ where: { declarationPk: pk }, include: { file: true } });
-  await Promise.all(links.map(async (l: any) => {
+  await Promise.all(links.map(async (l) => {
     const fp = containedUploadPath(l.file.path);
     if (!fp) return;
     try { await fs.promises.unlink(fp); } catch { /* file may have been deleted already */ }
   }));
-  const fileIds = links.map((l: any) => l.fileId);
+  const fileIds = links.map((l) => l.fileId);
   await prisma.declarationFile.deleteMany({ where: { declarationPk: pk } });
   if (fileIds.length > 0) {
     await prisma.uploadedFile.deleteMany({ where: { id: { in: fileIds } } });
@@ -606,7 +624,7 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
 
 router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
-  const existing = await prisma.declaration.findUnique({ where: { id }, include: { snapshot: true, detail: true } }) as any;
+  const existing = await prisma.declaration.findUnique({ where: { id }, include: { snapshot: true, detail: true } });
   if (!existing) {
     res.status(404).json({ error: "Declaration not found" });
     return;
@@ -615,7 +633,7 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     res.status(400).json({ error: "Only drafts or returned declarations can be submitted" });
     return;
   }
-  const userOrgIdSub = (req.user as any)?.organizationId as number | undefined;
+  const userOrgIdSub = req.user?.organizationId ?? undefined;
   if (existing.organizationId !== null && userOrgIdSub !== undefined && userOrgIdSub !== null && existing.organizationId !== toDbId(userOrgIdSub) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot submit declaration from another organization" });
     return;
@@ -626,10 +644,10 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
   }
   if (denyCrossDepartmentLM(req, res, existing.snapshot?.department)) return;
 
-  const pk = existing.declarationPk as bigint;
+  const pk = existing.declarationPk;
   const existingInstance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
 
-  let workflowSteps: any[];
+  let workflowSteps: WorkflowStep[];
   if (existing.status === "Returned" && existingInstance) {
     const savedSteps = (await readWorkflowStepRows(pk)) || [];
     const hasReturnedStep = savedSteps.some((step) => step.status === "returned");
@@ -638,11 +656,11 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
       // becomes high-value gains the HR step on resubmission.
       const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId!, existing.value);
       // Preserve approvals only for roles present in the newly selected rule.
-      const approvedMap = new Map(savedSteps.filter((s: any) => s.status === "approved").map((s: any) => [s.role, s]));
-      workflowSteps = freshSteps.map((fs: any) => {
+      const approvedMap = new Map(savedSteps.filter((s) => s.status === "approved").map((s) => [s.role, s]));
+      workflowSteps = freshSteps.map((fs) => {
         const approved = approvedMap.get(fs.role);
         return approved
-          ? { ...fs, status: "approved", decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt }
+          ? { ...fs, status: "approved" as const, decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt }
           : fs;
       });
     } else {
@@ -708,7 +726,11 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     }
   });
 
-  const updated = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes as any });
+  const updated = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
+  if (!updated) {
+    res.status(500).json({ error: "Failed to read back the submitted declaration" });
+    return;
+  }
   res.json(declarationResponse(updated));
   if (nextApprover && nextApprover.assignee !== null) {
     void sendNotification(nextApprover.role === "hr" ? "hrApproval" : "managerApproval", existing.id, nextApprover.assignee);
@@ -742,15 +764,15 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
       res.status(400).json({ error: "Cannot approve/decline a declaration with no workflow instance" });
       return;
     }
-    const steps: any[] = (await readWorkflowStepRows(pk)) || [];
-    const pendingStep = steps.find((s: any) => s.status === "pending");
+    const steps: WorkflowStep[] = (await readWorkflowStepRows(pk)) || [];
+    const pendingStep = steps.find((s) => s.status === "pending");
     if (pendingStep) {
       res.status(400).json({ error: "Cannot approve/decline — pending approval step still exists" });
       return;
     }
     // A terminal override needs decided workflow evidence: all-skipped (or
     // empty) steps would desync the declaration from its step rows.
-    const decided = steps.some((s: any) => s.status !== "pending" && s.status !== "skipped");
+    const decided = steps.some((s) => s.status !== "pending" && s.status !== "skipped");
     if (!decided) {
       res.status(400).json({ error: "Cannot approve/decline — no decided workflow step exists" });
       return;
@@ -762,7 +784,11 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
     data: { status },
   });
 
-  const enriched = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes as any });
+  const enriched = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
+  if (!enriched) {
+    res.status(500).json({ error: "Failed to read back the updated declaration" });
+    return;
+  }
   res.json(declarationResponse(enriched));
 }));
 

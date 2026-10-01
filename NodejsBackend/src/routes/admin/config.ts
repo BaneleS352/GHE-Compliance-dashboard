@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
@@ -19,7 +20,7 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: Auth
     mediumValueThreshold: config.mediumValueThreshold,
     slaEscalationDays: config.slaEscalationDays,
     maxDeclarationsPerCounterparty: config.maxDeclarationsPerCounterparty,
-    maximumValue: (config as any).maximumValue ?? 1000000,
+    maximumValue: config.maximumValue ?? 1000000,
     emailTemplate: config.emailTemplate,
     notificationTemplates: config.notificationTemplates,
   });
@@ -72,7 +73,7 @@ router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
     mediumValueThreshold: updated.mediumValueThreshold,
     slaEscalationDays: updated.slaEscalationDays,
     maxDeclarationsPerCounterparty: updated.maxDeclarationsPerCounterparty,
-    maximumValue: (updated as any).maximumValue ?? 1000000,
+    maximumValue: updated.maximumValue ?? 1000000,
     emailTemplate: updated.emailTemplate,
     notificationTemplates: updated.notificationTemplates,
   });
@@ -92,23 +93,23 @@ const DOMAIN_DROPDOWNS = {
   partyTypes: ["Supplier", "Customer", "Team Member"],
 };
 router.get("/dropdowns", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const orgRaw = (req.query as any)?.organizationId as string | undefined;
+  const orgRaw = req.query.organizationId as string | undefined;
   const orgPk = orgRaw !== undefined ? parseIdParam(orgRaw) : undefined;
   if (orgRaw !== undefined && orgPk === null) {
     res.status(400).json({ error: "Invalid organizationId" });
     return;
   }
-  const deptWhere: any = orgPk !== undefined ? { organizationId: orgPk } : {};
+  const deptWhere: Prisma.DepartmentWhereInput = orgPk === undefined || orgPk === null ? {} : { organizationId: orgPk };
   const departments = await prisma.department.findMany({
     where: deptWhere,
     select: { name: true },
     orderBy: { name: "asc" },
   }).catch(() => []);
-  let names = departments.map((d: any) => d.name);
+  let names = departments.map((d) => d.name);
   if (names.length === 0) {
     // Fallback to user departments when the master table is not seeded yet.
     const users = await prisma.user.findMany({ where: orgPk !== undefined ? { organizationId: orgPk } : {}, select: { department: true } });
-    names = Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort() as string[];
+    names = Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort();
   }
   res.json({ departments: names, ...DOMAIN_DROPDOWNS });
 }));

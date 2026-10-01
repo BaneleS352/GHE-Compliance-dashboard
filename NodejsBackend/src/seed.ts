@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import type { WorkflowStep } from "./services/workflowService";
 
 const prisma = new PrismaClient();
 const DEFAULT_PASSWORD = "password";
@@ -38,7 +39,41 @@ const users = [
   { id: 21n, name: "Admin NPN", email: "admin@npn.co.za", role: "admin", teamMemberNumber: "NPN-00000", department: "IT", position: "System Administrator", lineManager: null, managerId: null, organizationId: 2n },
 ];
 
-const declarations = [
+/** Seed declaration fixture (DTO-shaped input, not a Prisma model). */
+interface SeedDeclaration {
+  id: string;
+  employee: string;
+  employeeId: bigint;
+  teamMemberNumber: string;
+  lineManager: string | null;
+  position: string;
+  department: string;
+  company?: string;
+  team?: string;
+  type: string;
+  counterparty: string;
+  value: number;
+  submitted: string;
+  approver?: string;
+  approverId?: bigint;
+  status: string;
+  priority: string;
+  description: string;
+  relationship: string;
+  receivedGiven: string;
+  fromField: string;
+  contactPerson: string;
+  biddingProcess: string;
+  contractNegotiation?: string | null;
+  occasion: string;
+  date: string;
+  instances: string;
+  publicOfficial: string;
+  substantiation?: string | null;
+  organizationId?: bigint | null;
+}
+
+const declarations: SeedDeclaration[] = [
   // Hollywoodbets Group declarations
   { id: "GHE-2024-0047", employee: "Nomvula Dlamini", employeeId: 1n, teamMemberNumber: "HB-204478", lineManager: "Sipho Nkosi", position: "Senior Brand Manager", department: "Marketing", company: "Hollywoodbets Group", team: "Brand & Communications", type: "Hospitality", counterparty: "Tsogo Sun Hotels", value: 8500, submitted: "2024-11-12", approver: "Sipho Nkosi", approverId: 3n, status: "Pending", priority: "High", description: "Corporate dinner for key partners at Sandton Sun", relationship: "Client \u2013 Strategic Partner", receivedGiven: "Received", fromField: "Supplier", contactPerson: "John Smith", biddingProcess: "No", occasion: "Relationship Maintenance", date: "2024-11-10", instances: "2", publicOfficial: "No", organizationId: 1n },
   { id: "GHE-2024-0046", employee: "Thabo Mokoena", employeeId: 2n, teamMemberNumber: "HB-187234", lineManager: "Lindiwe Zulu", position: "Sales Executive", department: "Sales", company: "Hollywoodbets Group", team: "Enterprise Sales", type: "Gift", counterparty: "Makro", value: 1200, submitted: "2024-11-10", approver: "Lindiwe Zulu", approverId: 4n, status: "Approved", priority: "Low", description: "End-of-year gift basket received from supplier", relationship: "Supplier \u2013 Regular", receivedGiven: "Received", fromField: "Supplier", contactPerson: "Jane Dube", biddingProcess: "No", occasion: "Festive", date: "2024-11-08", instances: "1", publicOfficial: "No", organizationId: 1n },
@@ -158,7 +193,7 @@ async function main() {
 
   // Counterparties: one row per (organizationId, name) from declaration data.
   const cpKey = new Map<string, { name: string; organizationId: bigint | null; contactName: string | null }>();
-  for (const d of declarations as any[]) {
+  for (const d of declarations) {
     const orgPk: bigint | null = d.organizationId ?? null;
     const key = `${orgPk === null ? "" : String(orgPk)}||${String(d.counterparty).trim()}`;
     if (!cpKey.has(key)) {
@@ -167,7 +202,7 @@ async function main() {
   }
   const cpIdByKey = new Map<string, bigint>();
   for (const [key, cp] of cpKey) {
-    let row: any = null;
+    let row: { id: bigint } | null = null;
     if (cp.organizationId !== null) {
       row = await prisma.counterparty.upsert({
         where: { name_organizationId: { name: cp.name, organizationId: cp.organizationId } },
@@ -186,7 +221,7 @@ async function main() {
 
   // Lean declarations + immutable snapshots + details.
   const toDate = (s: string) => new Date(`${s}T00:00:00.000Z`);
-  for (const d of declarations as any[]) {
+  for (const d of declarations) {
     const orgPk: bigint | null = d.organizationId ?? null;
     const key = `${orgPk === null ? "" : String(orgPk)}||${String(d.counterparty).trim()}`;
     const declarerPk: bigint | null = typeof d.employeeId === "bigint" ? d.employeeId : null;
@@ -243,10 +278,10 @@ async function main() {
         fromField: d.fromField,
         contactPerson: d.contactPerson,
         biddingProcess: d.biddingProcess,
-        contractNegotiation: (d as any).contractNegotiation ?? null,
+        contractNegotiation: d.contractNegotiation ?? null,
         instances: d.instances,
         publicOfficial: d.publicOfficial,
-        substantiation: (d as any).substantiation ?? null,
+        substantiation: d.substantiation ?? null,
       },
       update: {
         description: d.description,
@@ -256,17 +291,17 @@ async function main() {
         fromField: d.fromField,
         contactPerson: d.contactPerson,
         biddingProcess: d.biddingProcess,
-        contractNegotiation: (d as any).contractNegotiation ?? null,
+        contractNegotiation: d.contractNegotiation ?? null,
         instances: d.instances,
         publicOfficial: d.publicOfficial,
-        substantiation: (d as any).substantiation ?? null,
+        substantiation: d.substantiation ?? null,
       },
     });
   }
   console.log(`Seeded ${declarations.length} declarations (+ snapshots/details)`);
 
   // Teams from declaration team strings (best-effort, under the snapshot department).
-  for (const d of declarations as any[]) {
+  for (const d of declarations) {
     if (!d.team || d.organizationId === null || d.organizationId === undefined) continue;
     const orgPk: bigint = d.organizationId;
     const dept = await prisma.department.findUnique({
@@ -301,25 +336,42 @@ async function main() {
   const { writeWorkflowStepsTx } = await import("./services/normalization");
   const { determineRuleId } = await import("./services/workflowService");
   for (const w of workflowInstances) {
-    const decl = (declarations as any[]).find((d) => d.id === w.declarationId);
-    const steps = JSON.parse(w.steps).map((s: any) => ({
+    const decl = declarations.find((d) => d.id === w.declarationId);
+    // Boundary label: legacy step JSON lives only in this seed fixture (an
+    // input to the row writers, never an application fallback). The shape is
+    // narrowed here at the parse boundary.
+    interface LegacyStepJson {
+      order: number;
+      role: string;
+      assignee?: unknown;
+      assigneeName?: unknown;
+      label: string;
+      status: string;
+      decision?: unknown;
+      notes?: unknown;
+      decidedAt?: unknown;
+      decidedById?: unknown;
+      decidedByName?: unknown;
+    }
+    const parsed = JSON.parse(w.steps) as LegacyStepJson[];
+    const steps: WorkflowStep[] = parsed.map((s) => ({
       order: s.order,
-      role: s.role,
+      role: s.role as WorkflowStep["role"],
       assignee: typeof s.assignee === "number" ? s.assignee : null,
-      assigneeName: s.assigneeName || "Unknown",
+      assigneeName: typeof s.assigneeName === "string" && s.assigneeName !== "" ? s.assigneeName : "Unknown",
       label: s.label,
-      status: s.status,
-      decision: s.decision ?? null,
+      status: s.status as WorkflowStep["status"],
+      decision: typeof s.decision === "string" ? s.decision : null,
       approvedAt: null,
-      notes: s.notes ?? "",
-      decidedAt: s.decidedAt ?? null,
+      notes: typeof s.notes === "string" ? s.notes : "",
+      decidedAt: typeof s.decidedAt === "string" ? s.decidedAt : null,
       decidedById: typeof s.decidedById === "number" ? s.decidedById : null,
-      decidedByName: s.decidedByName ?? null,
+      decidedByName: typeof s.decidedByName === "string" ? s.decidedByName : null,
     }));
     const ruleId = determineRuleId(decl?.value ?? 0, 1000, 1000);
     const target = await prisma.declaration.findUnique({ where: { id: w.declarationId }, select: { declarationPk: true } });
     if (!target) continue;
-    await prisma.$transaction(async (tx: any) => {
+    await prisma.$transaction(async (tx) => {
       await writeWorkflowStepsTx(tx, target.declarationPk, steps, ruleId);
     });
   }

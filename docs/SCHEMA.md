@@ -127,6 +127,24 @@ lookup copies were removed.
 - Values at or above `highValueThreshold` use the high-value workflow and appear in the high-value report.
 - Returned declarations are re-evaluated when saved/resubmitted; newly required approvers are added while valid completed approvals are preserved.
 - Report date filters are inclusive.
+- **Organization consistency invariant (service-level, `services/orgConsistency.ts`):**
+  whenever a user row carries an `organizationId` and references a manager,
+  both organizations must match; a `NULL` (global) value on either side is
+  always allowed. Enforced on admin user create/update (400 on violation);
+  counterparty links are structurally scoped by `ensureCounterparty`, and
+  declaration organization is derived from the caller (non-admin writes cannot
+  spoof it). Composite database FKs stay impractical while the links are
+  nullable by design, so this module plus the multi-tenant negative tests are
+  the enforcement point — route query filters alone are not trusted.
+- **Counterparty identity policy (decided):** counterparty names are unique per
+  organization, enforced by the partial unique index
+  `Counterparty_name_org_unique ... WHERE "organizationId" IS NOT NULL`
+  (migration `0006_numeric_keys`). Global (`NULL`-org) rows are explicitly
+  exempt and may share a name — they are unscoped fallback rows, not the
+  canonical registry. Concurrent scoped creates resolve via the P2002
+  re-read in `ensureCounterparty`; `pg:test` proves both halves
+  ("scoped duplicate counterparty rejected", "global same-name counterparties
+  allowed").
 
 ## Cascade behavior (Phase 5)
 

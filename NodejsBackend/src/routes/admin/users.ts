@@ -2,10 +2,12 @@ import { Router, Response } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { parseIdParam, toDbId, toJsonId } from "../../services/ids";
+import { managerOrgViolation } from "../../services/orgConsistency";
 
 const router = Router();
 const SALT_ROUNDS = 10;
@@ -134,6 +136,15 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
     }
   }
 
+  const managerPk = await resolveManagerId(data.lineManager);
+  // Organization consistency: a scoped user must not reference a manager
+  // from another organization (global managers are allowed).
+  const violation = await managerOrgViolation(managerPk, orgPk);
+  if (violation) {
+    res.status(400).json({ error: violation });
+    return;
+  }
+
   const user = await prisma.user.create({
     data: {
       name: data.name,
@@ -144,7 +155,7 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
       department: data.department,
       position: data.position,
       lineManager: data.lineManager === null || data.lineManager === undefined ? null : String(data.lineManager),
-      managerId: await resolveManagerId(data.lineManager),
+      managerId: managerPk,
       organizationId: orgPk,
     },
   });
@@ -191,7 +202,7 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     }
   }
 
-  const updateData: any = {};
+  const updateData: Prisma.UserUncheckedUpdateInput = {};
   if (data.name !== undefined) updateData.name = data.name;
   if (data.email !== undefined) updateData.email = data.email.toLowerCase();
   if (data.role !== undefined) updateData.role = data.role;
@@ -212,6 +223,18 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
       }
     }
     updateData.organizationId = orgPk;
+  }
+  // Organization consistency on the effective (post-update) links: moving a
+  // user or their manager across organizations must not strand a cross-org
+  // manager reference.
+  const effectiveOrg =
+    updateData.organizationId !== undefined ? (updateData.organizationId as bigint | null) : existing.organizationId;
+  const effectiveManager =
+    updateData.managerId !== undefined ? (updateData.managerId as bigint | null) : existing.managerId;
+  const updateViolation = await managerOrgViolation(effectiveManager, effectiveOrg);
+  if (updateViolation) {
+    res.status(400).json({ error: updateViolation });
+    return;
   }
 
   const user = await prisma.user.update({ where: { id: userPk }, data: updateData });

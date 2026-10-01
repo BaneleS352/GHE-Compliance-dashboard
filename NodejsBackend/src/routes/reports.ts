@@ -39,7 +39,7 @@ router.get("/list", authenticate, authorize("admin", "approver"), asyncHandler(a
     include: { snapshot: true, counterpartyRef: true },
   });
 
-  let result = (declarations as any[]).map((d) => ({
+  let result = declarations.map((d) => ({
     id: d.id,
     employee: d.snapshot?.declarerName || "",
     department: d.snapshot?.department || "",
@@ -84,7 +84,7 @@ router.get("/export", authenticate, authorize("admin", "approver"), asyncHandler
     { header: "Date", key: "date", width: 14 },
   ];
 
-  const rows = (declarations as any[]).map((d) => ({
+  const rows = declarations.map((d) => ({
     id: d.id,
     employee: d.snapshot?.declarerName || "",
     department: d.snapshot?.department || "",

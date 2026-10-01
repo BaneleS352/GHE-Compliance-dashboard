@@ -138,9 +138,9 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
         });
         // Same-rule instances block; untracked (null ruleId) history blocks
         // conservatively since its producing rule is unknown.
-        const hit = insts.find((i) => (i as any).ruleId === rulePk || (i as any).ruleId == null);
+        const hit = insts.find((i) => i.ruleId === rulePk || i.ruleId == null);
         if (hit) {
-          const decl = await prisma.declaration.findUnique({ where: { declarationPk: (hit as any).declarationPk }, select: { id: true } });
+          const decl = await prisma.declaration.findUnique({ where: { declarationPk: hit.declarationPk }, select: { id: true } });
           res.status(400).json({
             error: `Cannot change rule while role "${role}" has a pending step in workflow for declaration ${decl?.id}`,
           });

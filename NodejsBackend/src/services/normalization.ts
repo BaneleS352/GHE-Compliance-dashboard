@@ -1,6 +1,10 @@
+import type { Prisma, PrismaClient, WorkflowInstanceStep } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { toDbId } from "./ids";
 import type { WorkflowStep } from "./workflowService";
+
+/** Prisma client or an ambient transaction client (both expose the models). */
+export type DbClient = PrismaClient | Prisma.TransactionClient;
 
 /**
  * Normalized writers (numeric identifier cutover complete).
@@ -36,7 +40,7 @@ export function parseDateSafe(val: string | null | undefined): Date | null {
 }
 
 /** Resolve the internal numeric key for a public GHE- declaration id. */
-export async function getDeclarationPk(id: string, db: any = prisma): Promise<bigint | null> {
+export async function getDeclarationPk(id: string, db: DbClient = prisma): Promise<bigint | null> {
   const row = await db.declaration.findUnique({ where: { id }, select: { declarationPk: true } });
   return row ? (row.declarationPk as bigint) : null;
 }
@@ -45,7 +49,7 @@ export async function ensureCounterparty(
   name: string,
   organizationId: bigint | number | null,
   contactName?: string | null,
-  db: any = prisma,
+  db: DbClient = prisma,
 ): Promise<{ id: bigint } | null> {
   const clean = String(name || "").trim();
   if (!clean) return null;
@@ -64,10 +68,13 @@ export async function ensureCounterparty(
       },
       select: { id: true },
     });
-  } catch (e: any) {
+  } catch (e) {
     // P2002: unique constraint on (organizationId, name) — another request
-    // created it first; fall through to the re-read below.
-    if (e.code !== "P2002") throw e;
+    // created it first; fall through to the re-read below. The Prisma error
+    // shape is untyped here, hence the narrow boundary cast.
+    // Identity policy (see docs/SCHEMA.md): scoped names are unique per
+    // organization (partial unique index); global NULL-org names may repeat.
+    if ((e as { code?: string }).code !== "P2002") throw e;
     return await db.counterparty.findFirst({
       where: { name: clean, organizationId: org },
       select: { id: true },
@@ -79,7 +86,7 @@ export async function captureDeclarationSnapshot(
   declarationPk: bigint | number,
   declarer: { name: string; teamMemberNumber: string; position: string; department: string },
   managerDisplayName: string | null,
-  db: any = prisma,
+  db: DbClient = prisma,
   // Insert-only fast path for brand-new declarations (fresh unique key, so no
   // row can exist): skips the upsert's existence read. PUT/submit keep upsert
   // because their rows may already exist.
@@ -107,10 +114,25 @@ export async function captureDeclarationSnapshot(
   });
 }
 
+/** Transaction detail fields (camelCase DTO shape; all callers pass literals). */
+export interface DeclarationDetailData {
+  description?: string | null;
+  occasion?: string | null;
+  relationship?: string | null;
+  receivedGiven?: string | null;
+  from?: string | null;
+  contactPerson?: string | null;
+  biddingProcess?: string | null;
+  contractNegotiation?: string | null;
+  instances?: string | null;
+  publicOfficial?: string | null;
+  substantiation?: string | null;
+}
+
 export async function syncDeclarationDetail(
   declarationPk: bigint | number,
-  d: any,
-  db: any = prisma,
+  d: DeclarationDetailData,
+  db: DbClient = prisma,
   // Insert-only fast path for brand-new declarations (see captureDeclarationSnapshot).
   insertOnly = false,
 ): Promise<void> {
@@ -120,8 +142,8 @@ export async function syncDeclarationDetail(
     description: String(d.description ?? ""),
     occasion: String(d.occasion ?? ""),
     relationship: String(d.relationship ?? ""),
-    receivedGiven: String(d.receivedGiven ?? d.received_given ?? ""),
-    fromField: String(d.fromField ?? d.from ?? ""),
+    receivedGiven: String(d.receivedGiven ?? ""),
+    fromField: String(d.from ?? ""),
     contactPerson: String(d.contactPerson ?? ""),
     biddingProcess: String(d.biddingProcess ?? ""),
     contractNegotiation: d.contractNegotiation ?? null,
@@ -142,10 +164,13 @@ export async function syncDeclarationDetail(
 }
 
 /** Parse admin-supplied rule step defs (array or JSON string). */
-export function parseRuleStepDefs(raw: string | any[]): { order: number; role: string; label: string }[] {
+export function parseRuleStepDefs(raw: string | unknown[]): { order: number; role: string; label: string }[] {
   try {
-    const v = typeof raw === "string" ? JSON.parse(raw) : raw;
-    return Array.isArray(v) ? v : [];
+    const v: unknown = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (!Array.isArray(v)) return [];
+    // Boundary label: admin-supplied JSON step definitions are untyped input;
+    // the narrowed cast is contained here and write paths re-validate roles.
+    return v as { order: number; role: string; label: string }[];
   } catch {
     return [];
   }
@@ -154,12 +179,12 @@ export function parseRuleStepDefs(raw: string | any[]): { order: number; role: s
 export async function syncWorkflowRuleSteps(
   ruleId: bigint | number,
   defsInput?: { order: number; role: string; label: string }[],
-  db: any = prisma,
+  db: DbClient = prisma,
 ): Promise<number> {
   const rid = toDbId(ruleId);
   const defs = defsInput ?? [];
   const existing = await db.workflowRuleStep.findMany({ where: { ruleId: rid } });
-  const existingOrders = new Set(existing.map((s: any) => s.order));
+  const existingOrders = new Set(existing.map((s) => s.order));
   const wantedOrders = new Set(defs.map((d) => d.order));
   await Promise.all(
     defs.map((d) =>
@@ -170,9 +195,9 @@ export async function syncWorkflowRuleSteps(
       }),
     ),
   );
-  const stale = [...existingOrders].filter((o) => !wantedOrders.has(o as number));
+  const stale = [...existingOrders].filter((o) => !wantedOrders.has(o));
   if (stale.length > 0) {
-    await db.workflowRuleStep.deleteMany({ where: { ruleId: rid, order: { in: stale as number[] } } });
+    await db.workflowRuleStep.deleteMany({ where: { ruleId: rid, order: { in: stale } } });
   }
   return defs.length;
 }
@@ -205,7 +230,7 @@ function toStepRow(declarationPk: bigint, instanceId: bigint, s: WorkflowStep, v
  * rule). Must be called within an encompassing `$transaction`.
  */
 export async function writeWorkflowStepsTx(
-  tx: any,
+  tx: Prisma.TransactionClient,
   declarationPk: bigint | number,
   steps: WorkflowStep[],
   ruleId?: bigint | number | null,
@@ -222,7 +247,7 @@ export async function writeWorkflowStepsTx(
   let validUserIds = new Set<string>();
   if (ids.size > 0) {
     const users = await tx.user.findMany({ where: { id: { in: [...ids].map((v) => toDbId(v)) } }, select: { id: true } });
-    validUserIds = new Set(users.map((u: any) => String(u.id)));
+    validUserIds = new Set(users.map((u) => String(u.id)));
   }
   let instance = await tx.workflowInstance.findUnique({ where: { declarationPk: pk }, select: { id: true } });
   if (!instance) {
@@ -249,7 +274,7 @@ export async function writeWorkflowStepsTx(
     where: { instanceId: instance.id },
     select: { stepOrder: true },
   });
-  const stale = existing.map((r: any) => r.stepOrder).filter((o: number) => !wanted.has(o));
+  const stale = existing.map((r) => r.stepOrder).filter((o: number) => !wanted.has(o));
   if (stale.length > 0) {
     await tx.workflowInstanceStep.deleteMany({ where: { instanceId: instance.id, stepOrder: { in: stale } } });
   }
@@ -267,7 +292,7 @@ export async function persistWorkflowInstanceSteps(
   if (!Array.isArray(steps)) {
     throw new Error("persistWorkflowInstanceSteps requires a step array");
   }
-  await prisma.$transaction(async (tx: any) => {
+  await prisma.$transaction(async (tx) => {
     await writeWorkflowStepsTx(tx, declarationPk, steps, ruleId);
   });
 }
@@ -280,11 +305,11 @@ export async function readWorkflowStepRows(declarationPk: bigint | number): Prom
     orderBy: { stepOrder: "asc" },
   });
   if (!rows || rows.length === 0) return null;
-  return rows.map((r: any) => rowToStep(r));
+  return rows.map((r) => rowToStep(r));
 }
 
 /** Restart every BIGINT identity sequence past existing rows (call after explicit-id seeds so later autoincrement inserts never collide). PostgreSQL-only. */
-export async function resetIdentitySequences(db: any = prisma): Promise<void> {
+export async function resetIdentitySequences(db: DbClient = prisma): Promise<void> {
   const tables: [string, string][] = [
     ["Organization", "id"], ["User", "id"], ["Department", "id"], ["Team", "id"],
     ["Counterparty", "id"], ["CounterpartyContact", "id"], ["UploadedFile", "id"],

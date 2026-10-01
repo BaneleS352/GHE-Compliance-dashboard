@@ -41,7 +41,7 @@ function findActionablePendingStep(steps: WorkflowStep[], userPk: number): Workf
 router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const userPk = toDbId(req.user!.id);
   const userPkJson = toJsonId(userPk);
-  const userOrg = (req.user as any)?.organizationId as number | undefined;
+  const userOrg = req.user?.organizationId ?? undefined;
   const limitRaw = req.query.limit as string | undefined;
   const offsetRaw = req.query.offset as string | undefined;
   const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 100) : undefined;
@@ -50,11 +50,11 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
   // Direct step query: only this user's pending steps — no full-declaration
   // prefetch, no full instance scan, no per-instance sequential reads.
   // Sibling steps (for actionability) and declarations are batch-fetched.
-  const mySteps: any[] = await prisma.workflowInstanceStep.findMany({
+  const mySteps = await prisma.workflowInstanceStep.findMany({
     where: { status: "pending", assigneeId: userPk },
     select: { declarationPk: true },
   });
-  const pks: bigint[] = [...new Set(mySteps.map((s: any) => s.declarationPk as bigint))];
+  const pks: bigint[] = [...new Set(mySteps.map((s) => s.declarationPk))];
   if (pks.length === 0) {
     res.json([]);
     return;
@@ -64,7 +64,7 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
       where: { declarationPk: { in: pks } },
       orderBy: [{ declarationPk: "asc" }, { stepOrder: "asc" }],
     }),
-    prisma.declaration.findMany({ where: { declarationPk: { in: pks } }, include: declarationIncludes as any }),
+    prisma.declaration.findMany({ where: { declarationPk: { in: pks } }, include: declarationIncludes }),
   ]);
   const stepsByDecl = new Map<string, WorkflowStep[]>();
   for (const r of allRows) {
@@ -73,14 +73,14 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
     arr.push(rowToStep(r));
     stepsByDecl.set(key, arr);
   }
-  const declMap = new Map((declarations as any[]).map((d) => [String(d.declarationPk), d]));
-  const pending: any[] = [];
+  const declMap = new Map(declarations.map((d) => [String(d.declarationPk), d]));
+  const pending: { declaration: ReturnType<typeof declarationResponse>; step: WorkflowStep }[] = [];
   for (const pk of pks) {
     const key = String(pk);
     const steps = stepsByDecl.get(key) || [];
     const pendingStep = findActionablePendingStep(steps, userPkJson);
     if (!pendingStep) continue;
-    const declaration = declMap.get(key) as any;
+    const declaration = declMap.get(key);
     if (!declaration) continue;
     // Org isolation: skip cross-org pending (defense-in-depth, HR mis-assignment fallback)
     if (userOrg !== undefined && userOrg !== null && declaration.organizationId !== null && declaration.organizationId !== toDbId(userOrg)) continue;
@@ -176,7 +176,7 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
         where: { instanceId: instance.id },
         orderBy: { stepOrder: "asc" },
       });
-      const steps: WorkflowStep[] = rows.map((r: any) => rowToStep(r));
+      const steps: WorkflowStep[] = rows.map((r) => rowToStep(r));
       const currentStepIndex = steps.findIndex((s) => s.status === "pending" && s.assignee === userPkJson);
 
       if (currentStepIndex === -1) throw Object.assign(new Error("You do not have a pending approval step for this declaration"), { statusCode: 403 });

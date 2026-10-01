@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { AuthRequest } from "../middleware/auth";
 import { parseDateSafe } from "./normalization";
+import { toDbId } from "./ids";
 import { viewStatusSummary, viewSlaRows, viewCounterparty } from "./reportingViews";
 
 /**
@@ -38,15 +39,15 @@ export function buildReportWhere(req: AuthRequest): Prisma.DeclarationWhereInput
     where.status = validStatuses.includes(String(status)) ? String(status) : "__invalid_status__";
   }
   // Org isolation
-  const orgId = (req as any).user?.organizationId as number | undefined;
-  if (orgId !== undefined && orgId !== null) (where as any).organizationId = orgId;
+  const orgId = req.user?.organizationId ?? undefined;
+  if (orgId !== undefined && orgId !== null) where.organizationId = toDbId(orgId);
   return where;
 }
 
 export async function getStatusBreakdown(req: AuthRequest): Promise<Record<string, number>> {
   // Prefer the reporting view; fall back to direct aggregation.
   try {
-    const orgId = (req as any).user?.organizationId as number | undefined;
+    const orgId = req.user?.organizationId ?? undefined;
     const fromView = await viewStatusSummary(orgId ?? undefined);
     if (fromView) {
       // Views are unfiltered read models — re-apply non-org filters via the
@@ -78,15 +79,13 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
       if (rows && rows.length > 0) {
         const roleMap: Record<string, string> = { lineManager: "Line Manager", hr: "HR" };
         const byRole: Record<string, number[]> = {};
-        for (const r of rows as any[]) {
-          const decidedRaw = (r as any).decidedAt;
-          const eventRaw = (r as any).eventDate;
-          if (!decidedRaw || !eventRaw) continue;
-          const decided = new Date(decidedRaw).getTime();
-          const base = new Date(eventRaw).getTime();
+        for (const r of rows) {
+          if (!r.decidedAt || !r.eventDate) continue;
+          const decided = new Date(r.decidedAt).getTime();
+          const base = new Date(r.eventDate).getTime();
           if (Number.isNaN(decided) || Number.isNaN(base)) continue;
           const days = (decided - base) / (1000 * 60 * 60 * 24);
-          const label = roleMap[(r as any).role] || (r as any).role;
+          const label = roleMap[r.role] || r.role;
           if (!byRole[label]) byRole[label] = [];
           byRole[label].push(days);
         }
@@ -123,8 +122,8 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
   const declMap = new Map(declarations.map((d) => [String(d.declarationPk), d]));
 
   const byRole: Record<string, number[]> = {};
-  for (const s of stepRows as any[]) {
-    const d = declMap.get(String(s.declarationPk)) as any;
+  for (const s of stepRows) {
+    const d = declMap.get(String(s.declarationPk));
     if (!d || !d.eventDate || !s.decidedAt) continue;
     const decided = new Date(s.decidedAt).getTime();
     const base = new Date(d.eventDate).getTime();
@@ -154,7 +153,7 @@ export async function getCounterpartyConcentration(req: AuthRequest): Promise<an
   try {
     const { startDate, endDate, department, status } = req.query;
     if (!startDate && !endDate && !department && !status) {
-      const orgId = (req as any).user?.organizationId as number | undefined;
+      const orgId = req.user?.organizationId ?? undefined;
       const fromView = await viewCounterparty(orgId ?? undefined);
       if (fromView) return fromView;
     }
@@ -168,7 +167,7 @@ export async function getCounterpartyConcentration(req: AuthRequest): Promise<an
   });
 
   const groups: Record<string, { count: number; totalValue: number }> = {};
-  for (const d of declarations as any[]) {
+  for (const d of declarations) {
     const key = d.counterpartyRef?.name || "Unknown";
     if (!groups[key]) groups[key] = { count: 0, totalValue: 0 };
     groups[key].count++;
@@ -187,6 +186,18 @@ export async function getCounterpartyConcentration(req: AuthRequest): Promise<an
   return result;
 }
 
+interface HighValueGroup {
+  employee: string;
+  lineManager: string;
+  declarationCount: number;
+  totalValue: number;
+  averageValue: number;
+  totalGift: number;
+  totalHospitality: number;
+  totalEntertainment: number;
+  suppliers: Map<string, number>;
+}
+
 export async function getHighValueDeclarations(req: AuthRequest, config: { highValueThreshold: number }): Promise<any[]> {
   const where = buildReportWhere(req);
   where.value = { gte: config.highValueThreshold };
@@ -200,8 +211,8 @@ export async function getHighValueDeclarations(req: AuthRequest, config: { highV
     },
   });
 
-  const groups = new Map<string, any>();
-  for (const d of declarations as any[]) {
+  const groups = new Map<string, HighValueGroup>();
+  for (const d of declarations) {
     const employee = d.snapshot?.declarerName || "Unknown";
     const row = groups.get(employee) || {
       employee,
@@ -225,7 +236,7 @@ export async function getHighValueDeclarations(req: AuthRequest, config: { highV
   }
 
   return [...groups.values()].map((row) => {
-    const mostFrequentSupplier = [...row.suppliers.entries()].sort((a: any, b: any) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || "Unknown";
+    const mostFrequentSupplier = [...row.suppliers.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] || "Unknown";
     return {
       employee: row.employee,
       lineManager: row.lineManager,
@@ -267,7 +278,7 @@ export async function getReports(req: AuthRequest, config: { highValueThreshold:
     },
   });
 
-  return (declarations as any[]).map((d) => ({
+  return declarations.map((d) => ({
     id: d.id,
     employee: d.snapshot?.declarerName || "",
     department: d.snapshot?.department || "",
