@@ -32,7 +32,7 @@ SystemConfig (1 record) configures thresholds
 | passwordHash | String | bcrypt hash |
 | role | String | "admin", "approver", "teamMember" (authoritative authorization source) |
 | teamMemberNumber | String | Employee number (business code, not a key) |
-| department | String | Display/department name |
+| departmentId | BigInt? | Sole department source (`Department` FK, SetNull). The legacy `department` text column was removed in `0008_department_id_only`; display values derive from the related record. Links are not organization-constrained (master-data vocabulary); unscoped users resolve to `""` |
 | position | String | User's job position |
 | lineManager | String? | Display text only; the authoritative manager reference is `managerId` |
 | managerId | BigInt? | Self-FK to User.id (SetNull) |
@@ -140,6 +140,9 @@ lookup copies were removed.
 ## Key Business Rules
 
 - Values at or above `highValueThreshold` use the high-value workflow and appear in the high-value report.
+- HR step routing resolves through department links, deterministically ordered:
+  same-organization HR link first, then a global approver carrying an HR
+  link, then any global approver, then any HR-linked approver (`services/workflowService.ts`).
 - Returned declarations are re-evaluated when saved/resubmitted; newly required approvers are added while valid completed approvals are preserved.
 - Report date filters are inclusive.
 - **Declaration status/approver ownership (decided):** `Declaration.status`
@@ -186,4 +189,15 @@ lookup copies were removed.
 
 - Team members see only their own declarations in the list endpoint (enforced in-app, not in DB)
 - Approvers can see all declarations (no DB constraint)
-- Declaration `type`/`status`/`priority` are validated strings (zod + valid-status lists), not FK-backed references
+- Declaration `priority`, relationship/direction strings, and the Yes/No-style
+  detail fields are validated strings (zod + valid-status lists), not
+  FK-backed references
+
+## Domain integrity (enforced by DB since 0009)
+
+- `Declaration.status` ∈ Draft/Pending/Approved/Declined/Escalated/Returned
+- `Declaration.type` ∈ Gift/Hospitality/Entertainment
+- `WorkflowInstanceStep.status` ∈ pending/approved/declined/returned/skipped
+- `WorkflowInstanceStep.role` and `WorkflowRuleStep.role` ∈ lineManager/hr
+- Application validation rejects these first; the CHECK constraints defend
+  writers that reach past the API. `pg:test` proves invalid values fail.

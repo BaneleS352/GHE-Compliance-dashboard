@@ -24,7 +24,11 @@ export interface WorkflowStep {
 }
 
 export function determineRuleId(value: number, highThreshold: number, _mediumThreshold: number): bigint {
-  // 2-tier workflow: < high → LM only (rule 1), >= high → LM + HR (rule 2). mediumThreshold is legacy, kept for API compatibility.
+  // 2-tier workflow: < high → LM only (rule 1), >= high → LM + HR (rule 2).
+  // mediumThreshold is permanent read-only API compatibility: accepted,
+  // stored, and served by SystemConfig, but routing no longer uses it.
+  // Removing the field would break the config contract (see admin config
+  // round-trip tests), so it stays inert by decision, not by accident.
   if (value >= highThreshold) return 2n;
   return 1n;
 }

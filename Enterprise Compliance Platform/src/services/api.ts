@@ -138,12 +138,12 @@ export async function saveConfig(data: any): Promise<any> {
   return api.put<any>("/api/admin/config", data);
 }
 
-// ── Admin: Dropdowns ──────────────────────────────────
-export async function fetchDropdowns(): Promise<any> {
+// ── Admin: Dropdown Options (department master data + fixed domain lists) ──
+export async function fetchDropdownOptions(): Promise<any> {
   return api.get<any>("/api/admin/config/dropdowns");
 }
 
-export async function updateDropdowns(data: any): Promise<any> {
+export async function updateDropdownOptions(data: any): Promise<any> {
   return api.put<any>("/api/admin/config/dropdowns", data);
 }
 

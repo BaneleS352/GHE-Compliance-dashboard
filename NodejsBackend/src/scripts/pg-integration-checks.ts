@@ -218,7 +218,8 @@ async function main() {
   for (const [t, c] of [["User", "organizationId"], ["User", "managerId"], ["User", "departmentId"], ["User", "teamId"], ["Department", "organizationId"], ["Team", "departmentId"], ["Counterparty", "organizationId"], ["CounterpartyContact", "counterpartyId"], ["Declaration", "organizationId"], ["Declaration", "declarerUserId"], ["Declaration", "currentApproverUserId"], ["Declaration", "counterpartyId"], ["DeclarationSnapshot", "declarationPk"], ["DeclarationDetail", "declarationPk"], ["DeclarationFile", "declarationPk"], ["DeclarationFile", "fileId"], ["WorkflowRule", "organizationId"], ["WorkflowRuleStep", "ruleId"], ["WorkflowInstance", "declarationPk"], ["WorkflowInstance", "ruleId"], ["WorkflowInstanceStep", "instanceId"], ["WorkflowInstanceStep", "declarationPk"], ["WorkflowInstanceStep", "assigneeId"], ["WorkflowInstanceStep", "decidedById"]] as [string, string][]) {
     check(`FK ${t}.${c} is bigint`, idType(t, c) === "bigint", `${t}.${c}=${idType(t, c)}`);
   }
-  // Only the documented text identifiers may remain: Declaration.id is the  // public GHE-YYYY-NNNNNN reference, SystemConfig ("default") and
+  // Only the documented text identifiers may remain: Declaration.id is the
+  // public GHE-YYYY-NNNNNN reference, SystemConfig ("default") and
   // ApprovalOption ("opt-*"/"ao-*") are singleton/code-list rows outside the
   // numeric-key scope. Views are excluded (they project text columns).
   const textIdTables: { table_name: string }[] = await p.$queryRawUnsafe(
@@ -235,6 +236,14 @@ async function main() {
     JSON.stringify(textIdNames) === JSON.stringify(["ApprovalOption", "Declaration", "SystemConfig"]),
     JSON.stringify(textIdNames),
   );
+  // departmentId is the sole department source: the legacy User.department
+  // text column must be absent (removed in 0008_department_id_only).
+  const userCols: { column_name: string }[] = await p.$queryRawUnsafe(
+    `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'User'`,
+  );
+  const userColNames = userCols.map((r) => r.column_name);
+  check("User.department text column removed", !userColNames.includes("department"), JSON.stringify(userColNames));
+  check("User.departmentId link present", userColNames.includes("departmentId"), JSON.stringify(userColNames));
 
   // 1. Status summary, org-scoped.
   const expectedA: Record<string, number> = {};
@@ -311,6 +320,28 @@ async function main() {
   }
   check("step/instance declaration identity enforced", identityBlocked);
 
+  // Domain checks (0009): invalid lifecycle/category/role values fail loudly
+  // at the database, not just in application validation.
+  let badStatusBlocked = false;
+  try {
+    await p.declaration.create({ data: { id: "PG-BAD-1", type: "Gift", value: 1, status: "FlyingPig", priority: "Low" } });
+  } catch {
+    badStatusBlocked = true;
+  }
+  await p.declaration.deleteMany({ where: { id: "PG-BAD-1" } }).catch(() => undefined);
+  check("domain check blocks invalid declaration status", badStatusBlocked);
+  let badRoleBlocked = false;
+  try {
+    const inst = await p.workflowInstance.findUnique({ where: { declarationPk: pkById.get("PG-2026-0001") }, select: { id: true } });
+    await p.workflowInstanceStep.create({
+      data: { instanceId: inst!.id, declarationPk: pkById.get("PG-2026-0001")!, stepOrder: 98, role: "ceo", label: "CEO", assigneeName: "Nobody" },
+    });
+  } catch {
+    badRoleBlocked = true;
+  }
+  await p.workflowInstanceStep.deleteMany({ where: { stepOrder: 98 } }).catch(() => undefined);
+  check("domain check blocks invalid step role", badRoleBlocked);
+
   // Scoped counterparty identity on numeric keys: scoped duplicates rejected,
   // global same-name rows allowed.
   await p.organization.create({ data: { name: "PG Dup Org", shortCode: "PGD" } }).then(async (dupOrg: { id: bigint }) => {
@@ -333,8 +364,7 @@ async function main() {
     await p.organization.delete({ where: { id: dupOrg.id } }).catch(() => undefined);
   });
 
-  // Delete rules: user delete nulls declaration links (history in snapshot).
-  await p.user.delete({ where: { id: users.tmB.id } });
+  // Delete rules: user delete nulls declaration links (history in snapshot).  await p.user.delete({ where: { id: users.tmB.id } });
   const orphanDecl = await p.declaration.findUnique({ where: { id: "PG-2026-0004" } });
   check("user delete SET NULLs declarer link", orphanDecl?.declarerUserId === null);
   const orphanSnap = await p.declarationSnapshot.findFirst({ where: { declarerName: "PG TM B" } });

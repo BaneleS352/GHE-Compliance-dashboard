@@ -43,6 +43,10 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npx tsc --noEmit
+      - name: Forbid retired workflow-JSON references in active code
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          ! git grep -n -E "readWorkflowSteps[^R]|instance\.steps|JSON\.parse\([^)]*[Ss]teps" -- 'NodejsBackend/src' 'Enterprise Compliance Platform/src' ':!NodejsBackend/src/seed.ts' ':!*/__tests__/*' ':!Enterprise Compliance Platform/e2e/*' || (echo "FAIL: retired workflow-JSON reference in active code (seed/tests/e2e boundaries excluded)" && exit 1)
       - run: npm test
       - run: npm run pg:test
         env:

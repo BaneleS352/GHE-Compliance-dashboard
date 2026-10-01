@@ -1026,11 +1026,9 @@ describe("Edge-Case Tests", () => {
   });
 
   // ── CORRUPTED WORKFLOW STEPS JSON ──
-  // Skipped: Express 4 async route handlers with unhandled Promise rejections
-  // hang without response instead of returning 500. Testing this corrupts shared
-  // DB state and hangs the request, timing out the suite.
-  // The vulnerability exists: JSON.parse(instance.steps) without try/catch in:
-  //   routes/workflows.ts:23,61,96  and  routes/declarations.ts:197
+  // Retired: workflow steps are relational rows since 0005_phase5_retirement
+  // removed the JSON columns — there is no JSON.parse(instance.steps) left to
+  // corrupt. Step state is covered by the workflow regression suite instead.
 
   // ── TOKEN REUSE AFTER ROLE CHANGE ──
   describe("Token reuse after role change", () => {

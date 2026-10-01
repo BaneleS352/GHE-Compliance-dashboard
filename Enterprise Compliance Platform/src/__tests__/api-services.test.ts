@@ -6,7 +6,7 @@ import {
   fetchDashboardStats, fetchUsers, fetchUserById,
   createUser, updateUser, deleteUser,
   fetchConfig, saveConfig,
-  fetchDropdowns, updateDropdowns,
+  fetchDropdownOptions, updateDropdownOptions,
   fetchAdminDashboard,
   fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule,
   fetchPendingWorkflows, fetchWorkflowInstance, approveWorkflowStep,
@@ -212,16 +212,16 @@ describe("saveConfig", () => {
   });
 });
 
-describe("fetchDropdowns / updateDropdowns", () => {
-  it("fetchDropdowns returns dropdowns", async () => {
+describe("fetchDropdownOptions / updateDropdownOptions", () => {
+  it("fetchDropdownOptions returns dropdown options", async () => {
     mockFetch(200, { departments: ["IT", "HR"] });
-    const result = await fetchDropdowns();
+    const result = await fetchDropdownOptions();
     expect(result.departments).toEqual(["IT", "HR"]);
   });
 
-  it("updateDropdowns PUTs dropdowns", async () => {
+  it("updateDropdownOptions PUTs dropdown options", async () => {
     mockFetch(200, { departments: ["IT"] });
-    const result = await updateDropdowns({ departments: ["IT"] });
+    const result = await updateDropdownOptions({ departments: ["IT"] });
     expect(result.departments).toEqual(["IT"]);
   });
 });

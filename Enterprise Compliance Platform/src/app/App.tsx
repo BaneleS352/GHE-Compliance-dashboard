@@ -11,7 +11,7 @@ import { ApprovalDetail } from "@/app/pages/ApprovalDetail";
 import { AdminDashboard } from "@/app/pages/admin/AdminDashboard";
 import { AdminUsers } from "@/app/pages/admin/AdminUsers";
 import { AdminWorkflows } from "@/app/pages/admin/AdminWorkflows";
-import { AdminDropdowns } from "@/app/pages/admin/AdminDropdowns";
+import { AdminDropdownOptions } from "@/app/pages/admin/AdminDropdownOptions";
 import { AdminConfig } from "@/app/pages/admin/AdminConfig";
 import { AdminReports } from "@/app/pages/admin/AdminReports";
 import { AdminApprovalOptions } from "@/app/pages/admin/AdminApprovalOptions";
@@ -46,7 +46,7 @@ function AppInner() {
   }, [showSubmittedView]);
 
   const getRoleForScreen = (s: Screen): Role =>
-    s === "admin-dashboard" || s === "admin-users" || s === "admin-workflows" || s === "admin-dropdowns" || s === "admin-config" || s === "admin-reports" || s === "admin-approval-options" ? "admin"
+    s === "admin-dashboard" || s === "admin-users" || s === "admin-workflows" || s === "admin-dropdown-options" || s === "admin-config" || s === "admin-reports" || s === "admin-approval-options" ? "admin"
     : s === "approver-dashboard" || s === "approval-queue" || s === "approval-detail" ? "approver"
     : "teamMember";
 
@@ -108,7 +108,7 @@ function AppInner() {
         {screen === "admin-dashboard" && <AdminDashboard onNavigate={guardedNavigate} />}
         {screen === "admin-users" && <AdminUsers />}
         {screen === "admin-workflows" && <AdminWorkflows />}
-        {screen === "admin-dropdowns" && <AdminDropdowns />}
+        {screen === "admin-dropdown-options" && <AdminDropdownOptions />}
         {screen === "admin-config" && <AdminConfig />}
         {screen === "admin-reports" && <AdminReports />}
         {screen === "admin-approval-options" && <AdminApprovalOptions />}

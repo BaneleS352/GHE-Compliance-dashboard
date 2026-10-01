@@ -11,7 +11,7 @@ export type Screen =
   | "admin-users"
   | "admin-workflows"
   | "admin-config"
-  | "admin-dropdowns"
+  | "admin-dropdown-options"
   | "admin-reports"
   | "admin-approval-options";
 
@@ -126,7 +126,7 @@ export interface SystemConfig {
   notificationTemplates: string;
 }
 
-export interface Dropdowns {
+export interface DropdownOptions {
   departments: string[];
   categories: string[];
   occasions: string[];

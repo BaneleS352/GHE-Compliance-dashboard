@@ -55,7 +55,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: Screen) => void
             {[
               { label: "User Management", desc: "Add, edit, or remove system users and roles.", screen: "admin-users" as Screen },
               { label: "Workflow Config", desc: "Setup conditional routing and approver tiers.", screen: "admin-workflows" as Screen },
-              { label: "Dropdown Data", desc: "Manage categories, occasions, and departments.", screen: "admin-dropdowns" as Screen },
+              { label: "Dropdown Options", desc: "Manage categories, occasions, and departments.", screen: "admin-dropdown-options" as Screen },
               { label: "System Config", desc: "Update compliance thresholds and configuration.", screen: "admin-config" as Screen },
             ].map((link, idx) => (
               <div key={idx}

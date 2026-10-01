@@ -207,7 +207,7 @@ test.describe("Admin — User Management", () => {
     await app.assertVisible('aside nav button:has-text("Dashboard")');
     await app.assertVisible('aside nav button:has-text("Users")');
     await app.assertVisible('aside nav button:has-text("Workflows")');
-    await app.assertVisible('aside nav button:has-text("Dropdowns")');
+    await app.assertVisible('aside nav button:has-text("Dropdown Options")');
     await app.assertVisible('aside nav button:has-text("Config")');
     await app.assertVisible('aside nav button:has-text("Reports")');
   });

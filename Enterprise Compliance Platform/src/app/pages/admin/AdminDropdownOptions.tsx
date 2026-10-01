@@ -4,9 +4,9 @@ import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { THead } from "../../components/THead";
 import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
-import { fetchDropdowns, updateDropdowns } from "../../../services/api";
+import { fetchDropdownOptions, updateDropdownOptions } from "../../../services/api";
 
-export function AdminDropdowns() {
+export function AdminDropdownOptions() {
   const [activeTab, setActiveTab] = useState("departments");
   const [data, setData] = useState<Record<string, string[]>>({});
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
@@ -15,7 +15,7 @@ export function AdminDropdowns() {
 
   const tabs = Object.keys(data) as (keyof typeof data)[];
 
-  useEffect(() => { fetchDropdowns().then(setData).catch((err: Error) => setError(err.message)); }, []);
+  useEffect(() => { fetchDropdownOptions().then(setData).catch((err: Error) => setError(err.message)); }, []);
 
   const currentList = data[activeTab] || [];
 
@@ -26,7 +26,7 @@ export function AdminDropdowns() {
     const updated = { ...data, [activeTab]: [...currentList, item] };
     setData(updated);
     try {
-      await updateDropdowns(updated);
+      await updateDropdownOptions(updated);
     } catch (err: any) {
       setData(prev);
       setError(err.message || "Failed to add item.");
@@ -46,7 +46,7 @@ export function AdminDropdowns() {
     const updated = { ...data, [activeTab]: list };
     setData(updated);
     try {
-      await updateDropdowns(updated);
+      await updateDropdownOptions(updated);
       setEditingIdx(null);
     } catch (err: any) {
       setData(prev);
@@ -61,7 +61,7 @@ export function AdminDropdowns() {
     const updated = { ...data, [activeTab]: list };
     setData(updated);
     try {
-      await updateDropdowns(updated);
+      await updateDropdownOptions(updated);
     } catch (err: any) {
       setData(prev);
       setError(err.message || "Failed to delete item.");
@@ -70,7 +70,7 @@ export function AdminDropdowns() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Dropdown Data Configuration" subtitle="Manage the options available in the declaration form dropdowns." />
+      <PageHeader title="Dropdown Options Configuration" subtitle="Manage the options available in the declaration form dropdowns." />
 
       <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
         {tabs.map((tab) => (

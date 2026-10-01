@@ -26,7 +26,7 @@ export function Sidebar({
           { screen: "admin-dashboard" as Screen, icon: Home,     label: "Dashboard" },
           { screen: "admin-users"     as Screen, icon: Users,    label: "Users" },
           { screen: "admin-workflows" as Screen, icon: Activity, label: "Workflows" },
-          { screen: "admin-dropdowns" as Screen, icon: List,     label: "Dropdowns" },
+          { screen: "admin-dropdown-options" as Screen, icon: List,     label: "Dropdown Options" },
           { screen: "admin-config"    as Screen, icon: Settings, label: "Config" },
           { screen: "admin-reports"   as Screen, icon: FileText, label: "Reports" },
           { screen: "admin-approval-options" as Screen, icon: CheckCircle2, label: "Approval Options" },

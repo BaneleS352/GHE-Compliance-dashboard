@@ -99,7 +99,7 @@ For production, replace local disk storage with S3-compatible storage:
 | P1 | Add ownership check on GET /:id for team members |
 | P1 | Validate JWT role against DB on each request |
 | P2 | Add cascade delete for files on declaration delete |
-| P2 | Add try/catch on JSON.parse(instance.steps) |
+| P2 | ~~Add try/catch on JSON.parse(instance.steps)~~ — resolved: workflow steps are relational rows, nothing parses step JSON (migration `0005_phase5_retirement` dropped the columns) |
 | P2 | Validate lineManager before submit |
 
 ### 6. Additional Production Config

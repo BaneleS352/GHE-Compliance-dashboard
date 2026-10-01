@@ -155,6 +155,8 @@ model Declaration {
   // Internal numeric key. All normalized child tables reference this, never
   // the public text id.
   declarationPk       BigInt   @unique @default(autoincrement())
+  // Domain CHECKs live in migration 0009_domain_checks: status and type are
+  // database-enforced value sets, not free text.
   type                String
   value               Float
   status              String
@@ -264,6 +266,7 @@ model WorkflowRuleStep {
   id     BigInt @id @default(autoincrement())
   ruleId BigInt
   order  Int
+  // Domain CHECK in 0009_domain_checks: 'lineManager' | 'hr'.
   role   String
   label  String
 
@@ -296,6 +299,8 @@ model WorkflowInstanceStep {
   instanceId    BigInt
   declarationPk BigInt
   stepOrder     Int
+  // Domain CHECKs in 0009_domain_checks: role and status are
+  // database-enforced value sets, not free text.
   role          String
   label         String
   assigneeId    BigInt?
