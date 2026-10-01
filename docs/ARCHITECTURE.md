@@ -84,7 +84,7 @@ Express API (port 3001)
 | Workflow | Relational step/instance rows | Auditable per-declaration step history; no JSON fallback |
 | Notifications | Validated templates + email webhook | Provider-independent delivery with safe development logging |
 | Theme | Centralised `theme.ts` + CSS variables | Single source of truth for colours, gradients, status/priority maps |
-| Docker | Multi-stage builds | Frontend container port 80 published on host port 3000; backend port 3001; PostgreSQL port 5432; backend image swaps SQLite provider to PostgreSQL
+| Docker | Multi-stage builds | Frontend container port 80 published on host port 3000; backend port 3001; PostgreSQL port 5432; PostgreSQL is the only provider (no provider rewriting) — versioned migrations run via `prisma migrate deploy` |
 
 ## Authentication Flow
 

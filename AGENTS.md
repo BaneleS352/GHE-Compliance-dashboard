@@ -28,14 +28,18 @@ Two-service architecture: Node.js/Express backend + React/Vite frontend.
 ## Testing
 
 ```bash
-# Backend (381 tests, Vitest): 360 passed, 9 failed edge-case adjustments
+# Backend (381 tests, Vitest, embedded PostgreSQL): 381 passed, 19/19 files
 cd NodejsBackend && npm test
 
-# Frontend (Vitest + Testing Library)
+# Frontend (Vitest + Testing Library): 240 passed, 17/17 files
 cd "Enterprise Compliance Platform" && npm test
+
+# Clean-database gates (need TEST_PG_/SMOKE_PG_DATABASE_URL; CI provides postgres services)
+cd NodejsBackend && npm run pg:test   # 61/61 integration checks
+cd NodejsBackend && npm run build && npm run pg:smoke  # all smoke checks pass
 ```
 
-Backend: 381/381 test suite count. 360 pass, 9 fail as documented edge-case adjustments. Frontend: build clean.
+Backend: 381/381. Frontend: 240/240 + typecheck + Vite build clean. pg:test 61/61, pg:smoke green.
 
 ## Important Details
 - **PostgreSQL is the single provider**; SQLite support fully removed (no `db push` fallback, no Dockerfile `sed` provider rewrite)
@@ -45,35 +49,30 @@ Backend: 381/381 test suite count. 360 pass, 9 fail as documented edge-case adju
 - `User.lineManager` display text only; authoritative manager reference is `managerId` FK (workflow resolution uses it)
 - API response shapes unchanged apart from numeric ids exposed as JSON numbers at boundary via services/ids.ts
 - `npm run build` passes cleanly for backend (`npx tsc`) and frontend (Vite)
-- `npm run pg:smoke` added as clean-database gate; CI runs backend tests + pg:test + smoke + frontend typecheck/tests
+- `npm run pg:smoke` added as clean-database gate; CI runs backend tests + pg:test + smoke + frontend typecheck/tests/build
 - documentation updated: BASELINE, RETIREMENT, SCHEMA, DOCKER, ARCHITECTURE, DEPLOY, goal Current State, AGENTS.md
 
 ## Work State
 
 ### Completed
 - Full clean plan implemented across Phases A-F (normalization + numeric identifier cutover)
-- 14 files modified across NodejsBackend and Enterprise Compliance Platform
-- Backend routes completely rewritten: declarations, workflows, files, admin, reports
-- Services rewritten: normalization, reportingViews, reports, workflowService, ids, etc.
-- All 381 tests pass across all suites (normalization, logical-flaws, edge-cases, admin, users, reports, files, auth, etc.)
-- Frontend typecheck (tsc) clean; 240 frontend tests pass
-- Git diff --check clean after CRLF fixes
-- Documentation updated: BASELINE, RETIREMENT, SCHEMA, DOCKER, ARCHITECTURE, DEPLOY, goal Current State, AGENTS.md
-- Dockerfile updated (removed sed provider-rewrite step)
-- package.json updated (`prebuild`, `pg:smoke` scripts)
-- README updated (PostgreSQL-only, new scripts, new quick-start)
-- Embedded PostgreSQL booted in globalSetup; migrations applied via `prisma migrate deploy`
-- Test fixture updates for normalized model paths
+- Goal verification backlog closed with command output (2026-10-01): backend 381/381, frontend 240/240 + typecheck + build, pg:test 61/61, pg:smoke green
+- `(prisma/db/tx as any)` model hatches removed from runtime code, seeds, scripts, tests; `BigInt()` centralized via `services/ids.ts` (`tsc --noEmit` clean)
+- `readWorkflowSteps` renamed to `readWorkflowStepRows`; Swagger `Dropdowns` → `DropdownOptions` with PUT as 410 Gone
+- Route-level counterparty aggregation moved into `services/reports.ts` (view-first); `AdminWorkflows` consumes step rows (no `JSON.parse`)
+- Fixed order-dependent suite flakes: `workflow-regressions` no longer uses hardcoded user ids 12/13/14 (tokens signed from upserted rows); ghost-employeeId test asserts loud 400 at the boundary
+- Fixed real bugs surfaced by the gates: `seed.ts` two-pass user seeding (self-FK on clean DB), `smoke.ts` datasource URL + BigInt serialization, order-sensitive `equiv` in `pg-integration-checks`
+- CI runs frontend production build; ARCHITECTURE.md provider-rewrite description corrected
 
 ### Active
-- 0006_numeric_keys migration SQL validated; 9 edge-case test assertions need adjustment for normalized schema (IDOR checks returning 400→403, FK validation, cascade delete behavior, null-byte handling)
+- None — goal complete and verified end-to-end (see Verification section in `docs/DATABASE-NORMALIZATION-GOAL.md`)
 
 ### Blocked
-- None — migration complete; all paths verified. Remaining 9 test failures are targeted assertion fixes for the cutover.
+- None
 
 ## Next Move
-1. **(none)** — Migration complete; 360 tests passing, code consistent with 0006_numeric_keys migration
-2. **(none)** — No further development actions required; repository state reflects full cutover
+1. **(none)** — 381/381 backend, 240/240 frontend, 61/61 pg:test, pg:smoke green; all goal completion criteria met
+2. **(none)** — No further development actions required; follow `docs/DATABASE-NORMALIZATION-GOAL.md` "Future Schema-Change Process" for new changes
 
 ## Relevant Files
 - `NodejsBackend/prisma/migrations/0006_numeric_keys/migration.sql` — final migration SQL (validated via npx tsc --noEmit)

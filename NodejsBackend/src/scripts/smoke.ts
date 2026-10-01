@@ -174,7 +174,9 @@ async function main() {
     check("dropdowns from master data", dropdowns.status === 200 && Array.isArray(dropdowns.body?.departments));
 
     // Integrity assertions (db:verify successor — no legacy mirror remains).
-    const prisma = new PrismaClient();
+    // Explicit datasource: this process's own DATABASE_URL is the developer
+    // database, not the disposable smoke database.
+    const prisma = new PrismaClient({ datasourceUrl: url });
     try {
       const [decls, snaps, details, instances, steps] = await Promise.all([
         prisma.declaration.count(),
@@ -191,7 +193,7 @@ async function main() {
                 (SELECT COUNT(*) FROM "Declaration" d LEFT JOIN "User" u ON u."id" = d."declarerUserId" WHERE d."declarerUserId" IS NOT NULL AND u."id" IS NULL) AS du,
                 (SELECT COUNT(*) FROM "WorkflowInstanceStep" s LEFT JOIN "WorkflowInstance" w ON w."id" = s."instanceId" WHERE w."id" IS NULL) AS st`,
       );
-      check("no dangling FK references", Number(dangling[0].cp) === 0 && Number(dangling[0].du) === 0 && Number(dangling[0].st) === 0, JSON.stringify(dangling[0]));
+      check("no dangling FK references", Number(dangling[0].cp) === 0 && Number(dangling[0].du) === 0 && Number(dangling[0].st) === 0, JSON.stringify({ cp: Number(dangling[0].cp), du: Number(dangling[0].du), st: Number(dangling[0].st) }));
       const monthly: any[] = await prisma.$queryRawUnsafe(`SELECT COUNT(*) AS n FROM "v_declarations_monthly"`);
       check("reporting views serve rows", Number(monthly[0].n) > 0);
     } finally {

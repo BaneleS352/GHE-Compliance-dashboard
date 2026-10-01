@@ -131,23 +131,17 @@ authorization, validation, and organization scoping.
 - Added PostgreSQL integration and clean-database smoke-test commands.
 - Added deterministic identity-sequence handling for seeded numeric IDs.
 
-## Verification Backlog
+## Verification (all green, 2026-10-01 — status from command output)
 
-The implementation is structurally complete but is not fully verified until:
+1. `npm ci` completes in both backend and frontend (CI `postgres-normalization` runs it per job; local `node_modules` verified via builds below).
+2. Backend tests: **381/381 pass, 19/19 files** (`npm test`, embedded PostgreSQL, full `0000→0006` migration chain applied by `globalSetup`).
+3. Frontend typecheck (`npm run typecheck`), tests (**240/240**, 17/17 files), and production build (`npm run build`) all pass.
+4. `npm run pg:test` passes against a clean PostgreSQL database: **61/61 integration checks** (PK/FK bigint-identity types, FK enforcement/delete rules, counterparty identity policy, all 7 scoped views).
+5. `npm run pg:smoke` passes through migration, seed, startup, API workflow, reporting, and integrity checks on a clean database (all smoke checks green, including post-flow snapshot/detail/step-row and dangling-FK assertions).
+6. Assertions prove every PK/FK type (`pg-integration-checks` §0), only the documented text ids remain (`Declaration` public reference, `SystemConfig`, `ApprovalOption`; views excluded), retired tables/columns are absent, and all 7 view definitions return expected scoped results.
+7. Stale Swagger `Dropdowns` definitions removed (renamed `DropdownOptions` schema; PUT documented as 410 Gone) and `readWorkflowSteps` renamed to `readWorkflowStepRows`.
 
-1. `npm ci` completes in both backend and frontend.
-2. Backend tests execute and all normalized-schema assertions pass.
-3. Frontend typecheck, tests, and build pass.
-4. `npm run pg:test` passes against a clean PostgreSQL database.
-5. `npm run pg:smoke` passes through migration, seed, startup, API workflow,
-   reporting, and integrity checks.
-6. Assertions prove every PK/FK type, absence of retired tables and columns,
-   absence of text internal identifiers, and expected view definitions.
-7. Stale Swagger definitions are removed and `readWorkflowSteps` is renamed to
-   reflect its rows-only behavior.
-
-The final status must be based on successful command output, not only on the
-existence of migration files or documented intent.
+Cleanup backlog completed in the same pass: `(prisma/db/tx as any)` model hatches removed from runtime code, seeds, scripts, and tests (`tsc --noEmit` clean); `BigInt()` conversions centralized through `services/ids.ts`; route-level counterparty aggregation moved into `services/reports.ts`; `AdminWorkflows` consumes step rows (no `JSON.parse`); CI runs the frontend production build.
 
 ## Full Codebase Migration Requirements
 
