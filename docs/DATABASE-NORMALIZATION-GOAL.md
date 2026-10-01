@@ -291,6 +291,10 @@ The following items remain after the current audit:
   `TEST_PG_DATABASE_URL` path or fixing the embedded PostgreSQL initialization
   directory/token setup. Do not report backend tests as locally verified until
   this is resolved.
+- Resolve the Windows Prisma engine-lock failure observed during `npm run
+  build` (`EPERM` while replacing `query_engine-windows.dll.node`). Confirm
+  that the documented build/test workflow works with no stale Node/Prisma
+  process holding the generated engine.
 - Replace unnecessary runtime `as any` casts in declaration, workflow, user,
   report, admin, and notification code with Prisma select/include types and
   explicit DTO types. Keep casts only at genuine untyped boundaries and label
@@ -316,12 +320,23 @@ The following items remain after the current audit:
 - Reconcile the uploaded-file orphan policy with the nullable `UploadedFile`
   relation and add expiry/cleanup behavior if temporary unattached uploads are
   intentional.
+- Restore the user-delete integration assertion. The current integration
+  script has the `await user.delete(...)` call embedded in a comment, so it
+  does not actually verify `SET NULL` declaration links or preservation of the
+  immutable snapshot.
+- Remove local credential drift from tracked configuration. `.env` must not
+  switch to ad hoc administrator credentials; use ignored local secrets and a
+  consistent `.env.example`/Docker/test setup.
 
 ### Medium priority
 
 - Remove or rewrite stale deployment guidance, especially the instruction to
   add error handling around `JSON.parse(instance.steps)` when workflow steps
   are now relational rows.
+- Update architecture and schema documentation that still describes the
+  removed `User.department` field or says organization relationships are not
+  constrained. Current documentation must describe the actual normalized
+  contract and its tenant-boundary guarantees.
 - Remove active frontend/backend API naming that still presents the retired
   generic `Dropdowns` concept, unless it is deliberately retained as a
   compatibility label. `fetchDropdowns`, the admin screen name, and related
@@ -334,6 +349,11 @@ The following items remain after the current audit:
   status and workflow state.
 - Add explicit tenant-boundary, delete-retention, duplicate-workflow-identity,
   date/timezone, numeric-range, and file-lifecycle tests.
+- Add negative tests for cross-organization user/department/team,
+  declaration/declarer, counterparty, workflow-rule, and approver references.
+- Add tests proving `Declaration.status` and `currentApproverUserId` cannot
+  diverge from workflow step state, including the guarded administrative
+  override path.
 - Re-run a repository-wide search for retired names after cleanup and add a CI
   check for forbidden runtime references. Historical migration comments may
   remain, but active routes, services, frontend code, and current deployment
