@@ -146,13 +146,18 @@ async function main() {
   }
   console.log(`Seeded ${organizations.length} organizations`);
 
-  // Users first, then department links (org-scoped master data; global
-  // users stay unscoped).
-  // Two passes: identity rows first with managerId unset, then the
-  // authoritative manager links. A single pass violates the User_manager_fk
-  // self-reference on a clean database (the manager row may not exist yet);
-  // the old code only worked when re-seeding over existing rows.
+  // Users: departmentId is the sole department source, so master rows come
+  // first, then identity rows (managerId unset — the self-FK target may not
+  // exist yet on a clean database), then the authoritative manager links.
+  // Global (null-org) users cannot link the org-scoped Department table and
+  // keep a null departmentId.
+  const { resolveDepartmentId } = await import("./services/normalization");
+  const deptIdByUser = new Map<bigint, bigint | null>();
   for (const u of users) {
+    deptIdByUser.set(u.id, await resolveDepartmentId(u.department, u.organizationId));
+  }
+  for (const u of users) {
+    const { department: _dept, ...rest } = u;
     await prisma.user.upsert({
       where: { id: u.id },
       update: {
@@ -160,34 +165,19 @@ async function main() {
         email: u.email,
         role: u.role,
         teamMemberNumber: u.teamMemberNumber,
-        department: u.department,
+        departmentId: deptIdByUser.get(u.id) ?? null,
         position: u.position,
         lineManager: u.lineManager,
         managerId: null,
         organizationId: u.organizationId,
       },
-      create: { ...u, managerId: null, passwordHash },
+      create: { ...rest, departmentId: deptIdByUser.get(u.id) ?? null, managerId: null, passwordHash },
     });
   }
   for (const u of users) {
     if (u.managerId !== null && u.managerId !== undefined) {
       await prisma.user.update({ where: { id: u.id }, data: { managerId: u.managerId } });
     }
-  }
-  for (const u of users) {
-    let departmentPk: bigint | null = null;
-    if (u.organizationId !== null && u.department) {
-      const dept = await prisma.department.upsert({
-        where: { organizationId_name: { organizationId: u.organizationId, name: u.department } },
-        create: { organizationId: u.organizationId, name: u.department },
-        update: {},
-      });
-      departmentPk = dept.id;
-    }
-    await prisma.user.update({
-      where: { id: u.id },
-      data: { departmentId: departmentPk },
-    });
   }
   console.log(`Seeded ${users.length} users`);
 

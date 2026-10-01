@@ -21,12 +21,15 @@ router.get("/managers", authenticate, asyncHandler(async (req: AuthRequest, res:
   // Global managers (organizationId null) are visible to all orgs
   const managers = await prisma.user.findMany({
     where,
-    select: { id: true, name: true, email: true, position: true, department: true, organizationId: true },
+    select: { id: true, name: true, email: true, position: true, departmentRef: { select: { name: true } }, organizationId: true },
     orderBy: { name: "asc" },
   });
   res.json(managers.map((m) => ({
-    ...m,
     id: toJsonId(m.id),
+    name: m.name,
+    email: m.email,
+    position: m.position,
+    department: m.departmentRef?.name ?? "",
     organizationId: m.organizationId === null ? null : toJsonId(m.organizationId),
   })));
 }));
@@ -38,8 +41,8 @@ router.get("/departments", authenticate, asyncHandler(async (req: AuthRequest, r
     const departments = await prisma.department.findMany({ select: { name: true }, orderBy: { name: "asc" } }).catch(() => []);
     const names = departments.map((d) => d.name);
     if (names.length > 0) { res.json(names); return; }
-    const users = await prisma.user.findMany({ select: { department: true } });
-    res.json(Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort());
+    const users = await prisma.user.findMany({ select: { departmentRef: { select: { name: true } } } });
+    res.json(Array.from(new Set(users.map((u) => u.departmentRef?.name).filter((n): n is string => Boolean(n)))).sort());
     return;
   }
   const orgPk = parseIdParam(orgRaw);
@@ -54,8 +57,8 @@ router.get("/departments", authenticate, asyncHandler(async (req: AuthRequest, r
   }).catch(() => []);
   let names = departments.map((d) => d.name);
   if (names.length === 0) {
-    const users = await prisma.user.findMany({ where: { organizationId: orgPk }, select: { department: true } });
-    names = Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort();
+    const users = await prisma.user.findMany({ where: { organizationId: orgPk }, select: { departmentRef: { select: { name: true } } } });
+    names = Array.from(new Set(users.map((u) => u.departmentRef?.name).filter((n): n is string => Boolean(n)))).sort();
   }
   res.json(names);
 }));
@@ -71,7 +74,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(404).json({ error: "User not found" });
     return;
   }
-  const user = await prisma.user.findUnique({ where: { id: userPk } });
+  const user = await prisma.user.findUnique({ where: { id: userPk }, include: { departmentRef: true } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -90,7 +93,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     email: user.email,
     role: user.role,
     teamMemberNumber: user.teamMemberNumber,
-    department: user.department,
+    department: user.departmentRef?.name ?? "",
     position: user.position,
     lineManager: user.lineManager,
     organizationId: user.organizationId === null ? null : toJsonId(user.organizationId),

@@ -54,16 +54,23 @@ export async function createWorkflowSteps(_declarationPk: bigint | string | numb
   const employee = await prisma.user.findUnique({ where: { id: toDbId(employeeId) } });
   if (!employee) throw new Error("Employee not found");
 
-  // HR is global (organizationId null) — try same-org HR first, fallback to global, then any HR
+  // HR resolution order (deterministic): same-organization HR link first,
+  // then a global approver carrying an HR link, then any global approver,
+  // then any HR-linked approver. departmentId is the sole department source
+  // — there is no text fallback. Global (unscoped) users cannot link the
+  // organization-scoped Department table, hence the unlinked global fallback.
   let hrUser: User | null = null;
   if (employee.organizationId !== null && employee.organizationId !== undefined) {
-    hrUser = await prisma.user.findFirst({ where: { role: "approver", department: "HR", organizationId: employee.organizationId } });
+    hrUser = await prisma.user.findFirst({ where: { role: "approver", organizationId: employee.organizationId, departmentRef: { name: "HR" } }, orderBy: { id: "asc" } });
   }
   if (!hrUser) {
-    hrUser = await prisma.user.findFirst({ where: { role: "approver", department: "HR", organizationId: null } });
+    hrUser = await prisma.user.findFirst({ where: { role: "approver", organizationId: null, departmentRef: { name: "HR" } }, orderBy: { id: "asc" } });
   }
   if (!hrUser) {
-    hrUser = await prisma.user.findFirst({ where: { role: "approver", department: "HR" } });
+    hrUser = await prisma.user.findFirst({ where: { role: "approver", organizationId: null }, orderBy: { id: "asc" } });
+  }
+  if (!hrUser) {
+    hrUser = await prisma.user.findFirst({ where: { role: "approver", departmentRef: { name: "HR" } }, orderBy: { id: "asc" } });
   }
 
   const steps: WorkflowStep[] = [];
@@ -216,7 +223,7 @@ export function declarationResponse(d: DeclarationWithRelations) {
     teamMemberNumber: snap?.employeeNumber ?? declarer?.teamMemberNumber ?? "",
     lineManager: snap?.managerDisplayName ?? "",
     position: snap?.positionTitle ?? declarer?.position ?? "",
-    department: snap?.department ?? declarer?.department ?? "",
+    department: snap?.department ?? declarer?.departmentRef?.name ?? "",
     company: d.organization?.name ?? declarer?.organization?.name ?? null,
     team: declarer?.team?.name ?? null,
     type: d.type,
@@ -249,7 +256,7 @@ export const declarationIncludes = {
   snapshot: true,
   detail: true,
   counterpartyRef: true,
-  declarer: { include: { team: true, organization: true } },
+  declarer: { include: { team: true, organization: true, departmentRef: true } },
   currentApprover: true,
   organization: true,
   fileLinks: { include: { file: true } },

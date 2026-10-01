@@ -88,12 +88,28 @@ export async function setup() {
   const hash = bcrypt.hashSync("password", 10);
 
   // Numeric fixture ids (shared with helpers.ts tokens).
+  // Fixture organization exists only to host Department master rows:
+  // departmentId is the sole department source, and the HR routing resolves
+  // through department links. Fixture users stay organization-less (null org)
+  // exactly like before, so declaration scoping behavior is unchanged; they
+  // link the shared master rows for display and HR routing.
+  const { resolveDepartmentId } = await import("../services/normalization");
+  const fixtureOrg = await prisma.organization.upsert({
+    where: { shortCode: "TST" },
+    update: { name: "Test Organisation" },
+    create: { name: "Test Organisation", shortCode: "TST" },
+  });
+  const deptByName = new Map<string, bigint>();
+  for (const name of ["IT", "Marketing", "HR"]) {
+    const id = await resolveDepartmentId(name, fixtureOrg.id);
+    if (id !== null) deptByName.set(name, id);
+  }
   await prisma.user.createMany({
     data: [
-      { id: 1n, name: "Admin User", email: "admin@test.com", passwordHash: hash, role: "admin", teamMemberNumber: "ADM-001", department: "IT", position: "System Admin", lineManager: null },
-      { id: 2n, name: "Sipho Approver", email: "sipho@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: null },
-      { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: null },
-      { id: 4n, name: "Nomvula Team", email: "nomvula@test.com", passwordHash: hash, role: "teamMember", teamMemberNumber: "TM-001", department: "Marketing", position: "Brand Manager", lineManager: "Sipho Approver" },
+      { id: 1n, name: "Admin User", email: "admin@test.com", passwordHash: hash, role: "admin", teamMemberNumber: "ADM-001", departmentId: deptByName.get("IT"), position: "System Admin", lineManager: null },
+      { id: 2n, name: "Sipho Approver", email: "sipho@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-001", departmentId: deptByName.get("Marketing"), position: "Line Manager", lineManager: null },
+      { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-002", departmentId: deptByName.get("HR"), position: "Head of HR", lineManager: null },
+      { id: 4n, name: "Nomvula Team", email: "nomvula@test.com", passwordHash: hash, role: "teamMember", teamMemberNumber: "TM-001", departmentId: deptByName.get("Marketing"), position: "Brand Manager", lineManager: "Sipho Approver" },
     ],
   });
   // Normalized user links (manager FK).

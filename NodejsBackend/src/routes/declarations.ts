@@ -297,7 +297,7 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   const [declarerRow, approverRow] = await Promise.all([
     employeePk === callerPk
       ? Promise.resolve({ id: callerPk, name: req.user!.name })
-      : prisma.user.findUnique({ where: { id: employeePk }, select: { id: true, name: true } }),
+      : prisma.user.findUnique({ where: { id: employeePk }, select: { id: true, name: true, departmentRef: { select: { name: true } } } }),
     data.approverId !== undefined
       ? toDbId(data.approverId) === callerPk
         ? Promise.resolve({ id: callerPk })
@@ -306,6 +306,12 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   ]);
   const declarerUserId: bigint | null = declarerRow?.id || null;
   const txApproverUserId: bigint | null = approverRow?.id || null;
+  // Snapshot department is server-resolved: the declarer's own derived
+  // department for self-declarations, else their departmentId link. The
+  // client-supplied string is a legacy fallback for unlinked declarers only.
+  const snapshotDepartment =
+    (employeePk === callerPk ? req.user!.department : declarerRow && "departmentRef" in declarerRow ? declarerRow.departmentRef?.name : undefined) ||
+    data.department;
 
   // Single transaction: lean declaration row, canonical DateTime columns and
   // links, immutable snapshot, detail rows, and the counterparty identity

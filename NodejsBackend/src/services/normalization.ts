@@ -45,6 +45,46 @@ export async function getDeclarationPk(id: string, db: DbClient = prisma): Promi
   return row ? row.declarationPk : null;
 }
 
+/**
+ * Resolve a department display name to its organization-scoped Department
+ * row, creating the master-data row when the organization is known.
+ * departmentId is the sole department source of truth: callers store the
+ * returned key and derive display names from the relation, never the input
+ * string. A null/empty name or a null organization resolves to null (global
+ * users cannot link the organization-scoped Department table).
+ */
+export async function resolveDepartmentId(
+  name: string | null | undefined,
+  organizationId: bigint | number | null | undefined,
+  db: DbClient = prisma,
+): Promise<bigint | null> {
+  const clean = String(name || "").trim();
+  if (!clean) return null;
+  if (organizationId === null || organizationId === undefined) return null;
+  const org = toDbId(organizationId);
+  const existing = await db.department.findFirst({
+    where: { name: clean, organizationId: org },
+    select: { id: true },
+  });
+  if (existing) return existing.id;
+  try {
+    const created = await db.department.create({
+      data: { name: clean, organizationId: org },
+      select: { id: true },
+    });
+    return created.id;
+  } catch (e) {
+    // P2002: unique constraint on (organizationId, name) — another request
+    // created it first; fall through to the re-read below.
+    if ((e as { code?: string }).code !== "P2002") throw e;
+    const retry = await db.department.findFirst({
+      where: { name: clean, organizationId: org },
+      select: { id: true },
+    });
+    return retry ? retry.id : null;
+  }
+}
+
 export async function ensureCounterparty(
   name: string,
   organizationId: bigint | number | null,

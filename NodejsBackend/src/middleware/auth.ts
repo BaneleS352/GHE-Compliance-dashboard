@@ -75,13 +75,15 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       return;
     }
     try {
-      const dbUser = await prisma.user.findUnique({ where: { id: dbId }, select: { role: true, department: true, position: true, organizationId: true } });
+      const dbUser = await prisma.user.findUnique({ where: { id: dbId }, select: { role: true, position: true, organizationId: true, departmentRef: { select: { name: true } } } });
       if (!dbUser) {
         res.status(401).json({ error: "User not found" });
         return;
       }
       if (dbUser.role !== decoded.role) decoded.role = dbUser.role;
-      if (dbUser.department !== decoded.department) decoded.department = dbUser.department;
+      // Department display derives from the departmentId link (sole source).
+      const dbDept = dbUser.departmentRef?.name;
+      if (dbDept !== decoded.department) decoded.department = dbDept;
       if (dbUser.position !== decoded.position) decoded.position = dbUser.position;
       const dbOrg = dbUser.organizationId === null || dbUser.organizationId === undefined ? null : toJsonId(dbUser.organizationId);
       if (dbOrg !== decoded.organizationId) decoded.organizationId = dbOrg;

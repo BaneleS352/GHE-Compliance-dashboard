@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
+import { PrismaClient } from "@prisma/client";
 import { buildApp, getAdminToken, getTeamToken } from "../helpers";
 
 const app = buildApp();
+const prisma = new PrismaClient();
 
 describe("Admin Users", () => {
   it("GET /api/admin/users — lists all users", async () => {
@@ -57,14 +59,44 @@ describe("Admin Users", () => {
     expect(res.status).toBe(409);
   });
 
-  it("PUT /api/admin/users/:id — updates user", async () => {
-    const res = await request(app)
-      .put("/api/admin/users/4")
-      .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ name: "Updated Name", department: "Finance" });
-    expect(res.status).toBe(200);
-    expect(res.body.name).toBe("Updated Name");
-    expect(res.body.department).toBe("Finance");
+  it("PUT /api/admin/users/:id — updates user and resolves the department link", async () => {
+    // departmentId is the sole department source: the name resolves through
+    // the organization-scoped master data, so the user must be scoped first.
+    // Unscoped users cannot link and resolve to "" at creation.
+    const org = await prisma.organization.create({ data: { name: "Dept Test Org", shortCode: "DTO" } });
+    try {
+      const scoped = await request(app)
+        .put("/api/admin/users/4")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({ name: "Updated Name", organizationId: Number(org.id), department: "Finance" });
+      expect(scoped.status).toBe(200);
+      expect(scoped.body.name).toBe("Updated Name");
+      expect(scoped.body.department).toBe("Finance");
+
+      const created = await request(app)
+        .post("/api/admin/users")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({ name: "Unscoped User", email: "unscoped-dept@test.com", role: "teamMember", department: "Finance" });
+      expect(created.status).toBe(201);
+      expect(created.body.department).toBe("");
+      await request(app)
+        .delete(`/api/admin/users/${created.body.id}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+
+      // Restore the shared fixture user; deleting the temp org cascade-clears
+      // the link (Department FK) back to null via SetNull.
+    } finally {
+      await request(app)
+        .put("/api/admin/users/4")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({ name: "Nomvula Team", organizationId: null })
+        .catch(() => undefined);
+      await prisma.organization.delete({ where: { id: org.id } }).catch(() => undefined);
+    }
+    const restored = await prisma.user.findUnique({ where: { id: 4n }, select: { name: true, organizationId: true, departmentId: true } });
+    expect(restored?.name).toBe("Nomvula Team");
+    expect(restored?.organizationId).toBeNull();
+    expect(restored?.departmentId).toBeNull();
   });
 
   it("DELETE /api/admin/users/:id — deletes user", async () => {

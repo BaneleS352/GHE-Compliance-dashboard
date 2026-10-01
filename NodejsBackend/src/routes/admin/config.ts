@@ -108,8 +108,8 @@ router.get("/dropdowns", authenticate, asyncHandler(async (req: AuthRequest, res
   let names = departments.map((d) => d.name);
   if (names.length === 0) {
     // Fallback to user departments when the master table is not seeded yet.
-    const users = await prisma.user.findMany({ where: orgPk !== undefined ? { organizationId: orgPk } : {}, select: { department: true } });
-    names = Array.from(new Set(users.map((u) => u.department).filter(Boolean))).sort();
+    const users = await prisma.user.findMany({ where: orgPk !== undefined ? { organizationId: orgPk } : {}, select: { departmentRef: { select: { name: true } } } });
+    names = Array.from(new Set(users.map((u) => u.departmentRef?.name).filter((n): n is string => Boolean(n)))).sort();
   }
   res.json({ departments: names, ...DOMAIN_DROPDOWNS });
 }));

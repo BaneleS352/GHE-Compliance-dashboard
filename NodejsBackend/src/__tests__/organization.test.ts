@@ -16,8 +16,7 @@ function tokenFor(user: { id: number | bigint; name?: string; email: string; rol
   );
 }
 
-const BASE_DECL = {
-  teamMemberNumber: "T-001",
+const BASE_DECL = {  teamMemberNumber: "T-001",
   position: "Tester",
   company: "Test Corp",
   team: "QA",
@@ -55,6 +54,16 @@ describe("Organization — multi-tenant flows", () => {
   const globalHr: any = { name: "Global HR", email: "global-hr@test.com", role: "approver", teamMemberNumber: "HR-G-001", department: "HR", position: "Head of HR", lineManager: null, organizationId: null };
   const globalAdmin: any = { name: "Global Admin", email: "global-admin@test.com", role: "admin", teamMemberNumber: "ADM-G-001", department: "IT", position: "Admin", lineManager: null, organizationId: null };
 
+  // departmentId is the sole department source: resolve a fixture's display
+  // string to its organization-scoped link (global users stay unlinked). The
+  // in-memory `department` strings remain for payloads and handmade claims.
+  async function withDeptLink<U extends { department?: string; organizationId?: number | bigint | null }>(u: U) {
+    const { resolveDepartmentId } = await import("../services/normalization");
+    const { department: _dept, ...rest } = u;
+    const departmentId = await resolveDepartmentId(u.department, u.organizationId ?? null);
+    return { ...rest, departmentId };
+  }
+
   beforeAll(async () => {
     const hash = bcrypt.hashSync("password", 10);
     for (const o of [hbOrg, npnOrg]) {
@@ -71,10 +80,11 @@ describe("Organization — multi-tenant flows", () => {
     npnLm.organizationId = npnOrg.id;
     const users = [hbTeam, hbLm, npnTeam, npnLm, globalHr, globalAdmin];
     for (const u of users) {
+      const data = await withDeptLink(u);
       const row = await prisma.user.upsert({
         where: { email: u.email },
-        update: { name: u.name, role: u.role, organizationId: u.organizationId ?? null } as any,
-        create: { ...u, passwordHash: hash } as any,
+        update: { name: u.name, role: u.role, organizationId: u.organizationId ?? null, departmentId: data.departmentId } as any,
+        create: { ...data, passwordHash: hash } as any,
       });
       u.id = Number(row.id);
     }
@@ -211,7 +221,7 @@ describe("Organization — multi-tenant flows", () => {
     if (!dbCheck) {
       // Recreate if missing (test isolation)
       const hash = bcrypt.hashSync("password", 10);
-      await prisma.user.create({ data: { ...hbTeam, passwordHash: hash } as any });
+      await prisma.user.create({ data: { ...(await withDeptLink(hbTeam)), passwordHash: hash } as any });
     }
     const self = await request(app).get(`/api/users/${hbTeam.id}`).set("Authorization", `Bearer ${hbToken}`);
     expect(self.status).toBe(200);
@@ -228,8 +238,8 @@ describe("Organization — multi-tenant flows", () => {
     const hbUsers = await prisma.user.findMany({ where: { organizationId: hbOrg.id } });
     if (hbUsers.length === 0) {
       const hash = bcrypt.hashSync("password", 10);
-      await prisma.user.create({ data: { ...hbTeam, passwordHash: hash } as any });
-      await prisma.user.create({ data: { ...hbLm, passwordHash: hash } as any });
+      await prisma.user.create({ data: { ...(await withDeptLink(hbTeam)), passwordHash: hash } as any });
+      await prisma.user.create({ data: { ...(await withDeptLink(hbLm)), passwordHash: hash } as any });
     }
     const deps = await request(app).get(`/api/users/departments?organizationId=${hbOrg.id}`).set("Authorization", `Bearer ${hbToken}`);
     expect(deps.status).toBe(200);

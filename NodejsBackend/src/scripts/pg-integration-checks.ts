@@ -90,10 +90,11 @@ async function main() {
   await wipe();
 
   const hash = bcrypt.hashSync("password", 4);
-  const p: any = prisma;
+  const p = prisma;
   const orgA = await p.organization.create({ data: { name: "PG Org A", shortCode: "PGA" } });
   const orgB = await p.organization.create({ data: { name: "PG Org B", shortCode: "PGB" } });
   const users: Record<string, any> = {};
+  const { resolveDepartmentId } = await import("../services/normalization");
   for (const u of [
     { key: "lmA", name: "PG LM A", email: "pg-lm-a@x.test", role: "approver", teamMemberNumber: "PG-1", department: "Sales", position: "Line Manager", organizationId: orgA.id },
     { key: "hrA", name: "PG HR A", email: "pg-hr-a@x.test", role: "approver", teamMemberNumber: "PG-2", department: "HR", position: "Head of HR", organizationId: orgA.id },
@@ -101,8 +102,11 @@ async function main() {
     { key: "lmB", name: "PG LM B", email: "pg-lm-b@x.test", role: "approver", teamMemberNumber: "PG-4", department: "Sales", position: "Line Manager", organizationId: orgB.id },
     { key: "tmB", name: "PG TM B", email: "pg-tm-b@x.test", role: "teamMember", teamMemberNumber: "PG-5", department: "Sales", position: "Rep", organizationId: orgB.id },
   ]) {
-    const { key, ...data } = u;
-    users[key] = await p.user.create({ data: { ...data, passwordHash: hash } });
+    const { key, department, ...data } = u;
+    // departmentId is the sole department source: resolve the display string
+    // to the organization-scoped link before insert.
+    const departmentId = await resolveDepartmentId(department, u.organizationId, p);
+    users[key] = await p.user.create({ data: { ...data, departmentId, passwordHash: hash } });
   }
   await p.user.update({ where: { id: users.tmA.id }, data: { managerId: users.lmA.id, lineManager: users.lmA.name } });
   await p.user.update({ where: { id: users.tmB.id }, data: { managerId: users.lmB.id, lineManager: users.lmB.name } });
@@ -214,8 +218,7 @@ async function main() {
   for (const [t, c] of [["User", "organizationId"], ["User", "managerId"], ["User", "departmentId"], ["User", "teamId"], ["Department", "organizationId"], ["Team", "departmentId"], ["Counterparty", "organizationId"], ["CounterpartyContact", "counterpartyId"], ["Declaration", "organizationId"], ["Declaration", "declarerUserId"], ["Declaration", "currentApproverUserId"], ["Declaration", "counterpartyId"], ["DeclarationSnapshot", "declarationPk"], ["DeclarationDetail", "declarationPk"], ["DeclarationFile", "declarationPk"], ["DeclarationFile", "fileId"], ["WorkflowRule", "organizationId"], ["WorkflowRuleStep", "ruleId"], ["WorkflowInstance", "declarationPk"], ["WorkflowInstance", "ruleId"], ["WorkflowInstanceStep", "instanceId"], ["WorkflowInstanceStep", "declarationPk"], ["WorkflowInstanceStep", "assigneeId"], ["WorkflowInstanceStep", "decidedById"]] as [string, string][]) {
     check(`FK ${t}.${c} is bigint`, idType(t, c) === "bigint", `${t}.${c}=${idType(t, c)}`);
   }
-  // Only the documented text identifiers may remain: Declaration.id is the
-  // public GHE-YYYY-NNNNNN reference, SystemConfig ("default") and
+  // Only the documented text identifiers may remain: Declaration.id is the  // public GHE-YYYY-NNNNNN reference, SystemConfig ("default") and
   // ApprovalOption ("opt-*"/"ao-*") are singleton/code-list rows outside the
   // numeric-key scope. Views are excluded (they project text columns).
   const textIdTables: { table_name: string }[] = await p.$queryRawUnsafe(
@@ -279,7 +282,7 @@ async function main() {
   // FK enforcement: bogus ruleId must fail; rule delete nulls instance ruleId.
   let fkBlocked = false;
   try {
-    await p.workflowInstance.create({ data: { declarationPk: pkById.get("PG-2026-0003"), ruleId: 999999n } });
+    await p.workflowInstance.create({ data: { declarationPk: pkById.get("PG-2026-0003")!, ruleId: 999999n } });
   } catch {
     fkBlocked = true;
   }

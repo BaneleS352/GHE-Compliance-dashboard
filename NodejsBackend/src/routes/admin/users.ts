@@ -8,18 +8,23 @@ import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { parseIdParam, toDbId, toJsonId } from "../../services/ids";
 import { managerOrgViolation } from "../../services/orgConsistency";
+import { resolveDepartmentId } from "../../services/normalization";
 
 const router = Router();
 const SALT_ROUNDS = 10;
 
-function userResponse(u: any) {
+/** User row with its department link for display derivation. */
+type UserWithDepartment = Prisma.UserGetPayload<{ include: { departmentRef: true } }>;
+
+function userResponse(u: UserWithDepartment) {
   return {
     id: toJsonId(u.id),
     name: u.name,
     email: u.email,
     role: u.role,
     teamMemberNumber: u.teamMemberNumber,
-    department: u.department,
+    // Display only: departmentId -> Department.name is the sole source.
+    department: u.departmentRef?.name ?? "",
     position: u.position,
     lineManager: u.lineManager,
     organizationId: u.organizationId === null || u.organizationId === undefined ? null : toJsonId(u.organizationId),
@@ -30,7 +35,7 @@ function userResponse(u: any) {
 router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const { search, role } = req.query;
 
-  const where: any = {};
+  const where: Prisma.UserWhereInput = {};
 
   if (role && role !== "All Roles") {
     const roleMap: Record<string, string> = {
@@ -51,7 +56,7 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
     ];
   }
 
-  const users = await prisma.user.findMany({ where, orderBy: { name: "asc" } });
+  const users = await prisma.user.findMany({ where, orderBy: { name: "asc" }, include: { departmentRef: true } });
 
   res.json(users.map(userResponse));
 }));
@@ -63,7 +68,7 @@ router.get("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     res.status(404).json({ error: "User not found" });
     return;
   }
-  const user = await prisma.user.findUnique({ where: { id: userPk } });
+  const user = await prisma.user.findUnique({ where: { id: userPk }, include: { departmentRef: true } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -78,6 +83,8 @@ const createUserSchema = z.object({
   email: z.string().email(),
   role: z.enum(["teamMember", "approver", "admin"]),
   password: z.string().min(8).optional(),
+  // DTO resolver input (not stored): resolves to departmentId through the
+  // organization-scoped Department master data (created when missing).
   department: z.string().optional().default(""),
   teamMemberNumber: z.string().optional().default(""),
   position: z.string().optional().default(""),
@@ -144,6 +151,9 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
     res.status(400).json({ error: violation });
     return;
   }
+  // departmentId is the sole department source: the `department` DTO string
+  // resolves to the organization-scoped master row (created when missing).
+  const departmentPk = await resolveDepartmentId(data.department, orgPk);
 
   const user = await prisma.user.create({
     data: {
@@ -152,12 +162,13 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
       passwordHash: bcrypt.hashSync(password, SALT_ROUNDS),
       role: data.role,
       teamMemberNumber: data.teamMemberNumber,
-      department: data.department,
+      departmentId: departmentPk,
       position: data.position,
       lineManager: data.lineManager === null || data.lineManager === undefined ? null : String(data.lineManager),
       managerId: managerPk,
       organizationId: orgPk,
     },
+    include: { departmentRef: true },
   });
 
   res.status(201).json(userResponse(user));
@@ -204,10 +215,16 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
 
   const updateData: Prisma.UserUncheckedUpdateInput = {};
   let resolvedManager: bigint | null | undefined;
+  // Effective organization first: department resolution and the manager
+  // consistency check both depend on the post-update org.
+  const nextOrg: bigint | null =
+    data.organizationId === undefined ? existing.organizationId : data.organizationId === null ? null : toDbId(data.organizationId);
   if (data.name !== undefined) updateData.name = data.name;
   if (data.email !== undefined) updateData.email = data.email.toLowerCase();
   if (data.role !== undefined) updateData.role = data.role;
-  if (data.department !== undefined) updateData.department = data.department;
+  // departmentId is the sole department source: the `department` DTO string
+  // resolves to the organization-scoped master row (created when missing).
+  if (data.department !== undefined) updateData.departmentId = await resolveDepartmentId(data.department, nextOrg);
   if (data.teamMemberNumber !== undefined) updateData.teamMemberNumber = data.teamMemberNumber;
   if (data.position !== undefined) updateData.position = data.position;
   if (data.lineManager !== undefined) {
@@ -216,21 +233,18 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     updateData.managerId = resolvedManager;
   }
   if (data.organizationId !== undefined) {
-    const orgPk = data.organizationId === null ? null : toDbId(data.organizationId);
-    if (orgPk !== null) {
-      const orgExists = await prisma.organization.findUnique({ where: { id: orgPk } });
+    if (nextOrg !== null) {
+      const orgExists = await prisma.organization.findUnique({ where: { id: nextOrg } });
       if (!orgExists) {
         res.status(400).json({ error: "Invalid organizationId" });
         return;
       }
     }
-    updateData.organizationId = orgPk;
+    updateData.organizationId = nextOrg;
   }
   // Organization consistency on the effective (post-update) links: moving a
   // user or their manager across organizations must not strand a cross-org
   // manager reference.
-  const nextOrg: bigint | null =
-    data.organizationId === undefined ? existing.organizationId : data.organizationId === null ? null : toDbId(data.organizationId);
   const nextManager: bigint | null =
     resolvedManager !== undefined ? resolvedManager : existing.managerId;
   const updateViolation = await managerOrgViolation(nextManager, nextOrg);
@@ -239,7 +253,7 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     return;
   }
 
-  const user = await prisma.user.update({ where: { id: userPk }, data: updateData });
+  const user = await prisma.user.update({ where: { id: userPk }, data: updateData, include: { departmentRef: true } });
 
   res.json(userResponse(user));
 }));

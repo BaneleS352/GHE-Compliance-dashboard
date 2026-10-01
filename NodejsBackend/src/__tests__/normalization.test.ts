@@ -140,11 +140,16 @@ describe("Database normalization (numeric identifiers)", () => {
     const id = create.body.id;
     const pk = await pkFor(id);
     // Change the user's master data — the snapshot must not follow.
-    await prisma.user.update({ where: { id: 4n }, data: { department: "Engineering", position: "Principal" } });
+    // departmentId is the sole department source: move the link, not text.
+    const { resolveDepartmentId } = await import("../services/normalization");
+    const owner = await prisma.user.findUnique({ where: { id: 4n }, select: { organizationId: true } });
+    const engDept = await resolveDepartmentId("Engineering", owner?.organizationId ?? null);
+    const mktDept = await resolveDepartmentId("Marketing", owner?.organizationId ?? null);
+    await prisma.user.update({ where: { id: 4n }, data: { departmentId: engDept, position: "Principal" } });
     const snap = await prisma.declarationSnapshot.findUnique({ where: { declarationPk: pk } });
     expect(snap?.department).toBe("Marketing");
     expect(snap?.positionTitle).toBe("Brand Manager");
-    await prisma.user.update({ where: { id: 4n }, data: { department: "Marketing", position: "Brand Manager" } });
+    await prisma.user.update({ where: { id: 4n }, data: { departmentId: mktDept, position: "Brand Manager" } });
     await prisma.declarationSnapshot.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
     await prisma.declarationDetail.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined);
     await prisma.declaration.delete({ where: { id } }).catch(() => undefined);

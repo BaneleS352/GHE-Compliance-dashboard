@@ -32,7 +32,7 @@ router.post("/login", loginLimiter, asyncHandler(async (req: Request, res: Respo
   const { email, password } = parsed.data;
   const normalizedEmail = email.toLowerCase();
 
-  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail }, include: { departmentRef: true } });
   if (!user) {
     res.status(401).json({ error: "Invalid email or password" });
     return;
@@ -44,7 +44,9 @@ router.post("/login", loginLimiter, asyncHandler(async (req: Request, res: Respo
     return;
   }
 
-  const token = signToken(user);
+  // Department display derives from the departmentId link (sole source).
+  const departmentName = user.departmentRef?.name ?? null;
+  const token = signToken({ ...user, department: departmentName });
 
   res.json({
     token,
@@ -54,7 +56,7 @@ router.post("/login", loginLimiter, asyncHandler(async (req: Request, res: Respo
       email: user.email,
       role: user.role,
       teamMemberNumber: user.teamMemberNumber,
-      department: user.department,
+      department: departmentName ?? "",
       position: user.position,
       lineManager: user.lineManager,
       organizationId: user.organizationId === null ? null : toJsonId(user.organizationId),
@@ -82,7 +84,7 @@ router.get("/preset-users", (_req: Request, res: Response): void => {
 });
 
 router.get("/me", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const user = await prisma.user.findUnique({ where: { id: toDbId(req.user!.id) } });
+  const user = await prisma.user.findUnique({ where: { id: toDbId(req.user!.id) }, include: { departmentRef: true } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -94,7 +96,7 @@ router.get("/me", authenticate, asyncHandler(async (req: AuthRequest, res: Respo
     email: user.email,
     role: user.role,
     teamMemberNumber: user.teamMemberNumber,
-    department: user.department,
+    department: user.departmentRef?.name ?? "",
     position: user.position,
     lineManager: user.lineManager,
     organizationId: user.organizationId === null ? null : toJsonId(user.organizationId),

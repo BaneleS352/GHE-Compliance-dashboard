@@ -9,17 +9,32 @@ const app = buildApp();
 
 // Earlier integrity tests intentionally delete users. Re-establish the users
 // needed by this file so the suite is order-independent when run as a whole.
+// departmentId is the sole department source: preserve the existing link when
+// present (never null it), otherwise resolve through the users' existing
+// organization, falling back to any same-named master row on the rare
+// recreate path so HR routing stays deterministic.
 beforeEach(async () => {
+  const { resolveDepartmentId } = await import("../services/normalization");
+  async function linkFor(id: bigint, dept: string) {
+    const current = await prisma.user.findUnique({ where: { id }, select: { organizationId: true, departmentId: true } });
+    if (current?.departmentId !== null && current?.departmentId !== undefined) return current.departmentId;
+    const scoped = await resolveDepartmentId(dept, current?.organizationId ?? null);
+    if (scoped !== null) return scoped;
+    const anyRow = await prisma.department.findFirst({ where: { name: dept }, select: { id: true } });
+    return anyRow ? anyRow.id : null;
+  }
   const existing = await prisma.user.findUnique({ where: { id: 3n } });
+  const hrDept = await linkFor(3n, "HR");
   await prisma.user.upsert({
     where: { id: 3n },
-    update: { name: "Lindiwe HR", role: "approver", department: "HR", position: "Head of HR", lineManager: null },
-    create: { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: existing?.passwordHash || "test", role: "approver", teamMemberNumber: "APR-002", department: "HR", position: "Head of HR", lineManager: null },
+    update: { name: "Lindiwe HR", role: "approver", departmentId: hrDept, position: "Head of HR", lineManager: null },
+    create: { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: existing?.passwordHash || "test", role: "approver", teamMemberNumber: "APR-002", departmentId: hrDept, position: "Head of HR", lineManager: null },
   });
+  const lmDept = await linkFor(2n, "Marketing");
   await prisma.user.upsert({
     where: { id: 2n },
-    update: { name: "Sipho Approver", role: "approver", department: "Marketing", position: "Line Manager", lineManager: null },
-    create: { id: 2n, name: "Sipho Approver", email: "sipho@test.com", passwordHash: existing?.passwordHash || "test", role: "approver", teamMemberNumber: "APR-001", department: "Marketing", position: "Line Manager", lineManager: null },
+    update: { name: "Sipho Approver", role: "approver", departmentId: lmDept, position: "Line Manager", lineManager: null },
+    create: { id: 2n, name: "Sipho Approver", email: "sipho@test.com", passwordHash: existing?.passwordHash || "test", role: "approver", teamMemberNumber: "APR-001", departmentId: lmDept, position: "Line Manager", lineManager: null },
   });
   await prisma.workflowRule.upsert({
     where: { id: 2n },
