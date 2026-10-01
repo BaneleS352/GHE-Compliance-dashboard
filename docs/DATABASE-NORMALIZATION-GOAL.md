@@ -61,8 +61,79 @@ fallbacks, and legacy declaration storage are retired from the target design.
 - Type, status, priority, relationship, and direction remain validated strings
   unless a future change introduces enforced domain FKs.
 - `DeclarationSnapshot` is immutable after capture.
+- `User.departmentId` is the sole department source of truth. `User.department`
+  will be removed; API and UI display values are derived from the related
+  `Department` record.
+- `User.managerId` is the authoritative manager relationship. The existing
+  `User.lineManager` text is display/compatibility data only.
 - Workflow step rows are authoritative; JSON workflow fallback is unsupported.
 - `DeclarationFile` is the only declaration/file association.
+
+## Single-Source-of-Truth Rules
+
+The application must preserve the following rules as the normalized model
+evolves:
+
+1. Store every mutable fact once, in its canonical table. A relation is not a
+   reason to duplicate its descriptive fields on dependent records.
+2. Preserve historical facts only in explicit immutable snapshot/audit tables,
+   never in silently duplicated mutable columns.
+3. Treat API payloads as DTO projections of the domain model, not an alternate
+   persistence model. Route handlers validate, authorize, and map; they do not
+   own duplicate business state.
+4. Keep aggregate reads, writes, transactions, and DTO transformations in
+   typed service/repository mappers. Do not scatter database-shape and ID
+   conversions through routes or React components.
+5. Use migration-owned reporting views as the shared dashboard/report read
+   model. API code supplies authorization, organization scoping, and request
+   validation; it must not recreate view logic per endpoint.
+6. Use versioned migrations as the only schema-change mechanism. Seeds create
+   non-production data and must not become schema or production-data tooling.
+7. Add tests that prove one authoritative write path for each aggregate and
+   that derived API fields agree with their canonical relations.
+8. Every temporary compatibility field needs an owner, consumer inventory,
+   purpose, removal condition, and target removal migration. Compatibility
+   fields without all five are not permitted.
+
+## Additional Audit Gaps
+
+The normalized table names and foreign keys are not sufficient by themselves;
+the following invariants must also be resolved:
+
+- **Organization consistency:** a user's `organizationId` can currently differ
+  from the organization reached through `departmentId` or `teamId`. The same
+  risk exists for declarations, declarers, counterparties, workflow rules, and
+  approvers. Enforce tenant ownership with composite foreign keys, database
+  checks where practical, or one documented service-level invariant with
+  negative tests. Organization scoping must not depend only on route filters.
+- **Workflow identity duplication:** `WorkflowInstanceStep.declarationPk`
+  duplicates `WorkflowInstance.declarationPk`. Remove the duplicate or enforce
+  a composite relationship proving that both values identify the same
+  declaration. A child row must not have two independently writable parents.
+- **Workflow projections:** declaration status and current approver are
+  derived from workflow state but are also stored on `Declaration`. Define
+  whether they are canonical workflow facts or deliberately maintained cache
+  columns. If retained, require one transaction-owned update path and tests
+  that detect divergence.
+- **Historical workflow values:** step `role`, `label`, `assigneeName`, and
+  `decidedByName` may be valid immutable execution snapshots, but this must be
+  documented and protected from later master-data edits. Otherwise derive them
+  from the rule/user relations.
+- **Domain integrity:** `type`, `status`, `priority`, relationship, direction,
+  workflow step status, and roles are largely strings. Decide which are stable
+  reference data and create domain tables/foreign keys or PostgreSQL checks.
+  Application validation alone is not sufficient for every writer.
+- **File lifecycle:** `UploadedFile.link` is optional while the documentation
+  says orphan files are rejected. Choose one policy: require a declaration
+  link, or explicitly support unattached temporary uploads with ownership,
+  expiry, and cleanup rules.
+- **Delete semantics:** verify that `SET NULL`, `CASCADE`, and `RESTRICT`
+  match retention and audit requirements. In particular, deletion of a user,
+  department, organization, declaration, or file must not silently destroy
+  legally relevant history.
+- **Date/value constraints:** define UTC behavior, allowed date ranges,
+  numeric precision, non-negative values, and valid status transitions in the
+  database or a clearly owned domain service.
 
 ## Target Logical Model
 
@@ -131,17 +202,41 @@ authorization, validation, and organization scoping.
 - Added PostgreSQL integration and clean-database smoke-test commands.
 - Added deterministic identity-sequence handling for seeded numeric IDs.
 
-## Verification (all green, 2026-10-01 — status from command output)
+## Verification status (audited 2026-10-01)
 
-1. `npm ci` completes in both backend and frontend (CI `postgres-normalization` runs it per job; local `node_modules` verified via builds below).
-2. Backend tests: **381/381 pass, 19/19 files** (`npm test`, embedded PostgreSQL, full `0000→0006` migration chain applied by `globalSetup`).
-3. Frontend typecheck (`npm run typecheck`), tests (**240/240**, 17/17 files), and production build (`npm run build`) all pass.
-4. `npm run pg:test` passes against a clean PostgreSQL database: **61/61 integration checks** (PK/FK bigint-identity types, FK enforcement/delete rules, counterparty identity policy, all 7 scoped views).
-5. `npm run pg:smoke` passes through migration, seed, startup, API workflow, reporting, and integrity checks on a clean database (all smoke checks green, including post-flow snapshot/detail/step-row and dangling-FK assertions).
-6. Assertions prove every PK/FK type (`pg-integration-checks` §0), only the documented text ids remain (`Declaration` public reference, `SystemConfig`, `ApprovalOption`; views excluded), retired tables/columns are absent, and all 7 view definitions return expected scoped results.
-7. Stale Swagger `Dropdowns` definitions removed (renamed `DropdownOptions` schema; PUT documented as 410 Gone) and `readWorkflowSteps` renamed to `readWorkflowStepRows`.
+The migration implementation is substantially complete, but completion is not
+yet fully reproducible from this checkout. The following claims are separated
+so future maintainers do not confuse implementation with verification.
 
-Cleanup backlog completed in the same pass: `(prisma/db/tx as any)` model hatches removed from runtime code, seeds, scripts, and tests (`tsc --noEmit` clean); `BigInt()` conversions centralized through `services/ids.ts`; route-level counterparty aggregation moved into `services/reports.ts`; `AdminWorkflows` consumes step rows (no `JSON.parse`); CI runs the frontend production build.
+### Verified by repository inspection
+
+- The Prisma schema is PostgreSQL-only and models normalized child tables,
+  numeric internal keys, typed timestamps, and explicit foreign-key delete
+  behavior.
+- Migrations `0000` through `0006` exist, including retirement of legacy tables
+  and columns and the numeric-key cutover.
+- The clean-database integration and smoke scripts contain assertions for
+  numeric PK/FK types, retired structures, views, orphan references, and
+  delete behavior.
+- Frontend typecheck completed successfully in the current environment.
+- The working tree is clean at the time of this audit.
+
+### Reported by CI/project history but not reproduced locally in this audit
+
+- Backend: 381/381 tests across 19 files.
+- Frontend: 240/240 tests and production build.
+- PostgreSQL integration: 61/61 checks.
+- PostgreSQL smoke flow: migration, seed, startup, API workflow, reporting,
+  and integrity checks.
+
+### Current verification limitation
+
+`NodejsBackend npm test` did not reach test discovery locally because the
+embedded PostgreSQL process failed to initialize on Windows (`initdb` could
+not create a restricted token and reported the temporary database path as an
+existing directory). The backend result therefore remains CI-reported rather
+than locally reproduced. A dedicated PostgreSQL URL or a documented Windows
+test setup is required before claiming local end-to-end verification.
 
 ## Full Codebase Migration Requirements
 
@@ -152,7 +247,10 @@ Cleanup backlog completed in the same pass: `(prisma/db/tx as any)` model hatche
 - Separate boundaries exist for declarations, workflows, identity, files, and
   reporting.
 - Required child writes occur inside the parent transaction.
-- Prisma `any` escape hatches are removed from schema-sensitive queries.
+- Prisma `any` escape hatches are removed from schema-sensitive queries. The
+  audit still finds broad `as any` usage in routes, reporting, seeds, and
+  tests; each remaining occurrence must be classified as test transport code,
+  untyped external input, or a real schema-typing gap.
 - All BigInt/number/string conversion is centralized in `services/ids.ts`.
 
 ### Frontend and API
@@ -175,7 +273,7 @@ Cleanup backlog completed in the same pass: `(prisma/db/tx as any)` model hatche
 - CI runs backend tests, PostgreSQL integration, clean-database smoke tests,
   frontend typecheck, frontend tests, and frontend build.
 
-## Cleanup and Dead-Code Plan
+## Audit Findings and Cleanup Plan
 
 Already removed from the active schema:
 
@@ -185,15 +283,71 @@ Already removed from the active schema:
 - workflow JSON columns;
 - `UploadedFile.declarationId`.
 
-Still to clean from active code/documentation where references remain:
+The following items remain after the current audit:
 
-- stale Swagger schemas and descriptions for retired dropdown resources;
-- comments describing SQLite or legacy fallback behavior;
-- the misleading `readWorkflowSteps` name if it is rows-only;
-- unnecessary Prisma `any` access;
-- duplicate route-level aggregation after reporting repository adoption;
-- migration-era diagnostics after CI proves the final schema;
-- obsolete instructions for retired `db push`, SQLite, or provider rewriting.
+### High priority
+
+- Make backend tests reproducible on Windows by documenting a dedicated
+  `TEST_PG_DATABASE_URL` path or fixing the embedded PostgreSQL initialization
+  directory/token setup. Do not report backend tests as locally verified until
+  this is resolved.
+- Replace unnecessary runtime `as any` casts in declaration, workflow, user,
+  report, admin, and notification code with Prisma select/include types and
+  explicit DTO types. Keep casts only at genuine untyped boundaries and label
+  those boundaries.
+- Remove `User.department` through a forward migration and derive all API/UI
+  department display values through `User.departmentId → Department.name`.
+  Update Prisma, route DTOs, frontend types, forms, seeds, fixtures, reports,
+  Swagger, and tests together; add assertions that the legacy column and
+  runtime references are absent after the cutover.
+- Decide whether global counterparties may share a name. PostgreSQL allows
+  multiple `NULL` values under `@@unique([name, organizationId])`; add a
+  partial unique index or an explicit policy if global names must be unique.
+- Resolve organization consistency across hierarchy and transaction FKs. Add
+  composite constraints or a single tested service invariant so users,
+  departments, teams, declarations, counterparties, workflow rules, and
+  approvers cannot cross organization boundaries accidentally.
+- Remove or constrain the duplicate `WorkflowInstanceStep.declarationPk`.
+  Prefer deriving the declaration through `instanceId`; if the direct FK is
+  retained for reporting performance, enforce equality with the instance.
+- Define the owner of `Declaration.status` and `currentApproverUserId` versus
+  workflow step state, then consolidate writes into one transaction-owned
+  workflow service.
+- Reconcile the uploaded-file orphan policy with the nullable `UploadedFile`
+  relation and add expiry/cleanup behavior if temporary unattached uploads are
+  intentional.
+
+### Medium priority
+
+- Remove or rewrite stale deployment guidance, especially the instruction to
+  add error handling around `JSON.parse(instance.steps)` when workflow steps
+  are now relational rows.
+- Remove active frontend/backend API naming that still presents the retired
+  generic `Dropdowns` concept, unless it is deliberately retained as a
+  compatibility label. `fetchDropdowns`, the admin screen name, and related
+  tests should use the current domain-specific terminology.
+- Separate seed/migration fixture parsing of legacy workflow JSON from runtime
+  code and make that boundary explicit. Legacy JSON may be an input fixture,
+  but it must not be an application fallback.
+- Convert stable domain strings to database-enforced checks or reference tables
+  where the business requires controlled values; add transition tests for
+  status and workflow state.
+- Add explicit tenant-boundary, delete-retention, duplicate-workflow-identity,
+  date/timezone, numeric-range, and file-lifecycle tests.
+- Re-run a repository-wide search for retired names after cleanup and add a CI
+  check for forbidden runtime references. Historical migration comments may
+  remain, but active routes, services, frontend code, and current deployment
+  instructions should not reference retired structures.
+
+### Low priority
+
+- Remove migration-era diagnostics only after the clean PostgreSQL gates are
+  reproducible in both CI and the supported local setup.
+- Consolidate repeated test fixture casts and introduce shared typed factories
+  for users, declarations, workflow steps, and API responses.
+- Review the remaining compatibility field `mediumValueThreshold` and either
+  retire it through an API versioned change or document its permanent
+  read-only compatibility purpose.
 
 Do not delete migration history. Old migrations remain necessary for databases
 that have applied them; cleanup applies to the current schema, runtime code,
@@ -207,15 +361,29 @@ For every future schema change:
 2. Update Prisma schema, migration SQL, repository/service types, DTOs, seeds,
    fixtures, reporting views, and documentation together.
 3. Add migration assertions and API/workflow/reporting regression tests.
-4. Run the clean PostgreSQL migration and smoke sequence.
-5. Search for retired field/table names and direct route-level SQL.
-6. Review FK nullability, indexes, uniqueness, and delete behavior.
-7. Only then remove obsolete code or schema objects.
+4. Run the clean PostgreSQL migration and smoke sequence from both CI and the
+   supported developer setup, recording exact command output.
+5. Search for retired field/table names, `as any` schema escape hatches, direct
+   route-level aggregation, and stale API/documentation terminology.
+6. Review FK nullability, exact parent/child types, indexes, uniqueness,
+   identity sequences, organization consistency, and delete behavior.
+7. Test empty and populated databases, including seed order and sequence
+   behavior after explicit IDs.
+8. For every temporary field, record its owner, consumer inventory, purpose,
+   removal condition, and target removal migration.
+9. Verify duplicate relationship paths cannot disagree, especially workflow
+   instance/declaration identity and declaration/workflow status.
+10. Only then remove obsolete code or schema objects.
 
 ## Completion Criteria
 
 The goal is complete when a clean PostgreSQL database migrates and seeds
-successfully, all backend/frontend checks pass, the main API workflows pass,
-reporting views return expected scoped results, all PK/FK types are verified,
-retired concepts are absent from active code, and maintainers can add a schema
-change through one documented migration/test/repository process.
+successfully in CI and the supported local setup, all backend/frontend checks
+pass, the main API workflows pass, reporting views return expected scoped
+results, all PK/FK types are verified, organization boundaries and delete
+semantics are enforced, duplicate relationship paths cannot disagree, retired
+concepts and `User.department` are absent from active code and current
+documentation, the remaining `as any` uses are justified, `departmentId` and
+`managerId` are the only authoritative hierarchy relationships, and
+maintainers can add a schema change through one documented
+migration/test/repository process.
