@@ -49,7 +49,9 @@ model User {
   passwordHash     String
   role             String
   teamMemberNumber String
-  department       String
+  // departmentId -> Department is the sole department source of truth.
+  // Display values derive from departmentRef; the legacy `department` text
+  // column was removed in 0008_department_id_only.
   position         String
   // Display text only. The authoritative manager reference is managerId.
   lineManager      String?
@@ -75,7 +77,6 @@ model User {
   stepsAssigned WorkflowInstanceStep[] @relation("StepAssignee")
   stepsDecided  WorkflowInstanceStep[] @relation("StepDecider")
 
-  @@index([department])
   @@index([role])
   @@index([lineManager])
   @@index([organizationId])
@@ -285,6 +286,9 @@ model WorkflowInstance {
   stepRows  WorkflowInstanceStep[] @relation("InstanceSteps")
 
   @@index([ruleId])
+  // Supports the composite step identity below: a step's (instanceId,
+  // declarationPk) must identify the same declaration as its instance.
+  @@unique([id, declarationPk])
 }
 
 model WorkflowInstanceStep {
@@ -305,7 +309,10 @@ model WorkflowInstanceStep {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  instance    WorkflowInstance @relation("InstanceSteps", fields: [instanceId], references: [id], onDelete: Cascade)
+  // Composite step identity: declarationPk duplicates the instance's key
+  // for reporting joins, but the composite FK proves both values identify
+  // the same declaration — a step row cannot point at two declarations.
+  instance    WorkflowInstance @relation("InstanceSteps", fields: [instanceId, declarationPk], references: [id, declarationPk], onDelete: Cascade)
   declaration Declaration @relation(fields: [declarationPk], references: [declarationPk], onDelete: Cascade)
   assignee    User? @relation("StepAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   decidedBy   User? @relation("StepDecider", fields: [decidedById], references: [id], onDelete: SetNull)
@@ -342,5 +349,11 @@ model UploadedFile {
   path          String
   uploadedAt    DateTime @default(now())
 
+  // Required by policy, optional in Prisma: back-relations cannot enforce
+  // presence at the database level. Unattached temporary uploads are not
+  // supported — every file is created together with its DeclarationFile join
+  // row in one transaction; orphan rows are rejected, admin-quarantined on
+  // read, and cascade-removed with their declaration (see docs/SCHEMA.md,
+  // pg:test "no orphan uploaded files").
   link DeclarationFile?
 }

@@ -83,7 +83,7 @@ export function containedUploadPath(storedPath: string): string | null {
 /** Resolve the owning declaration key via the DeclarationFile join (the only association). */
 async function declarationPkForFile(filePk: bigint): Promise<bigint | null> {
   const link = await prisma.declarationFile.findUnique({ where: { fileId: filePk } });
-  return link ? (link.declarationPk as bigint) : null;
+  return link ? link.declarationPk : null;
 }
 
 // POST /api/files/upload

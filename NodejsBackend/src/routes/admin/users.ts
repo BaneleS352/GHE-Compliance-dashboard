@@ -203,6 +203,7 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
   }
 
   const updateData: Prisma.UserUncheckedUpdateInput = {};
+  let resolvedManager: bigint | null | undefined;
   if (data.name !== undefined) updateData.name = data.name;
   if (data.email !== undefined) updateData.email = data.email.toLowerCase();
   if (data.role !== undefined) updateData.role = data.role;
@@ -211,7 +212,8 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
   if (data.position !== undefined) updateData.position = data.position;
   if (data.lineManager !== undefined) {
     updateData.lineManager = data.lineManager === null ? null : String(data.lineManager);
-    updateData.managerId = await resolveManagerId(data.lineManager);
+    resolvedManager = await resolveManagerId(data.lineManager);
+    updateData.managerId = resolvedManager;
   }
   if (data.organizationId !== undefined) {
     const orgPk = data.organizationId === null ? null : toDbId(data.organizationId);
@@ -227,11 +229,11 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
   // Organization consistency on the effective (post-update) links: moving a
   // user or their manager across organizations must not strand a cross-org
   // manager reference.
-  const effectiveOrg =
-    updateData.organizationId !== undefined ? (updateData.organizationId as bigint | null) : existing.organizationId;
-  const effectiveManager =
-    updateData.managerId !== undefined ? (updateData.managerId as bigint | null) : existing.managerId;
-  const updateViolation = await managerOrgViolation(effectiveManager, effectiveOrg);
+  const nextOrg: bigint | null =
+    data.organizationId === undefined ? existing.organizationId : data.organizationId === null ? null : toDbId(data.organizationId);
+  const nextManager: bigint | null =
+    resolvedManager !== undefined ? resolvedManager : existing.managerId;
+  const updateViolation = await managerOrgViolation(nextManager, nextOrg);
   if (updateViolation) {
     res.status(400).json({ error: updateViolation });
     return;

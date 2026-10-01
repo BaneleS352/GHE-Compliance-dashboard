@@ -288,6 +288,26 @@ async function main() {
   const orphan = await p.workflowInstance.findUnique({ where: { declarationPk: pkById.get("PG-2026-0001") } });
   check("rule delete SET NULLs instance ruleId", orphan?.ruleId === null, JSON.stringify(orphan?.ruleId === null ? null : String(orphan?.ruleId)));
 
+  // Composite step identity (0007): a step row cannot pair an instance with
+  // another declaration's key — the write must fail loudly.
+  let identityBlocked = false;
+  try {
+    const inst = await p.workflowInstance.findUnique({ where: { declarationPk: pkById.get("PG-2026-0002") }, select: { id: true } });
+    await p.workflowInstanceStep.create({
+      data: {
+        instanceId: inst!.id,
+        declarationPk: pkById.get("PG-2026-0001")!,
+        stepOrder: 99,
+        role: "lineManager",
+        label: "Mismatch",
+        assigneeName: "Nobody",
+      },
+    });
+  } catch {
+    identityBlocked = true;
+  }
+  check("step/instance declaration identity enforced", identityBlocked);
+
   // Scoped counterparty identity on numeric keys: scoped duplicates rejected,
   // global same-name rows allowed.
   await p.organization.create({ data: { name: "PG Dup Org", shortCode: "PGD" } }).then(async (dupOrg: { id: bigint }) => {
@@ -316,6 +336,12 @@ async function main() {
   check("user delete SET NULLs declarer link", orphanDecl?.declarerUserId === null);
   const orphanSnap = await p.declarationSnapshot.findFirst({ where: { declarerName: "PG TM B" } });
   check("snapshot history survives user delete", !!orphanSnap && orphanSnap.declarerName === "PG TM B");
+
+  // File lifecycle policy: every uploaded file requires its join row.
+  const orphanFiles: { n: bigint }[] = await p.$queryRawUnsafe(
+    `SELECT COUNT(*) AS n FROM "UploadedFile" f LEFT JOIN "DeclarationFile" l ON l."fileId" = f."id" WHERE l."fileId" IS NULL`,
+  );
+  check("no orphan uploaded files", orphanFiles.length > 0 && orphanFiles[0].n === 0n, String(orphanFiles[0]?.n ?? "?"));
 
   console.log(`\n${checks - failures.length}/${checks} checks passed`);
   if (failures.length > 0) {

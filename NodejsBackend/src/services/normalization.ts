@@ -42,7 +42,7 @@ export function parseDateSafe(val: string | null | undefined): Date | null {
 /** Resolve the internal numeric key for a public GHE- declaration id. */
 export async function getDeclarationPk(id: string, db: DbClient = prisma): Promise<bigint | null> {
   const row = await db.declaration.findUnique({ where: { id }, select: { declarationPk: true } });
-  return row ? (row.declarationPk as bigint) : null;
+  return row ? row.declarationPk : null;
 }
 
 export async function ensureCounterparty(
@@ -262,7 +262,7 @@ export async function writeWorkflowStepsTx(
     });
   }
   for (const s of steps) {
-    const row = toStepRow(pk, instance.id as bigint, s, validUserIds);
+    const row = toStepRow(pk, instance.id, s, validUserIds);
     await tx.workflowInstanceStep.upsert({
       where: { instanceId_stepOrder: { instanceId: instance.id, stepOrder: s.order } },
       create: { instanceId: instance.id, declarationPk: pk, ...row },

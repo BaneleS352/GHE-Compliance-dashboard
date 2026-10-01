@@ -136,4 +136,110 @@ describe("Workflow regressions", () => {
     expect(workflow.body.steps[1].decision).toBeNull();
     expect(workflow.body.steps[1].notes).toBe("");
   });
+
+  describe("Declaration status/approver track the step rows (no divergence)", () => {
+    async function snapshot(publicId: string) {
+      const decl = await prisma.declaration.findUnique({
+        where: { id: publicId },
+        include: { workflowSteps: { orderBy: { stepOrder: "asc" } } },
+      });
+      if (!decl) throw new Error(`declaration missing: ${publicId}`);
+      return decl;
+    }
+
+    it("submit → approvals keep status and current approver in agreement with the rows", async () => {
+      const create = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+          type: "Gift", counterparty: "DivergenceTrack", value: 1500,
+          submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
+          description: "Status tracking test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-05",
+          instances: "1", publicOfficial: "No",
+        });
+      const id = create.body.id;
+      await request(app).patch(`/api/declarations/${id}/submit`).set("Authorization", `Bearer ${getTeamToken()}`);
+
+      let decl = await snapshot(id);
+      expect(decl.status).toBe("Pending");
+      expect(decl.currentApproverUserId).toBe(decl.workflowSteps.find((s) => s.status === "pending")?.assigneeId);
+
+      await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${getApproverToken()}`).send({ declarationId: id, decision: "accept" });
+      decl = await snapshot(id);
+      expect(decl.status).toBe("Pending");
+      const hrStep = decl.workflowSteps.find((s) => s.role === "hr");
+      expect(hrStep?.status).toBe("pending");
+      expect(decl.currentApproverUserId).toBe(hrStep?.assigneeId);
+
+      await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${getHrToken()}`).send({ declarationId: id, decision: "accept" });
+      decl = await snapshot(id);
+      expect(decl.status).toBe("Approved");
+      expect(decl.workflowSteps.every((s) => s.status !== "pending")).toBe(true);
+    });
+
+    it("Returned PUT with a value change re-derives the approver from the rebuilt rows", async () => {
+      const create = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+          type: "Gift", counterparty: "DivergencePut", value: 100,
+          submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Low",
+          description: "PUT approver test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-05",
+          instances: "1", publicOfficial: "No",
+        });
+      const id = create.body.id;
+      await request(app).patch(`/api/declarations/${id}/submit`).set("Authorization", `Bearer ${getTeamToken()}`);
+      await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${getApproverToken()}`).send({ declarationId: id, decision: "return" });
+
+      const save = await request(app).put(`/api/declarations/${id}`).set("Authorization", `Bearer ${getTeamToken()}`).send({ value: 1500 });
+      expect(save.status).toBe(200);
+      const decl = await snapshot(id);
+      const firstPending = decl.workflowSteps.find((s) => s.status === "pending");
+      expect(firstPending).toBeDefined();
+      expect(decl.currentApproverUserId).toBe(firstPending?.assigneeId);
+      // Approver display agrees with the same row.
+      expect(save.body.approver).toBe(decl.workflowSteps.find((s) => s.assigneeId === decl.currentApproverUserId)?.assigneeName);
+    });
+
+    it("admin status override leaves rows untouched and resubmit still converges", async () => {
+      const create = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+          type: "Gift", counterparty: "DivergenceOverride", value: 1500,
+          submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Medium",
+          description: "Override test", relationship: "Test",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "T",
+          biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-05",
+          instances: "1", publicOfficial: "No",
+        });
+      const id = create.body.id;
+      await request(app).patch(`/api/declarations/${id}/submit`).set("Authorization", `Bearer ${getTeamToken()}`);
+      await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${getApproverToken()}`).send({ declarationId: id, decision: "accept" });
+      await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${getHrToken()}`).send({ declarationId: id, decision: "accept" });
+
+      const override = await request(app).patch(`/api/declarations/${id}/status`).set("Authorization", `Bearer ${getAdminToken()}`).send({ status: "Returned" });
+      expect(override.status).toBe(200);
+      const decl = await snapshot(id);
+      expect(decl.status).toBe("Returned");
+      // Rows untouched by the override: both decided.
+      expect(decl.workflowSteps.every((s) => s.status === "approved")).toBe(true);
+
+      const resubmit = await request(app).patch(`/api/declarations/${id}/submit`).set("Authorization", `Bearer ${getTeamToken()}`);
+      expect(resubmit.status).toBe(200);
+      const reconverged = await snapshot(id);
+      expect(reconverged.status).toBe("Pending");
+      expect(reconverged.currentApproverUserId).toBe(reconverged.workflowSteps.find((s) => s.status === "pending")?.assigneeId);
+    });
+  });
 });

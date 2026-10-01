@@ -37,7 +37,7 @@ export function buildTokenPayload(u: {
   organizationId?: bigint | number | null;
 }): JwtPayload {
   return {
-    id: toJsonId(u.id as bigint),
+    id: toJsonId(u.id),
     email: u.email,
     role: u.role,
     name: u.name,
@@ -46,7 +46,7 @@ export function buildTokenPayload(u: {
     organizationId:
       u.organizationId === null || u.organizationId === undefined
         ? null
-        : toJsonId(u.organizationId as bigint),
+        : toJsonId(u.organizationId),
   };
 }
 

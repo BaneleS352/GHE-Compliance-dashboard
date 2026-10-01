@@ -105,8 +105,23 @@ unique `(instanceId, stepOrder)`, numeric `assigneeId`/`decidedById`):
 | path | String | File name on disk |
 
 File association is join-only: `DeclarationFile` links a declaration to a
-file. Orphan `UploadedFile` rows are rejected (upload creates metadata + join
-row in one transaction).
+file. **File lifecycle policy (decided): unattached temporary uploads are not
+supported — every file requires its declaration link.** Upload creates
+metadata + join row in one transaction so orphans cannot be created through
+the API; `UploadedFile.link` is a required back-relation. Files without a
+join row (pre-policy data, if any) are admin-quarantined on read (403 for
+non-admins) and cascade-removed with their declaration. `pg:test` asserts a
+zero orphan-file count.
+
+### Workflow step identity
+
+`WorkflowInstanceStep.declarationPk` duplicates the instance's key for
+reporting joins, but the composite foreign key
+`WorkflowInstanceStep(instanceId, declarationPk) → WorkflowInstance(id,
+declarationPk)` (migration `0007_step_identity`) proves both values identify
+the same declaration. A step row cannot reference an instance of one
+declaration while carrying another declaration's key; mismatched writes fail
+with a foreign-key violation (proven by `pg:test`).
 
 ### Other Models
 - **ApprovalOption** — Decision options (accept, org, foundation, decline, return)
@@ -127,6 +142,18 @@ lookup copies were removed.
 - Values at or above `highValueThreshold` use the high-value workflow and appear in the high-value report.
 - Returned declarations are re-evaluated when saved/resubmitted; newly required approvers are added while valid completed approvals are preserved.
 - Report date filters are inclusive.
+- **Declaration status/approver ownership (decided):** `Declaration.status`
+  and `currentApproverUserId` are deliberately maintained cache columns
+  summarizing the workflow step rows (they power lists/reports without step
+  joins). Step rows are the facts; the cache is rewritten in the SAME
+  transaction as the steps on every path that (re)builds them (create sets
+  Draft, submit sets Pending + first pending assignee, approve sets the
+  outcome + next assignee, Returned PUT re-derives the approver from the
+  rebuilt first pending step). The only exception is the guarded admin status
+  override (`PATCH /:id/status`), a terminal-state escape hatch that requires
+  no pending steps and leaves rows untouched. Divergence is detected by
+  regression tests asserting status/approver against the step rows after
+  submit, approvals, Returned edits, and overrides.
 - **Organization consistency invariant (service-level, `services/orgConsistency.ts`):**
   whenever a user row carries an `organizationId` and references a manager,
   both organizations must match; a `NULL` (global) value on either side is

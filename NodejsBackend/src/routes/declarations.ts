@@ -483,7 +483,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   if (data.counterparty !== undefined) {
     if (data.counterparty) {
       const contactText = data.contactPerson ?? existing.detail?.contactPerson ?? null;
-      const cp = await ensureCounterparty(sanitize(data.counterparty), (bodyOrgPut as bigint | undefined) ?? existing.organizationId, contactText ? sanitize(contactText) : null);
+      const cp = await ensureCounterparty(sanitize(data.counterparty), bodyOrgPut ?? existing.organizationId, contactText ? sanitize(contactText) : null);
       putCounterpartyId = cp?.id || null;
     } else {
       putCounterpartyId = null;
@@ -497,14 +497,24 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
 
   // Single transaction: lean row, links, pre-submit snapshot manager, detail.
+  // Status/approver ownership: `status` and `currentApproverUserId` are
+  // deliberately maintained cache columns summarizing the step rows (they
+  // power lists/reports without step joins). The approver preference written
+  // here is pre-submit only; whenever steps are (re)built, the approver is
+  // re-derived from the first pending step in the same transaction (below,
+  // and in submit/approve paths).
   const pk = existing.declarationPk;
+  const willRebuildSteps =
+    existing.status === "Returned" && data.value !== undefined && data.value !== existing.value;
   await prisma.$transaction(async (tx) => {
     // Boundary label: updateData is assembled from individually validated
     // zod fields above; the spread into the update input is the one place
     // the validated pieces rejoin a Prisma input type.
     const txData: any = { ...updateData };
     if (putCounterpartyId !== undefined) txData.counterpartyId = putCounterpartyId;
-    if (putApproverUser !== undefined) txData.currentApproverUserId = putApproverUser;
+    // Skip the approver preference when steps are rebuilt below — the
+    // rebuilt rows own the approver (derived from first pending step).
+    if (putApproverUser !== undefined && !willRebuildSteps) txData.currentApproverUserId = putApproverUser;
     await tx.declaration.update({ where: { declarationPk: pk }, data: txData });
     if (data.lineManager !== undefined) {
       await tx.declarationSnapshot.upsert({
@@ -555,7 +565,10 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
   // Refresh the workflow immediately when a returned declaration's value
   // changes, so the detail view reflects newly required approvers before submit.
-  if (existing.status === "Returned" && data.value !== undefined && data.value !== existing.value) {
+  // The approver link is re-derived from the rebuilt first pending step in
+  // the same transaction (step rows own the approver, not the PUT payload).
+  let response = updated;
+  if (willRebuildSteps) {
     const instance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
     if (instance) {
       const savedSteps = (await readWorkflowStepRows(pk)) || [];
@@ -567,13 +580,24 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
           ? { ...step, status: "approved" as const, decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt }
           : step;
       });
+      const next = workflowSteps.find((s) => s.status === "pending");
       await prisma.$transaction(async (tx) => {
         await writeWorkflowStepsTx(tx, pk, workflowSteps);
+        await tx.declaration.update({
+          where: { declarationPk: pk },
+          data: { currentApproverUserId: next?.assignee === null || next?.assignee === undefined ? null : toDbId(next.assignee) },
+        });
       });
+      const reread = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
+      if (!reread) {
+        res.status(500).json({ error: "Failed to read back the updated declaration" });
+        return;
+      }
+      response = reread;
     }
   }
 
-  res.json(declarationResponse(updated));
+  res.json(declarationResponse(response));
 }));
 
 router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
@@ -599,7 +623,7 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
   if (denyCrossDepartmentLM(req, res, existing.snapshot?.department)) return;
 
   // Delete disk files via the join rows (the only file association).
-  const pk = existing.declarationPk as bigint;
+  const pk = existing.declarationPk;
   const links = await prisma.declarationFile.findMany({ where: { declarationPk: pk }, include: { file: true } });
   await Promise.all(links.map(async (l) => {
     const fp = containedUploadPath(l.file.path);
