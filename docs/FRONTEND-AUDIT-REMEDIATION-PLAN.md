@@ -19,6 +19,30 @@ This plan covers:
 
 ## Current Findings
 
+### Re-audit status — 1 October 2026
+
+The implementation was re-audited after the initial plan was created. The
+planned changes have not yet been implemented. The following items remain
+open:
+
+- Company, department, and approving manager are still editable in the new
+  declaration screen.
+- The backend still accepts client-supplied department and line-manager values
+  in declaration creation/update paths.
+- Draft/returned declarations still allow line-manager edits.
+- The backend computes a `snapshotDepartment` value but currently persists
+  `data.department` instead, leaving the server-derived value unused.
+- Organization, department, and manager lookup endpoints remain broader than
+  the caller's organization scope.
+- The dashboard queue badge still uses declaration status counts instead of
+  the actionable workflow queue.
+- Native prompts and confirmations remain in admin screens.
+- Direct and ad hoc download paths remain, with download failures logged only
+  to the console.
+- PDF and Excel exports remain unprotected.
+- Queue refresh after workflow actions is not consistently implemented.
+- The production login error still exposes the demo password.
+
 The review identified the following gaps:
 
 1. New declarations allow users to edit company, department, and approving
@@ -182,6 +206,11 @@ from production builds or protected behind an explicit demo-mode flag.
 6. Remove the organization fallback to the first available organization.
 7. Add tests proving that crafted requests cannot change company, department,
    or manager.
+8. Replace the currently unused server-derived `snapshotDepartment` value in
+   the persisted snapshot and derive the manager display/reference from the
+   authenticated user's `managerId`.
+9. Remove or reject client-supplied identity fields for self-service team
+   member declarations, including draft and returned updates.
 
 ### Phase 2 — Queue consistency
 
@@ -252,6 +281,27 @@ from production builds or protected behind an explicit demo-mode flag.
    build/environment tests for demo-mode isolation.
 10. Replace remaining free-text administrative selectors with validated,
     organization-scoped controls.
+
+## Re-audit Exit Criteria
+
+The remediation work should not be considered complete until a follow-up audit
+confirms all of the following:
+
+1. No team-member declaration screen permits editing profile-owned company,
+   department, or line-manager values.
+2. The backend ignores or rejects altered profile-owned values on create and
+   update, including draft and returned declarations.
+3. Declaration snapshots persist the server-derived department and manager
+   values rather than request-body identity fields.
+4. Lookup endpoints enforce organization and role scope.
+5. The queue badge and queue list use the same actionable workflow total.
+6. No product flow uses browser-native `prompt`, `confirm`, or `alert`.
+7. All downloads and previews use the shared authenticated download service.
+8. All approved export formats and fallback paths follow the document
+   protection policy.
+9. Queue data refreshes after workflow actions and configuration failures are
+   visible when they affect business rules.
+10. Production builds do not expose demo credentials.
 
 ## Acceptance Criteria
 
@@ -344,9 +394,10 @@ navigation, and mobile layouts.
 
 ## Suggested Delivery Order
 
-Deliver Phases 1–3 first because they directly address the visible audit
-findings and reduce workflow ambiguity. Deliver Phase 4 alongside those
-changes where schemas are touched. Complete Phase 6 before or alongside Phase
-5 so all download and export paths are consolidated before protection is
-introduced. Complete Phase 5 after the password scope, recipient model, and
-compatible protection technology have been approved.
+Deliver Phase 1 first because it contains the highest-risk data-integrity
+issue, including the unused `snapshotDepartment` calculation. Deliver Phase 2
+next to restore queue count/list consistency, followed by Phases 3 and 4 for
+UX and boundary hardening. Complete Phase 6 before or alongside Phase 5 so all
+download and export paths are consolidated before protection is introduced.
+Complete Phase 5 after the password scope, recipient model, and compatible
+protection technology have been approved.
