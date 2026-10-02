@@ -22,7 +22,21 @@ export async function login(page: Page, email: string) {
   await page.click('button[type="submit"]');
   // Desktop renders the sidebar inside <aside>; mobile renders the compact
   // navigation as a top-level <nav>.
-  await page.waitForSelector("aside nav, nav", { timeout: 15000 });
+  // Logins are rate-limited (429) per IP: on a still-landing page, back off
+  // across the 60s window and resubmit.
+  let lastError: unknown = null;
+  for (const waitMs of [0, 6000, 30000, 65000]) {
+    if (waitMs > 0) await page.waitForTimeout(waitMs);
+    try {
+      await page.waitForSelector("aside nav, nav", { timeout: 15000 });
+      return;
+    } catch (e) {
+      lastError = e;
+      if (await page.locator("aside nav, nav").count() > 0) return;
+      await page.click('button[type="submit"]').catch(() => undefined);
+    }
+  }
+  throw lastError;
 }
 
 export async function clickSidebar(page: Page, label: string) {
@@ -46,16 +60,22 @@ export class AppPage {
   }
 
   async search(id: string) {
-    const input = this.page.locator('input[placeholder*="ID,"], input[placeholder*="Search"], input[placeholder*="Declaration"]');
-    if (await input.first().isVisible({ timeout: 3000 }).catch(() => false)) {
-      await input.first().fill(id);
-      await this.page.waitForTimeout(400);
-    }
+    // List screens always render a search box — wait for it instead of
+    // silently skipping, so a missing box fails loudly at the right step.
+    const input = this.page.locator('input[placeholder*="ID,"]');
+    await input.first().waitFor({ state: "visible", timeout: 10000 });
+    await input.first().fill(id);
+    await this.page.waitForTimeout(400);
   }
 
   async clickReviewFor(id: string) {
     await this.search(id);
     await this.page.locator(`table tr:has(td:has-text("${id}")) button:has-text('Review')`).first().click();
+  }
+
+  async clickEditResubmitFor(id: string) {
+    await this.search(id);
+    await this.page.locator(`table tr:has(td:has-text("${id}")) button:has-text('Edit & Resubmit')`).first().click();
   }
 
   async pickDecision(label: string) {
@@ -124,12 +144,18 @@ export class NewDeclarationPage {
   }
 
   async number(label: string, value: string) {
-    await this.page.locator(`label:has-text("${label}") + input`).fill(value);
+    await this.page.locator(`div:has(> label:has-text("${label}")) input`).fill(value);
   }
 
   async submit() {
     await this.page.click('button:has-text("Submit Declaration")');
     await this.page.getByText("Declaration Submitted", { timeout: 15000 }).waitFor();
+  }
+
+  /** Draft-edit flows populate the form asynchronously — wait for the saved
+      description before submitting so validation sees draft values. */
+  async waitForDraftDescription(text: string) {
+    await expect(this.page.locator("textarea").first()).toHaveValue(new RegExp(text), { timeout: 10000 });
   }
 
   async getId(): Promise<string> {

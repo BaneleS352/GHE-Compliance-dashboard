@@ -17,7 +17,7 @@ const users = [
   // Hollywoodbets Group (org 1)
   { id: 1n, name: "Nomvula Dlamini", email: "nomvula@hb.co.za", role: "teamMember", teamMemberNumber: "HB-204478", department: "Marketing", position: "Senior Brand Manager", lineManager: "Sipho Nkosi", managerId: 3n, organizationId: 1n },
   { id: 2n, name: "Thabo Mokoena", email: "thabo@hb.co.za", role: "teamMember", teamMemberNumber: "HB-187234", department: "Sales", position: "Sales Executive", lineManager: "Lindiwe Zulu", managerId: 4n, organizationId: 1n },
-  { id: 3n, name: "Sipho Nkosi", email: "sipho@hb.co.za", role: "approver", teamMemberNumber: "HB-10001", department: "Marketing", position: "Line Manager", lineManager: null, managerId: null, organizationId: 1n },
+  { id: 3n, name: "Sipho Nkosi", email: "sipho@hb.co.za", role: "approver", teamMemberNumber: "HB-10001", department: "Marketing", position: "Line Manager", lineManager: "Lindiwe Zulu", managerId: 4n, organizationId: 1n },
   { id: 4n, name: "Lindiwe Zulu", email: "lindiwe@hb.co.za", role: "approver", teamMemberNumber: "HB-10002", department: "HR", position: "Head of HR", lineManager: null, managerId: null, organizationId: null },
   { id: 5n, name: "System Admin", email: "admin@hb.co.za", role: "admin", teamMemberNumber: "HB-00000", department: "IT", position: "System Administrator", lineManager: null, managerId: null, organizationId: null },
   { id: 6n, name: "Pieter van der Berg", email: "pieter@hb.co.za", role: "teamMember", teamMemberNumber: "HB-156902", department: "Finance", position: "Finance Analyst", lineManager: "Sipho Nkosi", managerId: 3n, organizationId: 1n },

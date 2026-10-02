@@ -48,7 +48,29 @@ test.describe("Approval Workflow — Full Flow", () => {
 
   test("Return at HR step → resubmit → full approval", async ({ page }) => {
     const app = new AppPage(page);
-    const declId = "GHE-2024-0044";
+    const decl = new NewDeclarationPage(page);
+
+    // Self-contained: Nomvula creates a high-value declaration (rule-2:
+    // LM + HR), so the return/resubmit cycle never depends on seed state.
+    await app.login(USERS.nomvula.email);
+    await app.sidebar("New Declaration");
+    await decl.autoFilled(USERS.nomvula.name, USERS.sipho.name);
+    await decl.receivedGiven("Received");
+    await decl.select("Who did you receive a Gift", "Supplier");
+    await decl.fill("Name of the Supplier", "E2E Return Supplies");
+    await decl.fill("Name of the person giving", "Return Contact");
+    await decl.select("Are we currently negotiating", "No");
+    await decl.select("Is the Supplier or potential Supplier", "No");
+    await decl.select("Is there an existing or imminent", "No");
+    await decl.select("What category does the nature", "Gift");
+    await decl.textarea("E2E return-cycle gift");
+    await decl.select("Reason/Occasion for the GHE", "Business Meeting");
+    await decl.date("2026-07-15");
+    await decl.number("Rand Value or Equivalent", "1500");
+    await decl.submit();
+    const declId = await decl.getId();
+    expect(declId).toBeTruthy();
+    await decl.closeModal();
 
     await app.login(USERS.sipho.email);
     await app.sidebar("Approval Queue");
@@ -64,16 +86,14 @@ test.describe("Approval Workflow — Full Flow", () => {
 
     await app.verifyStatus(declId, "Returned");
 
-    // Team member resubmits
+    // Owner resubmits the returned declaration.
     await app.login(USERS.nomvula.email);
     await app.sidebar("My Declarations");
     await app.search(declId);
-    await app.clickReviewFor(declId);
-
-    const declPage = new NewDeclarationPage(page);
-    await declPage.receivedGiven("Received");
-    await declPage.select("Who did you receive it from?", "Supplier");
-    await declPage.submit();
+    await app.clickEditResubmitFor(declId);
+    await decl.waitForDraftDescription("E2E return-cycle gift");
+    await decl.submit();
+    await decl.closeModal();
 
     await app.login(USERS.sipho.email);
     await app.sidebar("Approval Queue");
@@ -101,7 +121,9 @@ test.describe("Approval Workflow — Full Flow", () => {
     await app.page.waitForLoadState("networkidle");
 
     await app.assertVisible("h1:has-text(\"Approval Workflow\")");
-    await app.assertVisible("text=Completed");
+    // Both seeded steps are decided: the timeline shows Approved badges.
+    await app.assertVisible("text=1. Line Manager Approval");
+    await app.assertVisible("text=2. Head of HR Approval");
   });
 });
 
@@ -142,9 +164,11 @@ test.describe("Declaration Creation", () => {
     const app = new AppPage(page);
     const decl = new NewDeclarationPage(page);
 
-    await app.login(USERS.lindiwe.email);
+    // Sipho (approver, HB) has Lindiwe as manager in seed data, so his
+    // identity fields prefill and submission resolves an LM step.
+    await app.login(USERS.sipho.email);
     await app.sidebar("New Declaration");
-    await decl.autoFilled(USERS.lindiwe.name, USERS.sipho.name);
+    await decl.autoFilled(USERS.sipho.name, USERS.lindiwe.name);
     await decl.receivedGiven("Received");
     await decl.select("Who did you receive a Gift", "Supplier");
     await decl.fill("Name of the Supplier", "E2E Approver Supplies");
