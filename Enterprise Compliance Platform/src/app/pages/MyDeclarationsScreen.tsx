@@ -14,6 +14,7 @@ import { WorkflowTimeline } from "@/app/components/WorkflowTimeline";
 import { Table, Thead, Th, Tbody, Tr, Td, COL } from "@/app/components/table";
 import { PURPLE } from "@/config/theme";
 import { exportRowsToXls } from "@/utils/excel";
+import { notifySuccess, notifyError } from "@/app/components/notify";
 import { useWorkflowApproval } from "@/app/hooks/useWorkflowApproval";
 import type {
     ApprovalDecision,
@@ -51,7 +52,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
   const [viewDeclStatus, setViewDeclStatus] = useState<StatusType | null>(null);
 
   const {
-    wfSteps, wfMessage, canApprove, submitError,
+    wfSteps, canApprove, submitError,
     activeDecision, setActiveDecision,
     activeNotes, setActiveNotes,
     handleSubmit, submitDisabled,
@@ -137,34 +138,44 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
   };
 
   const exportExcel = () => {
-    const data = filtered.map((d) => ({
-      ID: d.id,
-      Employee: d.employee,
-      Type: d.type,
-      Counterparty: d.counterparty,
-      Value: d.value,
-      Submitted: d.submitted,
-      Status: d.status,
-      Approver: d.approver,
-    }));
-    exportRowsToXls("Declarations", "Declarations", data);
-  };
-
-  const exportRow = (d: Declaration) => {
-    exportRowsToXls(d.id, "Declaration", [
-      {
+    try {
+      const data = filtered.map((d) => ({
         ID: d.id,
         Employee: d.employee,
-        Department: d.department,
         Type: d.type,
         Counterparty: d.counterparty,
         Value: d.value,
         Submitted: d.submitted,
         Status: d.status,
         Approver: d.approver,
-        Priority: d.priority,
-      },
-    ]);
+      }));
+      exportRowsToXls("Declarations", "Declarations", data);
+      notifySuccess("Excel export downloaded.");
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Excel export failed. Please try again.");
+    }
+  };
+
+  const exportRow = (d: Declaration) => {
+    try {
+      exportRowsToXls(d.id, "Declaration", [
+        {
+          ID: d.id,
+          Employee: d.employee,
+          Department: d.department,
+          Type: d.type,
+          Counterparty: d.counterparty,
+          Value: d.value,
+          Submitted: d.submitted,
+          Status: d.status,
+          Approver: d.approver,
+          Priority: d.priority,
+        },
+      ]);
+      notifySuccess("Excel export downloaded.");
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Excel export failed. Please try again.");
+    }
   };
   const totalValue = visibleDeclarations.reduce(
     (sum, d) => sum + d.value,
@@ -197,11 +208,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
                 {submitError}
               </div>
             )}
-            {wfMessage && (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                {wfMessage}
-              </div>
-            )}
+            {/* Success feedback comes from the shared toast (see useWorkflowApproval). */}
             <WorkflowTimeline
               steps={wfSteps}
               decision={canApprove ? activeDecision : undefined}

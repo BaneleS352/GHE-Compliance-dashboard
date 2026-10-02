@@ -4,16 +4,15 @@ export const USERS = {
   nomvula:  { email: "nomvula@hb.co.za",  role: "teamMember", name: "Nomvula Dlamini" },
   sipho:    { email: "sipho@hb.co.za",    role: "approver",   name: "Sipho Nkosi" },
   lindiwe:  { email: "lindiwe@hb.co.za",  role: "approver",   name: "Lindiwe Zulu" },
-  sandile:  { email: "sandile@hb.co.za",  role: "approver",   name: "Sandile Shabalala" },
   admin:    { email: "admin@hb.co.za",    role: "admin",      name: "Admin User" },
 };
 
+// Indices into the LandingScreen quick-login dropdown (must match its order).
 export const LOGIN_INDEX: Record<string, number> = {
   "nomvula@hb.co.za": 0,
   "sipho@hb.co.za": 1,
   "lindiwe@hb.co.za": 4,
-  "sandile@hb.co.za": 3,
-  "admin@hb.co.za": 5,
+  "admin@hb.co.za": 6,
 };
 
 export async function login(page: Page, email: string) {
@@ -47,9 +46,9 @@ export class AppPage {
   }
 
   async search(id: string) {
-    const input = this.page.locator('input[placeholder*="Search"], input[placeholder*="Declaration"]');
-    if (await input.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await input.fill(id);
+    const input = this.page.locator('input[placeholder*="ID,"], input[placeholder*="Search"], input[placeholder*="Declaration"]');
+    if (await input.first().isVisible({ timeout: 3000 }).catch(() => false)) {
+      await input.first().fill(id);
       await this.page.waitForTimeout(400);
     }
   }
@@ -74,15 +73,15 @@ export class AppPage {
 
   async verifyStatus(declarationId: string, status: string) {
     await this.sidebar("All Declarations");
-    await this.page.getByRole("button", { name: "All", exact: true }).click();
-
+    // Filters default to All on page load; just search and assert.
     await this.search(declarationId);
     await expect(this.page.locator(`table td:has-text("${declarationId}")`).first()).toBeVisible({ timeout: 10000 });
     await expect(this.page.locator(`table td span:has-text("${status}")`).first()).toBeVisible({ timeout: 10000 });
   }
 
-  async assertVisible(selector: string, timeout = 10000) {
-    await expect(this.page.locator(selector)).toBeVisible({ timeout });
+  async assertVisible(selector: string, timeout: number | { timeout: number } = 10000) {
+    const ms = typeof timeout === "number" ? timeout : timeout.timeout;
+    await expect(this.page.locator(selector)).toBeVisible({ timeout: ms });
   }
 }
 
@@ -94,8 +93,11 @@ export class NewDeclarationPage {
   }
 
   async autoFilled(teamMember: string, manager: string) {
-    await expect(this.page.locator('label:has-text("Team Member Name") + input')).toHaveValue(teamMember, { timeout: 10000 });
-    await expect(this.page.locator('label:has-text("Manager Name") + input')).toHaveValue(manager, { timeout: 10000 });
+    // Identity fields are read-only for team members (profile locking) and
+    // wrapped in a div for other roles — match the input inside the field
+    // container either way.
+    await expect(this.page.locator('div:has(> label:has-text("Team Member Name")) input')).toHaveValue(teamMember, { timeout: 10000 });
+    await expect(this.page.locator('div:has(> label:has-text("Manager Name")) input')).toHaveValue(manager, { timeout: 10000 });
   }
 
   async receivedGiven(option: string) {

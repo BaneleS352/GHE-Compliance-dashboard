@@ -220,9 +220,11 @@ authorization, validation, and organization scoping.
 - New coverage since the last audit: profile-locking (Phase 1), queue
   contract (Phase 2), dialogs/download (Phases 3/6), lookup-scope negatives.
 - PostgreSQL integration (`pg:test`) and clean-database smoke (`pg:smoke`)
-  remain CI-run gates: they need `TEST_PG_DATABASE_URL` /
-  `SMOKE_PG_DATABASE_URL`, and no dedicated server exists in this local
-  Windows environment.
+  both pass locally against a scratch embedded PostgreSQL used as the
+  dedicated database (verified 2026-10-02). Note: `pg:test` was red until
+  this run because the user-delete assertion's `await p.user.delete(...)`
+  was embedded in a comment and never executed; the delete is restored and
+  the SET-NULL + snapshot-history checks now genuinely run.
 
 ## Full Codebase Migration Requirements
 

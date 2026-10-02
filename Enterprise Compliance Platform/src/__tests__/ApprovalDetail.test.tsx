@@ -42,6 +42,10 @@ vi.mock("../app/auth/UserContext", () => ({
   }),
 }));
 
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
   class RO {
@@ -128,7 +132,8 @@ describe("ApprovalDetail", () => {
     });
   });
 
-  it("shows success message after submission", async () => {
+  it("shows a success toast after submission (no inline banner)", async () => {
+    const { toast } = await import("sonner");
     vi.mocked(approveWorkflowStep).mockResolvedValue({ newStatus: "Pending" } as any);
     vi.mocked(fetchWorkflowInstance).mockResolvedValue(mockUserStep);
     render(<ApprovalDetail declaration={mockDeclaration} onBack={vi.fn()} />);
@@ -140,8 +145,9 @@ describe("ApprovalDetail", () => {
     fireEvent.click(screen.getByText("Submit Decision"));
 
     await waitFor(() => {
-      expect(screen.getByText("Decision submitted successfully.")).toBeInTheDocument();
+      expect(toast.success).toHaveBeenCalledWith("Decision submitted.");
     });
+    expect(screen.queryByText("Decision submitted successfully.")).not.toBeInTheDocument();
   });
 
   it("calls onBack when Back button is clicked", async () => {

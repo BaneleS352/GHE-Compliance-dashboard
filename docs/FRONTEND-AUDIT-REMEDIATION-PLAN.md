@@ -20,7 +20,8 @@ This plan covers:
 ## Implementation status — 2 October 2026
 
 Phases 1–4 and 6 are implemented and covered by tests (backend 392/392,
-frontend 248/248, typecheck and production build clean). Phase 5
+frontend 251/251, typecheck and production build clean — full gates re-run
+after the toast/refresh additions). Phase 5
 (password-protected downloads) remains gated on the stakeholder scope
 decision recorded below; the download/export path inventory is complete.
 
@@ -58,7 +59,14 @@ decision recorded below; the download/export path inventory is complete.
   search): `AdminUsers` uses `UserDialog`, `AdminApprovalOptions` and org
   deletion use dialogs, dropdown/workflow deletes use `ConfirmDialog`, adds
   use inline inputs.
-- Tests: `dialogs.test.tsx` (confirm, Escape, user-dialog validation).
+- Notifications cover admin CRUD, workflow decisions, declaration draft
+  save/submit outcomes (submit success additionally shows the existing
+  success modal), file download/preview errors, and every Excel/PDF export
+  path including the report-PDF text fallback (which now announces which
+  variant was produced).
+- Tests: `dialogs.test.tsx` (confirm, Escape, user-dialog validation),
+  `notifications.test.ts` (wrapper routing), queue-refresh regression in
+  `ApprovalQueue.test.tsx`.
 
 ### Phase 4 — done for the profile boundary
 
@@ -90,17 +98,21 @@ decision recorded below; the download/export path inventory is complete.
 ### Phase 5 — awaiting stakeholder decision
 
 No password protection is implemented yet, by plan: scope and the
-password-delivery model need stakeholder approval first. Complete path
-inventory (all currently unprotected):
+password-delivery model need stakeholder approval first. Stakeholder decision
+log: scope unconfirmed as of the 2 October 2026 audit — Phase 5 stays open
+until a scope (documents covered + password-delivery model) is approved and
+recorded here. Complete path inventory (all currently unprotected):
 
 - `DeclarationDetailView` supporting-document download/preview (shared
   service — the single point where protection will hook in).
 - `NewDeclarationScreen` supporting-document download.
-- Browser-generated Excel exports: `ApprovalQueue`, `MyDeclarationsScreen`,
-  `AdminReports` (via `utils/excel.ts`), declaration exports.
-- Backend report exports: `GET /api/reports/export` (xlsx),
-  `GET /api/reports/:type/pdf` (or equivalent) including fallback PDF
-  generation.
+- Browser-generated Excel exports: `ApprovalQueue` and `MyDeclarationsScreen`
+  (via `utils/excel.ts`), `AdminReports` (via `utils/excelExport.ts`),
+  declaration exports.
+- Client-side report PDFs: `AdminReports` renders the table to PDF with
+  html2canvas+jsPDF in the browser. There is no backend
+  `GET /api/reports/:type/pdf` route; the backend exposes report data plus
+  `GET /api/reports/export` (xlsx, admin/approver-scoped).
 
 Recommended first scope (unchanged): generated PDF reports and explicitly
 exported documents; uploaded files need a separately approved conversion or

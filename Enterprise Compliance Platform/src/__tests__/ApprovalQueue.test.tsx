@@ -170,4 +170,20 @@ describe("ApprovalQueue", () => {
       expect(footnote?.textContent).toMatch(/Showing.*0.*declarations/);
     });
   });
+
+  it("refetches queue records and total on ghe:queue-changed", async () => {
+    const first = vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
+    const { unmount } = render(<ApprovalQueue onReview={vi.fn()} />);
+    await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
+    expect(screen.getByText(/3 actionable approvals/)).toBeInTheDocument();
+    expect(first).toHaveBeenCalledTimes(1);
+
+    // A workflow action elsewhere shrinks the queue to one record.
+    const second = vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems.slice(0, 1), total: 1 } as any);
+    window.dispatchEvent(new Event("ghe:queue-changed"));
+    await waitFor(() => expect(second).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByText(/1 actionable approvals/)).toBeInTheDocument());
+    expect(screen.queryAllByText("GHE-2026-1003").length).toBe(0);
+    unmount();
+  });
 });

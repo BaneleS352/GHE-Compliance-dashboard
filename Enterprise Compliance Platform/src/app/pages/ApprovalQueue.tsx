@@ -10,6 +10,7 @@ import { StatusBadge } from "@/app/components/StatusBadge";
 import { TypeBadge } from "@/app/components/TypeBadge";
 import { Table, Thead, Th, Tbody, Tr, Td, COL } from "@/app/components/table";
 import { exportRowsToXls } from "@/utils/excel";
+import { notifySuccess, notifyError } from "@/app/components/notify";
 
 function daysSince(dateStr: string): number {
   const t = new Date(dateStr).getTime();
@@ -111,22 +112,27 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const pagedQueue = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const exportQueue = () => {
-    exportRowsToXls(
-      "ApprovalQueue",
-      "Queue",
-      sorted.map((d) => ({
-        ID: d.id,
-        Employee: d.employee,
-        Department: d.department,
-        Type: d.type,
-        Counterparty: d.counterparty,
-        Value: d.value,
-        Submitted: d.submitted,
-        Priority: d.priority,
-        Status: d.status,
-        Step: stepsMap[d.id] || "-",
-      }))
-    );
+    try {
+      exportRowsToXls(
+        "ApprovalQueue",
+        "Queue",
+        sorted.map((d) => ({
+          ID: d.id,
+          Employee: d.employee,
+          Department: d.department,
+          Type: d.type,
+          Counterparty: d.counterparty,
+          Value: d.value,
+          Submitted: d.submitted,
+          Priority: d.priority,
+          Status: d.status,
+          Step: stepsMap[d.id] || "-",
+        }))
+      );
+      notifySuccess("Excel export downloaded.");
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Excel export failed. Please try again.");
+    }
   };
 
   if (loading) {

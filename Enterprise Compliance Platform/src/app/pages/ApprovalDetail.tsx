@@ -16,7 +16,7 @@ export function ApprovalDetail({ declaration, onBack, readOnly }: { declaration:
   }, [declaration.status]);
 
   const {
-    wfSteps, wfMessage, wfLoading, canApprove, submitError,
+    wfSteps, wfLoading, canApprove, submitError,
     activeDecision, setActiveDecision,
     activeNotes, setActiveNotes,
     handleSubmit, submitDisabled,
@@ -49,7 +49,8 @@ export function ApprovalDetail({ declaration, onBack, readOnly }: { declaration:
 
         <div className="xl:col-span-2 space-y-5">
           {submitError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{submitError}</div>}
-          {wfMessage && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">{wfMessage}</div>}
+          {/* Success feedback comes from the shared toast (see useWorkflowApproval);
+              no inline success banner, so success text matches in exactly one place. */}
 
           <WorkflowTimeline
             steps={wfSteps}

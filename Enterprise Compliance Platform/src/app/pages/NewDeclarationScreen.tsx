@@ -11,6 +11,7 @@ import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG, DEFAULT_HIG
 import { Declaration, UploadedFile } from "@/types/declaration";
 import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "@/services/api";
 import { downloadFile } from "@/services/download";
+import { notifySuccess, notifyError } from "@/app/components/notify";
 import { useUser } from "@/app/auth/UserContext";
 import { fetchConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
 
@@ -477,8 +478,11 @@ export function NewDeclarationScreen({
         await syncUploadedFiles(saved);
       }
       onDraftSaved();
+      notifySuccess("Draft saved.");
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save draft.");
+      const message = err instanceof Error ? err.message : "Failed to save draft.";
+      setSubmitError(message);
+      notifyError(message);
     }
   };
 
@@ -503,7 +507,9 @@ export function NewDeclarationScreen({
       onSubmitSuccess(submitted);
     } catch (err) {
       if (saved) await updateDeclaration(saved.id, { status: "Draft" });
-      setSubmitError(err instanceof Error ? err.message : "Failed to submit declaration.");
+      const message = err instanceof Error ? err.message : "Failed to submit declaration.";
+      setSubmitError(message);
+      notifyError(message);
     } finally {
       setSubmitting(false);
     }
