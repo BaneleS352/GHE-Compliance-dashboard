@@ -38,6 +38,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const PAGE_SIZE = 10;
   const [slaDays, setSlaDays] = useState(3);
+  const [slaWarning, setSlaWarning] = useState<string | null>(null);
 
   useEffect(() => {
     const load = () => {
@@ -63,7 +64,11 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   }, []);
 
   useEffect(() => {
-    import("@/services/api").then(({ fetchConfig }) => fetchConfig().then((c) => setSlaDays(c.slaEscalationDays ?? 3)).catch(() => {}));
+    import("@/services/api").then(({ fetchConfig }) => fetchConfig()
+      .then((c) => setSlaDays(c.slaEscalationDays ?? 3))
+      // Overdue display depends on this threshold — a silent default would
+      // mislead, so warn instead of failing the whole queue.
+      .catch(() => setSlaWarning("SLA configuration could not be loaded — overdue highlighting uses a 3-day default.")));
   }, []);
 
   useEffect(() => { setPage(0); }, [search, department, status, priority, employeeFilter, overdueOnly, sortKey, sortDir]);
@@ -162,6 +167,12 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
           </div>
         }
       />
+
+      {slaWarning && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          {slaWarning}
+        </div>
+      )}
 
       <Card className="mb-4 grid grid-cols-1 gap-3 border-white/70 bg-white/85 p-3 sm:grid-cols-2 lg:grid-cols-3">
         <div>

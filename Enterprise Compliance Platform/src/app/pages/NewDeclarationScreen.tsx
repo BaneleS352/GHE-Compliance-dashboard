@@ -242,13 +242,16 @@ export function NewDeclarationScreen({
     return () => clearTimeout(t);
   }, [uploadError]);
 
-  // Per-org departments and managers — refetch when selected company changes
+  // Per-org departments and managers — refetch when selected company changes.
+  // Skipped for profile-locked team members: identity fields are read-only
+  // and the manager/department pickers are not rendered.
   useEffect(() => {
+    if (user?.role === "teamMember") return;
     const orgId = form.organizationId || user?.organizationId;
     if (!orgId) return;
     fetchManagers(orgId).then(setManagers).catch((err: Error) => console.error("Failed to fetch managers:", err));
     fetchDepartments(orgId).then(setDepartments).catch((err: Error) => console.error("Failed to fetch departments:", err));
-  }, [form.organizationId, user?.organizationId]);
+  }, [form.organizationId, user?.organizationId, user?.role]);
 
   useEffect(() => {
     if (!showManagerDropdown) return;
@@ -332,15 +335,18 @@ export function NewDeclarationScreen({
 
   const isTeamMember = user?.role === "teamMember";
   const profileIdentityLocked = Boolean(isTeamMember);
-  const profileComplete = Boolean(user?.department?.trim() && lineManagerName.trim());
+  // Mirrors the backend rule: a self-service team member must have a
+  // resolvable line manager; department-less (e.g. global) profiles keep
+  // going with a legacy value.
+  const profileManagerMissing = profileIdentityLocked && !lineManagerName.trim();
 
   const validate = () => {
     // Profile-owned identity is locked for team members: company, department,
     // and manager come from the authenticated profile, not editable inputs.
-    // Block submission with an actionable error when the profile is
-    // incomplete instead of selecting a fallback.
-    if (profileIdentityLocked && !profileComplete) {
-      setSubmitError("Your profile is incomplete: department and line manager are required before creating a declaration. Ask an administrator to update your profile.");
+    // Block submission with an actionable error when no manager resolves
+    // instead of selecting a fallback.
+    if (profileManagerMissing) {
+      setSubmitError("Your profile is incomplete: a line manager is required before creating a declaration. Ask an administrator to update your profile.");
       jumpTo("sec-team");
       return false;
     }

@@ -17,7 +17,93 @@ This plan covers:
 - shared data-access and security consistency across lookup, download, export,
   refresh, and configuration flows.
 
-## Current Findings
+## Implementation status — 2 October 2026
+
+Phases 1–4 and 6 are implemented and covered by tests (backend 392/392,
+frontend 248/248, typecheck and production build clean). Phase 5
+(password-protected downloads) remains gated on the stakeholder scope
+decision recorded below; the download/export path inventory is complete.
+
+### Phase 1 — done
+
+- `resolveDeclarationIdentity` derives snapshot department/manager from the
+  declarer profile; crafted values are ignored whenever profile links exist.
+- Self-service team members without a manager link get a clear `400`;
+  manager-less declarer flows (LM-skip) remain available through admin
+  creation with legacy request values.
+- Non-admin declaration updates cannot rewrite snapshot identity
+  (draft/returned edits included); admin corrections go through user
+  administration.
+- `NewDeclarationScreen` renders company/department/manager read-only for
+  team members from `UserContext`, with no first-organization fallback and an
+  actionable incomplete-profile error.
+- Tests: `profile-locking.test.ts` (crafted values ignored, draft edits
+  ignored, incomplete profile rejected).
+
+### Phase 2 — done
+
+- New `GET /api/workflows/queue` returns `{ items, total }` computed by one
+  shared `fetchActionableQueue` helper after scoping and actionability.
+- `ApprovalQueue` consumes `{ items, total }` and shows the authoritative
+  total; `ApproverDashboard` badge uses the same total, never status counts.
+- `ghe:queue-changed` event refreshes queue and badge after workflow actions.
+- Tests: `queue.test.ts` (contract, empty queue).
+
+### Phase 3 — done
+
+- Shared `notifySuccess`/`notifyError` (sonner) with `<Toaster>` at the app
+  root; shared accessible `ConfirmDialog` (Escape, focus, destructive
+  variant).
+- No product flow uses browser `prompt`/`confirm`/`alert` (verified by
+  search): `AdminUsers` uses `UserDialog`, `AdminApprovalOptions` and org
+  deletion use dialogs, dropdown/workflow deletes use `ConfirmDialog`, adds
+  use inline inputs.
+- Tests: `dialogs.test.tsx` (confirm, Escape, user-dialog validation).
+
+### Phase 4 — done for the profile boundary
+
+- Backend Zod + XSS sanitization + value bounds remain; profile-owned fields
+  are now authoritative as described in Phase 1, with negative tests.
+
+### Phase 6 — done
+
+- Lookup scoping: `/api/users/organizations` returns only the caller's org
+  (`[]` for global callers, all for admins); `/managers` and `/departments`
+  reject cross-organization queries for non-admins (403) and default to the
+  caller's scope. Covered by updated `organization.test.ts` negatives.
+- One authenticated download service (`services/download.ts`): Bearer token,
+  filename handling, user-facing errors, object-URL cleanup.
+  `DeclarationDetailView` and `NewDeclarationScreen` migrated; console-only
+  download failures replaced with visible notifications.
+- Config failures that affect business rules now warn visibly
+  (`NewDeclarationScreen`, `ApprovalQueue` SLA, `DeclarationDetailView`,
+  `AdminConfig` templates, `AdminWorkflows` thresholds).
+- Demo quick-login and the default-password hint are gated behind
+  `VITE_DEMO_MODE`; production builds show a standard email/password form
+  with generic failure messages.
+- `UserDialog` department control is organization-scoped (no free text).
+- Tests: `download.test.ts` (auth header, failure, preview path).
+
+### Phase 5 — awaiting stakeholder decision
+
+No password protection is implemented yet, by plan: scope and the
+password-delivery model need stakeholder approval first. Complete path
+inventory (all currently unprotected):
+
+- `DeclarationDetailView` supporting-document download/preview (shared
+  service — the single point where protection will hook in).
+- `NewDeclarationScreen` supporting-document download.
+- Browser-generated Excel exports: `ApprovalQueue`, `MyDeclarationsScreen`,
+  `AdminReports` (via `utils/excel.ts`), declaration exports.
+- Backend report exports: `GET /api/reports/export` (xlsx),
+  `GET /api/reports/:type/pdf` (or equivalent) including fallback PDF
+  generation.
+
+Recommended first scope (unchanged): generated PDF reports and explicitly
+exported documents; uploaded files need a separately approved conversion or
+repackaging approach.
+
+## Current Findings (superseded by the implementation status above)
 
 ### Re-audit status — 1 October 2026
 
@@ -284,24 +370,22 @@ from production builds or protected behind an explicit demo-mode flag.
 
 ## Re-audit Exit Criteria
 
-The remediation work should not be considered complete until a follow-up audit
-confirms all of the following:
+Status after the 2 October 2026 implementation (Phase 5 excluded — gated on
+stakeholder scope approval):
 
-1. No team-member declaration screen permits editing profile-owned company,
-   department, or line-manager values.
-2. The backend ignores or rejects altered profile-owned values on create and
-   update, including draft and returned declarations.
-3. Declaration snapshots persist the server-derived department and manager
-   values rather than request-body identity fields.
-4. Lookup endpoints enforce organization and role scope.
-5. The queue badge and queue list use the same actionable workflow total.
-6. No product flow uses browser-native `prompt`, `confirm`, or `alert`.
-7. All downloads and previews use the shared authenticated download service.
-8. All approved export formats and fallback paths follow the document
-   protection policy.
-9. Queue data refreshes after workflow actions and configuration failures are
-   visible when they affect business rules.
-10. Production builds do not expose demo credentials.
+1. Done — team-member screens render profile-owned values read-only.
+2. Done — backend derives/ignores on create/update, including drafts;
+   manager-less self-service gets a clear `400`.
+3. Done — snapshots persist server-derived values; crafted values ignored.
+4. Done — lookups enforce organization and role scope (403 on cross-org).
+5. Done — badge and list share the authoritative `{ items, total }` queue.
+6. Done — no browser-native `prompt`/`confirm`/`alert` in product flows.
+7. Done — all downloads/previews use the shared authenticated service.
+8. Open — export protection policy pending the Phase 5 scope decision;
+   path inventory above is complete.
+9. Done — queue/badge refresh on `ghe:queue-changed`; config failures warn
+   visibly where they affect business rules.
+10. Done — demo credentials gated behind `VITE_DEMO_MODE`.
 
 ## Acceptance Criteria
 

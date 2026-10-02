@@ -92,7 +92,7 @@ router.get("/departments", authenticate, asyncHandler(async (req: AuthRequest, r
     res.json(Array.from(new Set(users.map((u) => u.departmentRef?.name).filter((n): n is string => Boolean(n)))).sort());
     return;
   }
-  const orgPk = parseIdParam(orgRaw);
+  const orgPk = parseIdParam(effectiveRaw);
   if (orgPk === null) {
     res.status(400).json({ error: "Invalid organizationId" });
     return;

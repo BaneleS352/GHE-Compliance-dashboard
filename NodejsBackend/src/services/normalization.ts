@@ -125,23 +125,23 @@ export async function ensureCounterparty(
 /**
  * Resolve profile-owned declaration identity from the declarer user row.
  *
- * Snapshots always follow the declarer profile (department link and manager
- * link), never request-body identity strings. Returns null when the profile
- * is incomplete so routes can fail with an actionable 400 instead of picking
- * a fallback organization, department, or manager. Admin corrections go
- * through user administration, not declaration payloads.
+ * Each link resolves independently: a declarer may have a manager but no
+ * department link (e.g. global users who cannot link the organization-scoped
+ * Department table). Callers derive whatever the profile offers and apply
+ * their own completeness policy — self-service team members must have a
+ * manager link, while admin cross-user creation keeps legacy fallbacks so
+ * manager-less declarer flows (LM-skip) keep working.
  */
 export async function resolveDeclarationIdentity(
   userPk: bigint | number,
   db: DbClient = prisma,
-): Promise<{ department: string; managerDisplayName: string } | null> {
+): Promise<{ department: string | null; managerDisplayName: string | null }> {
   const u = await db.user.findUnique({
     where: { id: toDbId(userPk) },
     select: { departmentRef: { select: { name: true } }, manager: { select: { name: true } } },
   });
-  const department = u?.departmentRef?.name?.trim() || "";
-  const managerDisplayName = u?.manager?.name?.trim() || "";
-  if (!department || !managerDisplayName) return null;
+  const department = u?.departmentRef?.name?.trim() || null;
+  const managerDisplayName = u?.manager?.name?.trim() || null;
   return { department, managerDisplayName };
 }
 

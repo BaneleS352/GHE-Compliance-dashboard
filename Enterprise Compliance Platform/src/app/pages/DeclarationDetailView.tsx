@@ -23,9 +23,14 @@ export function DeclarationDetailView({
   const d = isRecord ? (data as Declaration) : null;
   const record = !d ? (data as Record<string, string>) : null;
   const [config, setConfig] = useState({ highValueThreshold: DEFAULT_HIGH_VALUE_THRESHOLD, mediumValueThreshold: DEFAULT_MEDIUM_VALUE_THRESHOLD, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
+  const [configWarning, setConfigWarning] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchConfig().then(setConfig).catch(() => { /* config defaults are used as fallback */ });
+    fetchConfig()
+      .then(setConfig)
+      // Threshold labels depend on config — warn instead of silently
+      // falling back to built-in defaults.
+      .catch(() => setConfigWarning("System thresholds could not be loaded — default values are shown."));
   }, []);
 
   const safe = (v: unknown) => (v != null ? String(v) : "—");
@@ -81,7 +86,11 @@ export function DeclarationDetailView({
 
   return (
     <div className="h-full flex flex-col gap-5">
-      
+      {configWarning && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          {configWarning}
+        </div>
+      )}
       <div className="detail-panel-shell flex-1 min-h-0">
       <Card
         className="

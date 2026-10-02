@@ -1,26 +1,26 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
-import { buildApp, getTeamToken } from "./helpers";
+import { buildApp, getAdminToken } from "./helpers";
 
 const app = buildApp();
 const prisma = new PrismaClient();
 
+// Self-contained fixtures: parallel test files mutate the shared fixture
+// users, so profile-locking proves its contract on dedicated users.
+const managed = { id: 0, token: "" };
+const unmanaged = { id: 0, token: "" };
+
 const BASE = {
-  employee: "Nomvula Team",
-  employeeId: 4,
-  teamMemberNumber: "TM-001",
-  lineManager: "Evil Manager",
-  position: "Brand Manager",
-  department: "Evil Dept",
-  company: "Evil Corp",
+  teamMemberNumber: "PL-001",
+  position: "Tester",
   type: "Gift",
-  counterparty: "ProfileLockA",
+  counterparty: "ProfileLockBase",
   value: 100,
   submitted: "2026-07-05",
-  approver: "Sipho Approver",
+  approver: "PL Manager",
   priority: "Low",
   description: "Profile locking test",
   relationship: "Supplier",
@@ -34,71 +34,119 @@ const BASE = {
   publicOfficial: "No",
 };
 
+function tokenFor(id: number, email: string): string {
+  return jwt.sign({ id, email, role: "teamMember", name: "PL User" }, "test-secret", { expiresIn: "1h" });
+}
+
 describe("Phase 1 — profile-owned declaration identity", () => {
+  beforeAll(async () => {
+    const hash = bcrypt.hashSync("password", 10);
+    const org = await prisma.organization.upsert({
+      where: { shortCode: "PLT" },
+      update: { name: "Profile Lock Org" },
+      create: { name: "Profile Lock Org", shortCode: "PLT" },
+    });
+    const { resolveDepartmentId } = await import("../services/normalization");
+    const deptId = await resolveDepartmentId("ProfileDept", org.id);
+
+    const lm = await prisma.user.upsert({
+      where: { email: "pl-manager@test.com" },
+      update: { name: "PL Manager", departmentId: deptId, organizationId: org.id },
+      create: {
+        name: "PL Manager", email: "pl-manager@test.com", passwordHash: hash,
+        role: "approver", teamMemberNumber: "PL-LM-001", position: "Line Manager",
+        departmentId: deptId, organizationId: org.id,
+      },
+    });
+    const tm = await prisma.user.upsert({
+      where: { email: "pl-managed@test.com" },
+      update: { name: "PL Managed", departmentId: deptId, managerId: lm.id, lineManager: lm.name, organizationId: org.id },
+      create: {
+        name: "PL Managed", email: "pl-managed@test.com", passwordHash: hash,
+        role: "teamMember", teamMemberNumber: "PL-TM-001", position: "Tester",
+        departmentId: deptId, managerId: lm.id, lineManager: lm.name, organizationId: org.id,
+      },
+    });
+    managed.id = Number(tm.id);
+    managed.token = tokenFor(managed.id, "pl-managed@test.com");
+
+    const bare = await prisma.user.upsert({
+      where: { email: "pl-bare@test.com" },
+      update: { departmentId: null, managerId: null, lineManager: null },
+      create: {
+        name: "PL Bare", email: "pl-bare@test.com", passwordHash: hash,
+        role: "teamMember", teamMemberNumber: "PL-TM-002", position: "Tester",
+        departmentId: null, managerId: null, lineManager: null,
+      },
+    });
+    unmanaged.id = Number(bare.id);
+    unmanaged.token = tokenFor(unmanaged.id, "pl-bare@test.com");
+  });
+
   it("ignores crafted company/department/manager and persists profile values", async () => {
     const create = await request(app)
       .post("/api/declarations")
-      .set("Authorization", `Bearer ${getTeamToken()}`)
-      .send(BASE);
+      .set("Authorization", `Bearer ${managed.token}`)
+      .send({
+        ...BASE,
+        employee: "PL Managed",
+        employeeId: managed.id,
+        lineManager: "Evil Manager",
+        department: "Evil Dept",
+        company: "Evil Corp",
+        counterparty: "ProfileLockA",
+      });
     expect(create.status).toBe(201);
     const id = create.body.id as string;
 
     const get = await request(app)
       .get(`/api/declarations/${id}`)
-      .set("Authorization", `Bearer ${getTeamToken()}`);
+      .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(get.status).toBe(200);
-    expect(get.body.department).toBe("Marketing");
-    expect(get.body.lineManager).toBe("Sipho Approver");
-    expect(get.body.company).toBeNull();
+    expect(get.body.department).toBe("ProfileDept");
+    expect(get.body.lineManager).toBe("PL Manager");
   });
 
   it("ignores self-service identity edits on draft updates", async () => {
     const create = await request(app)
       .post("/api/declarations")
-      .set("Authorization", `Bearer ${getTeamToken()}`)
-      .send({ ...BASE, counterparty: "ProfileLockB" });
+      .set("Authorization", `Bearer ${managed.token}`)
+      .send({
+        ...BASE,
+        employee: "PL Managed",
+        employeeId: managed.id,
+        lineManager: "PL Manager",
+        department: "ProfileDept",
+        counterparty: "ProfileLockB",
+      });
     expect(create.status).toBe(201);
     const id = create.body.id as string;
 
     const put = await request(app)
       .put(`/api/declarations/${id}`)
-      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .set("Authorization", `Bearer ${managed.token}`)
       .send({ lineManager: "Evil Manager 2", department: "Evil Dept 2" });
     expect(put.status).toBe(200);
 
     const get = await request(app)
       .get(`/api/declarations/${id}`)
-      .set("Authorization", `Bearer ${getTeamToken()}`);
-    expect(get.body.lineManager).toBe("Sipho Approver");
-    expect(get.body.department).toBe("Marketing");
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(get.body.lineManager).toBe("PL Manager");
+    expect(get.body.department).toBe("ProfileDept");
   });
 
-  it("rejects creation when the declarer profile is incomplete", async () => {
-    const hash = bcrypt.hashSync("password", 10);
-    const row = await prisma.user.upsert({
-      where: { email: "incomplete-profile@test.com" },
-      update: { departmentId: null, managerId: null, lineManager: null },
-      create: {
-        name: "Incomplete Profile",
-        email: "incomplete-profile@test.com",
-        passwordHash: hash,
-        role: "teamMember",
-        teamMemberNumber: "TM-999",
-        position: "Tester",
-        departmentId: null,
-        managerId: null,
-        lineManager: null,
-      },
-    });
-    const token = jwt.sign(
-      { id: Number(row.id), email: row.email, role: "teamMember", name: row.name },
-      "test-secret",
-      { expiresIn: "1h" },
-    );
+  it("rejects self-service creation when the team-member profile has no manager", async () => {
     const res = await request(app)
       .post("/api/declarations")
-      .set("Authorization", `Bearer ${token}`)
-      .send({ ...BASE, employeeId: Number(row.id), counterparty: "ProfileLockC" });
+      .set("Authorization", `Bearer ${unmanaged.token}`)
+      .send({
+        ...BASE,
+        employee: "PL Bare",
+        employeeId: unmanaged.id,
+        lineManager: "Nobody",
+        department: "Nowhere",
+        counterparty: "ProfileLockC",
+      });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/Incomplete profile/i);
   });

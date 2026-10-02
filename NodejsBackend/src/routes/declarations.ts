@@ -308,12 +308,28 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   const declarerUserId: bigint | null = declarerRow?.id || null;
   const txApproverUserId: bigint | null = approverRow?.id || null;
   // Snapshot identity is profile-owned: department and manager always follow
-  // the declarer user row, never request-body strings. Client-supplied
-  // company/department/lineManager are accepted for compatibility but ignored
-  // for snapshot purposes (exit criterion: ignore or reject altered values).
+  // Snapshot identity ownership (Phase 1):
+  // - Profile links win wherever they exist: department and manager display
+  //   follow the declarer user row, never request-body strings. Crafted
+  //   company/department/lineManager values are accepted for compatibility
+  //   but ignored for snapshot purposes (exit criterion: ignore or reject
+  //   altered values).
+  // - A self-service team member without a manager link fails with an
+  //   actionable 400 instead of picking a fallback manager. Manager-less
+  //   declarer flows (LM-skip) remain available through admin creation, and
+  //   department-less declarers (e.g. global users who cannot link the
+  //   organization-scoped Department table) keep the legacy request value.
+  // - Corrections go through user administration, not declaration payloads.
+  const selfServiceTeamMember = employeePk === callerPk && req.user!.role === "teamMember";
   const identity = await resolveDeclarationIdentity(employeePk);
-  if (!identity) {
-    res.status(400).json({ error: "Incomplete profile: department and line manager are required before creating a declaration" });
+  const legacyDepartment =
+    (employeePk === callerPk ? req.user!.department : declarerRow && "departmentRef" in declarerRow ? declarerRow.departmentRef?.name : undefined) ||
+    data.department;
+  const snapshotDepartment = identity.department ?? legacyDepartment;
+  const snapshotManager = identity.managerDisplayName
+    ?? (selfServiceTeamMember ? null : sanitize(data.lineManager) || null);
+  if (selfServiceTeamMember && snapshotManager === null) {
+    res.status(400).json({ error: "Incomplete profile: a line manager is required before creating a declaration" });
     return;
   }
 
@@ -346,9 +362,9 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
         name: sanitize(data.employee),
         teamMemberNumber: sanitize(data.teamMemberNumber),
         position: sanitize(data.position),
-        department: identity.department,
+        department: sanitize(snapshotDepartment),
       },
-      identity.managerDisplayName,
+      snapshotManager,
       tx,
       true,
     );

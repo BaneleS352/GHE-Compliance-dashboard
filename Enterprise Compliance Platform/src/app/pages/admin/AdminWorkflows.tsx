@@ -19,7 +19,7 @@ export function AdminWorkflows() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => { fetchWorkflowRules().then(setRules).catch((err: Error) => setError(err.message)); }, []);
-  useEffect(() => { fetchConfig().then((c) => setThreshold({ highValueThreshold: c.highValueThreshold, maximumValue: (c as any).maximumValue ?? 1000000 })).catch(() => {}); }, []);
+  useEffect(() => { fetchConfig().then((c) => setThreshold({ highValueThreshold: c.highValueThreshold, maximumValue: (c as any).maximumValue ?? 1000000 })).catch((err: Error) => setError(`Could not load system thresholds: ${err.message}`)); }, []);
 
   const handleAdd = async () => {
     try {

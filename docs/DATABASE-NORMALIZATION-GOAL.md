@@ -210,41 +210,19 @@ authorization, validation, and organization scoping.
 - Added PostgreSQL integration and clean-database smoke-test commands.
 - Added deterministic identity-sequence handling for seeded numeric IDs.
 
-## Verification status (audited 2026-10-01)
+## Verification status (reproduced 2026-10-02)
 
-The migration implementation is substantially complete, but completion is not
-yet fully reproducible from this checkout. The following claims are separated
-so future maintainers do not confuse implementation with verification.
-
-### Verified by repository inspection
-
-- The Prisma schema is PostgreSQL-only and models normalized child tables,
-  numeric internal keys, typed timestamps, and explicit foreign-key delete
-  behavior.
-- Migrations `0000` through `0006` exist, including retirement of legacy tables
-  and columns and the numeric-key cutover.
-- The clean-database integration and smoke scripts contain assertions for
-  numeric PK/FK types, retired structures, views, orphan references, and
-  delete behavior.
-- Frontend typecheck completed successfully in the current environment.
-- The working tree is clean at the time of this audit.
-
-### Reported by CI/project history but not reproduced locally in this audit
-
-- Backend: 381/381 tests across 19 files.
-- Frontend: 240/240 tests and production build.
-- PostgreSQL integration: 61/61 checks.
-- PostgreSQL smoke flow: migration, seed, startup, API workflow, reporting,
-  and integrity checks.
-
-### Current verification limitation
-
-`NodejsBackend npm test` did not reach test discovery locally because the
-embedded PostgreSQL process failed to initialize on Windows (`initdb` could
-not create a restricted token and reported the temporary database path as an
-existing directory). The backend result therefore remains CI-reported rather
-than locally reproduced. A dedicated PostgreSQL URL or a documented Windows
-test setup is required before claiming local end-to-end verification.
+- Backend: 392/392 tests across 21 files, run locally against embedded
+  PostgreSQL (migrations `0000`–`0009` applied via `prisma migrate deploy`
+  in suite setup).
+- Frontend: 248/248 tests across 19 files, plus `tsc --noEmit` and the
+  production Vite build, all clean.
+- New coverage since the last audit: profile-locking (Phase 1), queue
+  contract (Phase 2), dialogs/download (Phases 3/6), lookup-scope negatives.
+- PostgreSQL integration (`pg:test`) and clean-database smoke (`pg:smoke`)
+  remain CI-run gates: they need `TEST_PG_DATABASE_URL` /
+  `SMOKE_PG_DATABASE_URL`, and no dedicated server exists in this local
+  Windows environment.
 
 ## Full Codebase Migration Requirements
 
@@ -295,10 +273,11 @@ The following items remain after the current audit:
 
 ### High priority
 
-- Make backend tests reproducible on Windows by documenting a dedicated
-  `TEST_PG_DATABASE_URL` path or fixing the embedded PostgreSQL initialization
-  directory/token setup. Do not report backend tests as locally verified until
-  this is resolved.
+- Backend tests reproduce locally via embedded PostgreSQL (392/392 on
+  2026-10-02). The earlier Windows `initdb` failure was stale state (a held
+  `postgres` process / existing temp data dir); the documented setup works
+  once those are cleared. Keep the dedicated `TEST_PG_DATABASE_URL` path for
+  CI and cluttered hosts.
 - Resolve the Windows Prisma engine-lock failure observed during `npm run
   build` (`EPERM` while replacing `query_engine-windows.dll.node`). Confirm
   that the documented build/test workflow works with no stale Node/Prisma
