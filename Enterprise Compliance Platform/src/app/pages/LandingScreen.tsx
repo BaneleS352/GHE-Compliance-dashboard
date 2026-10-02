@@ -17,18 +17,12 @@ const QUICK_LOGIN_USERS = [
   { label: "Admin — System Admin (Global)",        email: "admin@hb.co.za",    role: "admin" as const },
 ];
 
-// Demo quick-login (preset users + default password) is only available in an
-// explicitly flagged demo build. Production builds show a standard
-// email/password form with no credential hints.
-const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
-
+// Quick login with preset demo users. The password is preselected; sign-in
+// failures report a generic message and never disclose credential details.
 export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string) => void }) {
   const { setUser } = useUser();
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const [demoEmail, setDemoEmail] = useState("");
-  const [demoPassword, setDemoPassword] = useState("");
-  const email = DEMO_MODE ? QUICK_LOGIN_USERS[selectedIdx].email : demoEmail;
-  const role = DEMO_MODE ? QUICK_LOGIN_USERS[selectedIdx].role : undefined;
+  const email = QUICK_LOGIN_USERS[selectedIdx].email;
   const [password, setPassword] = useState("password");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -40,9 +34,8 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
     await new Promise((r) => setTimeout(r, 400));
 
     try {
-      const user = await authenticate(email, DEMO_MODE ? password : demoPassword);
+      const user = await authenticate(email, password);
       if (!user) {
-        // Generic failure: never disclose credential details.
         setError("Invalid credentials. Please try again.");
         setLoading(false);
         return;
@@ -88,35 +81,19 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
             <p className="text-sm text-slate-600 mt-2 leading-6">GHE Declaration Portal</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {DEMO_MODE ? (
-              <>
-                <div>
-                  <label className="block text-sm font-semibold text-foreground mb-1.5">Email</label>
-                  <input type="email" value={email} readOnly className={inp} />
-                </div>
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-1.5">Email</label>
+              <input type="email" value={email} readOnly className={inp} />
+            </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-foreground mb-1.5">Password</label>
-                  <select value={selectedIdx} onChange={(e) => { setSelectedIdx(Number(e.target.value)); setPassword("password"); setError(""); }}
-                    className={`${inp} cursor-pointer`}
-                  >
-                    {QUICK_LOGIN_USERS.map((u, i) => <option key={i} value={i}>{u.label}</option>)}
-                  </select>
-                </div>
-              </>
-            ) : (
-              <>
-                <div>
-                  <label className="block text-sm font-semibold text-foreground mb-1.5">Email</label>
-                  <input type="email" value={demoEmail} onChange={(e) => setDemoEmail(e.target.value)} className={inp} autoComplete="username" />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-foreground mb-1.5">Password</label>
-                  <input type="password" value={demoPassword} onChange={(e) => setDemoPassword(e.target.value)} className={inp} autoComplete="current-password" />
-                </div>
-              </>
-            )}
+            <div>
+              <label className="block text-sm font-semibold text-foreground mb-1.5">Password</label>
+              <select value={selectedIdx} onChange={(e) => { setSelectedIdx(Number(e.target.value)); setPassword("password"); setError(""); }}
+                className={`${inp} cursor-pointer`}
+              >
+                {QUICK_LOGIN_USERS.map((u, i) => <option key={i} value={i}>{u.label}</option>)}
+              </select>
+            </div>
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
             )}

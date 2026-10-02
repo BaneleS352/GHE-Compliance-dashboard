@@ -307,7 +307,6 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   ]);
   const declarerUserId: bigint | null = declarerRow?.id || null;
   const txApproverUserId: bigint | null = approverRow?.id || null;
-  // Snapshot identity is profile-owned: department and manager always follow
   // Snapshot identity ownership (Phase 1):
   // - Profile links win wherever they exist: department and manager display
   //   follow the declarer user row, never request-body strings. Crafted

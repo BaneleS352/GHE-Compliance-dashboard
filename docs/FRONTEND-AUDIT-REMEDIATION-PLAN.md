@@ -78,9 +78,12 @@ decision recorded below; the download/export path inventory is complete.
 - Config failures that affect business rules now warn visibly
   (`NewDeclarationScreen`, `ApprovalQueue` SLA, `DeclarationDetailView`,
   `AdminConfig` templates, `AdminWorkflows` thresholds).
-- Demo quick-login and the default-password hint are gated behind
-  `VITE_DEMO_MODE`; production builds show a standard email/password form
-  with generic failure messages.
+- Demo quick-login restored on explicit user request (2 October 2026):
+  preset users and preselected password are back in all builds. The sign-in
+  failure message stays generic and no longer discloses the default
+  password. Full demo-mode gating (`VITE_DEMO_MODE` + standard login form)
+  remains the recommended follow-up if production must not ship demo
+  credentials.
 - `UserDialog` department control is organization-scoped (no free text).
 - Tests: `download.test.ts` (auth header, failure, preview path).
 
@@ -385,7 +388,9 @@ stakeholder scope approval):
    path inventory above is complete.
 9. Done — queue/badge refresh on `ghe:queue-changed`; config failures warn
    visibly where they affect business rules.
-10. Done — demo credentials gated behind `VITE_DEMO_MODE`.
+10. Partial — quick login restored on request; failure messages stay generic
+  (no password disclosure), but preset demo credentials ship in all builds
+  until demo-mode gating is reinstated.
 
 ## Acceptance Criteria
 
