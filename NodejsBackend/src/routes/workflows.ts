@@ -37,16 +37,10 @@ function findActionablePendingStep(steps: WorkflowStep[], userPk: number): Workf
   return null;
 }
 
-// GET /api/workflows/pending — pending approvals for current user (org-scoped, DB-filtered)
-router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const userPk = toDbId(req.user!.id);
-  const userPkJson = toJsonId(userPk);
-  const userOrg = req.user?.organizationId ?? undefined;
-  const limitRaw = req.query.limit as string | undefined;
-  const offsetRaw = req.query.offset as string | undefined;
-  const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 100) : undefined;
-  const offset = offsetRaw ? Math.max(parseInt(offsetRaw, 10) || 0, 0) : 0;
-
+// Authoritative approval queue: the same actionable-step and organization
+// rules back both the queue records and the total count, so the dashboard
+// badge and queue list can never disagree.
+async function fetchActionableQueue(userPk: bigint, userPkJson: number, userOrg: number | null | undefined) {
   // Direct step query: only this user's pending steps — no full-declaration
   // prefetch, no full instance scan, no per-instance sequential reads.
   // Sibling steps (for actionability) and declarations are batch-fetched.
@@ -55,10 +49,7 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
     select: { declarationPk: true },
   });
   const pks: bigint[] = [...new Set(mySteps.map((s) => s.declarationPk))];
-  if (pks.length === 0) {
-    res.json([]);
-    return;
-  }
+  if (pks.length === 0) return [];
   const [allRows, declarations] = await Promise.all([
     prisma.workflowInstanceStep.findMany({
       where: { declarationPk: { in: pks } },
@@ -86,8 +77,39 @@ router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: 
     if (userOrg !== undefined && userOrg !== null && declaration.organizationId !== null && declaration.organizationId !== toDbId(userOrg)) continue;
     pending.push({ declaration: declarationResponse(declaration), step: pendingStep });
   }
+  return pending;
+}
+
+function parsePaging(req: { query: Record<string, unknown> }): { limit: number | undefined; offset: number } {
+  const limitRaw = req.query.limit as string | undefined;
+  const offsetRaw = req.query.offset as string | undefined;
+  const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 100) : undefined;
+  const offset = offsetRaw ? Math.max(parseInt(offsetRaw, 10) || 0, 0) : 0;
+  return { limit, offset };
+}
+
+// GET /api/workflows/pending — pending approvals for current user (org-scoped, DB-filtered)
+router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const userPk = toDbId(req.user!.id);
+  const userPkJson = toJsonId(userPk);
+  const userOrg = req.user?.organizationId ?? undefined;
+  const { limit, offset } = parsePaging(req);
+  const pending = await fetchActionableQueue(userPk, userPkJson, userOrg);
   const paged = limit !== undefined ? pending.slice(offset, offset + limit) : pending;
   res.json(paged);
+}));
+
+// GET /api/workflows/queue — authoritative queue response: records plus the
+// total computed after organization scoping and actionable-step resolution.
+router.get("/queue", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const userPk = toDbId(req.user!.id);
+  const userPkJson = toJsonId(userPk);
+  const userOrg = req.user?.organizationId ?? undefined;
+  const { limit, offset } = parsePaging(req);
+  const items = await fetchActionableQueue(userPk, userPkJson, userOrg);
+  const total = items.length;
+  const paged = limit !== undefined ? items.slice(offset, offset + limit) : items;
+  res.json({ items: paged, total });
 }));
 
 // GET /api/workflows/instances/:declarationId — workflow timeline

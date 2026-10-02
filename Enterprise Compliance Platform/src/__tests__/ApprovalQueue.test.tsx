@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ApprovalQueue } from "../app/pages/ApprovalQueue";
-import { fetchPendingWorkflows } from "../services/api";
+import { fetchWorkflowQueue } from "../services/api";
 import { exportRowsToXls } from "../utils/excel";
 
 const mockQueueItems = [
@@ -47,7 +47,7 @@ const mockQueueItems = [
 ];
 
 vi.mock("../services/api", () => ({
-  fetchPendingWorkflows: vi.fn(),
+  fetchWorkflowQueue: vi.fn(),
   // ApprovalQueue lazy-loads the SLA configuration after loading the queue.
   // Keep this export in the mock so the async side effect is observable without
   // producing an unhandled Vitest mock error.
@@ -75,13 +75,13 @@ beforeEach(() => {
 
 describe("ApprovalQueue", () => {
   it("shows loading state initially", () => {
-    vi.mocked(fetchPendingWorkflows).mockReturnValue(new Promise(() => {}));
+    vi.mocked(fetchWorkflowQueue).mockReturnValue(new Promise(() => {}));
     render(<ApprovalQueue onReview={vi.fn()} />);
     expect(screen.getByText(/Loading queue/)).toBeInTheDocument();
   });
 
   it("shows error state when fetch fails", async () => {
-    vi.mocked(fetchPendingWorkflows).mockRejectedValue(new Error("Failed to load"));
+    vi.mocked(fetchWorkflowQueue).mockRejectedValue(new Error("Failed to load"));
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => {
       expect(screen.getByText(/Failed to load queue/)).toBeInTheDocument();
@@ -89,7 +89,7 @@ describe("ApprovalQueue", () => {
   });
 
   it("renders actionable queue items returned by the workflow API", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => {
       expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0);
@@ -99,7 +99,7 @@ describe("ApprovalQueue", () => {
   });
 
   it("filters by search text", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
 
@@ -112,7 +112,7 @@ describe("ApprovalQueue", () => {
   });
 
   it("filters by department", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
 
@@ -125,7 +125,7 @@ describe("ApprovalQueue", () => {
   });
 
   it("filters by priority", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
 
@@ -138,7 +138,7 @@ describe("ApprovalQueue", () => {
   });
 
   it("calls onReview when Review button is clicked", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     const onReview = vi.fn();
     render(<ApprovalQueue onReview={onReview} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
@@ -149,7 +149,7 @@ describe("ApprovalQueue", () => {
   });
 
   it("calls exportRowsToXls on Export button click", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
 
@@ -159,7 +159,7 @@ describe("ApprovalQueue", () => {
   });
 
   it("shows empty state when no declarations match filters", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
 

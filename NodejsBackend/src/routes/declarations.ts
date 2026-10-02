@@ -14,6 +14,7 @@ import {
   parseDateSafe,
   ensureCounterparty,
   captureDeclarationSnapshot,
+  resolveDeclarationIdentity,
   syncDeclarationDetail,
   writeWorkflowStepsTx,
   readWorkflowStepRows,
@@ -306,12 +307,15 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   ]);
   const declarerUserId: bigint | null = declarerRow?.id || null;
   const txApproverUserId: bigint | null = approverRow?.id || null;
-  // Snapshot department is server-resolved: the declarer's own derived
-  // department for self-declarations, else their departmentId link. The
-  // client-supplied string is a legacy fallback for unlinked declarers only.
-  const snapshotDepartment =
-    (employeePk === callerPk ? req.user!.department : declarerRow && "departmentRef" in declarerRow ? declarerRow.departmentRef?.name : undefined) ||
-    data.department;
+  // Snapshot identity is profile-owned: department and manager always follow
+  // the declarer user row, never request-body strings. Client-supplied
+  // company/department/lineManager are accepted for compatibility but ignored
+  // for snapshot purposes (exit criterion: ignore or reject altered values).
+  const identity = await resolveDeclarationIdentity(employeePk);
+  if (!identity) {
+    res.status(400).json({ error: "Incomplete profile: department and line manager are required before creating a declaration" });
+    return;
+  }
 
   // Single transaction: lean declaration row, canonical DateTime columns and
   // links, immutable snapshot, detail rows, and the counterparty identity
@@ -342,9 +346,9 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
         name: sanitize(data.employee),
         teamMemberNumber: sanitize(data.teamMemberNumber),
         position: sanitize(data.position),
-        department: sanitize(data.department),
+        department: identity.department,
       },
-      sanitize(data.lineManager) || null,
+      identity.managerDisplayName,
       tx,
       true,
     );
@@ -463,9 +467,9 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   // Editable via PUT: everything EXCEPT the immutable declarer identity
   // (employee name, teamMemberNumber, position, department — captured once
   // into DeclarationSnapshot at creation). Identity corrections require admin
-  // recreation. lineManager stays editable while Draft/Returned (pre-submit
-  // context, not yet audited); the snapshot manager is updated alongside and
-  // frozen at submit.
+  // action. lineManager snapshot updates are admin-only, including
+  // Draft/Returned edits; self-service payloads cannot alter snapshot
+  // identity and are ignored.
   const updateData: Record<string, unknown> = {};
   if (data.type !== undefined) updateData.type = sanitize(data.type);
   if (data.value !== undefined) updateData.value = data.value;
@@ -522,7 +526,11 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     // rebuilt rows own the approver (derived from first pending step).
     if (putApproverUser !== undefined && !willRebuildSteps) txData.currentApproverUserId = putApproverUser;
     await tx.declaration.update({ where: { declarationPk: pk }, data: txData });
-    if (data.lineManager !== undefined) {
+    // Self-service identity lock: non-admin callers cannot alter snapshot
+    // identity through declaration updates, including draft/returned edits.
+    // Admin corrections use user administration; declaration payloads never
+    // rewrite snapshot identity for non-admins.
+    if (data.lineManager !== undefined && req.user!.role === "admin") {
       await tx.declarationSnapshot.upsert({
         where: { declarationPk: pk },
         create: {

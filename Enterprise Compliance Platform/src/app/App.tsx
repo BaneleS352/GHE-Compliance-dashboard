@@ -19,6 +19,7 @@ import { SuccessModal } from "@/app/components/SuccessModal";
 import { DraftBanner } from "@/app/components/DraftBanner";
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { Screen, Role, Declaration } from "@/types/declaration";
+import { Toaster } from "sonner";
 
 function AppInner() {
   const { user, logout } = useUser();
@@ -133,6 +134,7 @@ export default function App() {
     <UserProvider>
       <ErrorBoundary>
         <AppInner />
+        <Toaster position="top-center" richColors closeButton />
       </ErrorBoundary>
     </UserProvider>
   );

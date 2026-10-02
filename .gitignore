@@ -29,3 +29,7 @@ NodejsBackend/prisma/test.db
 NodejsBackend/prisma/*.bak
 NodejsBackend/prisma/*.db-journal
 NodejsBackend/data/
+
+# Local secrets — the example stays tracked, the real file does not
+NodejsBackend/.env
+

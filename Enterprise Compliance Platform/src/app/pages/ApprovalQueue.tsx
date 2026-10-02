@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 import { Download, Search, AlertTriangle } from "lucide-react";
-import { fetchPendingWorkflows } from "@/services/api";
+import { fetchWorkflowQueue } from "@/services/api";
 import { Declaration } from "@/types/declaration";
 import { PURPLE, formatRand, PRIORITY_COLORS } from "@/config/theme";
 import { Card } from "@/app/components/Card";
@@ -23,6 +23,7 @@ function isOutstanding(dateStr: string, slaDays: number): boolean {
 
 export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void }) {
   const [allDeclarations, setAllDeclarations] = useState<Declaration[]>([]);
+  const [queueTotal, setQueueTotal] = useState(0);
   const [stepsMap, setStepsMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -39,16 +40,29 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const [slaDays, setSlaDays] = useState(3);
 
   useEffect(() => {
-    fetchPendingWorkflows()
-      .then((items) => {
-        setAllDeclarations(items.map((item) => item.declaration));
-        const map: Record<string, string> = {};
-        items.forEach((item) => { if (item.step) map[item.declaration.id] = item.step.label; });
-        setStepsMap(map);
-      })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
+    const load = () => {
+      setLoading(true);
+      fetchWorkflowQueue()
+        .then((queue) => {
+          setAllDeclarations(queue.items.map((item) => item.declaration));
+          // Authoritative total from the same response — never recomputed
+          // from declaration statuses.
+          setQueueTotal(queue.total);
+          const map: Record<string, string> = {};
+          queue.items.forEach((item) => { if (item.step) map[item.declaration.id] = item.step.label; });
+          setStepsMap(map);
+        })
+        .catch((err: Error) => setError(err.message))
+        .finally(() => setLoading(false));
+    };
+    load();
+    window.addEventListener("ghe:queue-changed", load);
+    return () => window.removeEventListener("ghe:queue-changed", load);
     // Fetch SLA threshold for overdue calculation
+    // (kept separate so queue refreshes do not refetch config)
+  }, []);
+
+  useEffect(() => {
     import("@/services/api").then(({ fetchConfig }) => fetchConfig().then((c) => setSlaDays(c.slaEscalationDays ?? 3)).catch(() => {}));
   }, []);
 
@@ -130,7 +144,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
     <div>
       <PageHeader
         title="Approval Queue"
-        subtitle={`${filteredQueue.length} Declarations awaiting your review`}
+        subtitle={`${queueTotal} actionable approvals awaiting your review`}
         actions={
           <div className="flex flex-wrap gap-2">
             <button

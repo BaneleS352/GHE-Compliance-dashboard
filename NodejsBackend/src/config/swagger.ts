@@ -247,6 +247,14 @@ const options: swaggerJsdoc.Options = {
           responses: { 200: { description: "Array of pending steps with declaration info" } },
         },
       },
+      "/api/workflows/queue": {
+        get: {
+          tags: ["Workflows"],
+          summary: "Authoritative approval queue: records plus total",
+          security: [{ bearerAuth: [] }],
+          responses: { 200: { description: "Queue items with the total computed after scoping and actionability" } },
+        },
+      },
       "/api/workflows/instances/{declarationId}": {
         get: {
           tags: ["Workflows"],

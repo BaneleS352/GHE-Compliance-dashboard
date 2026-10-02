@@ -5,6 +5,8 @@ import { PageHeader } from "../../components/PageHeader";
 import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
 import { WorkflowRule } from "../../../types/declaration";
 import { fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule, fetchConfig } from "../../../services/api";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { notifySuccess, notifyError } from "../../components/notify";
 
 const ROLE_LABELS: Record<string, string> = { lineManager: "Line Manager", hr: "Head of HR" };
 
@@ -14,6 +16,7 @@ export function AdminWorkflows() {
   const [editName, setEditName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [threshold, setThreshold] = useState<{ highValueThreshold: number; maximumValue: number } | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => { fetchWorkflowRules().then(setRules).catch((err: Error) => setError(err.message)); }, []);
   useEffect(() => { fetchConfig().then((c) => setThreshold({ highValueThreshold: c.highValueThreshold, maximumValue: (c as any).maximumValue ?? 1000000 })).catch(() => {}); }, []);
@@ -29,8 +32,11 @@ export function AdminWorkflows() {
       };
       await createWorkflowRule(newRule);
       fetchWorkflowRules().then(setRules).catch((err: Error) => setError(err.message));
-    } catch (e: any) {
-      setError(e.message);
+      notifySuccess("Workflow rule created.");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to create workflow rule.";
+      setError(message);
+      notifyError(message);
     }
   };
 
@@ -44,18 +50,24 @@ export function AdminWorkflows() {
       await updateWorkflowRule(id, { name: editName });
       setEditingId(null);
       fetchWorkflowRules().then(setRules).catch((err: Error) => setError(err.message));
-    } catch (e: any) {
-      setError(e.message);
+      notifySuccess("Workflow rule updated.");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to update workflow rule.";
+      setError(message);
+      notifyError(message);
     }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Delete this workflow rule?")) return;
     try {
       await deleteWorkflowRule(id);
+      setDeletingId(null);
       fetchWorkflowRules().then(setRules).catch((err: Error) => setError(err.message));
-    } catch (e: any) {
-      setError(e.message);
+      notifySuccess("Workflow rule deleted.");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to delete workflow rule.";
+      setError(message);
+      notifyError(message);
     }
   };
 
@@ -125,7 +137,7 @@ export function AdminWorkflows() {
                   <Edit size={13} /> Edit
                 </button>
               )}
-              <button onClick={() => handleDelete(rule.id)} className="flex h-9 items-center justify-center gap-1 rounded-xl border border-red-100 bg-red-50 px-3 text-xs font-semibold text-red-600 hover:-translate-y-0.5 hover:bg-red-100">
+              <button onClick={() => setDeletingId(rule.id)} className="flex h-9 items-center justify-center gap-1 rounded-xl border border-red-100 bg-red-50 px-3 text-xs font-semibold text-red-600 hover:-translate-y-0.5 hover:bg-red-100">
                 <Trash2 size={13} /> Delete
               </button>
             </div>
@@ -133,6 +145,16 @@ export function AdminWorkflows() {
         ))}
       </div>
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {deletingId !== null && (
+        <ConfirmDialog
+          title="Delete workflow rule"
+          message="Delete this workflow rule? Declarations already in flight keep their frozen step rows."
+          confirmLabel="Delete"
+          destructive
+          onConfirm={() => handleDelete(deletingId)}
+          onCancel={() => setDeletingId(null)}
+        />
+      )}
     </div>
   );
 }

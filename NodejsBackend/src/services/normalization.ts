@@ -122,6 +122,29 @@ export async function ensureCounterparty(
   }
 }
 
+/**
+ * Resolve profile-owned declaration identity from the declarer user row.
+ *
+ * Snapshots always follow the declarer profile (department link and manager
+ * link), never request-body identity strings. Returns null when the profile
+ * is incomplete so routes can fail with an actionable 400 instead of picking
+ * a fallback organization, department, or manager. Admin corrections go
+ * through user administration, not declaration payloads.
+ */
+export async function resolveDeclarationIdentity(
+  userPk: bigint | number,
+  db: DbClient = prisma,
+): Promise<{ department: string; managerDisplayName: string } | null> {
+  const u = await db.user.findUnique({
+    where: { id: toDbId(userPk) },
+    select: { departmentRef: { select: { name: true } }, manager: { select: { name: true } } },
+  });
+  const department = u?.departmentRef?.name?.trim() || "";
+  const managerDisplayName = u?.manager?.name?.trim() || "";
+  if (!department || !managerDisplayName) return null;
+  return { department, managerDisplayName };
+}
+
 export async function captureDeclarationSnapshot(
   declarationPk: bigint | number,
   declarer: { name: string; teamMemberNumber: string; position: string; department: string },

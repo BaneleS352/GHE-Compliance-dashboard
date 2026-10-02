@@ -145,6 +145,8 @@ export function useWorkflowApproval({ declarationId, userId, initialWorkflowStep
       else if (res === undefined) onStatusUpdate?.("Pending" as any);
       await loadWorkflowInstance();
       setWfMessage("Decision submitted successfully.");
+      // Queue/badge refresh: listeners refetch the authoritative queue.
+      window.dispatchEvent(new Event("ghe:queue-changed"));
       setTimeout(() => { setWfMessage(""); }, 1500);
     } catch (err: any) {
       if (err.name === "AbortError") setSubmitError("Request timed out. Please try again.");

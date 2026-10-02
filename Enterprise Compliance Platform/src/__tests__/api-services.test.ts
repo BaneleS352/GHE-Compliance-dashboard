@@ -9,7 +9,7 @@ import {
   fetchDropdownOptions, updateDropdownOptions,
   fetchAdminDashboard,
   fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule,
-  fetchPendingWorkflows, fetchWorkflowInstance, approveWorkflowStep,
+  fetchPendingWorkflows, fetchWorkflowQueue, fetchWorkflowInstance, approveWorkflowStep,
   fetchReportStatusBreakdown, fetchReportSLA,
   fetchReportCounterpartyConcentration, fetchReportHighValue,
   fetchReportList, fetchApprovalOptions,
@@ -299,6 +299,30 @@ describe("workflow operations", () => {
     expect(result).toHaveLength(1);
     expect(result[0].declaration.counterparty).toBe("B");
     expect(result[0].declaration.contactPerson).toBe("Jane");
+  });
+
+  it("fetchWorkflowQueue returns items and total from the same response", async () => {
+    mockFetch(200, {
+      items: [{
+        declaration: {
+          id: "GHE-1", employee: "A", employeeId: 1, teamMemberNumber: "TM-1",
+          lineManager: "Sipho", position: "Manager", department: "IT", company: "HB",
+          team: "Ops", type: "Gift", counterparty: "B", value: 100,
+          submitted: "2026-01-01", approver: "Sipho", status: "Pending",
+          priority: "Low", description: "Test", relationship: "Yes",
+          receivedGiven: "Received", from: "Supplier", contactPerson: "Jane",
+          biddingProcess: "No", contractNegotiation: "No",
+          occasion: "Business Meeting", date: "2026-01-01", instances: "1",
+          publicOfficial: "No", files: [],
+        },
+        step: { role: "lineManager", status: "pending" },
+      }],
+      total: 1,
+    });
+    const result = await fetchWorkflowQueue();
+    expect(result.total).toBe(1);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].declaration.counterparty).toBe("B");
   });
 
   it("fetchWorkflowInstance returns instance", async () => {

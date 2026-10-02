@@ -77,9 +77,11 @@ export function NewDeclarationScreen({
     if (organizations.length > 0) {
       setFormState((f) => {
         if (f.company) return f;
+        // Profile-owned company: only the user's own organization. No
+        // first-organization fallback — global users keep an empty company.
         const userOrg = organizations.find((o) => o.id === user?.organizationId);
-        const first = userOrg || organizations[0];
-        return { ...f, company: first.name, organizationId: first.id };
+        if (!userOrg) return f;
+        return { ...f, company: userOrg.name, organizationId: userOrg.id };
       });
     }
   }, [organizations, user?.organizationId]);
@@ -122,6 +124,14 @@ export function NewDeclarationScreen({
     setFiles(draft.files || []);
     setErrors({});
     setSubmitError("");
+    if (user?.role === "teamMember") {
+      // Draft identity stays profile-owned even when editing a saved draft.
+      setFormState((f) => ({
+        ...f,
+        lineManager: lineManagerName || f.lineManager,
+        department: user?.department || f.department,
+      }));
+    }
   }, [draft]);
 
   const formatRandValue = (value: string, fixedDecimals = false) => {
@@ -312,7 +322,20 @@ export function NewDeclarationScreen({
     processFiles(e.dataTransfer.files);
   };
 
+  const isTeamMember = user?.role === "teamMember";
+  const profileIdentityLocked = Boolean(isTeamMember);
+  const profileComplete = Boolean(user?.department?.trim() && lineManagerName.trim());
+
   const validate = () => {
+    // Profile-owned identity is locked for team members: company, department,
+    // and manager come from the authenticated profile, not editable inputs.
+    // Block submission with an actionable error when the profile is
+    // incomplete instead of selecting a fallback.
+    if (profileIdentityLocked && !profileComplete) {
+      setSubmitError("Your profile is incomplete: department and line manager are required before creating a declaration. Ask an administrator to update your profile.");
+      jumpTo("sec-team");
+      return false;
+    }
     const value = Number(form.value || 0);
     const requiresSubstantiation = Number.isFinite(value) && value >= config.highValueThreshold;
     const requiresOccasionOther = form.occasion === "Other";
@@ -320,9 +343,11 @@ export function NewDeclarationScreen({
     const errs: Record<string, string> = {};
     if (!form.employeeName.trim())       errs.employeeName = "Required";
     if (!form.employeeCode.trim())       errs.employeeCode = "Required";
-    if (!form.lineManager.trim())        errs.lineManager = "Required";
-    if (!form.company.trim())            errs.company = "Required";
-    if (!form.department.trim())         errs.department = "Required";
+    if (!profileIdentityLocked) {
+      if (!form.lineManager.trim())        errs.lineManager = "Required";
+      if (!form.company.trim())            errs.company = "Required";
+      if (!form.department.trim())         errs.department = "Required";
+    }
     if (!form.position.trim())           errs.position = "Required";
      if (!form.partyType)                 errs.partyType = "Required";
       if (!form.Counterparty.trim())       errs.Counterparty = "Required";
@@ -592,6 +617,9 @@ export function NewDeclarationScreen({
             </div>
             <div>
               <FL required error={errors.company}>Company</FL>
+              {profileIdentityLocked ? (
+                <input type="text" value={form.company || "No organization (global profile)"} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Company (from your profile)" />
+              ) : (
               <Sel value={form.company} onChange={(v) => {
                 const org = organizations.find((o) => o.name === v);
                 setF("company", v);
@@ -601,13 +629,18 @@ export function NewDeclarationScreen({
                 <option value="">Select company…</option>
                 {organizations.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
               </Sel>
+              )}
             </div>
             <div>
               <FL required error={errors.department}>Department</FL>
+              {profileIdentityLocked ? (
+                <input type="text" value={form.department} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Department (from your profile)" />
+              ) : (
               <Sel value={form.department} onChange={(v) => setF("department", v)} className={errors.department ? "border-red-500 bg-red-50" : ""}>
                 <option value="">Select department…</option>
                 {departments.map((d) => <option key={d}>{d}</option>)}
               </Sel>
+              )}
             </div>
             <div>
               <FL required error={errors.position}>Team Member Role/Position</FL>
@@ -615,6 +648,9 @@ export function NewDeclarationScreen({
             </div>
             <div>
               <FL required error={errors.lineManager}>Approving Manager Name</FL>
+              {profileIdentityLocked ? (
+                <input type="text" value={form.lineManager} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Approving manager (from your profile)" />
+              ) : (
               <div className="relative" data-manager-dropdown>
                 <input type="text" className={`${inp} ${errors.lineManager ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`} value={managerSearch || form.lineManager} onChange={(e) => { setManagerSearch(e.target.value); setShowManagerDropdown(true); setF("lineManager", e.target.value); }} onFocus={() => { setManagerSearch(""); setShowManagerDropdown(true); }} placeholder="Search for manager…" maxLength={100} />
                 {showManagerDropdown && managers.length > 0 && <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-white shadow-lg">
@@ -622,6 +658,7 @@ export function NewDeclarationScreen({
                   {managers.filter((m) => !managerSearch || m.name.toLowerCase().includes(managerSearch.toLowerCase())).length === 0 && <div className="px-4 py-2.5 text-sm text-muted-foreground">No managers found</div>}
                 </div>}
               </div>
+              )}
             </div>
           </div>
         </FS>
