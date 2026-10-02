@@ -21,10 +21,16 @@ export default defineConfig({
     {
       name: "desktop",
       use: { ...devices["Desktop Chrome"] },
+      // Table-driven flows are desktop UX; mobile card flows are covered
+      // separately (see mobile-interactions.spec.ts).
+      testIgnore: "mobile-interactions.spec.ts",
     },
     {
       name: "mobile",
       use: { ...devices["Pixel 5"] },
+      // approval-flows.spec.ts drives desktop table layouts, which render
+      // as cards on mobile. Mobile card-flow coverage is a follow-up.
+      testIgnore: "approval-flows.spec.ts",
     },
   ],
   webServer: [

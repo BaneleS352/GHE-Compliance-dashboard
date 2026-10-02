@@ -67,6 +67,7 @@ test.describe("Approval Workflow — Full Flow", () => {
     await decl.select("Reason/Occasion for the GHE", "Business Meeting");
     await decl.date("2026-07-15");
     await decl.number("Rand Value or Equivalent", "1500");
+    await decl.substantiation("E2E return-cycle substantiation for high-value gift");
     await decl.submit();
     const declId = await decl.getId();
     expect(declId).toBeTruthy();
@@ -95,12 +96,8 @@ test.describe("Approval Workflow — Full Flow", () => {
     await decl.submit();
     await decl.closeModal();
 
-    await app.login(USERS.sipho.email);
-    await app.sidebar("Approval Queue");
-    await app.clickReviewFor(declId);
-    await app.pickDecision("Accept");
-    await app.submitDecision();
-
+    // The LM approval is preserved across resubmission, so the declaration
+    // returns straight to HR — no second LM round.
     await app.login(USERS.lindiwe.email);
     await app.sidebar("Approval Queue");
     await app.clickReviewFor(declId);

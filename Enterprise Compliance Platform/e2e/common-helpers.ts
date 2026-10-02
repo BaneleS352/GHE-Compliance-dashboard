@@ -139,6 +139,10 @@ export class NewDeclarationPage {
     await this.page.locator("textarea").fill(value);
   }
 
+  async substantiation(value: string) {
+    await this.page.locator('textarea[placeholder*="Substantiation"]').fill(value);
+  }
+
   async date(value: string) {
     await this.page.locator('input[type="date"]').fill(value);
   }
