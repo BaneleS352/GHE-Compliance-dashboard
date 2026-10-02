@@ -4,6 +4,8 @@ import { Card } from "@/app/components/ui/card";
 import { formatRand, DEFAULT_HIGH_VALUE_THRESHOLD, DEFAULT_MEDIUM_VALUE_THRESHOLD } from "@/config/theme";
 import { Declaration, UploadedFile } from "@/types/declaration";
 import { fetchConfig } from "@/services/api";
+import { downloadFile as downloadSharedFile, previewFile as previewSharedFile } from "@/services/download";
+import { notifyError } from "@/app/components/notify";
 import { motion } from "framer-motion";
 
 export function DeclarationDetailView({
@@ -132,43 +134,17 @@ export function DeclarationDetailView({
 
 async function downloadFile(file: UploadedFile) {
   try {
-    if (!file.url || file.url.startsWith("data:")) {
-      const a = document.createElement("a");
-      a.href = file.url;
-      a.download = file.name;
-      a.click();
-      return;
-    }
-    const response = await fetch(file.url);
-    if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = file.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    await downloadSharedFile(file.url, file.name);
   } catch (err) {
-    console.error("Download failed:", err);
+    notifyError(err instanceof Error ? err.message : "Download failed. Please try again.");
   }
 }
 
 async function viewFile(file: UploadedFile) {
   try {
-    if (!file.url || file.url.startsWith("data:")) {
-      window.open(file.url, "_blank", "noopener,noreferrer");
-      return;
-    }
-    const response = await fetch(file.url);
-    if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank", "noopener,noreferrer");
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    await previewSharedFile(file.url);
   } catch (err) {
-    console.error("View file failed:", err);
+    notifyError(err instanceof Error ? err.message : "Preview failed. Please try again.");
   }
 }
 

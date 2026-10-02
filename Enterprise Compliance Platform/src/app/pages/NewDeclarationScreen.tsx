@@ -10,6 +10,7 @@ import { Card } from "@/app/components/Card";
 import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG, DEFAULT_HIGH_VALUE_THRESHOLD, DEFAULT_MEDIUM_VALUE_THRESHOLD, DEFAULT_MAXIMUM_VALUE } from "@/config/theme";
 import { Declaration, UploadedFile } from "@/types/declaration";
 import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "@/services/api";
+import { downloadFile } from "@/services/download";
 import { useUser } from "@/app/auth/UserContext";
 import { fetchConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
 
@@ -53,8 +54,12 @@ export function NewDeclarationScreen({
   const [showManagerDropdown, setShowManagerDropdown] = useState(false);
 
   useEffect(() => {
-    fetchConfig().then(setConfig).catch((err: Error) => console.error("Failed to fetch config:", err));
-    fetchOrganizations().then(setOrganizations).catch((err: Error) => console.error("Failed to fetch organizations:", err));
+    fetchConfig()
+      .then(setConfig)
+      .catch(() => setLoadWarning("System configuration could not be loaded — default thresholds apply. Ask an administrator to check the configuration before submitting high-value declarations."));
+    fetchOrganizations()
+      .then(setOrganizations)
+      .catch(() => setLoadWarning("Organization data could not be loaded — company and department options may be incomplete."));
   }, []);
 
   useEffect(() => {
@@ -168,6 +173,9 @@ export function NewDeclarationScreen({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploadError, setUploadError] = useState<{ title: string; message: string } | null>(null);
   const [submitError, setSubmitError] = useState("");
+  // Visible when business-rule inputs (config, organizations) fail to load —
+  // silent fallbacks are not acceptable where thresholds and scoping apply.
+  const [loadWarning, setLoadWarning] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isValueFocused, setIsValueFocused] = useState(false);
@@ -902,9 +910,17 @@ export function NewDeclarationScreen({
                     <p className="text-sm font-medium text-foreground truncate">{f.name}</p>
                     <p className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</p>
                   </div>
-                  <a href={f.url} download={f.name} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    title={`Download ${f.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadFile(f.url, f.name).catch((err: Error) => setSubmitError(err.message));
+                    }}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary"
+                  >
                     <Download size={13} />
-                  </a>
+                  </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); pendingFilesRef.current = pendingFilesRef.current.filter((pf) => (pf as any).uploadId !== fileId); setFiles((fs) => fs.filter((f2) => ((f2 as any).uploadId || `${f2.name}-${f2.size}`) !== fileId)); }}
                     className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500"
@@ -944,6 +960,11 @@ export function NewDeclarationScreen({
             ))}
           </div>
           <div className="pt-6 mt-2 border-t border-slate-100">
+            {loadWarning && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                {loadWarning}
+              </div>
+            )}
             {submitError && (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                 {submitError}
