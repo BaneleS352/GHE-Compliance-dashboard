@@ -106,13 +106,14 @@ Recommended first scope (unchanged): generated PDF reports and explicitly
 exported documents; uploaded files need a separately approved conversion or
 repackaging approach.
 
-## Current Findings (superseded by the implementation status above)
+## Historical Findings (superseded by the 2 October 2026 status above)
 
 ### Re-audit status — 1 October 2026
 
-The implementation was re-audited after the initial plan was created. The
-planned changes have not yet been implemented. The following items remain
-open:
+The following findings were recorded before the implementation described at
+the beginning of this document. They are retained as audit history only; the
+authoritative current status is the 2 October 2026 implementation-status
+section above.
 
 - Company, department, and approving manager are still editable in the new
   declaration screen.
