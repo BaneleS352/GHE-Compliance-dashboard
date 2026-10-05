@@ -259,6 +259,25 @@ test.describe("Reports", () => {
 
     await app.assertVisible("h3:has-text(\"Status Breakdown\")", 5000);
   });
+
+  test("Admin downloads a password-protected report export", async ({ page }) => {
+    const app = new AppPage(page);
+
+    await app.login(USERS.admin.email);
+    await app.sidebar("Reports");
+
+    await page.getByRole("button", { name: "Export Excel", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Protect export" })).toBeVisible();
+    const passwordInputs = await page.getByLabel(/password/i).all();
+    await passwordInputs[0].fill("s3cret-download-pw");
+    await passwordInputs[1].fill("s3cret-download-pw");
+    const downloadPromise = page.waitForEvent("download", { timeout: 30000 });
+    await page.getByRole("button", { name: "Protect & Download", exact: true }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^protected-.*\.xlsx$/);
+    const path = await download.path();
+    expect(path).toBeTruthy();
+  });
 });
 
 test.describe("Dashboard — Admin", () => {

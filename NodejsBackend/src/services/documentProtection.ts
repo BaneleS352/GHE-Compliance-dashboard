@@ -22,9 +22,13 @@ const PASSWORD_MIN = 8;
 const PASSWORD_MAX = 128;
 const SIDECAR_TIMEOUT_MS = 60_000;
 
-function pythonBin(): string {
-  return process.env.GHE_PYTHON_BIN || "python3";
+function pythonCandidates(): string[] {
+  const fromEnv = process.env.GHE_PYTHON_BIN;
+  const rest = fromEnv ? [] : ["python3", "python"];
+  return [...(fromEnv ? [fromEnv] : []), ...rest];
 }
+
+let resolvedPython: string | null | undefined;
 
 async function commandOk(cmd: string, args: string[]): Promise<boolean> {
   return new Promise((resolve) => {
@@ -32,10 +36,22 @@ async function commandOk(cmd: string, args: string[]): Promise<boolean> {
   });
 }
 
+async function resolvePython(): Promise<string | null> {
+  if (resolvedPython !== undefined) return resolvedPython;
+  for (const candidate of pythonCandidates()) {
+    if (await commandOk(candidate, ["--version"])) {
+      resolvedPython = candidate;
+      return candidate;
+    }
+  }
+  resolvedPython = null;
+  return null;
+}
+
 /** True when the helper interpreter and the library for `kind` are usable. */
 export async function isProtectionAvailable(kind: ProtectableKind): Promise<boolean> {
-  const py = pythonBin();
-  if (!(await commandOk(py, ["--version"]))) return false;
+  const py = await resolvePython();
+  if (!py) return false;
   const lib = kind === "pdf" ? "pypdf" : "msoffcrypto";
   return commandOk(py, ["-c", `import ${lib}`]);
 }
@@ -73,6 +89,7 @@ export async function protectDocumentBytes(
       { statusCode: 503 },
     );
   }
+  const python = (await resolvePython()) as string;
   const tag = randomBytes(8).toString("hex");
   const inPath = join(tmpdir(), `ghe-protect-in-${tag}`);
   const outPath = join(tmpdir(), `ghe-protect-out-${tag}`);
@@ -81,7 +98,7 @@ export async function protectDocumentBytes(
     const script = join(__dirname, "..", "scripts", "protect_document.py");
     await new Promise<void>((resolve, reject) => {
       execFile(
-        pythonBin(),
+        python,
         [script, inPath, outPath, kind],
         {
           timeout: SIDECAR_TIMEOUT_MS,

@@ -33,6 +33,23 @@ CORS_ORIGIN=https://your-frontend-domain.com
 
 These are passed to the backend container via the `env_file` directive in `docker-compose.yml`.
 
+### Document protection (Phase 5)
+
+Password-protected exports (`POST /api/reports/protect-document`) encrypt
+server-side with pure-Python sidecars (`pypdf` AES-256 for PDFs,
+`msoffcrypto` ECMA-376 for `.xlsx`):
+
+- **Docker:** already installed in the backend image (`python3`, `py3-pip`,
+  pinned `pypdf`/`msoffcrypto-tool`).
+- **Manual deploys / CI:** install an interpreter plus both libraries, e.g.
+  `pip install pypdf==6.19.0 msoffcrypto-tool==6.0.0` (CI does this before
+  `npm test`). Override the interpreter with `GHE_PYTHON_BIN` if `python3`
+  is not on `PATH`.
+- Without working tooling the endpoint answers `503` and no unprotected
+  copy is ever produced — install the sidecars rather than bypassing it.
+- The export password is downloader-set per file, travels in the POST body
+  only (TLS in production), and is never stored or logged.
+
 ### File Storage
 
 Files are stored in a named Docker volume (`uploads`). For production, replace local disk storage with S3:

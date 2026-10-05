@@ -19,11 +19,9 @@ This plan covers:
 
 ## Implementation status — 2 October 2026
 
-Phases 1–4 and 6 are implemented and covered by tests (backend 392/392,
-frontend 251/251, typecheck and production build clean — full gates re-run
-after the toast/refresh additions). Phase 5
-(password-protected downloads) remains gated on the stakeholder scope
-decision recorded below; the download/export path inventory is complete.
+Phases 1–6 are implemented and covered by tests (backend 404/404,
+frontend 259/259, typecheck and production build clean — full gates re-run
+after each addition).
 
 ### Phase 1 — done
 
@@ -95,24 +93,34 @@ decision recorded below; the download/export path inventory is complete.
 - `UserDialog` department control is organization-scoped (no free text).
 - Tests: `download.test.ts` (auth header, failure, preview path).
 
-### Phase 5 — awaiting stakeholder decision
+### Phase 5 — done (scope approved: report PDFs + explicit exports)
 
-No password protection is implemented yet, by plan: scope and the
-password-delivery model need stakeholder approval first. Stakeholder decision
-log: scope unconfirmed as of the 2 October 2026 audit — Phase 5 stays open
-until a scope (documents covered + password-delivery model) is approved and
-recorded here. Complete path inventory (all currently unprotected):
+Password model: the downloader sets a per-export password (8–128 chars) in
+the shared `PasswordDialog`. It travels in the POST body only, is passed to
+the encryption helper via environment (never argv/logs), and is never
+stored. Failures never produce an unprotected copy (400/415 validation,
+503 missing tooling, 502 encryption failure).
 
-- `DeclarationDetailView` supporting-document download/preview (shared
-  service — the single point where protection will hook in).
-- `NewDeclarationScreen` supporting-document download.
-- Browser-generated Excel exports: `ApprovalQueue` and `MyDeclarationsScreen`
-  (via `utils/excel.ts`), `AdminReports` (via `utils/excelExport.ts`),
-  declaration exports.
-- Client-side report PDFs: `AdminReports` renders the table to PDF with
-  html2canvas+jsPDF in the browser. There is no backend
-  `GET /api/reports/:type/pdf` route; the backend exposes report data plus
-  `GET /api/reports/export` (xlsx, admin/approver-scoped).
+- New `POST /api/reports/protect-document` (any authenticated user —
+  team members export from My Declarations): validates magic bytes
+  (`%PDF-` / OOXML `PK..`), encrypts via `scripts/protect_document.py`
+  (`pypdf` AES-256 for PDFs, `msoffcrypto` ECMA-376 for `.xlsx`), returns
+  the protected bytes with a `protected-` filename. Multer memory storage
+  only; temp files are 0600 and unlinked in `finally`.
+- Frontend: `requestProtectedDocument` + `saveBlob` in the shared download
+  service; all four export paths (ApprovalQueue, My Declarations ×2,
+  AdminReports Excel + image/text-fallback PDF) collect a password first.
+  Client Excel now emits OOXML `.xlsx` (legacy BIFF `.xls` cannot carry
+  ECMA-376 encryption).
+- Supporting-document downloads stay unprotected by decision (uploaded
+  files would need conversion/repackaging — separately approvable).
+- Ops: sidecars baked into the backend Docker image; CI installs them
+  before `npm test`; `GHE_PYTHON_BIN` overrides the interpreter.
+- Tests: `reports-protection.test.ts` (12 tests: auth/validation/415,
+  team-member access, header contract, real-encryption round-trips verified
+  by opening outputs with/without the password, no-input-bytes-on-failure,
+  unavailable-tooling contract); `PasswordDialog` + `requestProtectedDocument`
+  unit tests; export-button tests drive the dialog flow.
 
 Recommended first scope (unchanged): generated PDF reports and explicitly
 exported documents; uploaded files need a separately approved conversion or
@@ -386,8 +394,7 @@ from production builds or protected behind an explicit demo-mode flag.
 
 ## Re-audit Exit Criteria
 
-Status after the 2 October 2026 implementation (Phase 5 excluded — gated on
-stakeholder scope approval):
+Status after the 2 October 2026 implementation (all phases delivered):
 
 1. Done — team-member screens render profile-owned values read-only.
 2. Done — backend derives/ignores on create/update, including drafts;
@@ -397,13 +404,14 @@ stakeholder scope approval):
 5. Done — badge and list share the authoritative `{ items, total }` queue.
 6. Done — no browser-native `prompt`/`confirm`/`alert` in product flows.
 7. Done — all downloads/previews use the shared authenticated service.
-8. Open — export protection policy pending the Phase 5 scope decision;
-   path inventory above is complete.
+8. Done — report PDFs and explicit Excel exports are password-protected
+   (downloader-set password, verified open-only-with-password); supporting
+   uploads stay unprotected by decision.
 9. Done — queue/badge refresh on `ghe:queue-changed`; config failures warn
    visibly where they affect business rules.
 10. Partial — quick login restored on request; failure messages stay generic
-  (no password disclosure), but preset demo credentials ship in all builds
-  until demo-mode gating is reinstated.
+   (no password disclosure), but preset demo credentials ship in all builds
+   until demo-mode gating is reinstated.
 
 ## Acceptance Criteria
 

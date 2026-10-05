@@ -123,6 +123,7 @@ describe("POST /api/reports/protect-document", () => {
       .field("filename", "report.pdf")
       .attach("file", MINIMAL_PDF, { filename: "report.pdf", contentType: "application/pdf" });
     if (!pdfAvailable) {
+      console.warn("SKIP real PDF download headers: sidecars unavailable (503 contract asserted instead).");
       expect(res.status).toBe(503);
       return;
     }
@@ -143,6 +144,7 @@ describe("POST /api/reports/protect-document", () => {
         contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
     if (!xlsxAvailable) {
+      console.warn("SKIP real workbook download headers: sidecars unavailable (503 contract asserted instead).");
       expect(res.status).toBe(503);
       return;
     }
@@ -152,7 +154,10 @@ describe("POST /api/reports/protect-document", () => {
   });
 
   it("never returns the input bytes on encryption failure", async () => {
-    if (!pdfAvailable) return;
+    if (!pdfAvailable) {
+      console.warn("SKIP corrupt-PDF encryption failure: sidecars unavailable.");
+      return;
+    }
     // Valid magic, corrupt body: pypdf cannot parse it.
     const corrupt = Buffer.concat([Buffer.from("%PDF-"), Buffer.from("definitely not a pdf body")]);
     const res = await request(app)
@@ -167,7 +172,10 @@ describe("POST /api/reports/protect-document", () => {
 
 describe("protectDocumentBytes round-trips (sidecars required)", () => {
   it("encrypts PDFs so they open only with the password", async () => {
-    if (!pdfAvailable) return;
+    if (!pdfAvailable) {
+      console.warn("SKIP real PDF round-trip: sidecars unavailable.");
+      return;
+    }
     const out = await protectDocumentBytes("pdf", MINIMAL_PDF, "s3cret-download-pw");
     expect(out.equals(MINIMAL_PDF)).toBe(false);
     const result = verifyStdin(
@@ -189,7 +197,10 @@ describe("protectDocumentBytes round-trips (sidecars required)", () => {
   });
 
   it("encrypts workbooks so they open only with the password", async () => {
-    if (!xlsxAvailable) return;
+    if (!xlsxAvailable) {
+      console.warn("SKIP real workbook round-trip: sidecars unavailable.");
+      return;
+    }
     const input = buildXlsxBytes();
     const out = await protectDocumentBytes("xlsx", input, "s3cret-download-pw");
     expect(out.equals(input)).toBe(false);

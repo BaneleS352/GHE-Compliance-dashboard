@@ -52,6 +52,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
   const PAGE_SIZE = 10;
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
   const [viewDeclStatus, setViewDeclStatus] = useState<StatusType | null>(null);
+  const [pendingExport, setPendingExport] = useState<{ blob: Blob; filename: string } | null>(null);
 
   const {
     wfSteps, canApprove, submitError,
@@ -138,8 +139,6 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
     setActiveKpi(type);
     setStatusFilter(type === "All" ? "All" : type);
   };
-
-  const [pendingExport, setPendingExport] = useState<{ blob: Blob; filename: string } | null>(null);
 
   const queueProtectedExport = (blob: Blob, filename: string) => setPendingExport({ blob, filename });
 
