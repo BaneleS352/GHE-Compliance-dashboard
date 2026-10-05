@@ -46,7 +46,11 @@ model User {
   id               BigInt   @id @default(autoincrement())
   name             String
   email            String   @unique
-  passwordHash     String
+  // Provider identity (OpenID cutover, 0010_auth_cutover): the Entra object
+  // ID that is linked to this local row. Credentials are provider-managed;
+  // the `passwordHash` column was removed and local roles stay authoritative.
+  providerSubject  String?  @unique
+  providerIssuer   String?
   role             String
   teamMemberNumber String
   // departmentId -> Department is the sole department source of truth.

@@ -51,9 +51,22 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     }
     const decoded = { providerSubject: payload.oid, email, name: String(payload.name || email) };
     try {
-      const dbUser = await prisma.user.findUnique({ where: { email }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, departmentRef: { select: { name: true } } } });
+      const dbUser = await prisma.user.findUnique({ where: { email }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, departmentRef: { select: { name: true } } } });
       if (!dbUser) {
         res.status(403).json({ error: "Authenticated user is not provisioned in the application" });
+        return;
+      }
+      // Provider-identity binding (see docs/IDENTITY-CONTRACT.md): the first
+      // successful sign-in adopts the token subject onto the email-matched
+      // row. A later token with a DIFFERENT subject for the same email is a
+      // potential account takeover and fails closed instead of re-linking.
+      if (dbUser.providerSubject === null || dbUser.providerSubject === undefined) {
+        await prisma.user.update({
+          where: { id: dbUser.id },
+          data: { providerSubject: decoded.providerSubject, providerIssuer: config.oidc.issuer },
+        });
+      } else if (dbUser.providerSubject !== decoded.providerSubject) {
+        res.status(403).json({ error: "Provider identity does not match the linked application user" });
         return;
       }
       const dbDept = dbUser.departmentRef?.name;

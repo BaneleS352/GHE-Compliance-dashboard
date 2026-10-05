@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { prisma } from "../config/prisma";
 import request from "supertest";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, testToken } from "./helpers";
 
 const app = buildApp();
 
@@ -501,9 +501,7 @@ describe("User deletion integrity", () => {
     expect(empRes.status).toBe(201);
     const empId = empRes.body.id;
 
-    const empToken = require("jsonwebtoken").sign(
-      { id: empId, email: "empact@test.com", role: "teamMember" }, "test-secret", { expiresIn: "1h" }
-    );
+    const empToken = testToken({ oid: "test-oid-empact", email: "empact@test.com", name: "Emp for Active" });
 
     const declRes = await request(app)
       .post("/api/declarations")
@@ -560,17 +558,13 @@ describe("User deletion integrity", () => {
     expect(declRes.status).toBe(201);
     const declId = declRes.body.id;
 
-    const teamToken = require("jsonwebtoken").sign(
-      { id: teamId, email: "teamdone@test.com", role: "teamMember" }, "test-secret", { expiresIn: "1h" }
-    );
+    const teamToken = testToken({ oid: "test-oid-teamdone", email: "teamdone@test.com", name: "Team for Done" });
 
     await request(app)
       .patch(`/api/declarations/${declId}/submit`)
       .set("Authorization", `Bearer ${teamToken}`);
 
-    const lmToken = require("jsonwebtoken").sign(
-      { id: userId, email: "doneappr@test.com", role: "approver" }, "test-secret", { expiresIn: "1h" }
-    );
+    const lmToken = testToken({ oid: "test-oid-doneappr", email: "doneappr@test.com", name: "Done Approver" });
 
     await request(app)
       .post("/api/workflows/approve")
@@ -615,9 +609,7 @@ describe("File access control", () => {
     expect(upload.status).toBe(201);
     const fileId = upload.body.id;
 
-    const otherToken = require("jsonwebtoken").sign(
-      { id: 2, email: "sipho@test.com", role: "approver" }, "test-secret", { expiresIn: "1h" }
-    );
+    const otherToken = testToken({ oid: "test-oid-sipho", email: "sipho@test.com", name: "Sipho Approver" });
     const access = await request(app)
       .get(`/api/files/${fileId}`)
       .set("Authorization", `Bearer ${otherToken}`);

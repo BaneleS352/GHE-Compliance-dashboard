@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import jwt from "jsonwebtoken";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, testToken } from "./helpers";
 import { prisma } from "../config/prisma";
 
 const app = buildApp();
@@ -13,11 +12,11 @@ describe("Workflow regressions", () => {
     // database. Upsert by email (auto ids) and sign tokens from the rows.
     // These users stay organization-less (like other cross-suite fixtures);
     // display departments are claims only, not stored links.
-    const sign = (u: { id: bigint; email: string; role: string; position: string }, department: string) =>
-      jwt.sign({ id: Number(u.id), email: u.email, role: u.role, department, position: u.position }, "test-secret", { expiresIn: "1h" });
-    const james = await prisma.user.upsert({ where: { email: "james@npn.co.za" }, update: { name: "James van Wyk", role: "approver", teamMemberNumber: "NPN-10001", position: "Line Manager", lineManager: null }, create: { name: "James van Wyk", email: "james@npn.co.za", passwordHash: "test", role: "approver", teamMemberNumber: "NPN-10001", position: "Line Manager", lineManager: null } });
-    const kabelo = await prisma.user.upsert({ where: { email: "kabelo@npn.co.za" }, update: { name: "Kabelo Molefe", role: "teamMember", teamMemberNumber: "NPN-20001", position: "Software Engineer", lineManager: "James van Wyk", managerId: james.id }, create: { name: "Kabelo Molefe", email: "kabelo@npn.co.za", passwordHash: "test", role: "teamMember", teamMemberNumber: "NPN-20001", position: "Software Engineer", lineManager: "James van Wyk", managerId: james.id } });
-    await prisma.user.upsert({ where: { email: "aisha@npn.co.za" }, update: { name: "Aisha Patel", role: "approver", teamMemberNumber: "NPN-10002", position: "Head of HR", lineManager: null }, create: { name: "Aisha Patel", email: "aisha@npn.co.za", passwordHash: "test", role: "approver", teamMemberNumber: "NPN-10002", position: "Head of HR", lineManager: null } });
+    const sign = (u: { id: bigint; email: string; role: string; position: string }, _department: string) =>
+      testToken({ oid: `test-oid-${u.email}`, email: u.email, name: u.email });
+    const james = await prisma.user.upsert({ where: { email: "james@npn.co.za" }, update: { name: "James van Wyk", role: "approver", teamMemberNumber: "NPN-10001", position: "Line Manager", lineManager: null }, create: { name: "James van Wyk", email: "james@npn.co.za", role: "approver", teamMemberNumber: "NPN-10001", position: "Line Manager", lineManager: null } });
+    const kabelo = await prisma.user.upsert({ where: { email: "kabelo@npn.co.za" }, update: { name: "Kabelo Molefe", role: "teamMember", teamMemberNumber: "NPN-20001", position: "Software Engineer", lineManager: "James van Wyk", managerId: james.id }, create: { name: "Kabelo Molefe", email: "kabelo@npn.co.za", role: "teamMember", teamMemberNumber: "NPN-20001", position: "Software Engineer", lineManager: "James van Wyk", managerId: james.id } });
+    await prisma.user.upsert({ where: { email: "aisha@npn.co.za" }, update: { name: "Aisha Patel", role: "approver", teamMemberNumber: "NPN-10002", position: "Head of HR", lineManager: null }, create: { name: "Aisha Patel", email: "aisha@npn.co.za", role: "approver", teamMemberNumber: "NPN-10002", position: "Head of HR", lineManager: null } });
     const kabeloToken = sign(kabelo, "Engineering");
     const jamesToken = sign(james, "Engineering");
     const create = await request(app).post("/api/declarations").set("Authorization", `Bearer ${kabeloToken}`).send({ employee: "Kabelo Molefe", employeeId: Number(kabelo.id), teamMemberNumber: "NPN-20001", lineManager: "James van Wyk", position: "Software Engineer", department: "Engineering", type: "Gift", counterparty: "ActualUserFlow", value: 100, submitted: "2026-09-01", status: "Draft", priority: "Low", description: "Actual user flow", relationship: "Supplier", receivedGiven: "Received", from: "Supplier", contactPerson: "Test", biddingProcess: "No", occasion: "Business Meeting", date: "2026-09-01", instances: "1", publicOfficial: "No" });

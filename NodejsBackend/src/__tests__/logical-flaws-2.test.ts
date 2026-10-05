@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, testToken } from "./helpers";
 
 const app = buildApp();
 
@@ -45,30 +45,21 @@ describe("Auth & token edge cases", () => {
   });
 
   it("GET /api/declarations — expired token returns 401", async () => {
-    const jwt = require("jsonwebtoken");
-    const expired = jwt.sign(
-      { id: 4, email: "nomvula@test.com", role: "teamMember" },
-      "test-secret",
-      { expiresIn: "0s" }
-    );
-    await new Promise((r) => setTimeout(r, 1100));
+    const expired = testToken({
+      oid: "test-oid-nomvula", email: "nomvula@test.com", name: "Nomvula Team", expOffsetSec: -10,
+    });
     const res = await request(app)
       .get("/api/declarations")
       .set("Authorization", `Bearer ${expired}`);
     expect(res.status).toBe(401);
   });
 
-  it("GET /api/declarations — token with fake user ID is rejected (fixed: fail-closed)", async () => {
-    const jwt = require("jsonwebtoken");
-    const fakeToken = jwt.sign(
-      { id: "nonexistent-user", email: "ghost@test.com", role: "teamMember" },
-      "test-secret",
-      { expiresIn: "1h" }
-    );
+  it("GET /api/declarations — valid token for an unprovisioned user returns 403 (fixed: fail-closed)", async () => {
+    const fakeToken = testToken({ oid: "test-oid-ghost", email: "ghost@test.com", name: "Ghost" });
     const res = await request(app)
       .get("/api/declarations")
       .set("Authorization", `Bearer ${fakeToken}`);
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(403);
   });
 
   it("POST /api/admin/config — team member gets 403", async () => {

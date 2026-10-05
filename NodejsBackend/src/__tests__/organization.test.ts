@@ -1,19 +1,17 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
-import { buildApp, getAdminToken } from "./helpers";
-import bcrypt from "bcryptjs";
+import { buildApp, getAdminToken, testToken } from "./helpers";
 
 const app = buildApp();
 const prisma = new PrismaClient();
 
 function tokenFor(user: { id: number | bigint; name?: string; email: string; role: string; organizationId?: number | bigint | null; department?: string; position?: string }) {
-  return jwt.sign(
-    { id: Number(user.id), email: user.email, role: user.role, name: user.name, department: user.department || "IT", position: user.position || "Staff", organizationId: user.organizationId === null || user.organizationId === undefined ? null : Number(user.organizationId) },
-    "test-secret",
-    { expiresIn: "1h" }
-  );
+  return testToken({
+    oid: `test-oid-${user.email}`,
+    email: user.email,
+    name: user.name || user.email,
+  });
 }
 
 const BASE_DECL = {  teamMemberNumber: "T-001",
@@ -65,7 +63,6 @@ describe("Organization — multi-tenant flows", () => {
   }
 
   beforeAll(async () => {
-    const hash = bcrypt.hashSync("password", 10);
     for (const o of [hbOrg, npnOrg]) {
       const row = await prisma.organization.upsert({
         where: { shortCode: o.shortCode },
@@ -84,7 +81,7 @@ describe("Organization — multi-tenant flows", () => {
       const row = await prisma.user.upsert({
         where: { email: u.email },
         update: { name: u.name, role: u.role, organizationId: u.organizationId ?? null, departmentId: data.departmentId } as any,
-        create: { ...data, passwordHash: hash } as any,
+        create: { ...data } as any,
       });
       u.id = Number(row.id);
     }
@@ -192,7 +189,7 @@ describe("Organization — multi-tenant flows", () => {
   it("Global HR can see pending from both orgs", async () => {
     const hbTeamToken = tokenFor(hbTeam as any);
     // Use the original HR (user-hr) which is the global HR that workflow assigns when no org-specific HR exists
-    const hrToken = jwt.sign({ id: 3, email: "lindiwe@test.com", role: "approver", department: "HR", position: "Head of HR", organizationId: null }, "test-secret", { expiresIn: "1h" });
+    const hrToken = testToken({ oid: "test-oid-lindiwe", email: "lindiwe@test.com", name: "Lindiwe HR" });
     const decl = await request(app).post("/api/declarations").set("Authorization", `Bearer ${hbTeamToken}`).send({ ...BASE_DECL, employee: hbTeam.name, employeeId: hbTeam.id, teamMemberNumber: hbTeam.teamMemberNumber, lineManager: hbLm.name, department: hbTeam.department, counterparty: "GlobalHRTest", value: 5000 });
     await request(app).patch(`/api/declarations/${decl.body.id}/submit`).set("Authorization", `Bearer ${hbTeamToken}`);
     const hbLmToken = tokenFor(hbLm as any);
@@ -234,8 +231,7 @@ describe("Organization — multi-tenant flows", () => {
     const dbCheck = await prisma.user.findUnique({ where: { id: hbTeam.id } });
     if (!dbCheck) {
       // Recreate if missing (test isolation)
-      const hash = bcrypt.hashSync("password", 10);
-      await prisma.user.create({ data: { ...(await withDeptLink(hbTeam)), passwordHash: hash } as any });
+      await prisma.user.create({ data: { ...(await withDeptLink(hbTeam)) } as any });
     }
     const self = await request(app).get(`/api/users/${hbTeam.id}`).set("Authorization", `Bearer ${hbToken}`);
     expect(self.status).toBe(200);
@@ -251,9 +247,8 @@ describe("Organization — multi-tenant flows", () => {
     // Ensure HB users exist for departments
     const hbUsers = await prisma.user.findMany({ where: { organizationId: hbOrg.id } });
     if (hbUsers.length === 0) {
-      const hash = bcrypt.hashSync("password", 10);
-      await prisma.user.create({ data: { ...(await withDeptLink(hbTeam)), passwordHash: hash } as any });
-      await prisma.user.create({ data: { ...(await withDeptLink(hbLm)), passwordHash: hash } as any });
+      await prisma.user.create({ data: { ...(await withDeptLink(hbTeam)) } as any });
+      await prisma.user.create({ data: { ...(await withDeptLink(hbLm)) } as any });
     }
     const deps = await request(app).get(`/api/users/departments?organizationId=${hbOrg.id}`).set("Authorization", `Bearer ${hbToken}`);
     expect(deps.status).toBe(200);

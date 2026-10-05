@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, pkFor } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, pkFor, testToken } from "./helpers";
 import path from "path";
 import fs from "fs";
 import { prisma } from "../config/prisma";
@@ -1041,9 +1041,9 @@ describe("Edge-Case Tests", () => {
       expect(createRes.status).toBe(201);
       const userId = createRes.body.id;
 
-      // Generate a token with original teamMember role
-      const jwt = require("jsonwebtoken");
-      const oldToken = jwt.sign({ id: userId, email: "rolechange@test.com", role: "teamMember" }, "test-secret", { expiresIn: "1h" });
+      // Identity (hence role) resolves from the database on every request:
+      // the same token sees the role change take effect immediately.
+      const oldToken = testToken({ oid: "test-oid-rolechange", email: "rolechange@test.com", name: "Role Change User" });
 
       // Verify it can't access admin endpoints (teamMember → 403)
       const before = await request(app)
@@ -1063,8 +1063,8 @@ describe("Edge-Case Tests", () => {
         .set("Authorization", `Bearer ${oldToken}`);
       expect(after.status).toBe(200);
 
-      // A NEW token with the updated role would work
-      const newToken = jwt.sign({ id: userId, email: "rolechange@test.com", role: "admin" }, "test-secret", { expiresIn: "1h" });
+      // A NEW token for the same identity also works (role still from DB)
+      const newToken = testToken({ oid: "test-oid-rolechange", email: "rolechange@test.com", name: "Role Change User" });
       const newAccess = await request(app)
         .get("/api/admin/config")
         .set("Authorization", `Bearer ${newToken}`);

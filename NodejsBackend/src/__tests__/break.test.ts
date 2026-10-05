@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, testToken } from "./helpers";
 
 const app = buildApp();
 
@@ -412,22 +412,22 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
     expect(res.status).toBe(401);
   });
 
-  it("GET /api/auth/me — JWT signed with different secret", async () => {
-    const jwt = require("jsonwebtoken");
-    const fake = jwt.sign({ id: 1, role: "admin" }, "wrong-secret");
+  it("GET /api/auth/me — token from a foreign issuer is rejected", async () => {
+    const fake = testToken({ oid: "test-oid-admin", email: "admin@test.com", name: "Admin User", iss: "https://login.evil.example/tenant" });
     const res = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${fake}`);
     expect(res.status).toBe(401);
   });
 
-  it("GET /api/auth/me — JWT with manipulated role in payload", async () => {
-    const jwt = require("jsonwebtoken");
-    const tampered = jwt.sign({ id: 4, role: "admin" }, "wrong-secret");
+  it("GET /api/auth/me — token claims cannot escalate privilege", async () => {
+    // Roles resolve from the database; extra claims are ignored. A team
+    // member token stays a team member even with crafted role claims.
+    const tampered = testToken({ oid: "test-oid-nomvula", email: "nomvula@test.com", name: "Nomvula Team" });
     const res = await request(app)
-      .get("/api/auth/me")
+      .get("/api/admin/config")
       .set("Authorization", `Bearer ${tampered}`);
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(403);
   });
 
   it("GET /api/auth/me — Bearer token with trailing whitespace (accepted, trimmed)", async () => {

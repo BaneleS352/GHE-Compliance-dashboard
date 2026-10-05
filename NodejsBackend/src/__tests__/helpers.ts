@@ -43,36 +43,18 @@ export function buildApp() {
 }
 
 // Numeric fixture ids shared with globalSetup.ts (1 = admin, 2 = approver,
-// 3 = HR, 4 = team member). JWTs carry numeric identifiers only.
-export function getAdminToken(): string {
-  const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: 1, email: "admin@test.com", role: "admin", department: "IT", position: "System Administrator" }, "test-secret", { expiresIn: "1h" });
-}
-
-export function getApproverToken(): string {
-  const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: 2, email: "sipho@test.com", role: "approver", department: "Marketing", position: "Line Manager" }, "test-secret", { expiresIn: "1h" });
-}
-
-export function getTeamToken(): string {
-  const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: 4, email: "nomvula@test.com", role: "teamMember", department: "Marketing", position: "Senior Brand Manager" }, "test-secret", { expiresIn: "1h" });
-}
-
-export function getHrToken(): string {
-  const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: 3, email: "lindiwe@test.com", role: "approver", department: "HR", position: "Head of HR" }, "test-secret", { expiresIn: "1h" });
-}
-
-export function getKabeloToken(): string {
-  const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: 14, email: "kabelo@npn.co.za", role: "teamMember", department: "Engineering", position: "Software Engineer" }, "test-secret", { expiresIn: "1h" });
-}
-
-export function getJamesToken(): string {
-  const jwt = require("jsonwebtoken");
-  return jwt.sign({ id: 12, email: "james@npn.co.za", role: "approver", department: "Engineering", position: "Line Manager" }, "test-secret", { expiresIn: "1h" });
-}
+// 3 = HR, 4 = team member). Tokens are Entra-shaped RS256 JWTs minted with
+// the run's throwaway test key; identity resolves from the local user row
+// by email, exactly like production. See testAuth.ts.
+export {
+  getAdminToken,
+  getApproverToken,
+  getTeamToken,
+  getHrToken,
+  getKabeloToken,
+  getJamesToken,
+  testToken,
+} from "./testAuth";
 
 /** Resolve the internal numeric key for a public GHE- declaration id. */
 export async function pkFor(publicId: string): Promise<bigint> {

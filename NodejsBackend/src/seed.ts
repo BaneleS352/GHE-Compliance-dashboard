@@ -1,10 +1,9 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
 import type { WorkflowStep } from "./services/workflowService";
 
 const prisma = new PrismaClient();
-const DEFAULT_PASSWORD = "password";
-const SALT_ROUNDS = 10;
+// Seed users carry no credentials: authentication is provider-managed
+// (Entra ID); sign-in uses the seeded email addresses.
 
 const organizations = [
   { id: 1n, name: "Hollywoodbets Group", shortCode: "HB" },
@@ -135,8 +134,6 @@ const workflowInstances: { declarationId: string; steps: string }[] = [
 async function main() {
   console.log("Seeding database...");
 
-  const passwordHash = bcrypt.hashSync(DEFAULT_PASSWORD, SALT_ROUNDS);
-
   for (const o of organizations) {
     await prisma.organization.upsert({
       where: { id: o.id },
@@ -171,7 +168,7 @@ async function main() {
         managerId: null,
         organizationId: u.organizationId,
       },
-      create: { ...rest, departmentId: deptIdByUser.get(u.id) ?? null, managerId: null, passwordHash },
+      create: { ...rest, departmentId: deptIdByUser.get(u.id) ?? null, managerId: null },
     });
   }
   for (const u of users) {
@@ -427,7 +424,7 @@ async function main() {
   }
 
   console.log("Seeded system config and approval options");
-  console.log(`All passwords: "${DEFAULT_PASSWORD}"`);
+  console.log("Seed users have no passwords: sign-in is provider-managed (Entra ID).");
 }
 
 main()

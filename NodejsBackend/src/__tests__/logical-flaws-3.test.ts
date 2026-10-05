@@ -23,18 +23,17 @@ beforeEach(async () => {
     const anyRow = await prisma.department.findFirst({ where: { name: dept }, select: { id: true } });
     return anyRow ? anyRow.id : null;
   }
-  const existing = await prisma.user.findUnique({ where: { id: 3n } });
   const hrDept = await linkFor(3n, "HR");
   await prisma.user.upsert({
     where: { id: 3n },
     update: { name: "Lindiwe HR", role: "approver", departmentId: hrDept, position: "Head of HR", lineManager: null },
-    create: { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: existing?.passwordHash || "test", role: "approver", teamMemberNumber: "APR-002", departmentId: hrDept, position: "Head of HR", lineManager: null },
+    create: { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver", teamMemberNumber: "APR-002", departmentId: hrDept, position: "Head of HR", lineManager: null },
   });
   const lmDept = await linkFor(2n, "Marketing");
   await prisma.user.upsert({
     where: { id: 2n },
     update: { name: "Sipho Approver", role: "approver", departmentId: lmDept, position: "Line Manager", lineManager: null },
-    create: { id: 2n, name: "Sipho Approver", email: "sipho@test.com", passwordHash: existing?.passwordHash || "test", role: "approver", teamMemberNumber: "APR-001", departmentId: lmDept, position: "Line Manager", lineManager: null },
+    create: { id: 2n, name: "Sipho Approver", email: "sipho@test.com", role: "approver", teamMemberNumber: "APR-001", departmentId: lmDept, position: "Line Manager", lineManager: null },
   });
   await prisma.workflowRule.upsert({
     where: { id: 2n },
