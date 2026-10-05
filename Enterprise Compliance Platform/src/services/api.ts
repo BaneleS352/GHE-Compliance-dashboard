@@ -178,6 +178,26 @@ export async function fetchPendingWorkflows(): Promise<any[]> {
   }));
 }
 
+export interface WorkflowQueue {
+  items: { declaration: Declaration; step: any }[];
+  total: number;
+}
+
+// Authoritative approval queue: records and total from the same backend
+// response, computed after organization scoping and actionable-step
+// resolution. Badge and list must consume this — never recompute the total
+// from declaration statuses.
+export async function fetchWorkflowQueue(): Promise<WorkflowQueue> {
+  const raw = await api.get<{ items: any[]; total: number }>("/api/workflows/queue");
+  return {
+    items: raw.items.map((item) => ({
+      ...item,
+      declaration: mapDeclaration(item.declaration),
+    })),
+    total: raw.total,
+  };
+}
+
 export async function fetchWorkflowInstance(declarationId: string): Promise<any> {
   return api.get<any>(`/api/workflows/instances/${declarationId}`);
 }

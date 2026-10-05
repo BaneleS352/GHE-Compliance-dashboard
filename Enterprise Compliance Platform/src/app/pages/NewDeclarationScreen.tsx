@@ -10,6 +10,8 @@ import { Card } from "@/app/components/Card";
 import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG, DEFAULT_HIGH_VALUE_THRESHOLD, DEFAULT_MEDIUM_VALUE_THRESHOLD, DEFAULT_MAXIMUM_VALUE } from "@/config/theme";
 import { Declaration, UploadedFile } from "@/types/declaration";
 import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "@/services/api";
+import { downloadFile } from "@/services/download";
+import { notifySuccess, notifyError } from "@/app/components/notify";
 import { useUser } from "@/app/auth/UserContext";
 import { fetchConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
 
@@ -53,8 +55,12 @@ export function NewDeclarationScreen({
   const [showManagerDropdown, setShowManagerDropdown] = useState(false);
 
   useEffect(() => {
-    fetchConfig().then(setConfig).catch((err: Error) => console.error("Failed to fetch config:", err));
-    fetchOrganizations().then(setOrganizations).catch((err: Error) => console.error("Failed to fetch organizations:", err));
+    fetchConfig()
+      .then(setConfig)
+      .catch(() => setLoadWarning("System configuration could not be loaded — default thresholds apply. Ask an administrator to check the configuration before submitting high-value declarations."));
+    fetchOrganizations()
+      .then(setOrganizations)
+      .catch(() => setLoadWarning("Organization data could not be loaded — company and department options may be incomplete."));
   }, []);
 
   useEffect(() => {
@@ -77,9 +83,11 @@ export function NewDeclarationScreen({
     if (organizations.length > 0) {
       setFormState((f) => {
         if (f.company) return f;
+        // Profile-owned company: only the user's own organization. No
+        // first-organization fallback — global users keep an empty company.
         const userOrg = organizations.find((o) => o.id === user?.organizationId);
-        const first = userOrg || organizations[0];
-        return { ...f, company: first.name, organizationId: first.id };
+        if (!userOrg) return f;
+        return { ...f, company: userOrg.name, organizationId: userOrg.id };
       });
     }
   }, [organizations, user?.organizationId]);
@@ -122,6 +130,14 @@ export function NewDeclarationScreen({
     setFiles(draft.files || []);
     setErrors({});
     setSubmitError("");
+    if (user?.role === "teamMember") {
+      // Draft identity stays profile-owned even when editing a saved draft.
+      setFormState((f) => ({
+        ...f,
+        lineManager: lineManagerName || f.lineManager,
+        department: user?.department || f.department,
+      }));
+    }
   }, [draft]);
 
   const formatRandValue = (value: string, fixedDecimals = false) => {
@@ -158,6 +174,9 @@ export function NewDeclarationScreen({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploadError, setUploadError] = useState<{ title: string; message: string } | null>(null);
   const [submitError, setSubmitError] = useState("");
+  // Visible when business-rule inputs (config, organizations) fail to load —
+  // silent fallbacks are not acceptable where thresholds and scoping apply.
+  const [loadWarning, setLoadWarning] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isValueFocused, setIsValueFocused] = useState(false);
@@ -224,13 +243,16 @@ export function NewDeclarationScreen({
     return () => clearTimeout(t);
   }, [uploadError]);
 
-  // Per-org departments and managers — refetch when selected company changes
+  // Per-org departments and managers — refetch when selected company changes.
+  // Skipped for profile-locked team members: identity fields are read-only
+  // and the manager/department pickers are not rendered.
   useEffect(() => {
+    if (user?.role === "teamMember") return;
     const orgId = form.organizationId || user?.organizationId;
     if (!orgId) return;
     fetchManagers(orgId).then(setManagers).catch((err: Error) => console.error("Failed to fetch managers:", err));
     fetchDepartments(orgId).then(setDepartments).catch((err: Error) => console.error("Failed to fetch departments:", err));
-  }, [form.organizationId, user?.organizationId]);
+  }, [form.organizationId, user?.organizationId, user?.role]);
 
   useEffect(() => {
     if (!showManagerDropdown) return;
@@ -312,7 +334,23 @@ export function NewDeclarationScreen({
     processFiles(e.dataTransfer.files);
   };
 
+  const isTeamMember = user?.role === "teamMember";
+  const profileIdentityLocked = Boolean(isTeamMember);
+  // Mirrors the backend rule: a self-service team member must have a
+  // resolvable line manager; department-less (e.g. global) profiles keep
+  // going with a legacy value.
+  const profileManagerMissing = profileIdentityLocked && !lineManagerName.trim();
+
   const validate = () => {
+    // Profile-owned identity is locked for team members: company, department,
+    // and manager come from the authenticated profile, not editable inputs.
+    // Block submission with an actionable error when no manager resolves
+    // instead of selecting a fallback.
+    if (profileManagerMissing) {
+      setSubmitError("Your profile is incomplete: a line manager is required before creating a declaration. Ask an administrator to update your profile.");
+      jumpTo("sec-team");
+      return false;
+    }
     const value = Number(form.value || 0);
     const requiresSubstantiation = Number.isFinite(value) && value >= config.highValueThreshold;
     const requiresOccasionOther = form.occasion === "Other";
@@ -320,9 +358,11 @@ export function NewDeclarationScreen({
     const errs: Record<string, string> = {};
     if (!form.employeeName.trim())       errs.employeeName = "Required";
     if (!form.employeeCode.trim())       errs.employeeCode = "Required";
-    if (!form.lineManager.trim())        errs.lineManager = "Required";
-    if (!form.company.trim())            errs.company = "Required";
-    if (!form.department.trim())         errs.department = "Required";
+    if (!profileIdentityLocked) {
+      if (!form.lineManager.trim())        errs.lineManager = "Required";
+      if (!form.company.trim())            errs.company = "Required";
+      if (!form.department.trim())         errs.department = "Required";
+    }
     if (!form.position.trim())           errs.position = "Required";
      if (!form.partyType)                 errs.partyType = "Required";
       if (!form.Counterparty.trim())       errs.Counterparty = "Required";
@@ -438,8 +478,11 @@ export function NewDeclarationScreen({
         await syncUploadedFiles(saved);
       }
       onDraftSaved();
+      notifySuccess("Draft saved.");
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Failed to save draft.");
+      const message = err instanceof Error ? err.message : "Failed to save draft.";
+      setSubmitError(message);
+      notifyError(message);
     }
   };
 
@@ -464,7 +507,9 @@ export function NewDeclarationScreen({
       onSubmitSuccess(submitted);
     } catch (err) {
       if (saved) await updateDeclaration(saved.id, { status: "Draft" });
-      setSubmitError(err instanceof Error ? err.message : "Failed to submit declaration.");
+      const message = err instanceof Error ? err.message : "Failed to submit declaration.";
+      setSubmitError(message);
+      notifyError(message);
     } finally {
       setSubmitting(false);
     }
@@ -592,6 +637,9 @@ export function NewDeclarationScreen({
             </div>
             <div>
               <FL required error={errors.company}>Company</FL>
+              {profileIdentityLocked ? (
+                <input type="text" value={form.company || "No organization (global profile)"} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Company (from your profile)" />
+              ) : (
               <Sel value={form.company} onChange={(v) => {
                 const org = organizations.find((o) => o.name === v);
                 setF("company", v);
@@ -601,13 +649,18 @@ export function NewDeclarationScreen({
                 <option value="">Select company…</option>
                 {organizations.map((o) => <option key={o.id} value={o.name}>{o.name}</option>)}
               </Sel>
+              )}
             </div>
             <div>
               <FL required error={errors.department}>Department</FL>
+              {profileIdentityLocked ? (
+                <input type="text" value={form.department} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Department (from your profile)" />
+              ) : (
               <Sel value={form.department} onChange={(v) => setF("department", v)} className={errors.department ? "border-red-500 bg-red-50" : ""}>
                 <option value="">Select department…</option>
                 {departments.map((d) => <option key={d}>{d}</option>)}
               </Sel>
+              )}
             </div>
             <div>
               <FL required error={errors.position}>Team Member Role/Position</FL>
@@ -615,6 +668,9 @@ export function NewDeclarationScreen({
             </div>
             <div>
               <FL required error={errors.lineManager}>Approving Manager Name</FL>
+              {profileIdentityLocked ? (
+                <input type="text" value={form.lineManager} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Approving manager (from your profile)" />
+              ) : (
               <div className="relative" data-manager-dropdown>
                 <input type="text" className={`${inp} ${errors.lineManager ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`} value={managerSearch || form.lineManager} onChange={(e) => { setManagerSearch(e.target.value); setShowManagerDropdown(true); setF("lineManager", e.target.value); }} onFocus={() => { setManagerSearch(""); setShowManagerDropdown(true); }} placeholder="Search for manager…" maxLength={100} />
                 {showManagerDropdown && managers.length > 0 && <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-white shadow-lg">
@@ -622,6 +678,7 @@ export function NewDeclarationScreen({
                   {managers.filter((m) => !managerSearch || m.name.toLowerCase().includes(managerSearch.toLowerCase())).length === 0 && <div className="px-4 py-2.5 text-sm text-muted-foreground">No managers found</div>}
                 </div>}
               </div>
+              )}
             </div>
           </div>
         </FS>
@@ -865,9 +922,17 @@ export function NewDeclarationScreen({
                     <p className="text-sm font-medium text-foreground truncate">{f.name}</p>
                     <p className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</p>
                   </div>
-                  <a href={f.url} download={f.name} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    title={`Download ${f.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadFile(f.url, f.name).catch((err: Error) => setSubmitError(err.message));
+                    }}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary"
+                  >
                     <Download size={13} />
-                  </a>
+                  </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); pendingFilesRef.current = pendingFilesRef.current.filter((pf) => (pf as any).uploadId !== fileId); setFiles((fs) => fs.filter((f2) => ((f2 as any).uploadId || `${f2.name}-${f2.size}`) !== fileId)); }}
                     className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500"
@@ -907,6 +972,11 @@ export function NewDeclarationScreen({
             ))}
           </div>
           <div className="pt-6 mt-2 border-t border-slate-100">
+            {loadWarning && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                {loadWarning}
+              </div>
+            )}
             {submitError && (
               <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                 {submitError}

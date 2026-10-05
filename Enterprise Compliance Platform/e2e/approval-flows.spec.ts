@@ -48,7 +48,30 @@ test.describe("Approval Workflow — Full Flow", () => {
 
   test("Return at HR step → resubmit → full approval", async ({ page }) => {
     const app = new AppPage(page);
-    const declId = "GHE-2024-0044";
+    const decl = new NewDeclarationPage(page);
+
+    // Self-contained: Nomvula creates a high-value declaration (rule-2:
+    // LM + HR), so the return/resubmit cycle never depends on seed state.
+    await app.login(USERS.nomvula.email);
+    await app.sidebar("New Declaration");
+    await decl.autoFilled(USERS.nomvula.name, USERS.sipho.name);
+    await decl.receivedGiven("Received");
+    await decl.select("Who did you receive a Gift", "Supplier");
+    await decl.fill("Name of the Supplier", "E2E Return Supplies");
+    await decl.fill("Name of the person giving", "Return Contact");
+    await decl.select("Are we currently negotiating", "No");
+    await decl.select("Is the Supplier or potential Supplier", "No");
+    await decl.select("Is there an existing or imminent", "No");
+    await decl.select("What category does the nature", "Gift");
+    await decl.textarea("E2E return-cycle gift");
+    await decl.select("Reason/Occasion for the GHE", "Business Meeting");
+    await decl.date("2026-07-15");
+    await decl.number("Rand Value or Equivalent", "1500");
+    await decl.substantiation("E2E return-cycle substantiation for high-value gift");
+    await decl.submit();
+    const declId = await decl.getId();
+    expect(declId).toBeTruthy();
+    await decl.closeModal();
 
     await app.login(USERS.sipho.email);
     await app.sidebar("Approval Queue");
@@ -64,23 +87,17 @@ test.describe("Approval Workflow — Full Flow", () => {
 
     await app.verifyStatus(declId, "Returned");
 
-    // Team member resubmits
+    // Owner resubmits the returned declaration.
     await app.login(USERS.nomvula.email);
     await app.sidebar("My Declarations");
     await app.search(declId);
-    await app.clickReviewFor(declId);
+    await app.clickEditResubmitFor(declId);
+    await decl.waitForDraftDescription("E2E return-cycle gift");
+    await decl.submit();
+    await decl.closeModal();
 
-    const declPage = new NewDeclarationPage(page);
-    await declPage.receivedGiven("Received");
-    await declPage.select("Who did you receive it from?", "Supplier");
-    await declPage.submit();
-
-    await app.login(USERS.sipho.email);
-    await app.sidebar("Approval Queue");
-    await app.clickReviewFor(declId);
-    await app.pickDecision("Accept");
-    await app.submitDecision();
-
+    // The LM approval is preserved across resubmission, so the declaration
+    // returns straight to HR — no second LM round.
     await app.login(USERS.lindiwe.email);
     await app.sidebar("Approval Queue");
     await app.clickReviewFor(declId);
@@ -100,8 +117,10 @@ test.describe("Approval Workflow — Full Flow", () => {
     await app.page.locator("table button:has-text('View')").first().click();
     await app.page.waitForLoadState("networkidle");
 
-    await app.assertVisible("Approval Workflow");
-    await app.assertVisible("Completed");
+    await app.assertVisible("h1:has-text(\"Approval Workflow\")");
+    // Both seeded steps are decided: the timeline shows Approved badges.
+    await app.assertVisible("text=1. Line Manager Approval");
+    await app.assertVisible("text=2. Head of HR Approval");
   });
 });
 
@@ -114,7 +133,7 @@ test.describe("Declaration Creation", () => {
     await app.sidebar("New Declaration");
     await decl.autoFilled(USERS.nomvula.name, USERS.sipho.name);
     await decl.receivedGiven("Given");
-    await decl.select("Who did you give it to?", "Supplier");
+    await decl.select("Who did you give a Gift", "Supplier");
     await decl.fill("Name of the Supplier", "E2E Test Supplies");
     await decl.fill("Name of the person giving", "Test Contact");
     await decl.select("Are we currently negotiating", "No");
@@ -122,9 +141,9 @@ test.describe("Declaration Creation", () => {
     await decl.select("Is there an existing or imminent", "No");
     await decl.select("What category does the nature", "Gift");
     await decl.textarea("E2E test gift for automated testing");
-    await decl.select("Reason/Occasion for the gift", "Business Meeting");
+    await decl.select("Reason/Occasion for the GHE", "Business Meeting");
     await decl.date("2026-07-15");
-    await decl.number("Enter the R amount", "100");
+    await decl.number("Rand Value or Equivalent", "100");
     await decl.submit();
 
     const declId = await decl.getId();
@@ -142,11 +161,13 @@ test.describe("Declaration Creation", () => {
     const app = new AppPage(page);
     const decl = new NewDeclarationPage(page);
 
-    await app.login(USERS.lindiwe.email);
+    // Sipho (approver, HB) has Lindiwe as manager in seed data, so his
+    // identity fields prefill and submission resolves an LM step.
+    await app.login(USERS.sipho.email);
     await app.sidebar("New Declaration");
-    await decl.autoFilled(USERS.lindiwe.name, USERS.sipho.name);
+    await decl.autoFilled(USERS.sipho.name, USERS.lindiwe.name);
     await decl.receivedGiven("Received");
-    await decl.select("Who did you receive it from?", "Supplier");
+    await decl.select("Who did you receive a Gift", "Supplier");
     await decl.fill("Name of the Supplier", "E2E Approver Supplies");
     await decl.fill("Name of the person giving", "Approver Contact");
     await decl.select("Are we currently negotiating", "N/A");
@@ -154,9 +175,9 @@ test.describe("Declaration Creation", () => {
     await decl.select("Is there an existing or imminent", "Yes");
     await decl.select("What category does the nature", "Hospitality");
     await decl.textarea("E2E test hospitality for approver flow");
-    await decl.select("Reason/Occasion for the gift", "Milestone");
+    await decl.select("Reason/Occasion for the GHE", "Milestone");
     await decl.date("2026-07-15");
-    await decl.number("Enter the R amount", "100");
+    await decl.number("Rand Value or Equivalent", "100");
     await decl.submit();
 
     const declId = await decl.getId();
@@ -182,17 +203,12 @@ test.describe("Admin — User Management", () => {
     const userName = `E2E User ${ts}`;
     const userEmail = `e2e-${ts}@hb.co.za`;
 
-    page.on("dialog", async (dialog) => {
-      const msg = dialog.message();
-      if (msg.startsWith("User name")) await dialog.accept(userName);
-      else if (msg.startsWith("Email")) await dialog.accept(userEmail);
-      else if (msg.startsWith("Role")) await dialog.accept("approver");
-      else if (msg.startsWith("Department")) await dialog.accept("Marketing");
-      else await dialog.dismiss();
-    });
-
+    // User creation uses the application-styled dialog (no native prompts).
     await app.page.getByRole("button", { name: "Add User" }).click();
-    await app.page.waitForTimeout(1500);
+    await app.page.getByLabel(/Name/).fill(userName);
+    await app.page.getByLabel(/Email/).fill(userEmail);
+    await app.page.getByLabel(/Organization/).selectOption({ index: 1 });
+    await app.page.getByRole("button", { name: "Add user", exact: true }).click();
 
     await app.assertVisible(`table td:has-text("${userName}")`);
     await app.assertVisible(`table td:has-text("${userEmail}")`);
@@ -220,8 +236,8 @@ test.describe("Dashboard", () => {
     await app.login(USERS.sipho.email);
     await app.sidebar("Dashboard");
 
-    await app.assertVisible("Approver Dashboard");
-    await app.assertVisible("Pending Queue");
+    await app.assertVisible("h1:has-text(\"Approver Dashboard\")");
+    await app.assertVisible("text=Pending Queue");
   });
 });
 
@@ -232,7 +248,7 @@ test.describe("Reports", () => {
     await app.login(USERS.admin.email);
     await app.sidebar("Reports");
 
-    await app.assertVisible("Reports", { timeout: 5000 });
+    await app.assertVisible("h1:has-text(\"Reports\")", 5000);
   });
 
   test("Approver can generate status breakdown report", async ({ page }) => {
@@ -241,7 +257,26 @@ test.describe("Reports", () => {
     await app.login(USERS.sipho.email);
     await app.sidebar("Reports");
 
-    await app.assertVisible("Status Breakdown", { timeout: 5000 });
+    await app.assertVisible("h3:has-text(\"Status Breakdown\")", 5000);
+  });
+
+  test("Admin downloads a password-protected report export", async ({ page }) => {
+    const app = new AppPage(page);
+
+    await app.login(USERS.admin.email);
+    await app.sidebar("Reports");
+
+    await page.getByRole("button", { name: "Export Excel", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Protect export" })).toBeVisible();
+    const passwordInputs = await page.getByLabel(/password/i).all();
+    await passwordInputs[0].fill("s3cret-download-pw");
+    await passwordInputs[1].fill("s3cret-download-pw");
+    const downloadPromise = page.waitForEvent("download", { timeout: 30000 });
+    await page.getByRole("button", { name: "Protect & Download", exact: true }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(/^protected-.*\.xlsx$/);
+    const path = await download.path();
+    expect(path).toBeTruthy();
   });
 });
 
@@ -252,7 +287,7 @@ test.describe("Dashboard — Admin", () => {
     await app.login(USERS.admin.email);
     await app.sidebar("Dashboard");
 
-    await app.assertVisible("h1:has-text('Admin'), h1:has-text('Dashboard')");
+    await app.assertVisible("h1:has-text(\"Admin\"), h1:has-text(\"Dashboard\")");
   });
 });
 
@@ -263,7 +298,7 @@ test.describe("Workflow — Admin Management", () => {
     await app.login(USERS.admin.email);
     await app.sidebar("Workflows");
 
-    await app.assertVisible("Approval Workflow", { timeout: 5000 });
+    await app.assertVisible("h1:has-text(\"Approval Workflow\")", 5000);
   });
 });
 
@@ -274,7 +309,7 @@ test.describe("Edge Cases & Error Handling", () => {
     await app.login(USERS.nomvula.email);
     await app.sidebar("My Declarations");
 
-    await app.assertVisible("My Declarations", { timeout: 5000 });
+    await app.assertVisible("h1:has-text(\"My Declarations\")", 5000);
     await app.assertVisible("table");
   });
 
@@ -293,6 +328,6 @@ test.describe("Edge Cases & Error Handling", () => {
     await app.login(USERS.sipho.email);
     await app.sidebar("Dashboard");
 
-    await app.assertVisible('button:has-text("Approval Queue")');
+    await expect(app.page.getByRole("button", { name: "Approval Queue", exact: true }).first()).toBeVisible();
   });
 });

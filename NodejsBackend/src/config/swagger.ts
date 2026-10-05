@@ -247,6 +247,14 @@ const options: swaggerJsdoc.Options = {
           responses: { 200: { description: "Array of pending steps with declaration info" } },
         },
       },
+      "/api/workflows/queue": {
+        get: {
+          tags: ["Workflows"],
+          summary: "Authoritative approval queue: records plus total",
+          security: [{ bearerAuth: [] }],
+          responses: { 200: { description: "Queue items with the total computed after scoping and actionability" } },
+        },
+      },
       "/api/workflows/instances/{declarationId}": {
         get: {
           tags: ["Workflows"],
@@ -336,6 +344,21 @@ const options: swaggerJsdoc.Options = {
             { in: "query", name: "status", schema: { type: "string" } },
           ],
           responses: { 200: { description: "XLSX file download", content: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {} } } },
+        },
+      },
+      "/api/reports/protect-document": {
+        post: {
+          tags: ["Reports"],
+          summary: "Password-protect an exported PDF or XLSX with a downloader-set password",
+          security: [{ bearerAuth: [] }],
+          requestBody: { required: true, content: { "multipart/form-data": { schema: { type: "object", properties: { file: { type: "string", format: "binary" }, password: { type: "string", description: "8-128 chars, used once, never stored" }, filename: { type: "string" } } } } } },
+          responses: {
+            200: { description: "Protected file download (AES-256 PDF / ECMA-376 workbook)" },
+            400: { description: "Invalid password or missing file" },
+            415: { description: "Only PDF and XLSX exports are supported" },
+            502: { description: "Encryption failed (no unprotected copy returned)" },
+            503: { description: "Protection tooling unavailable on this server" },
+          },
         },
       },
 

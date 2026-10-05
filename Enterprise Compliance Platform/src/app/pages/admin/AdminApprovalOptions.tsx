@@ -5,6 +5,8 @@ import { PageHeader } from "../../components/PageHeader";
 import { THead } from "../../components/THead";
 import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
 import { fetchApprovalOptions, createApprovalOption, updateApprovalOption, deleteApprovalOption } from "../../../services/api";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { notifySuccess, notifyError } from "../../components/notify";
 
 interface Option {
   value: string;
@@ -16,22 +18,32 @@ export function AdminApprovalOptions() {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editValue, setEditValue] = useState("");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newId, setNewId] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [deletingIdx, setDeletingIdx] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => { fetchApprovalOptions().then(setOptions).catch((err: Error) => setError(err.message)); }, []);
 
   const handleAdd = async () => {
     try {
-      const id = prompt("Enter a unique ID for this option:");
-      if (!id) return;
-      const value = prompt("Enter the value (sent to API):");
-      if (!value) return;
-      const label = prompt("Enter the display label:");
-      if (!label) return;
-      await createApprovalOption({ id, value, label });
+      if (!newId.trim() || !newValue.trim() || !newLabel.trim()) {
+        setError("ID, value, and label are all required.");
+        return;
+      }
+      await createApprovalOption({ id: newId.trim(), value: newValue.trim(), label: newLabel.trim() });
+      setShowAddDialog(false);
+      setNewId("");
+      setNewValue("");
+      setNewLabel("");
       setOptions(await fetchApprovalOptions());
-    } catch (err: any) {
-      setError(err.message || "Failed to add approval option.");
+      notifySuccess("Approval option added.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to add approval option.";
+      setError(message);
+      notifyError(message);
     }
   };
 
@@ -48,18 +60,24 @@ export function AdminApprovalOptions() {
       await updateApprovalOption(option.value, { value: editValue, label: editLabel });
       setOptions(await fetchApprovalOptions());
       setEditingIdx(null);
-    } catch (err: any) {
-      setError(err.message || "Failed to save approval option.");
+      notifySuccess("Approval option updated.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to save approval option.";
+      setError(message);
+      notifyError(message);
     }
   };
 
   const handleDelete = async (idx: number) => {
     try {
-      if (!confirm("Delete this option?")) return;
       await deleteApprovalOption(options[idx].value);
+      setDeletingIdx(null);
       setOptions(await fetchApprovalOptions());
-    } catch (err: any) {
-      setError(err.message || "Failed to delete approval option.");
+      notifySuccess("Approval option deleted.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to delete approval option.";
+      setError(message);
+      notifyError(message);
     }
   };
 
@@ -78,7 +96,7 @@ export function AdminApprovalOptions() {
               <h3 className="text-sm font-bold text-foreground">Approval Decisions</h3>
             </div>
           </div>
-          <button onClick={handleAdd}
+          <button onClick={() => setShowAddDialog(true)}
             className="flex h-9 w-full items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 sm:w-auto"
             style={{ background: GRADIENT_PRIMARY }}
           >
@@ -109,7 +127,7 @@ export function AdminApprovalOptions() {
                       ) : (
                         <button onClick={() => handleEdit(idx)} className="rounded-xl p-1.5 text-muted-foreground hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
                       )}
-                      <button onClick={() => handleDelete(idx)} className="rounded-xl p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                      <button onClick={() => setDeletingIdx(idx)} className="rounded-xl p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
@@ -142,7 +160,7 @@ export function AdminApprovalOptions() {
                   ) : (
                     <button onClick={() => handleEdit(idx)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
                   )}
-                  <button onClick={() => handleDelete(idx)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                  <button onClick={() => setDeletingIdx(idx)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
                 </div>
               </div>
             </div>
@@ -150,6 +168,52 @@ export function AdminApprovalOptions() {
         </div>
       </Card>
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {showAddDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgb(0 0 0 / 0.55)", backdropFilter: "blur(6px)" }}
+          onClick={() => setShowAddDialog(false)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Add approval option"
+            className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-base font-bold text-foreground">Add approval option</h2>
+            <div className="mt-4 space-y-3">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-muted-foreground">Unique ID *</span>
+                <input type="text" value={newId} onChange={(e) => setNewId(e.target.value)} maxLength={100} className="h-10 w-full rounded-xl border border-border bg-white px-3 text-sm outline-none focus:border-purple-500" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-muted-foreground">Value (sent to API) *</span>
+                <input type="text" value={newValue} onChange={(e) => setNewValue(e.target.value)} maxLength={100} className="h-10 w-full rounded-xl border border-border bg-white px-3 text-sm outline-none focus:border-purple-500" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-muted-foreground">Display label *</span>
+                <input type="text" value={newLabel} onChange={(e) => setNewLabel(e.target.value)} maxLength={100} className="h-10 w-full rounded-xl border border-border bg-white px-3 text-sm outline-none focus:border-purple-500" />
+              </label>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" onClick={() => setShowAddDialog(false)} className="h-10 rounded-xl border border-border bg-white px-4 text-sm font-semibold hover:bg-muted">Cancel</button>
+              <button type="button" onClick={handleAdd} className="h-10 rounded-xl bg-purple-700 px-4 text-sm font-semibold text-white hover:opacity-90">Add option</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {deletingIdx !== null && options[deletingIdx] && (
+        <ConfirmDialog
+          title="Delete approval option"
+          message={`Delete the "${options[deletingIdx].label}" option? This cannot be undone.`}
+          confirmLabel="Delete"
+          destructive
+          onConfirm={() => handleDelete(deletingIdx)}
+          onCancel={() => setDeletingIdx(null)}
+        />
+      )}
     </div>
   );
 }

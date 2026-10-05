@@ -23,7 +23,7 @@ export interface ExportOptions {
 const HEADER_FILL: CellFill = { patternType: "solid", fgColor: { rgb: "4C1D95" } };
 const TITLE_FILL: CellFill = { patternType: "solid", fgColor: { rgb: "EDE9FE" } };
 
-export function exportToExcel(opts: ExportOptions) {
+export function buildReportWorkbook(opts: ExportOptions): XLSX.WorkBook | undefined {
   const aoa: unknown[][] = [];
 
   if (opts.title) aoa.push([opts.title]);
@@ -73,5 +73,21 @@ export function exportToExcel(opts: ExportOptions) {
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, opts.sheetName ?? "Report");
+  return wb;
+}
+
+export function exportToExcel(opts: ExportOptions) {
+  const wb = buildReportWorkbook(opts);
+  if (!wb) return;
   XLSX.writeFile(wb, opts.fileName.endsWith(".xlsx") ? opts.fileName : `${opts.fileName}.xlsx`);
+}
+
+/** Same workbook as `exportToExcel`, as bytes for password-protected download. */
+export function buildReportXlsxBlob(opts: Omit<ExportOptions, "fileName">): Blob {
+  const wb = buildReportWorkbook(opts as ExportOptions);
+  if (!wb) throw new Error("Nothing to export.");
+  const bytes = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  return new Blob([bytes as BlobPart], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
 }

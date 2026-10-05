@@ -6,7 +6,7 @@ import {
   FileText,
 } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { fetchDeclarations } from "@/services/api";
+import { fetchDeclarations, fetchWorkflowQueue } from "@/services/api";
 import { Screen, Declaration } from "@/types/declaration";
 import { PURPLE, YELLOW, formatRand, PRIORITY_COLORS, STATUS_COLORS, GRADIENT_PRIMARY, TYPE_COLORS } from "@/config/theme";
 import { useUser } from "@/app/auth/UserContext";
@@ -45,6 +45,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   const [deptPage, setDeptPage] = useState(0);
   const DEPT_PAGE_SIZE = 10;
   const [declarations, setDeclarations] = useState<Declaration[]>([]);
+  const [queueTotal, setQueueTotal] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,6 +54,16 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
       .then(setDeclarations)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
+    // Badge uses the authoritative queue total — the same source as the
+    // queue list — never declaration status counts.
+    const loadQueueTotal = () => {
+      fetchWorkflowQueue()
+        .then((queue) => setQueueTotal(queue.total))
+        .catch((err: Error) => setError(`Failed to load approval queue total: ${err.message}`));
+    };
+    loadQueueTotal();
+    window.addEventListener("ghe:queue-changed", loadQueueTotal);
+    return () => window.removeEventListener("ghe:queue-changed", loadQueueTotal);
   }, []);
 
   const isAdmin = user?.role === "admin";
@@ -159,7 +170,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
     return <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700"><strong>Failed to load dashboard:</strong> {error}</div>;
   }
 
-  const queueCount = scopedDeclarations.filter((d) => ["Pending", "Escalated"].includes(d.status)).length;
+  const queueCount = queueTotal;
   const monthLabel = new Date().toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
 
   const kpiDefs = [
@@ -181,9 +192,9 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
             style={{ background: GRADIENT_PRIMARY }}
           >
             <CheckSquare size={15} /> Approval Queue
-            <span className="ml-0.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold" style={{ background: YELLOW, color: "#1E1E2D" }}>
-              {queueCount}
-            </span>
+              <span className="ml-0.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold" style={{ background: YELLOW, color: "#1E1E2D" }}>
+                {queueCount ?? "…"}
+              </span>
           </button>
         }
       />

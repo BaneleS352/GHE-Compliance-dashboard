@@ -93,15 +93,20 @@ describe("Organization — multi-tenant flows", () => {
     await prisma.user.update({ where: { email: npnTeam.email }, data: { managerId: npnLm.id, lineManager: npnLm.name } });
   });
 
-  it("GET /api/users/organizations — any authenticated user can list orgs", async () => {
+  it("GET /api/users/organizations — scoped to the caller; admins see all", async () => {
     const token = tokenFor(hbTeam as any);
     const res = await request(app).get("/api/users/organizations").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThanOrEqual(2);
+    expect(res.body.map((o: any) => o.id)).toEqual([hbOrg.id]);
+
+    const admin = await request(app).get("/api/users/organizations").set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(admin.body.length).toBeGreaterThanOrEqual(2);
+
+    const global = await request(app).get("/api/users/organizations").set("Authorization", `Bearer ${tokenFor(globalHr as any)}`);
+    expect(global.body).toHaveLength(0);
   });
 
-  it("GET /api/users/managers?organizationId — filters per org", async () => {
+  it("GET /api/users/managers?organizationId — filters per org; cross-org lookup blocked", async () => {
     const token = tokenFor(hbTeam as any);
     const hb = await request(app).get(`/api/users/managers?organizationId=${hbOrg.id}`).set("Authorization", `Bearer ${token}`);
     expect(hb.status).toBe(200);
@@ -109,11 +114,14 @@ describe("Organization — multi-tenant flows", () => {
     expect(hb.body.some((u: any) => u.id === npnLm.id)).toBe(false);
 
     const npn = await request(app).get(`/api/users/managers?organizationId=${npnOrg.id}`).set("Authorization", `Bearer ${token}`);
-    expect(npn.body.some((u: any) => u.id === npnLm.id)).toBe(true);
-    expect(npn.body.some((u: any) => u.id === hbLm.id)).toBe(false);
+    expect(npn.status).toBe(403);
+
+    const adminNpn = await request(app).get(`/api/users/managers?organizationId=${npnOrg.id}`).set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(adminNpn.status).toBe(200);
+    expect(adminNpn.body.some((u: any) => u.id === npnLm.id)).toBe(true);
   });
 
-  it("GET /api/users/departments?organizationId — per-org departments", async () => {
+  it("GET /api/users/departments?organizationId — per-org departments; cross-org lookup blocked", async () => {
     const token = tokenFor(hbTeam as any);
     const hb = await request(app).get(`/api/users/departments?organizationId=${hbOrg.id}`).set("Authorization", `Bearer ${token}`);
     expect(hb.status).toBe(200);
@@ -121,7 +129,13 @@ describe("Organization — multi-tenant flows", () => {
     expect(hb.body).not.toContain("Engineering");
 
     const npn = await request(app).get(`/api/users/departments?organizationId=${npnOrg.id}`).set("Authorization", `Bearer ${token}`);
-    expect(npn.body).toContain("Engineering");
+    expect(npn.status).toBe(403);
+
+    // Unscoped callers get their own organization's departments.
+    const own = await request(app).get("/api/users/departments").set("Authorization", `Bearer ${token}`);
+    expect(own.status).toBe(200);
+    expect(own.body).toContain("Marketing");
+    expect(own.body).not.toContain("Engineering");
   });
 
   it("POST /api/declarations — organizationId derived from JWT, cross-org spoof blocked", async () => {

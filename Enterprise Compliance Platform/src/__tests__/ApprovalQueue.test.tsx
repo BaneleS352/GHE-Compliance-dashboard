@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ApprovalQueue } from "../app/pages/ApprovalQueue";
-import { fetchPendingWorkflows } from "../services/api";
-import { exportRowsToXls } from "../utils/excel";
+import { fetchWorkflowQueue } from "../services/api";
+import { requestProtectedDocument, saveBlob } from "../services/download";
 
 const mockQueueItems = [
   {
@@ -47,7 +47,7 @@ const mockQueueItems = [
 ];
 
 vi.mock("../services/api", () => ({
-  fetchPendingWorkflows: vi.fn(),
+  fetchWorkflowQueue: vi.fn(),
   // ApprovalQueue lazy-loads the SLA configuration after loading the queue.
   // Keep this export in the mock so the async side effect is observable without
   // producing an unhandled Vitest mock error.
@@ -56,6 +56,12 @@ vi.mock("../services/api", () => ({
 
 vi.mock("../utils/excel", () => ({
   exportRowsToXls: vi.fn(),
+  buildRowsXlsxBlob: vi.fn(() => new Blob(["x"], { type: "application/octet-stream" })),
+}));
+
+vi.mock("../services/download", () => ({
+  requestProtectedDocument: vi.fn(),
+  saveBlob: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -75,13 +81,13 @@ beforeEach(() => {
 
 describe("ApprovalQueue", () => {
   it("shows loading state initially", () => {
-    vi.mocked(fetchPendingWorkflows).mockReturnValue(new Promise(() => {}));
+    vi.mocked(fetchWorkflowQueue).mockReturnValue(new Promise(() => {}));
     render(<ApprovalQueue onReview={vi.fn()} />);
     expect(screen.getByText(/Loading queue/)).toBeInTheDocument();
   });
 
   it("shows error state when fetch fails", async () => {
-    vi.mocked(fetchPendingWorkflows).mockRejectedValue(new Error("Failed to load"));
+    vi.mocked(fetchWorkflowQueue).mockRejectedValue(new Error("Failed to load"));
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => {
       expect(screen.getByText(/Failed to load queue/)).toBeInTheDocument();
@@ -89,7 +95,7 @@ describe("ApprovalQueue", () => {
   });
 
   it("renders actionable queue items returned by the workflow API", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => {
       expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0);
@@ -99,7 +105,7 @@ describe("ApprovalQueue", () => {
   });
 
   it("filters by search text", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
 
@@ -112,7 +118,7 @@ describe("ApprovalQueue", () => {
   });
 
   it("filters by department", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
 
@@ -125,7 +131,7 @@ describe("ApprovalQueue", () => {
   });
 
   it("filters by priority", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
 
@@ -138,7 +144,7 @@ describe("ApprovalQueue", () => {
   });
 
   it("calls onReview when Review button is clicked", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     const onReview = vi.fn();
     render(<ApprovalQueue onReview={onReview} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
@@ -148,18 +154,46 @@ describe("ApprovalQueue", () => {
     expect(onReview).toHaveBeenCalledWith(expect.objectContaining({ id: "GHE-2026-1001" }));
   });
 
-  it("calls exportRowsToXls on Export button click", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+  it("protects the export: Export opens the password dialog, confirm downloads", async () => {
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
+    const outBlob = new Blob(["protected"], { type: "application/pdf" });
+    vi.mocked(requestProtectedDocument).mockResolvedValue({ blob: outBlob, filename: "protected-ApprovalQueue.xlsx" });
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
 
-    const exportBtn = screen.getByRole("button", { name: /Export/i });
-    fireEvent.click(exportBtn);
-    expect(exportRowsToXls).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Export/i }));
+    // Password dialog appears; nothing is sent yet.
+    expect(screen.getByRole("dialog", { name: "Protect Excel export" })).toBeInTheDocument();
+    expect(requestProtectedDocument).not.toHaveBeenCalled();
+
+    const [passwordInput, confirmInput] = screen.getAllByLabelText(/password/i);
+    fireEvent.change(passwordInput, { target: { value: "s3cret-download-pw" } });
+    fireEvent.change(confirmInput, { target: { value: "s3cret-download-pw" } });
+    fireEvent.click(screen.getByRole("button", { name: "Protect & Download" }));
+
+    await waitFor(() => expect(requestProtectedDocument).toHaveBeenCalledTimes(1));
+    const [sentBlob, sentName, sentPassword] = vi.mocked(requestProtectedDocument).mock.calls[0];
+    expect(sentBlob).toBeInstanceOf(Blob);
+    expect(sentName).toMatch(/ApprovalQueue_.*\.xlsx/);
+    expect(sentPassword).toBe("s3cret-download-pw");
+    expect(saveBlob).toHaveBeenCalledWith(outBlob, "protected-ApprovalQueue.xlsx");
+  });
+
+  it("cancelling the password dialog downloads nothing", async () => {
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
+    render(<ApprovalQueue onReview={vi.fn()} />);
+    await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByRole("button", { name: /Export/i }));
+    expect(screen.getByRole("dialog", { name: "Protect Excel export" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Protect Excel export" })).not.toBeInTheDocument();
+    expect(requestProtectedDocument).not.toHaveBeenCalled();
+    expect(saveBlob).not.toHaveBeenCalled();
   });
 
   it("shows empty state when no declarations match filters", async () => {
-    vi.mocked(fetchPendingWorkflows).mockResolvedValue(mockQueueItems as any);
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
 
@@ -169,5 +203,21 @@ describe("ApprovalQueue", () => {
       const footnote = screen.getByText(/Showing/).closest("div");
       expect(footnote?.textContent).toMatch(/Showing.*0.*declarations/);
     });
+  });
+
+  it("refetches queue records and total on ghe:queue-changed", async () => {
+    const first = vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
+    const { unmount } = render(<ApprovalQueue onReview={vi.fn()} />);
+    await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
+    expect(screen.getByText(/3 actionable approvals/)).toBeInTheDocument();
+    expect(first).toHaveBeenCalledTimes(1);
+
+    // A workflow action elsewhere shrinks the queue to one record.
+    const second = vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems.slice(0, 1), total: 1 } as any);
+    window.dispatchEvent(new Event("ghe:queue-changed"));
+    await waitFor(() => expect(second).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByText(/1 actionable approvals/)).toBeInTheDocument());
+    expect(screen.queryAllByText("GHE-2026-1003").length).toBe(0);
+    unmount();
   });
 });

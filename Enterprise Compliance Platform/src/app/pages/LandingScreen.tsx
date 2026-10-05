@@ -17,11 +17,12 @@ const QUICK_LOGIN_USERS = [
   { label: "Admin — System Admin (Global)",        email: "admin@hb.co.za",    role: "admin" as const },
 ];
 
+// Quick login with preset demo users. The password is preselected; sign-in
+// failures report a generic message and never disclose credential details.
 export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string) => void }) {
   const { setUser } = useUser();
   const [selectedIdx, setSelectedIdx] = useState(0);
   const email = QUICK_LOGIN_USERS[selectedIdx].email;
-  const role = QUICK_LOGIN_USERS[selectedIdx].role;
   const [password, setPassword] = useState("password");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,7 +36,7 @@ export function LandingScreen({ onEnter }: { onEnter: (role: Role, name: string)
     try {
       const user = await authenticate(email, password);
       if (!user) {
-        setError("Invalid credentials. Default password: password");
+        setError("Invalid credentials. Please try again.");
         setLoading(false);
         return;
       }

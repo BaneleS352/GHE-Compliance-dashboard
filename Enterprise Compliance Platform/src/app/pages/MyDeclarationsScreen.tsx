@@ -13,7 +13,10 @@ import { DeclarationDetailView, SupportingDocuments } from "@/app/pages/Declarat
 import { WorkflowTimeline } from "@/app/components/WorkflowTimeline";
 import { Table, Thead, Th, Tbody, Tr, Td, COL } from "@/app/components/table";
 import { PURPLE } from "@/config/theme";
-import { exportRowsToXls } from "@/utils/excel";
+import { buildRowsXlsxBlob } from "@/utils/excel";
+import { requestProtectedDocument, saveBlob } from "@/services/download";
+import { notifySuccess, notifyError } from "@/app/components/notify";
+import { PasswordDialog } from "@/app/components/PasswordDialog";
 import { useWorkflowApproval } from "@/app/hooks/useWorkflowApproval";
 import type {
     ApprovalDecision,
@@ -49,9 +52,10 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
   const PAGE_SIZE = 10;
   const [viewDecl, setViewDecl] = useState<Declaration | null>(null);
   const [viewDeclStatus, setViewDeclStatus] = useState<StatusType | null>(null);
+  const [pendingExport, setPendingExport] = useState<{ blob: Blob; filename: string } | null>(null);
 
   const {
-    wfSteps, wfMessage, canApprove, submitError,
+    wfSteps, canApprove, submitError,
     activeDecision, setActiveDecision,
     activeNotes, setActiveNotes,
     handleSubmit, submitDisabled,
@@ -136,6 +140,21 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
     setStatusFilter(type === "All" ? "All" : type);
   };
 
+  const queueProtectedExport = (blob: Blob, filename: string) => setPendingExport({ blob, filename });
+
+  const submitProtectedExport = async (password: string) => {
+    if (!pendingExport) return;
+    try {
+      const result = await requestProtectedDocument(pendingExport.blob, pendingExport.filename, password);
+      saveBlob(result.blob, result.filename);
+      notifySuccess("Protected Excel export downloaded.");
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Excel export failed. Please try again.");
+    } finally {
+      setPendingExport(null);
+    }
+  };
+
   const exportExcel = () => {
     const data = filtered.map((d) => ({
       ID: d.id,
@@ -147,24 +166,30 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
       Status: d.status,
       Approver: d.approver,
     }));
-    exportRowsToXls("Declarations", "Declarations", data);
+    queueProtectedExport(
+      buildRowsXlsxBlob("Declarations", data),
+      `Declarations_${new Date().toISOString().slice(0, 10)}.xlsx`
+    );
   };
 
   const exportRow = (d: Declaration) => {
-    exportRowsToXls(d.id, "Declaration", [
-      {
-        ID: d.id,
-        Employee: d.employee,
-        Department: d.department,
-        Type: d.type,
-        Counterparty: d.counterparty,
-        Value: d.value,
-        Submitted: d.submitted,
-        Status: d.status,
-        Approver: d.approver,
-        Priority: d.priority,
-      },
-    ]);
+    queueProtectedExport(
+      buildRowsXlsxBlob("Declaration", [
+        {
+          ID: d.id,
+          Employee: d.employee,
+          Department: d.department,
+          Type: d.type,
+          Counterparty: d.counterparty,
+          Value: d.value,
+          Submitted: d.submitted,
+          Status: d.status,
+          Approver: d.approver,
+          Priority: d.priority,
+        },
+      ]),
+      `${d.id}.xlsx`
+    );
   };
   const totalValue = visibleDeclarations.reduce(
     (sum, d) => sum + d.value,
@@ -197,11 +222,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
                 {submitError}
               </div>
             )}
-            {wfMessage && (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                {wfMessage}
-              </div>
-            )}
+            {/* Success feedback comes from the shared toast (see useWorkflowApproval). */}
             <WorkflowTimeline
               steps={wfSteps}
               decision={canApprove ? activeDecision : undefined}
@@ -453,6 +474,14 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
         </div>
 
       </Card>
+      {pendingExport && (
+        <PasswordDialog
+          title="Protect Excel export"
+          message="Set a password for this export. The password encrypts the file on the server and is never stored."
+          onSubmit={submitProtectedExport}
+          onCancel={() => setPendingExport(null)}
+        />
+      )}
     </div>
   );
 }

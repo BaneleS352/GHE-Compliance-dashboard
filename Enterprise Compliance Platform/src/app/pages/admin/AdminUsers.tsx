@@ -6,6 +6,9 @@ import { THead } from "../../components/THead";
 import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
 import { fetchUsers, createUser, updateUser, deleteUser, fetchAdminOrganizations } from "../../../services/api";
 import { User } from "../../../types/declaration";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { UserDialog } from "./UserDialog";
+import { notifySuccess, notifyError } from "../../components/notify";
 
 const ROLE_MAP: Record<string, string> = {
   teamMember: "Team Member",
@@ -15,14 +18,16 @@ const ROLE_MAP: Record<string, string> = {
 
 const ROLE_OPTIONS = ["All Roles", "Team Member", "Approver", "Administrator"];
 
-let _nextId = Date.now();
-
 export function AdminUsers() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All Roles");
   const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [organizations, setOrganizations] = useState<{ id: number; name: string; shortCode: string }[]>([]);
+  // Dialog state: application-styled dialogs replace browser prompt/confirm.
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
 
   useEffect(() => {
     fetchUsers().then(setUsers).catch((err: Error) => setError(err.message));
@@ -53,64 +58,54 @@ export function AdminUsers() {
     return list;
   }, [users, search, roleFilter]);
 
-  const handleAdd = async () => {
-    const name = prompt("User name:");
-    if (!name) return;
-    const email = prompt("Email:");
-    if (!email) return;
-    const roleLabels = ["teamMember", "approver", "admin"];
-    const roleLabel = prompt(`Role (${roleLabels.join(", ")}):`, "teamMember");
-    if (!roleLabel || !roleLabels.includes(roleLabel)) return;
-    const department = prompt("Department:") || "";
-    const orgList = organizations.map((o) => `${o.shortCode} (${o.name})`).join(", ");
-    const orgShortCode = prompt(`Organization (${orgList}):`) || "";
-    const org = organizations.find((o) => o.shortCode === orgShortCode || o.name === orgShortCode);
+  const handleAdd = async (data: { name: string; email: string; role: User["role"]; department: string; organizationId: number | null }) => {
     try {
       await createUser({
-        id: `USR-${String(_nextId++).slice(-6)}`,
-        name,
-        email,
+        name: data.name,
+        email: data.email,
         passwordHash: "",
-        role: roleLabel as "teamMember" | "approver" | "admin",
-        department,
+        role: data.role,
+        department: data.department,
         teamMemberNumber: "",
         position: "",
         lineManager: null,
-        organizationId: org?.id || null,
+        organizationId: data.organizationId,
       });
+      setShowAddDialog(false);
+      notifySuccess(`User "${data.name}" added.`);
       refresh();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to add user.";
+      setError(message);
+      notifyError(message);
+      throw e;
     }
   };
 
-  const handleEdit = async (user: User) => {
-    const name = prompt("Name:", user.name);
-    if (!name) return;
-    const email = prompt("Email:", user.email);
-    if (!email) return;
-    const roleLabels = ["teamMember", "approver", "admin"];
-    const roleLabel = prompt(`Role (${roleLabels.join(", ")}):`, user.role);
-    if (!roleLabel || !roleLabels.includes(roleLabel)) return;
-    const department = prompt("Department:", user.department) || "";
-    const orgList = organizations.map((o) => `${o.shortCode} (${o.name})`).join(", ");
-    const orgShortCode = prompt(`Organization (${orgList}):`, user.organizationId ? organizations.find((o) => o.id === user.organizationId)?.shortCode || "" : "") || "";
-    const org = organizations.find((o) => o.shortCode === orgShortCode || o.name === orgShortCode);
+  const handleEdit = async (user: User, data: { name: string; email: string; role: User["role"]; department: string; organizationId: number | null }) => {
     try {
-      await updateUser(user.id, { name, email, role: roleLabel as User["role"], department, organizationId: org?.id || null });
+      await updateUser(user.id, { name: data.name, email: data.email, role: data.role, department: data.department, organizationId: data.organizationId });
+      setEditingUser(null);
+      notifySuccess(`User "${data.name}" updated.`);
       refresh();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to update user.";
+      setError(message);
+      notifyError(message);
+      throw e;
     }
   };
 
   const handleDelete = async (user: User) => {
-    if (!confirm(`Delete user "${user.name}" (${user.id})?`)) return;
     try {
       await deleteUser(user.id);
+      setDeletingUser(null);
+      notifySuccess(`User "${user.name}" deleted.`);
       refresh();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Failed to delete user.";
+      setError(message);
+      notifyError(message);
     }
   };
 
@@ -140,7 +135,7 @@ export function AdminUsers() {
         subtitle="Manage system users, roles, and permissions."
         actions={
           <button
-            onClick={handleAdd}
+            onClick={() => setShowAddDialog(true)}
             className="flex h-10 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(79,29,149,0.28)] sm:w-auto"
             style={{ background: GRADIENT_PRIMARY, border: "1px solid transparent" }}
           >
@@ -193,8 +188,8 @@ export function AdminUsers() {
             </div>
 
             <div className="mt-4 flex items-center justify-end gap-2">
-              <button onClick={() => handleEdit(u)} className="rounded-xl p-2 text-muted-foreground transition-all duration-300 hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
-              <button onClick={() => handleDelete(u)} className="rounded-xl p-2 text-muted-foreground transition-all duration-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+              <button onClick={() => setEditingUser(u)} className="rounded-xl p-2 text-muted-foreground transition-all duration-300 hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
+              <button onClick={() => setDeletingUser(u)} className="rounded-xl p-2 text-muted-foreground transition-all duration-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
             </div>
           </div>
         ))}
@@ -217,8 +212,8 @@ export function AdminUsers() {
                 <td className="px-5 py-3.5">{statusBadge()}</td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2">
-                    <button onClick={() => handleEdit(u)} className="rounded-xl p-1.5 text-muted-foreground transition-all duration-300 hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
-                    <button onClick={() => handleDelete(u)} className="rounded-xl p-1.5 text-muted-foreground transition-all duration-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                    <button onClick={() => setEditingUser(u)} className="rounded-xl p-1.5 text-muted-foreground transition-all duration-300 hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
+                    <button onClick={() => setDeletingUser(u)} className="rounded-xl p-1.5 text-muted-foreground transition-all duration-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
                   </div>
                 </td>
               </tr>
@@ -230,6 +225,32 @@ export function AdminUsers() {
         )}
       </Card>
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {showAddDialog && (
+        <UserDialog
+          user={null}
+          organizations={organizations}
+          onSave={handleAdd}
+          onCancel={() => setShowAddDialog(false)}
+        />
+      )}
+      {editingUser && (
+        <UserDialog
+          user={editingUser}
+          organizations={organizations}
+          onSave={(data) => handleEdit(editingUser, data)}
+          onCancel={() => setEditingUser(null)}
+        />
+      )}
+      {deletingUser && (
+        <ConfirmDialog
+          title="Delete user"
+          message={`Delete user "${deletingUser.name}" (${deletingUser.id})? This cannot be undone.`}
+          confirmLabel="Delete"
+          destructive
+          onConfirm={() => handleDelete(deletingUser)}
+          onCancel={() => setDeletingUser(null)}
+        />
+      )}
     </div>
   );
 }

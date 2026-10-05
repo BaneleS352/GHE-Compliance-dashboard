@@ -5,6 +5,8 @@ import { PageHeader } from "../../components/PageHeader";
 import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
 import { fetchConfig, saveConfig, fetchAdminOrganizations, createOrganization, updateOrganization, deleteOrganization } from "../../../services/api";
 import { SystemConfig, NotificationTemplates } from "../../../types/declaration";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { notifySuccess, notifyError } from "../../components/notify";
 
 const DEFAULT_NOTIFICATION_TEMPLATES: NotificationTemplates = {
   managerApproval: {
@@ -54,12 +56,13 @@ export function AdminConfig() {
   const [newOrgName, setNewOrgName] = useState("");
   const [newOrgShortCode, setNewOrgShortCode] = useState("");
   const [editingOrg, setEditingOrg] = useState<{ id: number; name: string; shortCode: string } | null>(null);
+  const [deletingOrgId, setDeletingOrgId] = useState<number | null>(null);
 
   useEffect(() => { fetchConfig().then(setConfig).catch((err: Error) => setFetchError(err.message)); }, []);
   useEffect(() => { fetchAdminOrganizations().then(setOrganizations).catch(() => {}); }, []);
 
-  const parsedTemplates: NotificationTemplates = (() => {
-    try { return JSON.parse(config.notificationTemplates); } catch { return DEFAULT_NOTIFICATION_TEMPLATES; }
+  const { parsedTemplates, templatesFallback }: { parsedTemplates: NotificationTemplates; templatesFallback: boolean } = (() => {
+    try { return { parsedTemplates: JSON.parse(config.notificationTemplates), templatesFallback: false }; } catch { return { parsedTemplates: DEFAULT_NOTIFICATION_TEMPLATES, templatesFallback: true }; }
   })();
 
   const updateTemplate = (key: keyof NotificationTemplates, field: "subject" | "body", value: string) => {
@@ -71,10 +74,13 @@ export function AdminConfig() {
     try {
       await saveConfig(config);
       setSaved(true);
+      notifySuccess("Configuration saved.");
       const t = setTimeout(() => setSaved(false), 2000);
       return () => clearTimeout(t);
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to save configuration.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to save configuration.";
+      setFetchError(message);
+      notifyError(message);
     }
   };
 
@@ -85,8 +91,11 @@ export function AdminConfig() {
       setOrganizations([...organizations, created]);
       setNewOrgName("");
       setNewOrgShortCode("");
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to create organization.");
+      notifySuccess(`Organization "${created.name}" added.`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to create organization.";
+      setFetchError(message);
+      notifyError(message);
     }
   };
 
@@ -96,8 +105,11 @@ export function AdminConfig() {
       const updated = await updateOrganization(editingOrg.id, { name: editingOrg.name, shortCode: editingOrg.shortCode });
       setOrganizations(organizations.map((o) => o.id === updated.id ? updated : o));
       setEditingOrg(null);
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to update organization.");
+      notifySuccess(`Organization "${updated.name}" updated.`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update organization.";
+      setFetchError(message);
+      notifyError(message);
     }
   };
 
@@ -105,8 +117,12 @@ export function AdminConfig() {
     try {
       await deleteOrganization(id);
       setOrganizations(organizations.filter((o) => o.id !== id));
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to delete organization.");
+      setDeletingOrgId(null);
+      notifySuccess("Organization deleted.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to delete organization.";
+      setFetchError(message);
+      notifyError(message);
     }
   };
 
@@ -128,6 +144,11 @@ export function AdminConfig() {
       {fetchError && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {fetchError}
+        </div>
+      )}
+      {templatesFallback && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          Saved notification templates could not be read — showing built-in defaults. Save to persist them.
         </div>
       )}
       {saved && (
@@ -245,7 +266,7 @@ export function AdminConfig() {
                     <span className="flex-1 text-sm font-medium text-foreground">{org.name}</span>
                     <span className="rounded-lg bg-muted px-2 py-1 text-xs font-mono text-muted-foreground">{org.shortCode}</span>
                     <button onClick={() => setEditingOrg(org)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"><Pencil size={14} /></button>
-                    <button onClick={() => handleDeleteOrg(org.id)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={14} /></button>
+                    <button onClick={() => setDeletingOrgId(org.id)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={14} /></button>
                   </>
                 )}
               </div>
@@ -258,6 +279,16 @@ export function AdminConfig() {
           </div>
         </Card>
       </div>
+      {deletingOrgId !== null && (
+        <ConfirmDialog
+          title="Delete organization"
+          message="Delete this organization? Users and declarations linked to it block deletion; remove those links first."
+          confirmLabel="Delete"
+          destructive
+          onConfirm={() => handleDeleteOrg(deletingOrgId)}
+          onCancel={() => setDeletingOrgId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 import { Download, Search, AlertTriangle } from "lucide-react";
-import { fetchPendingWorkflows } from "@/services/api";
+import { fetchWorkflowQueue } from "@/services/api";
 import { Declaration } from "@/types/declaration";
 import { PURPLE, formatRand, PRIORITY_COLORS } from "@/config/theme";
 import { Card } from "@/app/components/Card";
@@ -9,7 +9,10 @@ import { PageHeader } from "@/app/components/PageHeader";
 import { StatusBadge } from "@/app/components/StatusBadge";
 import { TypeBadge } from "@/app/components/TypeBadge";
 import { Table, Thead, Th, Tbody, Tr, Td, COL } from "@/app/components/table";
-import { exportRowsToXls } from "@/utils/excel";
+import { buildRowsXlsxBlob } from "@/utils/excel";
+import { requestProtectedDocument, saveBlob } from "@/services/download";
+import { notifySuccess, notifyError } from "@/app/components/notify";
+import { PasswordDialog } from "@/app/components/PasswordDialog";
 
 function daysSince(dateStr: string): number {
   const t = new Date(dateStr).getTime();
@@ -23,6 +26,7 @@ function isOutstanding(dateStr: string, slaDays: number): boolean {
 
 export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void }) {
   const [allDeclarations, setAllDeclarations] = useState<Declaration[]>([]);
+  const [queueTotal, setQueueTotal] = useState(0);
   const [stepsMap, setStepsMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,19 +41,38 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const PAGE_SIZE = 10;
   const [slaDays, setSlaDays] = useState(3);
+  const [slaWarning, setSlaWarning] = useState<string | null>(null);
+  const [protectingExport, setProtectingExport] = useState(false);
 
   useEffect(() => {
-    fetchPendingWorkflows()
-      .then((items) => {
-        setAllDeclarations(items.map((item) => item.declaration));
-        const map: Record<string, string> = {};
-        items.forEach((item) => { if (item.step) map[item.declaration.id] = item.step.label; });
-        setStepsMap(map);
-      })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
+    const load = () => {
+      setLoading(true);
+      fetchWorkflowQueue()
+        .then((queue) => {
+          setAllDeclarations(queue.items.map((item) => item.declaration));
+          // Authoritative total from the same response — never recomputed
+          // from declaration statuses.
+          setQueueTotal(queue.total);
+          const map: Record<string, string> = {};
+          queue.items.forEach((item) => { if (item.step) map[item.declaration.id] = item.step.label; });
+          setStepsMap(map);
+        })
+        .catch((err: Error) => setError(err.message))
+        .finally(() => setLoading(false));
+    };
+    load();
+    window.addEventListener("ghe:queue-changed", load);
+    return () => window.removeEventListener("ghe:queue-changed", load);
     // Fetch SLA threshold for overdue calculation
-    import("@/services/api").then(({ fetchConfig }) => fetchConfig().then((c) => setSlaDays(c.slaEscalationDays ?? 3)).catch(() => {}));
+    // (kept separate so queue refreshes do not refetch config)
+  }, []);
+
+  useEffect(() => {
+    import("@/services/api").then(({ fetchConfig }) => fetchConfig()
+      .then((c) => setSlaDays(c.slaEscalationDays ?? 3))
+      // Overdue display depends on this threshold — a silent default would
+      // mislead, so warn instead of failing the whole queue.
+      .catch(() => setSlaWarning("SLA configuration could not be loaded — overdue highlighting uses a 3-day default.")));
   }, []);
 
   useEffect(() => { setPage(0); }, [search, department, status, priority, employeeFilter, overdueOnly, sortKey, sortDir]);
@@ -92,22 +115,37 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const pagedQueue = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const exportQueue = () => {
-    exportRowsToXls(
-      "ApprovalQueue",
-      "Queue",
-      sorted.map((d) => ({
-        ID: d.id,
-        Employee: d.employee,
-        Department: d.department,
-        Type: d.type,
-        Counterparty: d.counterparty,
-        Value: d.value,
-        Submitted: d.submitted,
-        Priority: d.priority,
-        Status: d.status,
-        Step: stepsMap[d.id] || "-",
-      }))
-    );
+    // Protected export: collect a password first, then encrypt server-side.
+    // There is no unprotected fallback.
+    setProtectingExport(true);
+  };
+
+  const submitProtectedExport = async (password: string) => {
+    try {
+      const blob = buildRowsXlsxBlob(
+        "Queue",
+        sorted.map((d) => ({
+          ID: d.id,
+          Employee: d.employee,
+          Department: d.department,
+          Type: d.type,
+          Counterparty: d.counterparty,
+          Value: d.value,
+          Submitted: d.submitted,
+          Priority: d.priority,
+          Status: d.status,
+          Step: stepsMap[d.id] || "-",
+        }))
+      );
+      const fileName = `ApprovalQueue_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const result = await requestProtectedDocument(blob, fileName, password);
+      saveBlob(result.blob, result.filename);
+      notifySuccess("Protected Excel export downloaded.");
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Excel export failed. Please try again.");
+    } finally {
+      setProtectingExport(false);
+    }
   };
 
   if (loading) {
@@ -130,7 +168,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
     <div>
       <PageHeader
         title="Approval Queue"
-        subtitle={`${filteredQueue.length} Declarations awaiting your review`}
+        subtitle={`${queueTotal} actionable approvals awaiting your review`}
         actions={
           <div className="flex flex-wrap gap-2">
             <button
@@ -148,6 +186,12 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
           </div>
         }
       />
+
+      {slaWarning && (
+        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          {slaWarning}
+        </div>
+      )}
 
       <Card className="mb-4 grid grid-cols-1 gap-3 border-white/70 bg-white/85 p-3 sm:grid-cols-2 lg:grid-cols-3">
         <div>
@@ -365,6 +409,14 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
           )}
         </div>
       </Card>
+      {protectingExport && (
+        <PasswordDialog
+          title="Protect Excel export"
+          message="Set a password for this queue export. The password encrypts the file on the server and is never stored."
+          onSubmit={submitProtectedExport}
+          onCancel={() => setProtectingExport(false)}
+        />
+      )}
     </div>
   );
 }

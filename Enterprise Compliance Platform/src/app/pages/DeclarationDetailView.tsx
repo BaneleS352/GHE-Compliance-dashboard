@@ -4,6 +4,8 @@ import { Card } from "@/app/components/ui/card";
 import { formatRand, DEFAULT_HIGH_VALUE_THRESHOLD, DEFAULT_MEDIUM_VALUE_THRESHOLD } from "@/config/theme";
 import { Declaration, UploadedFile } from "@/types/declaration";
 import { fetchConfig } from "@/services/api";
+import { downloadFile as downloadSharedFile, previewFile as previewSharedFile } from "@/services/download";
+import { notifyError } from "@/app/components/notify";
 import { motion } from "framer-motion";
 
 export function DeclarationDetailView({
@@ -21,9 +23,14 @@ export function DeclarationDetailView({
   const d = isRecord ? (data as Declaration) : null;
   const record = !d ? (data as Record<string, string>) : null;
   const [config, setConfig] = useState({ highValueThreshold: DEFAULT_HIGH_VALUE_THRESHOLD, mediumValueThreshold: DEFAULT_MEDIUM_VALUE_THRESHOLD, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
+  const [configWarning, setConfigWarning] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchConfig().then(setConfig).catch(() => { /* config defaults are used as fallback */ });
+    fetchConfig()
+      .then(setConfig)
+      // Threshold labels depend on config — warn instead of silently
+      // falling back to built-in defaults.
+      .catch(() => setConfigWarning("System thresholds could not be loaded — default values are shown."));
   }, []);
 
   const safe = (v: unknown) => (v != null ? String(v) : "—");
@@ -79,7 +86,11 @@ export function DeclarationDetailView({
 
   return (
     <div className="h-full flex flex-col gap-5">
-      
+      {configWarning && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          {configWarning}
+        </div>
+      )}
       <div className="detail-panel-shell flex-1 min-h-0">
       <Card
         className="
@@ -132,43 +143,17 @@ export function DeclarationDetailView({
 
 async function downloadFile(file: UploadedFile) {
   try {
-    if (!file.url || file.url.startsWith("data:")) {
-      const a = document.createElement("a");
-      a.href = file.url;
-      a.download = file.name;
-      a.click();
-      return;
-    }
-    const response = await fetch(file.url);
-    if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = file.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    await downloadSharedFile(file.url, file.name);
   } catch (err) {
-    console.error("Download failed:", err);
+    notifyError(err instanceof Error ? err.message : "Download failed. Please try again.");
   }
 }
 
 async function viewFile(file: UploadedFile) {
   try {
-    if (!file.url || file.url.startsWith("data:")) {
-      window.open(file.url, "_blank", "noopener,noreferrer");
-      return;
-    }
-    const response = await fetch(file.url);
-    if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank", "noopener,noreferrer");
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    await previewSharedFile(file.url);
   } catch (err) {
-    console.error("View file failed:", err);
+    notifyError(err instanceof Error ? err.message : "Preview failed. Please try again.");
   }
 }
 

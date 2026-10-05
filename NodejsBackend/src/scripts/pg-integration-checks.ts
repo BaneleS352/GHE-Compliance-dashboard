@@ -364,7 +364,8 @@ async function main() {
     await p.organization.delete({ where: { id: dupOrg.id } }).catch(() => undefined);
   });
 
-  // Delete rules: user delete nulls declaration links (history in snapshot).  await p.user.delete({ where: { id: users.tmB.id } });
+  // Delete rules: user delete nulls declaration links (history in snapshot).
+  await p.user.delete({ where: { id: users.tmB.id } });
   const orphanDecl = await p.declaration.findUnique({ where: { id: "PG-2026-0004" } });
   check("user delete SET NULLs declarer link", orphanDecl?.declarerUserId === null);
   const orphanSnap = await p.declarationSnapshot.findFirst({ where: { declarerName: "PG TM B" } });

@@ -5,12 +5,16 @@ import { PageHeader } from "../../components/PageHeader";
 import { THead } from "../../components/THead";
 import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
 import { fetchDropdownOptions, updateDropdownOptions } from "../../../services/api";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
+import { notifySuccess, notifyError } from "../../components/notify";
 
 export function AdminDropdownOptions() {
   const [activeTab, setActiveTab] = useState("departments");
   const [data, setData] = useState<Record<string, string[]>>({});
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [newItem, setNewItem] = useState("");
+  const [deletingIdx, setDeletingIdx] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const tabs = Object.keys(data) as (keyof typeof data)[];
@@ -19,17 +23,24 @@ export function AdminDropdownOptions() {
 
   const currentList = data[activeTab] || [];
 
+  const fail = (message: string) => {
+    setError(message);
+    notifyError(message);
+  };
+
   const handleAdd = async () => {
-    const item = prompt(`Add new ${activeTab.slice(0, -1)}:`);
+    const item = newItem.trim();
     if (!item) return;
     const prev = data;
     const updated = { ...data, [activeTab]: [...currentList, item] };
     setData(updated);
+    setNewItem("");
     try {
       await updateDropdownOptions(updated);
-    } catch (err: any) {
+      notifySuccess("Option added.");
+    } catch (err: unknown) {
       setData(prev);
-      setError(err.message || "Failed to add item.");
+      fail(err instanceof Error ? err.message : "Failed to add item.");
     }
   };
 
@@ -48,23 +59,25 @@ export function AdminDropdownOptions() {
     try {
       await updateDropdownOptions(updated);
       setEditingIdx(null);
-    } catch (err: any) {
+      notifySuccess("Option updated.");
+    } catch (err: unknown) {
       setData(prev);
-      setError(err.message || "Failed to save item.");
+      fail(err instanceof Error ? err.message : "Failed to save item.");
     }
   };
 
   const handleDelete = async (idx: number) => {
-    if (!confirm("Delete this option?")) return;
     const prev = data;
     const list = currentList.filter((_, i) => i !== idx);
     const updated = { ...data, [activeTab]: list };
     setData(updated);
+    setDeletingIdx(null);
     try {
       await updateDropdownOptions(updated);
-    } catch (err: any) {
+      notifySuccess("Option deleted.");
+    } catch (err: unknown) {
       setData(prev);
-      setError(err.message || "Failed to delete item.");
+      fail(err instanceof Error ? err.message : "Failed to delete item.");
     }
   };
 
@@ -96,12 +109,23 @@ export function AdminDropdownOptions() {
               <h3 className="text-sm font-bold text-foreground">{activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</h3>
             </div>
           </div>
-          <button onClick={handleAdd}
-            className="flex h-9 w-full items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 sm:w-auto"
-            style={{ background: GRADIENT_PRIMARY }}
-          >
-            <Plus size={13} /> Add
-          </button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <input
+              type="text"
+              value={newItem}
+              onChange={(e) => setNewItem(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+              placeholder={`Add new ${activeTab.slice(0, -1)}…`}
+              maxLength={100}
+              className="h-9 rounded-xl border border-border bg-white px-3 text-xs outline-none focus:border-purple-500"
+            />
+            <button onClick={handleAdd}
+              className="flex h-9 w-full items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-white transition-all hover:-translate-y-0.5 sm:w-auto"
+              style={{ background: GRADIENT_PRIMARY }}
+            >
+              <Plus size={13} /> Add
+            </button>
+          </div>
         </div>
 
         <div className="hidden md:block">
@@ -122,7 +146,7 @@ export function AdminDropdownOptions() {
                       ) : (
                         <button onClick={() => handleEdit(idx)} className="rounded-xl p-1.5 text-muted-foreground hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
                       )}
-                      <button onClick={() => handleDelete(idx)} className="rounded-xl p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                      <button onClick={() => setDeletingIdx(idx)} className="rounded-xl p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
@@ -147,7 +171,7 @@ export function AdminDropdownOptions() {
                   ) : (
                     <button onClick={() => handleEdit(idx)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
                   )}
-                  <button onClick={() => handleDelete(idx)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                  <button onClick={() => setDeletingIdx(idx)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
                 </div>
               </div>
             </div>
@@ -155,6 +179,16 @@ export function AdminDropdownOptions() {
         </div>
       </Card>
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {deletingIdx !== null && currentList[deletingIdx] !== undefined && (
+        <ConfirmDialog
+          title="Delete option"
+          message={`Delete "${currentList[deletingIdx]}" from ${activeTab}? This cannot be undone.`}
+          confirmLabel="Delete"
+          destructive
+          onConfirm={() => handleDelete(deletingIdx)}
+          onCancel={() => setDeletingIdx(null)}
+        />
+      )}
     </div>
   );
 }

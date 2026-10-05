@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { fetchWorkflowInstance, approveWorkflowStep } from "@/services/api";
+import { notifySuccess, notifyError } from "@/app/components/notify";
 import { DECISION_LABELS } from "@/config/theme";
 import type { StepView } from "@/app/components/WorkflowTimeline"
 import type {
@@ -21,7 +22,6 @@ export function useWorkflowApproval({ declarationId, userId, initialWorkflowStep
   const [hrDecision, setHrDecision] = useState<ApprovalDecision>(null);
   const [lmNotes, setLmNotes] = useState("");
   const [hrNotes, setHrNotes] = useState("");
-  const [wfMessage, setWfMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -144,18 +144,22 @@ export function useWorkflowApproval({ declarationId, userId, initialWorkflowStep
       if (res?.newStatus) onStatusUpdate?.(res.newStatus);
       else if (res === undefined) onStatusUpdate?.("Pending" as any);
       await loadWorkflowInstance();
-      setWfMessage("Decision submitted successfully.");
-      setTimeout(() => { setWfMessage(""); }, 1500);
+      // Success feedback is the shared toast (single source); no inline
+      // success banner, so success text matches in exactly one place.
+      notifySuccess("Decision submitted.");
+      // Queue/badge refresh: listeners refetch the authoritative queue.
+      window.dispatchEvent(new Event("ghe:queue-changed"));
     } catch (err: any) {
-      if (err.name === "AbortError") setSubmitError("Request timed out. Please try again.");
-      else setSubmitError(err.message || "An error occurred while submitting the decision.");
+      const message = err.name === "AbortError" ? "Request timed out. Please try again." : err.message || "An error occurred while submitting the decision.";
+      setSubmitError(message);
+      notifyError(message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return {
-    wfSteps, wfMessage, wfLoading, canApprove, submitError,
+    wfSteps, wfLoading, canApprove, submitError,
     activeDecision: activeRole?.decision as ApprovalDecision | undefined,
     setActiveDecision: activeRole?.setDecision as ((d: ApprovalDecision) => void) | undefined,
     activeNotes: activeRole?.notes || "",

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MyDeclarationsScreen } from "../app/pages/MyDeclarationsScreen";
 import { fetchDeclarations, fetchWorkflowInstance, fetchConfig } from "../services/api";
-import { exportRowsToXls } from "../utils/excel";
+import { requestProtectedDocument, saveBlob } from "../services/download";
 
 const mockDeclarations = [
   {
@@ -65,6 +65,14 @@ vi.mock("../app/auth/UserContext", () => ({
 
 vi.mock("../utils/excel", () => ({
   exportRowsToXls: vi.fn(),
+  buildRowsXlsxBlob: vi.fn(() => new Blob(["x"], { type: "application/octet-stream" })),
+}));
+
+vi.mock("../services/download", () => ({
+  requestProtectedDocument: vi.fn(),
+  saveBlob: vi.fn(),
+  downloadFile: vi.fn(),
+  previewFile: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -157,13 +165,24 @@ describe("MyDeclarationsScreen", () => {
     });
   });
 
-  it("calls exportRowsToXls on Export button click", async () => {
+  it("protects the export: Export Excel opens the password dialog, confirm downloads", async () => {
     vi.mocked(fetchDeclarations).mockResolvedValue(mockDeclarations);
+    const outBlob = new Blob(["protected"], { type: "application/pdf" });
+    vi.mocked(requestProtectedDocument).mockResolvedValue({ blob: outBlob, filename: "protected-Declarations.xlsx" });
     render(<MyDeclarationsScreen />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
-    const exportBtn = screen.getByRole("button", { name: /Export Excel/i });
-    fireEvent.click(exportBtn);
-    expect(exportRowsToXls).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Export Excel/i }));
+    expect(screen.getByRole("dialog", { name: "Protect Excel export" })).toBeInTheDocument();
+
+    const [passwordInput, confirmInput] = screen.getAllByLabelText(/password/i);
+    fireEvent.change(passwordInput, { target: { value: "s3cret-download-pw" } });
+    fireEvent.change(confirmInput, { target: { value: "s3cret-download-pw" } });
+    fireEvent.click(screen.getByRole("button", { name: "Protect & Download" }));
+
+    await waitFor(() => expect(requestProtectedDocument).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(requestProtectedDocument).mock.calls[0][2]).toBe("s3cret-download-pw");
+    expect(saveBlob).toHaveBeenCalledWith(outBlob, "protected-Declarations.xlsx");
   });
 
   it("shows empty state when no declarations match filters", async () => {

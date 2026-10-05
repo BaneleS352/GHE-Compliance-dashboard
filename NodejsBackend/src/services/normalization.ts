@@ -122,6 +122,29 @@ export async function ensureCounterparty(
   }
 }
 
+/**
+ * Resolve profile-owned declaration identity from the declarer user row.
+ *
+ * Each link resolves independently: a declarer may have a manager but no
+ * department link (e.g. global users who cannot link the organization-scoped
+ * Department table). Callers derive whatever the profile offers and apply
+ * their own completeness policy — self-service team members must have a
+ * manager link, while admin cross-user creation keeps legacy fallbacks so
+ * manager-less declarer flows (LM-skip) keep working.
+ */
+export async function resolveDeclarationIdentity(
+  userPk: bigint | number,
+  db: DbClient = prisma,
+): Promise<{ department: string | null; managerDisplayName: string | null }> {
+  const u = await db.user.findUnique({
+    where: { id: toDbId(userPk) },
+    select: { departmentRef: { select: { name: true } }, manager: { select: { name: true } } },
+  });
+  const department = u?.departmentRef?.name?.trim() || null;
+  const managerDisplayName = u?.manager?.name?.trim() || null;
+  return { department, managerDisplayName };
+}
+
 export async function captureDeclarationSnapshot(
   declarationPk: bigint | number,
   declarer: { name: string; teamMemberNumber: string; position: string; department: string },
