@@ -28,7 +28,7 @@ Explore and test all endpoints interactively.
 | `npm run dev` | Start dev server with hot reload (`tsx watch`) |
 | `npm run build` | Compile TypeScript to `dist/` |
 | `npm start` | Run compiled production build |
-| `npm run test` | Run all tests once (embedded PostgreSQL) |
+| `npm run test` | Run all tests once against PostgreSQL |
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run db:seed` | Seed with sample data |
 | `npm run db:pg:up` | Versioned bring-up: migrate deploy + seed-if-empty |
@@ -127,7 +127,7 @@ src/
     *.test.ts           # Test suites
 prisma/
   schema.prisma         # PostgreSQL schema, BIGINT keys (see DATABASE-NORMALIZATION-GOAL.md)
-  migrations/           # Versioned migrations (0000_baseline → 0006_numeric_keys)
+  migrations/           # Versioned migrations (0000_baseline → 0009_domain_checks)
 ```
 
 ## Frontend Integration

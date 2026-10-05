@@ -1,8 +1,11 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 import { config } from "../config/env";
 import { prisma } from "../config/prisma";
-import { toDbId, toJsonId } from "../services/ids";
+import { toJsonId } from "../services/ids";
+
+const tenantAuthority = config.oidc.authority.replace(/\/v2\.0$/, "");
+const jwks = createRemoteJWKSet(new URL(`${tenantAuthority}/discovery/v2.0/keys`));
 
 export interface AuthRequest extends Request {
   user?: {
@@ -16,43 +19,7 @@ export interface AuthRequest extends Request {
   };
 }
 
-export interface JwtPayload {
-  id: number;
-  email: string;
-  role: string;
-  name: string;
-  department?: string;
-  position?: string;
-  organizationId?: number | null;
-}
-
-/** Build the JWT payload for a user row (numeric id, JSON-safe). */
-export function buildTokenPayload(u: {
-  id: bigint | number;
-  email: string;
-  role: string;
-  name: string;
-  department?: string | null;
-  position?: string | null;
-  organizationId?: bigint | number | null;
-}): JwtPayload {
-  return {
-    id: toJsonId(u.id),
-    email: u.email,
-    role: u.role,
-    name: u.name,
-    department: u.department ?? undefined,
-    position: u.position ?? undefined,
-    organizationId:
-      u.organizationId === null || u.organizationId === undefined
-        ? null
-        : toJsonId(u.organizationId),
-  };
-}
-
-export function signToken(u: Parameters<typeof buildTokenPayload>[0]): string {
-  return jwt.sign(buildTokenPayload(u), config.jwtSecret, { algorithm: "HS256", expiresIn: "1h" });
-}
+type EntraClaims = JWTPayload & { oid?: string; preferred_username?: string; email?: string; name?: string; roles?: string[] };
 
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
@@ -61,37 +28,45 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     return;
   }
 
-  const token = authHeader.split(" ")[1];
+  const token = authHeader.slice("Bearer ".length).trim();
+  if (!token) {
+    res.status(401).json({ error: "Missing or invalid authorization header" });
+    return;
+  }
 
   try {
-    const decoded = jwt.verify(token, config.jwtSecret, { algorithms: ["HS256"] }) as JwtPayload;
-    let dbId: bigint;
-    try {
-      // Legacy text identifiers (e.g. "user-admin") have no numeric mapping
-      // and no compatibility lookup: they are rejected as invalid tokens.
-      dbId = toDbId(decoded.id);
-    } catch {
-      res.status(401).json({ error: "Invalid or expired token" });
+    const { payload } = await jwtVerify<EntraClaims>(token, jwks, {
+      issuer: config.oidc.issuer,
+      audience: config.oidc.audience,
+      algorithms: ["RS256"],
+    });
+    if (!payload.oid || typeof payload.oid !== "string") {
+      res.status(401).json({ error: "Token is missing the Entra object identifier" });
       return;
     }
+    const email = String(payload.preferred_username || payload.email || "").toLowerCase();
+    if (!email) {
+      res.status(401).json({ error: "Token is missing an email identity" });
+      return;
+    }
+    const decoded = { providerSubject: payload.oid, email, name: String(payload.name || email) };
     try {
-      const dbUser = await prisma.user.findUnique({ where: { id: dbId }, select: { role: true, position: true, organizationId: true, departmentRef: { select: { name: true } } } });
+      const dbUser = await prisma.user.findUnique({ where: { email }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, departmentRef: { select: { name: true } } } });
       if (!dbUser) {
-        res.status(401).json({ error: "User not found" });
+        res.status(403).json({ error: "Authenticated user is not provisioned in the application" });
         return;
       }
-      if (dbUser.role !== decoded.role) decoded.role = dbUser.role;
-      // Department display derives from the departmentId link (sole source).
       const dbDept = dbUser.departmentRef?.name;
-      if (dbDept !== decoded.department) decoded.department = dbDept;
-      if (dbUser.position !== decoded.position) decoded.position = dbUser.position;
-      const dbOrg = dbUser.organizationId === null || dbUser.organizationId === undefined ? null : toJsonId(dbUser.organizationId);
-      if (dbOrg !== decoded.organizationId) decoded.organizationId = dbOrg;
+      const user = {
+        id: toJsonId(dbUser.id), email: dbUser.email, role: dbUser.role, name: dbUser.name,
+        department: dbDept ?? undefined, position: dbUser.position ?? undefined,
+        organizationId: dbUser.organizationId === null ? null : toJsonId(dbUser.organizationId),
+      };
+      req.user = user;
     } catch {
       res.status(503).json({ error: "Auth service unavailable" });
       return;
     }
-    req.user = decoded as AuthRequest["user"];
     next();
   } catch {
     res.status(401).json({ error: "Invalid or expired token" });

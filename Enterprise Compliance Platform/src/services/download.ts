@@ -1,4 +1,4 @@
-import { getAuthToken } from "./httpClient";
+import { getApiToken } from "@/app/auth/msal";
 
 /**
  * Single authenticated download/preview service (Phase 6).
@@ -11,8 +11,7 @@ import { getAuthToken } from "./httpClient";
  */
 async function fetchBlob(url: string): Promise<Blob> {
   const headers: Record<string, string> = {};
-  const token = getAuthToken();
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  headers["Authorization"] = `Bearer ${await getApiToken()}`;
   const response = await fetch(url, { headers });
   if (!response.ok) {
     throw new Error(`Download failed (server responded ${response.status}). Please try again.`);
@@ -76,8 +75,7 @@ export async function requestProtectedDocument(
   form.append("password", password);
   form.append("filename", filename);
   const headers: Record<string, string> = {};
-  const token = getAuthToken();
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  headers["Authorization"] = `Bearer ${await getApiToken()}`;
   let response: Response;
   try {
     response = await fetch("/api/reports/protect-document", {

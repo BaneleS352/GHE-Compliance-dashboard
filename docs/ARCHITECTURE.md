@@ -63,7 +63,7 @@ Browser (React SPA)
 Express API (port 3001)
     │
     ├── JWT Auth Middleware
-    │       └── Decodes token → req.user { id, email, name, role, department, position, organizationId }
+    │       └── Decodes token → req.user { id, email, name, role, departmentId/derived department, position, organizationId }
     │
     ├── Route Handler
     │       ├── Zod validation
@@ -90,7 +90,7 @@ Express API (port 3001)
 
 1. User posts email+password to `/api/auth/login`
 2. Server verifies against `User.passwordHash` (bcrypt)
-3. Returns a one-hour JWT containing the numeric user `id`, `email`, `role`, `name`, `department`, `position`, and `organizationId`, signed with `JWT_SECRET`
+3. Returns a one-hour JWT containing the numeric user `id`, `email`, `role`, derived department display data, `position`, and `organizationId`, signed with `JWT_SECRET`
 4. Client sends JWT as `Authorization: Bearer <token>`
 5. Middleware decodes JWT — role is read from token, NOT from DB
 

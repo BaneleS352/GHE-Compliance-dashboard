@@ -126,7 +126,62 @@ Recommended first scope (unchanged): generated PDF reports and explicitly
 exported documents; uploaded files need a separately approved conversion or
 repackaging approach.
 
-## Historical Findings (superseded by the 2 October 2026 status above)
+Implementation is complete for the approved scope through
+`POST /api/reports/protect-document` and the shared `PasswordDialog` flow.
+Passwords are supplied per export, used once by the server, and never stored.
+
+## Remaining Work
+
+The remediation plan is approximately 90–95% complete. The core remediation
+features are implemented, but deployment hardening and final verification
+remain:
+
+1. **Demo-mode credential gating — partial**
+
+   Quick login is intentionally enabled again, and authentication errors no
+   longer reveal the default password. Preset demo credentials are still
+   included in all builds. Gate quick login behind `VITE_DEMO_MODE` or remove
+   it from production builds.
+
+2. **Final full regression and acceptance verification**
+
+   Before closing the plan, confirm the full test results and manually verify:
+
+   - protected PDFs open only with the supplied password;
+   - protected Excel exports open only with the supplied password;
+   - the queue badge equals the queue total after approval actions;
+   - cross-organization lookups return `403`;
+   - profile fields cannot be altered through crafted requests;
+   - all downloads use the shared authenticated path.
+
+3. **Production security hardening**
+
+   - Assess the risk of JWT and cached user data in browser `localStorage` and
+     consider secure `HttpOnly`, `SameSite` cookies for production.
+   - Disable `/api/docs` in production or protect it with administrator
+     authentication.
+   - Prevent production seed execution and remove default-password logging from
+     production-capable paths.
+   - Confirm whether supporting-document downloads remain intentionally
+     unprotected or require conversion/repackaging.
+
+### Phase 7 — production hardening and audit closure
+
+Status: Open.
+
+1. Gate quick login and preset demo credentials behind `VITE_DEMO_MODE`, or
+   remove them from production builds.
+2. Decide whether localStorage token storage is acceptable for the deployment
+   threat model; if not, migrate to secure cookies with CSRF protection.
+3. Disable or protect production Swagger documentation.
+4. Prevent production seed execution and remove default-password logging.
+5. Confirm and document the supporting-document protection scope.
+6. Run all backend, frontend, PostgreSQL integration, smoke, typecheck, and
+   production-build gates in a PostgreSQL-enabled environment.
+7. Complete manual acceptance testing for protected exports, queue refresh,
+   cross-organization access, profile tampering, and authenticated downloads.
+
+## Historical Findings (superseded by the 5 October 2026 status above)
 
 ### Re-audit status — 1 October 2026
 
@@ -394,7 +449,8 @@ from production builds or protected behind an explicit demo-mode flag.
 
 ## Re-audit Exit Criteria
 
-Status after the 2 October 2026 implementation (all phases delivered):
+Status after the 5 October 2026 implementation (core phases delivered; Phase
+7 open):
 
 1. Done — team-member screens render profile-owned values read-only.
 2. Done — backend derives/ignores on create/update, including drafts;
@@ -412,6 +468,18 @@ Status after the 2 October 2026 implementation (all phases delivered):
 10. Partial — quick login restored on request; failure messages stay generic
    (no password disclosure), but preset demo credentials ship in all builds
    until demo-mode gating is reinstated.
+
+11. Open — production hardening remains for localStorage token storage,
+    production Swagger exposure, seed credential logging, and the supporting
+    document-protection scope decision.
+12. The earlier environment limitation was resolved in a subsequent dedicated
+    run: backend tests, frontend tests/typecheck/build, PostgreSQL integration,
+    and smoke gates were recorded as passing. Preserve exact command output in
+    the normalization goal when gates are re-run; this historical note is not a
+    substitute for current verification.
+
+The plan remains open until Phase 7 and final manual acceptance verification
+are complete.
 
 ## Acceptance Criteria
 

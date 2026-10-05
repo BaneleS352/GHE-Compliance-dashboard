@@ -51,10 +51,6 @@ function AppInner() {
     : s === "approver-dashboard" || s === "approval-queue" || s === "approval-detail" ? "approver"
     : "teamMember";
 
-  const handleLogin = (r: Role, _name: string) => {
-    setScreen(r === "admin" ? "admin-dashboard" : r === "approver" ? "approver-dashboard" : "new-declaration");
-  };
-
   const handleSignOut = () => {
     logout();
     setScreen("landing");
@@ -80,11 +76,11 @@ function AppInner() {
   };
 
   if (screen === "landing" || screen === "login") {
-    return <LandingScreen onEnter={handleLogin} />;
+    return <LandingScreen />;
   }
 
   if (!canAccessScreen(user, screen)) {
-    return <LandingScreen onEnter={handleLogin} />;
+    return <LandingScreen />;
   }
 
   return (

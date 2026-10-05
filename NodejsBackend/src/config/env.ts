@@ -6,8 +6,17 @@ function requireEnv(name: string): string {
   return value;
 }
 
+function optionalEnv(name: string, fallback: string): string {
+  return process.env[name] || fallback;
+}
+
 export const config = {
   port: (() => { const p = parseInt(process.env.PORT || "3001", 10); return Number.isFinite(p) ? p : 3001; })(),
-  jwtSecret: requireEnv("JWT_SECRET"),
-  jwtExpiresIn: "1h",
+  oidc: {
+    authority: requireEnv("OIDC_AUTHORITY").replace(/\/$/, ""),
+    clientId: requireEnv("OIDC_CLIENT_ID"),
+    audience: requireEnv("OIDC_AUDIENCE"),
+    issuer: optionalEnv("OIDC_ISSUER", requireEnv("OIDC_AUTHORITY").replace(/\/$/, "")),
+  },
+  corsOrigin: process.env.CORS_ORIGIN || "http://localhost:5173",
 };

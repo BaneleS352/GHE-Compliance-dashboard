@@ -1,24 +1,4 @@
-const TOKEN_KEY = "ghe.auth.token";
-
-function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-export function getAuthToken(): string | null {
-  return getToken();
-}
-
-export function setToken(token: string | null): void {
-  if (token) {
-    localStorage.setItem(TOKEN_KEY, token);
-  } else {
-    localStorage.removeItem(TOKEN_KEY);
-  }
-}
-
-export function clearToken(): void {
-  localStorage.removeItem(TOKEN_KEY);
-}
+import { getApiToken } from "@/app/auth/msal";
 
 interface ApiError {
   status: number;
@@ -41,10 +21,7 @@ async function request<T>(
 ): Promise<T> {
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const headers: Record<string, string> = isFormData ? {} : { "Content-Type": "application/json" };
-  const token = getToken();
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
+  headers["Authorization"] = `Bearer ${await getApiToken()}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
