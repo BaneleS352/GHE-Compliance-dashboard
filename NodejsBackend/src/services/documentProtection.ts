@@ -28,7 +28,7 @@ function pythonCandidates(): string[] {
   return [...(fromEnv ? [fromEnv] : []), ...rest];
 }
 
-let resolvedPython: string | null | undefined;
+let resolvedPython: { env: string | undefined; value: string | null } | undefined;
 
 async function commandOk(cmd: string, args: string[]): Promise<boolean> {
   return new Promise((resolve) => {
@@ -37,14 +37,15 @@ async function commandOk(cmd: string, args: string[]): Promise<boolean> {
 }
 
 async function resolvePython(): Promise<string | null> {
-  if (resolvedPython !== undefined) return resolvedPython;
+  const envBin = process.env.GHE_PYTHON_BIN;
+  if (resolvedPython !== undefined && resolvedPython.env === envBin) return resolvedPython.value;
   for (const candidate of pythonCandidates()) {
     if (await commandOk(candidate, ["--version"])) {
-      resolvedPython = candidate;
+      resolvedPython = { env: envBin, value: candidate };
       return candidate;
     }
   }
-  resolvedPython = null;
+  resolvedPython = { env: envBin, value: null };
   return null;
 }
 

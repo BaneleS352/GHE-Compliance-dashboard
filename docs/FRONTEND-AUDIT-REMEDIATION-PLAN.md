@@ -462,8 +462,10 @@ Status after the 2 October 2026 implementation (all phases delivered):
 ## Verification Plan
 
 E2E acceptance (Playwright, resurrected 2026-10-02 — the suite was red from
-spec drift and had never run in CI): desktop 16/16, mobile 2/2, against
-embedded PostgreSQL + seeded data. Repairs: stale `LOGIN_INDEX` (admin
+spec drift and had never run in CI): desktop 17/17 (including a
+password-protected report download asserting the `protected-*.xlsx`
+filename via the download event), mobile 2/2, against embedded
+PostgreSQL + seeded data. Repairs: stale `LOGIN_INDEX` (admin
 logged in as the wrong user), CSS-space selectors, object timeouts, strict
 violations, label drift, UserDialog rewrite of the prompt-driven admin test,
 self-contained return/resubmit flow, login backoff for the 429 rate limit.

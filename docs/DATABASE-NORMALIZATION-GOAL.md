@@ -212,10 +212,10 @@ authorization, validation, and organization scoping.
 
 ## Verification status (reproduced 2026-10-02)
 
-- Backend: 392/392 tests across 21 files, run locally against embedded
+- Backend: 404/404 tests across 22 files, run locally against embedded
   PostgreSQL (migrations `0000`–`0009` applied via `prisma migrate deploy`
   in suite setup).
-- Frontend: 248/248 tests across 19 files, plus `tsc --noEmit` and the
+- Frontend: 259/259 tests across 20 files, plus `tsc --noEmit` and the
   production Vite build, all clean.
 - New coverage since the last audit: profile-locking (Phase 1), queue
   contract (Phase 2), dialogs/download (Phases 3/6), lookup-scope negatives.
@@ -275,11 +275,12 @@ The following items remain after the current audit:
 
 ### High priority
 
-- Backend tests reproduce locally via embedded PostgreSQL (392/392 on
-  2026-10-02). The earlier Windows `initdb` failure was stale state (a held
-  `postgres` process / existing temp data dir); the documented setup works
-  once those are cleared. Keep the dedicated `TEST_PG_DATABASE_URL` path for
-  CI and cluttered hosts.
+- Backend tests reproduce locally via embedded PostgreSQL (404/404 on
+  2026-10-05, including the 12 document-protection tests). The earlier
+  Windows `initdb` failure was stale state (a held `postgres` process /
+  existing temp data dir); the documented setup works once those are
+  cleared. Keep the dedicated `TEST_PG_DATABASE_URL` path for CI and
+  cluttered hosts.
 - Resolve the Windows Prisma engine-lock failure observed during `npm run
   build` (`EPERM` while replacing `query_engine-windows.dll.node`). Confirm
   that the documented build/test workflow works with no stale Node/Prisma
