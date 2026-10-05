@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { downloadFile, previewFile } from "../services/download";
+import { downloadFile, previewFile, requestProtectedDocument } from "../services/download";
 import { setToken, clearToken } from "../services/httpClient";
 
 beforeEach(() => {
@@ -54,5 +54,57 @@ describe("shared download service", () => {
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(windowOpen).toHaveBeenCalledWith("blob:mock", "_blank", "noopener,noreferrer");
     windowOpen.mockRestore();
+  });
+});
+
+describe("requestProtectedDocument", () => {
+  function mockProtectFetch(status: number, body: Blob | Record<string, string>) {
+    return vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: status >= 200 && status < 300,
+      status,
+      headers: {
+        get: (name: string) =>
+          name === "Content-Disposition" ? 'attachment; filename="protected-r.xlsx"' : null,
+      },
+      blob: () =>
+        Promise.resolve(body instanceof Blob ? body : new Blob([JSON.stringify(body)], { type: "application/json" })),
+      json: () => Promise.resolve(body instanceof Blob ? {} : body),
+    } as any);
+  }
+
+  it("posts the file, filename and password with auth, and returns protected bytes", async () => {
+    setToken("test-token");
+    const out = new Blob(["protected"], { type: "application/pdf" });
+    const spy = mockProtectFetch(200, out);
+    const input = new Blob(["plain"], { type: "application/pdf" });
+
+    const result = await requestProtectedDocument(input, "r.pdf", "s3cret-download-pw");
+
+    expect(result.filename).toBe("protected-r.xlsx");
+    expect(await result.blob.text()).toBe("protected");
+    const [url, options] = spy.mock.calls[0] as [string, { method: string; headers: Record<string, string>; body: FormData }];
+    expect(url).toBe("/api/reports/protect-document");
+    expect(options.method).toBe("POST");
+    expect(options.headers.Authorization).toBe("Bearer test-token");
+    const form = options.body as FormData;
+    expect(form.get("password")).toBe("s3cret-download-pw");
+    expect(form.get("filename")).toBe("r.pdf");
+    expect((form.get("file") as File).name).toBe("r.pdf");
+  });
+
+  it("reports unavailability explicitly on 503", async () => {
+    setToken("test-token");
+    mockProtectFetch(503, { error: "unavailable" });
+    await expect(
+      requestProtectedDocument(new Blob(["x"]), "r.pdf", "s3cret-download-pw")
+    ).rejects.toThrow(/unavailable on this server/);
+  });
+
+  it("surfaces server validation errors, never a silent fallback", async () => {
+    setToken("test-token");
+    mockProtectFetch(400, { error: "Password must be at least 8 characters." });
+    await expect(
+      requestProtectedDocument(new Blob(["x"]), "r.pdf", "s3cret-download-pw")
+    ).rejects.toThrow(/at least 8 characters/);
   });
 });

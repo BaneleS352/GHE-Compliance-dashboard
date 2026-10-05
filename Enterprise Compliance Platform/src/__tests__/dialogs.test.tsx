@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ConfirmDialog } from "../app/components/ConfirmDialog";
+import { PasswordDialog } from "../app/components/PasswordDialog";
 import { UserDialog } from "../app/pages/admin/UserDialog";
 
 describe("ConfirmDialog", () => {
@@ -45,5 +46,57 @@ describe("UserDialog", () => {
     await vi.waitFor(() => expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ name: "Test User", email: "test@hb.co.za", organizationId: 1 })
     ));
+  });
+});
+
+describe("PasswordDialog", () => {
+  const renderDialog = (onSubmit = vi.fn()) => {
+    const onCancel = vi.fn();
+    render(
+      <PasswordDialog
+        title="Protect Excel export"
+        message="Set a password."
+        onSubmit={onSubmit}
+        onCancel={onCancel}
+      />
+    );
+    return { onSubmit, onCancel };
+  };
+
+  const fillMatching = (password: string) => {
+    const [pw, confirm] = screen.getAllByLabelText(/password/i);
+    fireEvent.change(pw, { target: { value: password } });
+    fireEvent.change(confirm, { target: { value: password } });
+  };
+
+  it("submits a valid matching password", () => {
+    const { onSubmit } = renderDialog();
+    fillMatching("s3cret-download-pw");
+    fireEvent.click(screen.getByRole("button", { name: "Protect & Download" }));
+    expect(onSubmit).toHaveBeenCalledWith("s3cret-download-pw");
+  });
+
+  it("blocks short passwords without submitting", () => {
+    const { onSubmit } = renderDialog();
+    fillMatching("short");
+    fireEvent.click(screen.getByRole("button", { name: "Protect & Download" }));
+    expect(screen.getByText(/at least 8 characters/)).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("blocks mismatched confirmation without submitting", () => {
+    const { onSubmit } = renderDialog();
+    const [pw, confirm] = screen.getAllByLabelText(/password/i);
+    fireEvent.change(pw, { target: { value: "s3cret-download-pw" } });
+    fireEvent.change(confirm, { target: { value: "something-else-entirely" } });
+    fireEvent.click(screen.getByRole("button", { name: "Protect & Download" }));
+    expect(screen.getByText(/do not match/)).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("cancels via Cancel and Escape", () => {
+    const { onCancel } = renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });

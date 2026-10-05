@@ -20,7 +20,7 @@ async function fetchBlob(url: string): Promise<Blob> {
   return response.blob();
 }
 
-function saveBlob(blob: Blob, filename: string): void {
+export function saveBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   try {
     const link = document.createElement("a");
@@ -54,4 +54,52 @@ export async function previewFile(url: string): Promise<void> {
   const objectUrl = URL.createObjectURL(blob);
   window.open(objectUrl, "_blank", "noopener,noreferrer");
   setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+}
+
+/**
+ * Password-protect one explicitly exported document (Phase 5).
+ *
+ * The caller builds the export bytes client-side (existing layout code),
+ * collects a per-download password via PasswordDialog, and sends both to
+ * POST /api/reports/protect-document. The password travels in the request
+ * body only and is never stored. Returns the protected bytes for the caller
+ * to save; throws a user-facing error otherwise — callers must never fall
+ * back to saving the unprotected input.
+ */
+export async function requestProtectedDocument(
+  input: Blob,
+  filename: string,
+  password: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const form = new FormData();
+  form.append("file", input, filename);
+  form.append("password", password);
+  form.append("filename", filename);
+  const headers: Record<string, string> = {};
+  const token = getAuthToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  let response: Response;
+  try {
+    response = await fetch("/api/reports/protect-document", {
+      method: "POST",
+      headers,
+      body: form,
+    });
+  } catch {
+    throw new Error("Protection request failed. Check your connection and try again.");
+  }
+  if (!response.ok) {
+    if (response.status === 503) {
+      throw new Error("Password protection is unavailable on this server. No file was downloaded.");
+    }
+    let detail = "";
+    try {
+      detail = (await response.json())?.error || "";
+    } catch { /* ignore parse errors */ }
+    throw new Error(detail || `Protection failed (server responded ${response.status}). No file was downloaded.`);
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = /filename="([^"]+)"/.exec(disposition);
+  return { blob, filename: match ? match[1] : `protected-${filename}` };
 }

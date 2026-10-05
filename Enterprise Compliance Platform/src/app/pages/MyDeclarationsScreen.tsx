@@ -13,8 +13,10 @@ import { DeclarationDetailView, SupportingDocuments } from "@/app/pages/Declarat
 import { WorkflowTimeline } from "@/app/components/WorkflowTimeline";
 import { Table, Thead, Th, Tbody, Tr, Td, COL } from "@/app/components/table";
 import { PURPLE } from "@/config/theme";
-import { exportRowsToXls } from "@/utils/excel";
+import { buildRowsXlsxBlob } from "@/utils/excel";
+import { requestProtectedDocument, saveBlob } from "@/services/download";
 import { notifySuccess, notifyError } from "@/app/components/notify";
+import { PasswordDialog } from "@/app/components/PasswordDialog";
 import { useWorkflowApproval } from "@/app/hooks/useWorkflowApproval";
 import type {
     ApprovalDecision,
@@ -137,28 +139,43 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
     setStatusFilter(type === "All" ? "All" : type);
   };
 
-  const exportExcel = () => {
+  const [pendingExport, setPendingExport] = useState<{ blob: Blob; filename: string } | null>(null);
+
+  const queueProtectedExport = (blob: Blob, filename: string) => setPendingExport({ blob, filename });
+
+  const submitProtectedExport = async (password: string) => {
+    if (!pendingExport) return;
     try {
-      const data = filtered.map((d) => ({
-        ID: d.id,
-        Employee: d.employee,
-        Type: d.type,
-        Counterparty: d.counterparty,
-        Value: d.value,
-        Submitted: d.submitted,
-        Status: d.status,
-        Approver: d.approver,
-      }));
-      exportRowsToXls("Declarations", "Declarations", data);
-      notifySuccess("Excel export downloaded.");
+      const result = await requestProtectedDocument(pendingExport.blob, pendingExport.filename, password);
+      saveBlob(result.blob, result.filename);
+      notifySuccess("Protected Excel export downloaded.");
     } catch (err) {
       notifyError(err instanceof Error ? err.message : "Excel export failed. Please try again.");
+    } finally {
+      setPendingExport(null);
     }
   };
 
+  const exportExcel = () => {
+    const data = filtered.map((d) => ({
+      ID: d.id,
+      Employee: d.employee,
+      Type: d.type,
+      Counterparty: d.counterparty,
+      Value: d.value,
+      Submitted: d.submitted,
+      Status: d.status,
+      Approver: d.approver,
+    }));
+    queueProtectedExport(
+      buildRowsXlsxBlob("Declarations", data),
+      `Declarations_${new Date().toISOString().slice(0, 10)}.xlsx`
+    );
+  };
+
   const exportRow = (d: Declaration) => {
-    try {
-      exportRowsToXls(d.id, "Declaration", [
+    queueProtectedExport(
+      buildRowsXlsxBlob("Declaration", [
         {
           ID: d.id,
           Employee: d.employee,
@@ -171,11 +188,9 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
           Approver: d.approver,
           Priority: d.priority,
         },
-      ]);
-      notifySuccess("Excel export downloaded.");
-    } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Excel export failed. Please try again.");
-    }
+      ]),
+      `${d.id}.xlsx`
+    );
   };
   const totalValue = visibleDeclarations.reduce(
     (sum, d) => sum + d.value,
@@ -460,6 +475,14 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
         </div>
 
       </Card>
+      {pendingExport && (
+        <PasswordDialog
+          title="Protect Excel export"
+          message="Set a password for this export. The password encrypts the file on the server and is never stored."
+          onSubmit={submitProtectedExport}
+          onCancel={() => setPendingExport(null)}
+        />
+      )}
     </div>
   );
 }

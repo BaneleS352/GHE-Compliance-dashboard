@@ -453,6 +453,26 @@ stakeholder scope approval):
 
 ## Verification Plan
 
+E2E acceptance (Playwright, resurrected 2026-10-02 — the suite was red from
+spec drift and had never run in CI): desktop 16/16, mobile 2/2, against
+embedded PostgreSQL + seeded data. Repairs: stale `LOGIN_INDEX` (admin
+logged in as the wrong user), CSS-space selectors, object timeouts, strict
+violations, label drift, UserDialog rewrite of the prompt-driven admin test,
+self-contained return/resubmit flow, login backoff for the 429 rate limit.
+Project split in `playwright.config.ts`: desktop runs table-driven
+`approval-flows`, mobile runs `mobile-interactions` (mobile card-flow
+coverage is a follow-up). Playwright `test-results/` and
+`playwright-report/` are git-ignored test artifacts.
+
+Product changes found necessary by the E2E resurrection:
+
+- Inline workflow success banner removed (it collided with the shared toast
+  and broke strict-mode assertions; toast is now the single success signal).
+- Approvers can open Reports in the UI (`canAccessScreen`), matching the
+  backend `authorize("admin", "approver")` on report routes.
+- Seed: Sipho Nkosi reports to Lindiwe Zulu, giving the approver-submit
+  journey a resolvable manager.
+
 Run the existing gates after implementation:
 
 ```text

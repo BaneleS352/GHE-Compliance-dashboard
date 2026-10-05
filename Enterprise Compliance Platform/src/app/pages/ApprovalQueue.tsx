@@ -9,8 +9,10 @@ import { PageHeader } from "@/app/components/PageHeader";
 import { StatusBadge } from "@/app/components/StatusBadge";
 import { TypeBadge } from "@/app/components/TypeBadge";
 import { Table, Thead, Th, Tbody, Tr, Td, COL } from "@/app/components/table";
-import { exportRowsToXls } from "@/utils/excel";
+import { buildRowsXlsxBlob } from "@/utils/excel";
+import { requestProtectedDocument, saveBlob } from "@/services/download";
 import { notifySuccess, notifyError } from "@/app/components/notify";
+import { PasswordDialog } from "@/app/components/PasswordDialog";
 
 function daysSince(dateStr: string): number {
   const t = new Date(dateStr).getTime();
@@ -40,6 +42,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const PAGE_SIZE = 10;
   const [slaDays, setSlaDays] = useState(3);
   const [slaWarning, setSlaWarning] = useState<string | null>(null);
+  const [protectingExport, setProtectingExport] = useState(false);
 
   useEffect(() => {
     const load = () => {
@@ -112,9 +115,14 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const pagedQueue = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const exportQueue = () => {
+    // Protected export: collect a password first, then encrypt server-side.
+    // There is no unprotected fallback.
+    setProtectingExport(true);
+  };
+
+  const submitProtectedExport = async (password: string) => {
     try {
-      exportRowsToXls(
-        "ApprovalQueue",
+      const blob = buildRowsXlsxBlob(
         "Queue",
         sorted.map((d) => ({
           ID: d.id,
@@ -129,9 +137,14 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
           Step: stepsMap[d.id] || "-",
         }))
       );
-      notifySuccess("Excel export downloaded.");
+      const fileName = `ApprovalQueue_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const result = await requestProtectedDocument(blob, fileName, password);
+      saveBlob(result.blob, result.filename);
+      notifySuccess("Protected Excel export downloaded.");
     } catch (err) {
       notifyError(err instanceof Error ? err.message : "Excel export failed. Please try again.");
+    } finally {
+      setProtectingExport(false);
     }
   };
 
@@ -396,6 +409,14 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
           )}
         </div>
       </Card>
+      {protectingExport && (
+        <PasswordDialog
+          title="Protect Excel export"
+          message="Set a password for this queue export. The password encrypts the file on the server and is never stored."
+          onSubmit={submitProtectedExport}
+          onCancel={() => setProtectingExport(false)}
+        />
+      )}
     </div>
   );
 }

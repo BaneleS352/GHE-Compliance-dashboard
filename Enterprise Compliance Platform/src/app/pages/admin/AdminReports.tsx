@@ -7,8 +7,10 @@ import { PageHeader } from "../../components/PageHeader";
 import { Table, Thead, Th, Tbody, Tr, Td, COL } from "../../components/table";
 import { PURPLE, formatRand, GRADIENT_PRIMARY } from "../../../config/theme";
 import { fetchReports } from "../../../services/reports";
-import { exportToExcel, ColumnDef } from "../../utils/excelExport";
+import { buildReportXlsxBlob, ColumnDef } from "../../utils/excelExport";
+import { requestProtectedDocument, saveBlob } from "../../../services/download";
 import { notifySuccess, notifyError } from "../../components/notify";
+import { PasswordDialog } from "../../components/PasswordDialog";
 
 type ReportType = "High-Value Gifts Report" | "Counterparty Concentration Report";
 
@@ -30,6 +32,7 @@ export function AdminReports() {
   const [statusBreakdown, setStatusBreakdown] = useState<Record<string, number>>({});
   const [slaData, setSlaData] = useState<any[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
+  const [pendingExport, setPendingExport] = useState<{ blob: Blob; filename: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -85,17 +88,32 @@ export function AdminReports() {
         { header: "Average Value", key: "avgValue", width: 14 },
       ];
 
+  const submitProtectedExport = async (password: string) => {
+    if (!pendingExport) return;
+    try {
+      const result = await requestProtectedDocument(pendingExport.blob, pendingExport.filename, password);
+      saveBlob(result.blob, result.filename);
+      notifySuccess("Protected export downloaded.");
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Export failed. Please try again.");
+    } finally {
+      setPendingExport(null);
+    }
+  };
+
   const handleExportExcel = async () => {
     try {
-      await exportToExcel({
-        fileName: `${reportType.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}`,
+      const blob = buildReportXlsxBlob({
         sheetName: reportType.slice(0, 31),
         title: reportType,
         meta: [["Generated", new Date().toLocaleString("en-ZA")], ["Records", String(activeRows.length)]],
         columns: exportColumns,
         rows: activeRows,
       });
-      notifySuccess("Excel export downloaded.");
+      setPendingExport({
+        blob,
+        filename: `${reportType.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      });
     } catch (err) {
       notifyError(err instanceof Error ? err.message : "Excel export failed. Please try again.");
     }
@@ -106,6 +124,7 @@ export function AdminReports() {
     const el = tableRef.current;
     if (!el) return;
     const fileName = `${reportType.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    let pdfBytes: Blob;
     try {
       const canvas = await html2canvas(el, { scale: 2, useCORS: true });
       const imgData = canvas.toDataURL("image/png");
@@ -113,8 +132,10 @@ export function AdminReports() {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(fileName);
-      notifySuccess("Report PDF downloaded.");
+      const out = pdf.output("arraybuffer");
+      if (!out) throw new Error("PDF render produced no output.");
+      pdfBytes = new Blob([out], { type: "application/pdf" });
+      notifySuccess("Report PDF rendered.");
     } catch {
       // Image render failed: fall back to a text-layout PDF rather than
       // failing silently. The variant is announced so the recipient knows
@@ -134,12 +155,16 @@ export function AdminReports() {
           pdf.text(line.slice(0, 250), 14, y);
           y += 7;
         });
-        pdf.save(fileName);
-        notifySuccess("Image render failed — downloaded the text-layout fallback PDF instead.");
+        const out = pdf.output("arraybuffer");
+        if (!out) throw new Error("PDF render produced no output.");
+        pdfBytes = new Blob([out], { type: "application/pdf" });
+        notifySuccess("Image render failed — using the text-layout fallback for protection.");
       } catch (err) {
         notifyError(err instanceof Error ? err.message : "PDF export failed. Please try again.");
+        return;
       }
     }
+    setPendingExport({ blob: pdfBytes, filename: fileName });
   };
 
   return (
@@ -287,6 +312,14 @@ export function AdminReports() {
             </Tbody>
           </Table>
         </div></Card>
+      )}
+      {pendingExport && (
+        <PasswordDialog
+          title="Protect export"
+          message="Set a password for this report export. The password encrypts the file on the server and is never stored."
+          onSubmit={submitProtectedExport}
+          onCancel={() => setPendingExport(null)}
+        />
       )}
     </div>
   );

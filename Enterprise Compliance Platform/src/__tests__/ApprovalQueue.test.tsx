@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ApprovalQueue } from "../app/pages/ApprovalQueue";
 import { fetchWorkflowQueue } from "../services/api";
-import { exportRowsToXls } from "../utils/excel";
+import { requestProtectedDocument, saveBlob } from "../services/download";
 
 const mockQueueItems = [
   {
@@ -56,6 +56,12 @@ vi.mock("../services/api", () => ({
 
 vi.mock("../utils/excel", () => ({
   exportRowsToXls: vi.fn(),
+  buildRowsXlsxBlob: vi.fn(() => new Blob(["x"], { type: "application/octet-stream" })),
+}));
+
+vi.mock("../services/download", () => ({
+  requestProtectedDocument: vi.fn(),
+  saveBlob: vi.fn(),
 }));
 
 beforeEach(() => {
@@ -148,14 +154,42 @@ describe("ApprovalQueue", () => {
     expect(onReview).toHaveBeenCalledWith(expect.objectContaining({ id: "GHE-2026-1001" }));
   });
 
-  it("calls exportRowsToXls on Export button click", async () => {
+  it("protects the export: Export opens the password dialog, confirm downloads", async () => {
+    vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
+    const outBlob = new Blob(["protected"], { type: "application/pdf" });
+    vi.mocked(requestProtectedDocument).mockResolvedValue({ blob: outBlob, filename: "protected-ApprovalQueue.xlsx" });
+    render(<ApprovalQueue onReview={vi.fn()} />);
+    await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByRole("button", { name: /Export/i }));
+    // Password dialog appears; nothing is sent yet.
+    expect(screen.getByRole("dialog", { name: "Protect Excel export" })).toBeInTheDocument();
+    expect(requestProtectedDocument).not.toHaveBeenCalled();
+
+    const [passwordInput, confirmInput] = screen.getAllByLabelText(/password/i);
+    fireEvent.change(passwordInput, { target: { value: "s3cret-download-pw" } });
+    fireEvent.change(confirmInput, { target: { value: "s3cret-download-pw" } });
+    fireEvent.click(screen.getByRole("button", { name: "Protect & Download" }));
+
+    await waitFor(() => expect(requestProtectedDocument).toHaveBeenCalledTimes(1));
+    const [sentBlob, sentName, sentPassword] = vi.mocked(requestProtectedDocument).mock.calls[0];
+    expect(sentBlob).toBeInstanceOf(Blob);
+    expect(sentName).toMatch(/ApprovalQueue_.*\.xlsx/);
+    expect(sentPassword).toBe("s3cret-download-pw");
+    expect(saveBlob).toHaveBeenCalledWith(outBlob, "protected-ApprovalQueue.xlsx");
+  });
+
+  it("cancelling the password dialog downloads nothing", async () => {
     vi.mocked(fetchWorkflowQueue).mockResolvedValue({ items: mockQueueItems, total: mockQueueItems.length } as any);
     render(<ApprovalQueue onReview={vi.fn()} />);
     await waitFor(() => expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0));
 
-    const exportBtn = screen.getByRole("button", { name: /Export/i });
-    fireEvent.click(exportBtn);
-    expect(exportRowsToXls).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Export/i }));
+    expect(screen.getByRole("dialog", { name: "Protect Excel export" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Protect Excel export" })).not.toBeInTheDocument();
+    expect(requestProtectedDocument).not.toHaveBeenCalled();
+    expect(saveBlob).not.toHaveBeenCalled();
   });
 
   it("shows empty state when no declarations match filters", async () => {

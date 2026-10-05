@@ -33,3 +33,7 @@ NodejsBackend/data/
 # Local secrets — the example stays tracked, the real file does not
 NodejsBackend/.env
 
+# Playwright E2E artifacts (regenerable per run)
+Enterprise Compliance Platform/playwright-report/
+Enterprise Compliance Platform/test-results/
+

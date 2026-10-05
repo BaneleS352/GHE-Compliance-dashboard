@@ -1,11 +1,97 @@
-import { Router, Response } from "express";
+import { Router, Response, NextFunction } from "express";
+import multer, { MulterError } from "multer";
 import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { generateExcelBuffer, ColumnDef } from "../services/excelService";
+import {
+  detectKind,
+  protectDocumentBytes,
+  validateExportPassword,
+} from "../services/documentProtection";
 import { getStatusBreakdown, getSLABreakdown, getHighValueDeclarations, getCounterpartyConcentration, buildReportWhere } from "../services/reports";
 
 const router = Router();
+
+// In-memory only: unprotected export bytes must never touch disk.
+const protectUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+});
+
+function safeExportFilename(raw: unknown, ext: string): string {
+  const base = String(raw || "")
+    .split(/[/\\]/)
+    .pop()!
+    .replace(/[^A-Za-z0-9._-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 100);
+  const stem = base.replace(/\.[A-Za-z0-9]+$/, "") || "document";
+  return `protected-${stem}.${ext}`;
+}
+
+// POST /api/reports/protect-document — password-protect one explicitly
+// exported document (report PDF or Excel). Any authenticated user may protect
+// their own exports (team members export from My Declarations). The password
+// is downloader-set per export, travels in the POST body only, and is never
+// stored or logged. Failures never return an unprotected copy: validation
+// problems are 400/415, missing server tooling is 503, encryption errors
+// are 502.
+router.post(
+  "/protect-document",
+  authenticate,
+  protectUpload.single("file"),
+  asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+    const passwordError = validateExportPassword(req.body?.password);
+    if (passwordError) {
+      res.status(400).json({ error: passwordError });
+      return;
+    }
+    const file = (req as unknown as { file?: Express.Multer.File }).file;
+    if (!file || file.size === 0) {
+      res.status(400).json({ error: "An export file is required." });
+      return;
+    }
+    const kind = detectKind(file.buffer);
+    if (!kind) {
+      res
+        .status(415)
+        .json({ error: "Only PDF and Excel (.xlsx) exports can be password-protected." });
+      return;
+    }
+    try {
+      const protectedBytes = await protectDocumentBytes(kind, file.buffer, String(req.body.password));
+      res.setHeader(
+        "Content-Type",
+        kind === "pdf"
+          ? "application/pdf"
+          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${safeExportFilename(req.body?.filename, kind === "pdf" ? "pdf" : "xlsx")}"`,
+      );
+      res.send(Buffer.from(protectedBytes));
+    } catch (err: unknown) {
+      const statusCode =
+        typeof (err as { statusCode?: unknown }).statusCode === "number"
+          ? (err as { statusCode: number }).statusCode
+          : 502;
+      res
+        .status(statusCode)
+        .json({ error: err instanceof Error ? err.message : "Document protection failed." });
+    }
+  }),
+);
+
+// Multer errors surface as JSON (not HTML/crash): oversized files are 413.
+router.use((err: Error, _req: AuthRequest, res: Response, next: NextFunction): void => {
+  if (err instanceof MulterError) {
+    res.status(err.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({ error: "Export file rejected." });
+    return;
+  }
+  next(err);
+});
 
 router.get("/counterparty-concentration", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const data = await getCounterpartyConcentration(req);
