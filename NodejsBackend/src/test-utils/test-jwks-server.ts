@@ -22,7 +22,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 export const TEST_JWKS_PORT = Number(process.env.TEST_JWKS_PORT || 55439);
-export const TEST_ISSUER = `http://127.0.0.1:${TEST_JWKS_PORT}`;
 export const TEST_AUDIENCE = "ghe-test-api-audience";
 
 export interface TestKeyMaterial {
@@ -43,7 +42,7 @@ function b64url(input: Buffer | string): string {
   return Buffer.from(input).toString("base64url");
 }
 
-function makeKeyMaterial(): TestKeyMaterial {
+function makeKeyMaterial(issuer: string): TestKeyMaterial {
   const kp = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const kid = randomUUID();
   const privateJwk = kp.privateKey.export({ format: "jwk" });
@@ -53,7 +52,7 @@ function makeKeyMaterial(): TestKeyMaterial {
     alg: "RS256",
     use: "sig",
   };
-  return { kid, privateJwk, publicJwks: { keys: [publicJwk] }, issuer: TEST_ISSUER, audience: TEST_AUDIENCE };
+  return { kid, privateJwk, publicJwks: { keys: [publicJwk] }, issuer, audience: TEST_AUDIENCE };
 }
 
 export interface MintClaims {
@@ -119,7 +118,8 @@ export async function startTestJwksServer(port = TEST_JWKS_PORT): Promise<{
   material: TestKeyMaterial;
   close: () => Promise<void>;
 }> {
-  const material = makeKeyMaterial();
+  const issuer = `http://127.0.0.1:${port}`;
+  const material = makeKeyMaterial(issuer);
   const server: Server = createServer(async (req, res: ServerResponse) => {
     const url = new URL(req.url || "/", `http://127.0.0.1:${port}`);
     if (req.method === "GET" && url.pathname === "/discovery/v2.0/keys") {

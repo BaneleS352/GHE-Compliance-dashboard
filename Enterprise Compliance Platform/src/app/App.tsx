@@ -60,6 +60,21 @@ function AppInner() {
     setShowSubmittedView(false);
   };
 
+  // After provider sign-in the authenticated user lands here with no explicit
+  // navigation event (there is no login callback anymore): route by role,
+  // mirroring the old quick-login destinations.
+  useEffect(() => {
+    if (!user) return;
+    setScreen((current) => {
+      if (current !== "landing" && current !== "login") return current;
+      return user.role === "admin"
+        ? "admin-dashboard"
+        : user.role === "approver"
+          ? "approver-dashboard"
+          : "new-declaration";
+    });
+  }, [user]);
+
   const handleSubmitSuccess = useCallback((data: Declaration) => {
     setSubmittedData(data);
     setShowSuccess(true);
