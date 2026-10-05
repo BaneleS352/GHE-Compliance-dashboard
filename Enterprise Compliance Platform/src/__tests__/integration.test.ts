@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { authenticate, canAccessScreen } from "../app/auth/authService";
-import { setToken, clearToken } from "../services/httpClient";
+import { authenticate, canAccessScreen, isIdentityAuthenticated } from "../app/auth/authService";
+import { activeAccount, signIn, getApiToken } from "../app/auth/msal";
 import {
   fetchDeclarations, createDeclaration, updateDeclaration, submitDeclaration,
   fetchWorkflowInstance, approveWorkflowStep,
@@ -30,37 +30,38 @@ const sampleDeclaration: Declaration = {
   instances: "1", publicOfficial: "No",
 };
 
+vi.mock("../app/auth/msal", () => ({
+  activeAccount: vi.fn(() => null),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  getApiToken: vi.fn(() => Promise.resolve("msal-int-token")),
+  initializeIdentity: vi.fn(),
+}));
+
 beforeEach(() => {
   vi.restoreAllMocks();
-  clearToken();
+  vi.mocked(getApiToken).mockResolvedValue("msal-int-token");
 });
 
 describe("Integration — auth + screen access", () => {
-  it("authenticates admin and grants admin screen access", async () => {
-    mockFetch(200, { token: "t", user: { id: "u6", email: "admin@hb.co.za", role: "admin" } });
-    const user = await authenticate("admin@hb.co.za", "password");
-    expect(user).not.toBeNull();
-    expect(user!.role).toBe("admin");
+  it("authenticate() starts the provider sign-in", async () => {
+    await authenticate();
+    expect(signIn).toHaveBeenCalledTimes(1);
   });
 
-  it("authenticates approver and grants approver screen access", async () => {
-    mockFetch(200, { token: "t", user: { id: "u3", email: "sipho@hb.co.za", role: "approver" } });
-    const user = await authenticate("sipho@hb.co.za", "password");
-    expect(user).not.toBeNull();
-    expect(user!.role).toBe("approver");
+  it("identity state follows the MSAL account", () => {
+    vi.mocked(activeAccount).mockReturnValueOnce(null);
+    expect(isIdentityAuthenticated()).toBe(false);
+    vi.mocked(activeAccount).mockReturnValueOnce({ username: "admin@hb.co.za" } as never);
+    expect(isIdentityAuthenticated()).toBe(true);
   });
 
-  it("authenticates team member and grants basic screen access", async () => {
-    mockFetch(200, { token: "t", user: { id: 1, email: "nomvula@hb.co.za", role: "teamMember" } });
-    const user = await authenticate("nomvula@hb.co.za", "password");
-    expect(user).not.toBeNull();
-    expect(user!.role).toBe("teamMember");
+  it("grants admin screen access to admins", () => {
+    expect(canAccessScreen({ role: "admin" } as never, "admin-users")).toBe(true);
   });
 
-  it("returns null on failed auth", async () => {
-    mockFetch(401, { error: "Invalid credentials" });
-    const user = await authenticate("admin@hb.co.za", "wrong");
-    expect(user).toBeNull();
+  it("grants approver screen access to approvers", () => {
+    expect(canAccessScreen({ role: "approver" } as never, "approval-queue")).toBe(true);
   });
 });
 
@@ -113,12 +114,11 @@ describe("Integration — Journey 1+4: Create & Submit (J1.1 / J4.1)", () => {
     expect(submitted.approver).toBe("Sipho Nkosi");
   });
 
-  it("createDeclaration includes auth token when set", async () => {
-    setToken("int-token-123");
+  it("createDeclaration includes the MSAL bearer token", async () => {
     const spy = mockFetch(201, { id: "GHE-INT-2", status: "Draft" });
     await createDeclaration(sampleDeclaration);
     const headers = (spy.mock.calls[0][1] as any).headers as Record<string, string>;
-    expect(headers["Authorization"]).toBe("Bearer int-token-123");
+    expect(headers["Authorization"]).toBe("Bearer msal-int-token");
   });
 });
 

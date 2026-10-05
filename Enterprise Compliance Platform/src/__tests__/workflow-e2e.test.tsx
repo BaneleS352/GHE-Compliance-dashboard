@@ -45,6 +45,14 @@ function workflowWithStep(roleIdx: number, stepOverrides: Record<string, unknown
 
 const mockSession: { current: Record<string, unknown> | null } = { current: null };
 
+vi.mock("../app/auth/msal", () => ({
+  activeAccount: vi.fn(() => null),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  getApiToken: vi.fn(() => Promise.resolve("msal-test-token")),
+  initializeIdentity: vi.fn(),
+}));
+
 vi.mock("../app/auth/UserContext", () => ({
   useUser: () => ({
     user: mockSession.current,

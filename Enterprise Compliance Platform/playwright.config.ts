@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const TEST_JWKS_URL = process.env.E2E_JWKS_URL || "http://127.0.0.1:55439";
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 90000,
@@ -40,7 +42,15 @@ export default defineConfig({
       port: 3001,
       timeout: 30000,
       reuseExistingServer: true,
-      env: { JWT_SECRET: "test-secret" },
+      // The API validates bearer tokens against this throwaway provider
+      // (booted by e2e/global-setup.ts); e2e specs mint per-user tokens
+      // from it. No production credentials anywhere in this flow.
+      env: {
+        OIDC_AUTHORITY: TEST_JWKS_URL,
+        OIDC_ISSUER: TEST_JWKS_URL,
+        OIDC_AUDIENCE: "ghe-test-api-audience",
+        OIDC_CLIENT_ID: "e2e-client-id",
+      },
     },
     {
       command: "npx vite --port 5173",

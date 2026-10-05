@@ -1,11 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { downloadFile, previewFile, requestProtectedDocument } from "../services/download";
-import { setToken, clearToken } from "../services/httpClient";
+import { getApiToken } from "../app/auth/msal";
+
+vi.mock("../app/auth/msal", () => ({
+  activeAccount: vi.fn(() => null),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  getApiToken: vi.fn(() => Promise.resolve("test-token")),
+  initializeIdentity: vi.fn(),
+}));
 
 beforeEach(() => {
-  clearToken();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.mocked(getApiToken).mockResolvedValue("test-token");
 });
 
 function mockBlobFetch(status: number) {
@@ -18,7 +26,6 @@ function mockBlobFetch(status: number) {
 
 describe("shared download service", () => {
   it("sends the bearer token and triggers an anchor download", async () => {
-    setToken("test-token");
     mockBlobFetch(200);
     const click = vi.fn();
     const appendChild = vi.spyOn(document.body, "appendChild").mockImplementation(((node: any) => { node.click = click; return node; }) as any);
@@ -37,13 +44,11 @@ describe("shared download service", () => {
   });
 
   it("throws a user-facing error on server failure", async () => {
-    setToken("test-token");
     mockBlobFetch(500);
     await expect(downloadFile("/api/files/1", "doc.pdf")).rejects.toThrow(/Download failed/);
   });
 
   it("previews through a blob URL instead of the raw link", async () => {
-    setToken("test-token");
     mockBlobFetch(200);
     const createObjectURL = vi.fn(() => "blob:mock");
     vi.stubGlobal("URL", { createObjectURL, revokeObjectURL: vi.fn() });
@@ -73,7 +78,6 @@ describe("requestProtectedDocument", () => {
   }
 
   it("posts the file, filename and password with auth, and returns protected bytes", async () => {
-    setToken("test-token");
     const out = new Blob(["protected"], { type: "application/pdf" });
     const spy = mockProtectFetch(200, out);
     const input = new Blob(["plain"], { type: "application/pdf" });
@@ -93,7 +97,6 @@ describe("requestProtectedDocument", () => {
   });
 
   it("reports unavailability explicitly on 503", async () => {
-    setToken("test-token");
     mockProtectFetch(503, { error: "unavailable" });
     await expect(
       requestProtectedDocument(new Blob(["x"]), "r.pdf", "s3cret-download-pw")
@@ -101,7 +104,6 @@ describe("requestProtectedDocument", () => {
   });
 
   it("surfaces server validation errors, never a silent fallback", async () => {
-    setToken("test-token");
     mockProtectFetch(400, { error: "Password must be at least 8 characters." });
     await expect(
       requestProtectedDocument(new Blob(["x"]), "r.pdf", "s3cret-download-pw")

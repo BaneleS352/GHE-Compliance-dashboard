@@ -528,24 +528,17 @@ describe("Edge-Case Tests", () => {
     });
   });
 
-  // ── PRESET USERS ──
+  // ── PRESET USERS (removed in the Entra cutover) ──
   describe("Auth preset users", () => {
-    it("GET /api/auth/preset-users — returns list of 7 preset users", async () => {
+    it("GET /api/auth/preset-users — removed route returns 404", async () => {
       const res = await request(app).get("/api/auth/preset-users");
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(7);
-      for (const u of res.body) {
-        expect(u.label).toBeDefined();
-        expect(u.email).toBeDefined();
-        expect(u.role).toBeDefined();
-        expect(["teamMember", "approver", "admin"]).toContain(u.role);
-      }
+      expect(res.status).toBe(404);
     });
 
-    it("GET /api/auth/preset-users — no auth required", async () => {
+    it("GET /api/auth/preset-users — removed route requires nothing and reveals nothing", async () => {
       const res = await request(app).get("/api/auth/preset-users");
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(404);
+      expect(res.body).not.toHaveProperty("length");
     });
   });
 

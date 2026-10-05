@@ -7,36 +7,27 @@ export const USERS = {
   admin:    { email: "admin@hb.co.za",    role: "admin",      name: "Admin User" },
 };
 
-// Indices into the LandingScreen quick-login dropdown (must match its order).
-export const LOGIN_INDEX: Record<string, number> = {
-  "nomvula@hb.co.za": 0,
-  "sipho@hb.co.za": 1,
-  "lindiwe@hb.co.za": 4,
-  "admin@hb.co.za": 6,
-};
+// Test identity minting (OpenID Phase 5 seam): the Playwright global setup
+// boots a throwaway JWKS provider; specs mint per-user RS256 tokens from it
+// and inject them into `sessionStorage`, where the DEV-only hook in
+// `src/app/auth/msal.ts` picks them up. No UI login, no passwords, no
+// production footprint (the hook is tree-shaken out of production builds).
+const JWKS_BASE = process.env.E2E_JWKS_URL || "http://127.0.0.1:55439";
 
 export async function login(page: Page, email: string) {
+  const user = Object.values(USERS).find((u) => u.email === email);
+  const mint = await fetch(`${JWKS_BASE}/test-token`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, name: user?.name ?? email, oid: `test-oid-e2e-${email}` }),
+  });
+  if (!mint.ok) throw new Error(`test identity minting failed: ${mint.status}`);
+  const token = await mint.text();
+  await page.addInitScript((t) => sessionStorage.setItem("e2e.auth.token", t), token);
   await page.goto("/");
-  await page.waitForSelector("select", { timeout: 10000 });
-  await page.selectOption("select", String(LOGIN_INDEX[email]));
-  await page.click('button[type="submit"]');
   // Desktop renders the sidebar inside <aside>; mobile renders the compact
   // navigation as a top-level <nav>.
-  // Logins are rate-limited (429) per IP: on a still-landing page, back off
-  // across the 60s window and resubmit.
-  let lastError: unknown = null;
-  for (const waitMs of [0, 6000, 30000, 65000]) {
-    if (waitMs > 0) await page.waitForTimeout(waitMs);
-    try {
-      await page.waitForSelector("aside nav, nav", { timeout: 15000 });
-      return;
-    } catch (e) {
-      lastError = e;
-      if (await page.locator("aside nav, nav").count() > 0) return;
-      await page.click('button[type="submit"]').catch(() => undefined);
-    }
-  }
-  throw lastError;
+  await page.waitForSelector("aside nav, nav", { timeout: 15000 });
 }
 
 export async function clickSidebar(page: Page, label: string) {
@@ -45,11 +36,6 @@ export async function clickSidebar(page: Page, label: string) {
 
 export class AppPage {
   constructor(public page: Page) {}
-
-  async open() {
-    await this.page.goto("/");
-    await this.page.waitForSelector("select", { timeout: 10000 });
-  }
 
   async login(email: string) {
     await login(this.page, email);

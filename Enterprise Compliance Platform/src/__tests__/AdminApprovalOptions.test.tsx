@@ -3,6 +3,14 @@ import { render, screen } from "@testing-library/react";
 import { UserProvider } from "../app/auth/UserContext";
 import { AdminApprovalOptions } from "../app/pages/admin/AdminApprovalOptions";
 
+vi.mock("../app/auth/msal", () => ({
+  activeAccount: vi.fn(() => null),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  getApiToken: vi.fn(() => Promise.resolve("msal-test-token")),
+  initializeIdentity: vi.fn(() => Promise.resolve()),
+}));
+
 beforeAll(() => {
   vi.spyOn(globalThis, "fetch").mockResolvedValue({
     ok: true, status: 200,
@@ -22,7 +30,7 @@ describe("AdminApprovalOptions", () => {
       </UserProvider>
     );
 
-    expect(screen.getByText("Approval Options Configuration")).toBeTruthy();
+    expect(await screen.findByText("Approval Options Configuration")).toBeTruthy();
     const acceptItems = await screen.findAllByText("Accept");
     expect(acceptItems.length).toBeGreaterThanOrEqual(1);
     const declineItems = screen.getAllByText("Decline");

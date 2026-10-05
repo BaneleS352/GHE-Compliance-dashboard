@@ -1,6 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fetchOrganizations, fetchManagers, fetchDepartments, fetchAdminOrganizations } from "../services/api";
-import { setToken, clearToken } from "../services/httpClient";
+import { getApiToken } from "../app/auth/msal";
+
+vi.mock("../app/auth/msal", () => ({
+  getApiToken: vi.fn(() => Promise.resolve("test-token")),
+  activeAccount: vi.fn(() => null),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  initializeIdentity: vi.fn(),
+}));
 
 function mockFetch(status: number, body: any) {
   return vi.fn(() =>
@@ -15,13 +23,20 @@ function mockFetch(status: number, body: any) {
 }
 
 beforeEach(() => {
-  clearToken();
-  setToken("test-token");
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.mocked(getApiToken).mockResolvedValue("test-token");
 });
 
 describe("Organization API — per-org", () => {
+  it("sends the MSAL bearer token on API calls", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(mockFetch(200, [])) as any;
+    await fetchOrganizations();
+    const [, options] = spy.mock.calls[0];
+    expect(options.headers.Authorization).toBe("Bearer test-token");
+    expect(getApiToken).toHaveBeenCalled();
+  });
+
   it("fetchOrganizations returns 2 orgs", async () => {
     const spy = vi.spyOn(globalThis, "fetch").mockImplementation(mockFetch(200, [{ id: 1, name: "HB", shortCode: "HB" }, { id: 2, name: "NPN", shortCode: "NPN" }]) as any);
     const orgs = await fetchOrganizations();

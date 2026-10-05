@@ -1,53 +1,44 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { buildApp } from "./helpers";
+import { buildApp, getAdminToken, getTeamToken, testToken } from "./helpers";
 
 const app = buildApp();
 
+// Authentication is provider-managed (Entra ID): there is no password login
+// route. These tests pin the remaining identity contract — GET /api/auth/me
+// resolves the local user from a validated bearer token.
 describe("Auth", () => {
-  it("POST /api/auth/login — success", async () => {
+  it("password login route is removed", async () => {
     const res = await request(app)
       .post("/api/auth/login")
       .send({ email: "admin@test.com", password: "password" });
-    expect(res.status).toBe(200);
-    expect(res.body.token).toBeTruthy();
-    expect(res.body.user.email).toBe("admin@test.com");
-    expect(res.body.user.role).toBe("admin");
+    expect(res.status).toBe(404);
   });
 
-  it("POST /api/auth/login — wrong password returns 401", async () => {
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({ email: "admin@test.com", password: "wrong" });
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe("Invalid email or password");
+  it("preset-users route is removed", async () => {
+    const res = await request(app).get("/api/auth/preset-users");
+    expect(res.status).toBe(404);
   });
 
-  it("POST /api/auth/login — unknown email returns 401", async () => {
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({ email: "noone@test.com", password: "password" });
-    expect(res.status).toBe(401);
-  });
-
-  it("POST /api/auth/login — validation error returns 400", async () => {
-    const res = await request(app)
-      .post("/api/auth/login")
-      .send({ email: "bad", password: "" });
-    expect(res.status).toBe(400);
-  });
-
-  it("GET /api/auth/me — returns user from token", async () => {
-    const login = await request(app)
-      .post("/api/auth/login")
-      .send({ email: "admin@test.com", password: "password" });
-    const token = login.body.token;
-
+  it("GET /api/auth/me — returns the resolved local user", async () => {
     const res = await request(app)
       .get("/api/auth/me")
-      .set("Authorization", `Bearer ${token}`);
+      .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
     expect(res.body.email).toBe("admin@test.com");
+    expect(res.body.role).toBe("admin");
+    expect(typeof res.body.id).toBe("number");
+    expect(res.body).not.toHaveProperty("passwordHash");
+  });
+
+  it("GET /api/auth/me — role and display data come from the database row", async () => {
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${getTeamToken()}`);
+    expect(res.status).toBe(200);
+    expect(res.body.role).toBe("teamMember");
+    expect(res.body.department).toBe("Marketing");
+    expect(res.body.id).toBe(4);
   });
 
   it("GET /api/auth/me — no token returns 401", async () => {
@@ -59,6 +50,20 @@ describe("Auth", () => {
     const res = await request(app)
       .get("/api/auth/me")
       .set("Authorization", "Bearer invalid");
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /api/auth/me — token signed by an unknown key returns 401", async () => {
+    const token = testToken({
+      oid: "test-oid-admin",
+      email: "admin@test.com",
+      name: "Admin User",
+      iss: "http://127.0.0.1:9",
+    });
+    const res = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${token}`);
+    // Unknown issuer: signature cannot chain to the configured JWKS.
     expect(res.status).toBe(401);
   });
 });

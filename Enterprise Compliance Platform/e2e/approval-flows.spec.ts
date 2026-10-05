@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { USERS, LOGIN_INDEX, AppPage, NewDeclarationPage } from "./common-helpers";
+import { USERS, AppPage, NewDeclarationPage } from "./common-helpers";
 
 test.beforeEach(async ({ context }) => {
   await context.addInitScript(() => {

@@ -424,7 +424,7 @@ describe("Admin user operations integrity", () => {
     expect(res.status).toBe(400);
   });
 
-  it("POST /api/admin/users — generates random password when omitted (not 'password')", async () => {
+  it("POST /api/admin/users — creates a credential-less user (no password stored)", async () => {
     const res = await request(app)
       .post("/api/admin/users")
       .set("Authorization", `Bearer ${getAdminToken()}`)
@@ -432,10 +432,18 @@ describe("Admin user operations integrity", () => {
     expect(res.status).toBe(201);
     expect(res.body.name).toBe("Default Pass");
     expect(res.body.password).toBeUndefined();
-    const login = await request(app)
-      .post("/api/auth/login")
-      .send({ email: "defaultpass@test.com", password: "password" });
-    expect(login.status).toBe(401);
+    expect(res.body.passwordHash).toBeUndefined();
+    const { PrismaClient } = await import("@prisma/client");
+    const db = new PrismaClient();
+    try {
+      const row = await db.user.findUnique({ where: { email: "defaultpass@test.com" } });
+      expect(row).toBeTruthy();
+    } finally {
+      await db.$disconnect();
+    }
+    await request(app)
+      .delete(`/api/admin/users/${res.body.id}`)
+      .set("Authorization", `Bearer ${getAdminToken()}`);
   });
 
   it("DELETE /api/admin/users/:id — cannot delete last admin", async () => {

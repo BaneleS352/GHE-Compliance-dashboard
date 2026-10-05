@@ -1,7 +1,20 @@
 import { describe, it, expect, beforeAll, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { ApproverDashboard } from "../app/pages/ApproverDashboard";
 import { UserProvider } from "../app/auth/UserContext";
+
+vi.mock("../app/auth/msal", () => ({
+  activeAccount: vi.fn(() => null),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  getApiToken: vi.fn(() => Promise.resolve("msal-test-token")),
+  initializeIdentity: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock("../services/api", () => ({
+  fetchDeclarations: vi.fn(() => Promise.resolve([])),
+  fetchWorkflowQueue: vi.fn(() => Promise.resolve({ items: [], total: 0 })),
+}));
 
 beforeAll(() => {
   class RO {
@@ -22,9 +35,9 @@ beforeAll(() => {
 });
 
 describe("ApproverDashboard render", () => {
-  it("mounts without throwing (catches real runtime errors)", () => {
+  it("mounts without throwing (catches real runtime errors)", async () => {
     const user = {
-      id: 3, name: "Sipho Nkosi", email: "sipho@hb.co.za", passwordHash: "", role: "approver" as const,
+      id: 3, name: "Sipho Nkosi", email: "sipho@hb.co.za", role: "approver" as const,
       teamMemberNumber: "HB-10001", department: "Marketing", position: "Line Manager", lineManager: null,
     };
     let err: unknown = null;
@@ -34,6 +47,7 @@ describe("ApproverDashboard render", () => {
           <ApproverDashboard onNavigate={() => {}} />
         </UserProvider>
       );
+      await screen.findByText("Approver Dashboard");
     } catch (e) {
       err = e;
     }
