@@ -20,3 +20,8 @@ export const config = {
   },
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:5173",
 };
+
+// Re-exported here so production-posture checks have one import site; the
+// implementations live in ./productionGuards (side-effect free, so seed.ts
+// can use them without pulling in the OIDC requireEnv chain above).
+export { docsEnabled, assertNonProductionSeed } from "./productionGuards";

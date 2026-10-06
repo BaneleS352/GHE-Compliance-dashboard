@@ -170,6 +170,31 @@ describe("Organization — multi-tenant flows", () => {
     expect(hbLmList.body.some((d: any) => d.organizationId === npnOrg.id)).toBe(false);
   });
 
+  it("counterparty names are isolated per organization (no cross-org attachment)", async () => {
+    const vendor = `SharedVendor-${Date.now()}`;
+    const hbToken = tokenFor(hbTeam as any);
+    const npnToken = tokenFor(npnTeam as any);
+    const hb = await request(app).post("/api/declarations").set("Authorization", `Bearer ${hbToken}`).send({ ...BASE_DECL, employee: hbTeam.name, employeeId: hbTeam.id, teamMemberNumber: hbTeam.teamMemberNumber, lineManager: hbLm.name, department: hbTeam.department, counterparty: vendor, value: 100 });
+    expect(hb.status).toBe(201);
+    const npn = await request(app).post("/api/declarations").set("Authorization", `Bearer ${npnToken}`).send({ ...BASE_DECL, employee: npnTeam.name, employeeId: npnTeam.id, teamMemberNumber: npnTeam.teamMemberNumber, lineManager: npnLm.name, department: npnTeam.department, counterparty: vendor, value: 100 });
+    expect(npn.status).toBe(201);
+
+    // The same display name resolves to two distinct organization-scoped rows.
+    const rows = await prisma.counterparty.findMany({ where: { name: vendor } });
+    expect(rows).toHaveLength(2);
+    const orgs = rows.map((r) => (r.organizationId === null ? null : Number(r.organizationId))).sort();
+    expect(orgs).toEqual([hbOrg.id, npnOrg.id].sort((a: number, b: number) => a - b));
+
+    // Each declaration links to its own organization's row — never the other's.
+    const hbDecl = await prisma.declaration.findUnique({ where: { id: hb.body.id } });
+    const npnDecl = await prisma.declaration.findUnique({ where: { id: npn.body.id } });
+    const hbCp = rows.find((r) => r.organizationId !== null && Number(r.organizationId) === hbOrg.id)!;
+    const npnCp = rows.find((r) => r.organizationId !== null && Number(r.organizationId) === npnOrg.id)!;
+    expect(hbDecl!.counterpartyId).toEqual(hbCp.id);
+    expect(npnDecl!.counterpartyId).toEqual(npnCp.id);
+    expect(hbDecl!.counterpartyId).not.toEqual(npnDecl!.counterpartyId);
+  });
+
   it("GET /api/workflows/pending — per-org pending isolation", async () => {
     const hbTeamToken = tokenFor(hbTeam as any);
     const hbLmToken = tokenFor(hbLm as any);

@@ -65,6 +65,41 @@ The application has been hardened across authentication, workflow authorization,
 
 ---
 
+## Production posture (Phase 7 — implemented, test-pinned)
+
+- Token storage: the SPA keeps provider tokens only in the MSAL-managed
+  `sessionStorage` cache (`cacheLocation: "sessionStorage"` in
+  `src/app/auth/msal.ts`); components never read token storage directly and
+  no raw token is persisted to `localStorage` (pinned by
+  `auth-edge-cases.test.ts`). Sign-out clears the injected session key in
+  dev and calls provider logout otherwise. A move to `HttpOnly` cookies
+  remains available if a deployment threat model requires it, but the
+  current posture is session-scoped storage with no long-lived browser
+  credential.
+- Interactive API docs: `GET /api/docs` is mounted only when
+  `NODE_ENV !== "production"` (`docsEnabled()` in
+  `NodejsBackend/src/config/env.ts`, wired in `src/index.ts`, pinned by
+  `production-posture.test.ts`). Production answers the docs path with the
+  standard `404`.
+- Demo data: `NodejsBackend/src/seed.ts` refuses to run when
+  `NODE_ENV=production` unless `GHE_ALLOW_PROD_SEED=1` is set explicitly
+  (`assertNonProductionSeed()`, pinned by unit tests plus a subprocess
+  test proving the refusal happens before any database work). Seeded users
+  carry no credentials — sign-in is provider-managed.
+- Demo login: there is no quick-login, demo-user selector, preset
+  password, or development fallback anywhere in the product UI — the
+  OIDC cutover removed them and `LandingScreen` is provider sign-in only.
+  No `VITE_DEMO_MODE` flag exists because there is no demo path left to
+  gate.
+- Document protection scope (confirmed): generated report PDFs and
+  explicitly exported spreadsheets are password-protected with a
+  downloader-set per-export password (POST body only, passed to the
+  encryption helper via environment, never stored; failures never produce
+  an unprotected copy). Uploaded supporting documents download
+  unprotected by recorded decision — password-protecting arbitrary
+  uploaded formats would require conversion/repackaging that alters file
+  fidelity and needs separate stakeholder approval.
+
 ## Notification and reporting controls
 
 - Notification templates are admin-only and validated as a complete five-event configuration.

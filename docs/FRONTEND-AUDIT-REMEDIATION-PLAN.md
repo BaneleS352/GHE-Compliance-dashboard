@@ -136,12 +136,13 @@ The remediation plan is approximately 90–95% complete. The core remediation
 features are implemented, but deployment hardening and final verification
 remain:
 
-1. **Demo-mode credential gating — partial**
+1. **Demo-mode credential gating — done by removal (2026-10-06)**
 
-   Quick login is intentionally enabled again, and authentication errors no
-   longer reveal the default password. Preset demo credentials are still
-   included in all builds. Gate quick login behind `VITE_DEMO_MODE` or remove
-   it from production builds.
+    No quick login, demo-user selector, preset password, or development
+    fallback remains in any build — the OIDC cutover removed them and
+    `LandingScreen` is provider sign-in only, so there is no demo path
+    left to gate behind `VITE_DEMO_MODE`. Authentication errors stay
+    generic.
 
 2. **Final full regression and acceptance verification**
 
@@ -154,28 +155,39 @@ remain:
    - profile fields cannot be altered through crafted requests;
    - all downloads use the shared authenticated path.
 
-3. **Production security hardening**
+3. **Production security hardening — code items done (2026-10-06)**
 
-   - Assess the risk of JWT and cached user data in browser `localStorage` and
-     consider secure `HttpOnly`, `SameSite` cookies for production.
-   - Disable `/api/docs` in production or protect it with administrator
-     authentication.
-   - Prevent production seed execution and remove default-password logging from
-     production-capable paths.
-   - Confirm whether supporting-document downloads remain intentionally
-     unprotected or require conversion/repackaging.
+    - Token storage is MSAL-managed `sessionStorage` with no
+      `localStorage` persistence (test-pinned); the threat model and the
+      cookie-migration option are recorded in `docs/SECURITY.md`.
+    - `/api/docs` is disabled in production (test-pinned).
+    - Production seeding is refused without `GHE_ALLOW_PROD_SEED=1`
+      (test-pinned); seeds carry no credentials and log no passwords.
+    - Supporting-document downloads remain intentionally unprotected by
+      recorded decision (conversion/repackaging needs separate approval).
 
 ### Phase 7 — production hardening and audit closure
 
-Status: Open.
+Status: code items complete 2026-10-06; human-gated verification (items 6–7)
+remains open.
 
-1. Gate quick login and preset demo credentials behind `VITE_DEMO_MODE`, or
-   remove them from production builds.
-2. Decide whether localStorage token storage is acceptable for the deployment
-   threat model; if not, migrate to secure cookies with CSRF protection.
-3. Disable or protect production Swagger documentation.
-4. Prevent production seed execution and remove default-password logging.
-5. Confirm and document the supporting-document protection scope.
+1. Done by removal — there is no quick login or preset demo credential left
+   to gate: the OIDC cutover removed all demo UI/credentials and
+   `LandingScreen` is provider sign-in only (no `VITE_DEMO_MODE` flag
+   exists because no demo path remains). Verify with a production-build
+   scan (`grep` the bundle for demo/preset markers) when the build runs.
+2. Decided and documented — tokens live only in the MSAL-managed
+   `sessionStorage` cache with no `localStorage` persistence
+   (test-pinned); see `docs/SECURITY.md` “Production posture”. Cookie
+   migration stays available if a deployment threat model requires it.
+3. Done — `/api/docs` is mounted only when `NODE_ENV !== "production"`
+   (`docsEnabled()`, test-pinned); production answers `404`.
+4. Done — `seed.ts` refuses `NODE_ENV=production` without
+   `GHE_ALLOW_PROD_SEED=1` (test-pinned, including a subprocess proof
+   that refusal precedes any database work); seeds carry no credentials.
+5. Confirmed and documented — generated reports and explicit exports are
+   password-protected; uploaded supporting documents stay unprotected by
+   recorded decision (see `docs/SECURITY.md`).
 6. Run all backend, frontend, PostgreSQL integration, smoke, typecheck, and
    production-build gates in a PostgreSQL-enabled environment.
 7. Complete manual acceptance testing for protected exports, queue refresh,
@@ -465,13 +477,13 @@ Status after the 5 October 2026 implementation (core phases delivered; Phase
    uploads stay unprotected by decision.
 9. Done — queue/badge refresh on `ghe:queue-changed`; config failures warn
    visibly where they affect business rules.
-10. Partial — quick login restored on request; failure messages stay generic
-   (no password disclosure), but preset demo credentials ship in all builds
-   until demo-mode gating is reinstated.
-
-11. Open — production hardening remains for localStorage token storage,
-    production Swagger exposure, seed credential logging, and the supporting
-    document-protection scope decision.
+10. Done — no quick login, demo credential, preset password, or development
+    fallback exists in any build (removed in the OIDC cutover; sign-in
+    failures stay generic).
+11. Done for code posture — MSAL `sessionStorage`-only token storage,
+    production Swagger disabled, production seed refused, and the
+    supporting document-protection scope decision are implemented,
+    test-pinned, and recorded in `docs/SECURITY.md`.
 12. The earlier environment limitation was resolved in a subsequent dedicated
     run: backend tests, frontend tests/typecheck/build, PostgreSQL integration,
     and smoke gates were recorded as passing. Preserve exact command output in
