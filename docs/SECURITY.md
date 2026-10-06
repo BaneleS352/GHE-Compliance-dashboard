@@ -1,5 +1,10 @@
 # Security & Hardening — Audit Fix Log
 
+Authentication is now OpenID Connect/Entra-based. The numbered findings below
+are historical remediation records; current authentication behavior is defined
+by `docs/IDENTITY-CONTRACT.md`, not by the retired password/JWT examples in
+older finding descriptions.
+
 The application has been hardened across authentication, workflow authorization, file access, organization isolation, reporting access, and notification delivery. This document records the principal controls; run the current test suites before release.
 
 ---
@@ -26,7 +31,7 @@ The application has been hardened across authentication, workflow authorization,
 | 11 | `Counterparty` casing mismatch (frontend↔backend) | `Enterprise Compliance Platform/src/types/declaration.ts` + all consumers | Renamed to `counterparty` (lowercase) consistently |
 | 12 | `err.message` leaked to client — approvals | `NodejsBackend/src/routes/workflows.ts` catch block | Sanitized to generic messages |
 | 13 | Multer/file errors leak internals | `NodejsBackend/src/routes/files.ts` | Sanitized error messages |
-| 14 | Missing role guard on `/preset-users` | `NodejsBackend/src/routes/auth.ts` | Preserved as intentional public endpoint |
+| 14 | Retired preset-user route was previously exposed | `NodejsBackend/src/routes/auth.ts` | Route removed; unknown requests do not reveal development identities |
 | 15 | Line-manager declaration visibility was not department-scoped | `NodejsBackend/src/routes/declarations.ts` | Department scoping applies to users with position `Line Manager`; HR users retain global visibility |
 
 ## MEDIUM Fixes (15)
@@ -72,4 +77,4 @@ The application has been hardened across authentication, workflow authorization,
 
 - Backend build passes.
 - Targeted workflow, report, and configuration tests pass.
-- Frontend Vite builds may fail in the OneDrive workspace with an esbuild directory-access error; verify from a local checkout if encountered.
+- If Windows/OneDrive file locks produce Prisma or esbuild access errors, use a local checkout or the documented external PostgreSQL/test-provider path; treat the result as unverified until the command succeeds.

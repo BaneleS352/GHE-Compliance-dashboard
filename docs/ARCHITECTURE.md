@@ -12,10 +12,10 @@ GHE-Compliance-Dashboard/
 │   ├── entrypoint.sh               # Runs prisma migrate deploy, starts server
 │   └── src/
 │       ├── config/                 # env, swagger, prisma client
-│       ├── middleware/             # auth (JWT), authorization
+│       ├── middleware/             # OIDC auth, authorization
 │       ├── routes/                 # API route handlers
 │       │   ├── admin/             # admin-only endpoints
-│       │   ├── auth.ts            # login, me, preset-users
+│       │   ├── auth.ts            # authenticated user profile
 │       │   ├── declarations.ts    # CRUD, submit, status
 │       │   ├── files.ts           # upload, download, delete
 │       │   ├── reports.ts         # SLA, breakdown, aggregation, export
@@ -41,7 +41,7 @@ GHE-Compliance-Dashboard/
 │   │   │   └── theme.ts           # Centralised brand colours, gradients, status/priority/type maps
 │   │   ├── services/
 │   │   │   ├── api.ts             # HTTP API client (30+ wrapper functions)
-│   │   │   ├── httpClient.ts      # fetch-based HTTP client with JWT injection
+│   │   │   ├── httpClient.ts      # fetch-based HTTP client with MSAL token injection
 │   │   │   └── reports.ts         # consolidated report data fetcher
 │   │   ├── styles/
 │   │   │   ├── theme.css          # CSS variables (--table-header-bg, --info-bg, --darkest, --purple-600)
@@ -62,7 +62,7 @@ Browser (React SPA)
     ▼  HTTP (JSON)
 Express API (port 3001)
     │
-    ├── JWT Auth Middleware
+    ├── OIDC Auth Middleware
     │       └── Decodes token → req.user { id, email, name, role, departmentId/derived department, position, organizationId }
     │
     ├── Route Handler
@@ -78,7 +78,7 @@ Express API (port 3001)
 | Area | Choice | Rationale |
 |------|--------|-----------|
 | Database | PostgreSQL everywhere (dev, CI, prod) | Single provider; native BIGINT identity keys; versioned migrations only |
-| Auth | JWT (self-contained, numeric user id) | No session store needed; role embedded in token |
+| Auth | OpenID Connect / Entra bearer tokens | Provider authenticates; local User owns roles and organization scope |
 | Validation | Zod schemas | Type-safe, composable, good DX |
 | File storage | Local disk (`uploads/`) behind authenticated API routes | Simple; replace with object storage for production |
 | Workflow | Relational step/instance rows | Auditable per-declaration step history; no JSON fallback |
@@ -88,11 +88,12 @@ Express API (port 3001)
 
 ## Authentication Flow
 
-1. User posts email+password to `/api/auth/login`
-2. Server verifies against `User.passwordHash` (bcrypt)
-3. Returns a one-hour JWT containing the numeric user `id`, `email`, `role`, derived department display data, `position`, and `organizationId`, signed with `JWT_SECRET`
-4. Client sends JWT as `Authorization: Bearer <token>`
-5. Middleware decodes JWT — role is read from token, NOT from DB
+1. The SPA signs in through MSAL using Authorization Code + PKCE.
+2. MSAL obtains an access token for the configured API scope.
+3. The client sends it as `Authorization: Bearer <token>`.
+4. Middleware validates issuer, audience, RS256 signature, lifetime, and `oid` through JWKS.
+5. Middleware resolves the local User by email and binds the provider subject on first login; later subject mismatches fail closed.
+6. Local database role, organization, department, and manager relationships remain authoritative.
 
 ## Workflow Resolution
 

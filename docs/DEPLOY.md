@@ -27,7 +27,10 @@ For production, create a `.env` file in the project root with:
 
 ```bash
 DATABASE_URL=postgresql://user:password@postgres:5432/ghe_db
-JWT_SECRET=<generate-a-strong-random-secret>
+OIDC_AUTHORITY=https://login.microsoftonline.com/<tenant-id>/v2.0
+OIDC_CLIENT_ID=<api-application-client-id>
+OIDC_AUDIENCE=api://<api-application-client-id>
+OIDC_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
 CORS_ORIGIN=https://your-frontend-domain.com
 ```
 
@@ -77,7 +80,10 @@ npm run db:seed    # first deploy of an empty database only; never re-run agains
 NODE_ENV=production
 PORT=3001
 DATABASE_URL="postgresql://user:password@host:5432/ghe_db"
-JWT_SECRET="<generate-a-strong-random-secret>"
+OIDC_AUTHORITY="https://login.microsoftonline.com/<tenant-id>/v2.0"
+OIDC_CLIENT_ID="<api-application-client-id>"
+OIDC_AUDIENCE="api://<api-application-client-id>"
+OIDC_ISSUER="https://login.microsoftonline.com/<tenant-id>/v2.0"
 CORS_ORIGIN="https://your-frontend-domain.com"
 ```
 

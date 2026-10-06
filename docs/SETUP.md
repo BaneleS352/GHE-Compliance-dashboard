@@ -32,13 +32,16 @@ Backend loads `.env` with `dotenv`:
 
 | Variable | Required | Default | Meaning |
 |---|---|---|---|
-| `JWT_SECRET` | yes | — | JWT signing secret |
 | `DATABASE_URL` | yes for Prisma | — | PostgreSQL URL (SQLite is no longer supported) |
+| `OIDC_AUTHORITY` | yes | — | Entra tenant authority/JWKS base |
+| `OIDC_CLIENT_ID` | yes | — | API application client ID |
+| `OIDC_AUDIENCE` | yes | — | Accepted API token audience |
+| `OIDC_ISSUER` | no | authority | Expected token issuer |
 | `PORT` | no | `3001` | API listen port |
 | `CORS_ORIGIN` | no | dev localhost origins | Comma-separated allowed origins |
 | `EMAIL_WEBHOOK_URL` | no | — | Notification webhook; absent means log-only |
 
-Frontend accepts `VITE_API_URL` (local default `http://localhost:3001`). Docker uses Nginx and `BACKEND_URL` for the upstream.
+Frontend accepts `VITE_API_URL` (local default `http://localhost:3001`) plus `VITE_ENTRA_CLIENT_ID`, `VITE_ENTRA_AUTHORITY`, `VITE_ENTRA_API_SCOPE`, and optional `VITE_ENTRA_REDIRECT_URI`. Docker uses Nginx and `BACKEND_URL` for the upstream.
 
 ## Database and tests
 
@@ -59,7 +62,7 @@ install Chromium with `npx playwright install chromium`.
 
 ## Troubleshooting
 
-- Missing `JWT_SECRET`: set it in `NodejsBackend/.env` or the process environment.
+- Missing OIDC configuration: set the `OIDC_*` variables from `.env.example`, or use the test JWKS provider for automated tests.
 - Port conflict: inspect `netstat -ano | findstr :3001` or `:5173`.
 - Prisma errors: run `npx prisma generate` from `NodejsBackend`.
 - Vite/esbuild access errors in synced folders: use a local checkout.

@@ -1,5 +1,13 @@
 # OpenID Connect Integration and Codebase Cleanup Roadmap
 
+> Status update (2026-10-06): the core OIDC cutover is implemented in the
+> current branch. Backend middleware validates Entra-style RS256/JWKS tokens,
+> resolves the provisioned local User, binds `providerSubject`, and keeps local
+> roles/organization relationships authoritative. The SPA uses the MSAL
+> adapter. Remaining roadmap items are cleanup, deployment hardening, and
+> verification; the legacy password/JWT references below are inventory items,
+> not the current authentication contract.
+
 ## Purpose
 
 Move the GHE Compliance Dashboard from application-managed password/JWT authentication to Microsoft Entra ID OpenID Connect, while leaving one clear source of truth for identity, authorization, configuration, API contracts, and tests.
@@ -167,3 +175,27 @@ JWT_SECRET | jsonwebtoken | passwordHash | bcrypt | /api/auth/login | preset-use
 ghe.auth.token | setToken | clearToken | getAuthToken | signToken
 OIDC | Entra | MSAL | openid | access token | audience | issuer | JWKS
 ```
+# Completion plan
+
+Core OIDC implementation is present. The remaining roadmap is deployment and evidence work, not another authentication rewrite.
+
+## Ordered close-out
+
+1. Create a staging identity-provider application with the production-equivalent issuer, client ID, audience, redirect URI, and signing policy.
+2. Configure the backend with staging values and verify issuer, audience, algorithm, lifetime, subject, and provider-user binding failures.
+3. Verify first login, returning login, disabled local user, missing local user, subject mismatch, expired token, wrong audience, and wrong issuer behavior.
+4. Verify the SPA obtains tokens through MSAL, sends them to the API, handles expiry, and clears local state on logout.
+5. Confirm local database roles remain authoritative and cannot be elevated by token claims.
+6. Confirm production builds have no password login, demo identity, preset credentials, development fallback, or credential logging.
+7. Run backend/frontend tests, PostgreSQL integration/smoke gates, production builds, and browser acceptance using the staging identity provider.
+8. Update this roadmap with commit, environment, migration version, test counts, browser evidence, and date.
+
+## Required completion evidence
+
+- A staging login/API run using real signed OIDC tokens.
+- Negative authentication results for invalid issuer, audience, signature, expiry, subject, and local-user state.
+- A production-build scan showing no demo credentials or password-auth runtime path.
+- A documented rollback procedure for identity configuration errors.
+- Confirmation that historical password/JWT references in this document are inventory only, or removal of any reference that is no longer useful.
+
+Until these items are recorded, the OIDC migration is implemented but not production-ready.

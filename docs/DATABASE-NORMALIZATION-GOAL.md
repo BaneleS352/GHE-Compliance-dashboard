@@ -383,3 +383,55 @@ documentation, the remaining `as any` uses are justified, `departmentId` and
 `managerId` are the only authoritative hierarchy relationships, and
 maintainers can add a schema change through one documented
 migration/test/repository process.
+# Completion plan
+
+This section is the executable close-out plan for the normalization work. A task is not complete merely because the Prisma schema or migration exists; it must be migrated on a clean PostgreSQL database, exercised through the API, and verified against the application read models.
+
+## Exit criteria
+
+1. `prisma migrate deploy` succeeds on an empty PostgreSQL database and on a database containing the supported development seed.
+2. Every primary key and foreign key has the documented type and matching referenced type.
+3. Retired tables, columns, text internal identifiers, and compatibility write paths are absent or explicitly documented as read-only snapshots.
+4. Organization, department, team, user, declaration, workflow, and file relationships reject cross-organization or orphaned writes.
+5. Workflow status, current approver, and step status remain consistent after submit, approve, reject, return, and resubmit operations.
+6. File lifecycle behavior is defined and tested for upload, replacement, declaration deletion, and missing/orphaned records.
+7. Backend tests, frontend tests, type checks, build, `pg:test`, and `pg:smoke` pass from a clean checkout.
+8. The database assertions are run in CI, not only from a developer workstation.
+
+## Ordered work to completion
+
+### A. Freeze the contract
+
+- Treat this document, `SCHEMA.md`, and `IDENTITY-CONTRACT.md` as the current contract.
+- Record the intended owner and removal decision for every compatibility field.
+- Decide whether declaration employee data is an immutable historical snapshot; if yes, document the snapshot boundary and prohibit treating it as the current employee profile.
+- Decide and document status-transition rules, deletion/retention rules, and file orphan handling.
+
+### B. Add database-level verification
+
+- Add a PostgreSQL assertion script that checks primary-key types, foreign-key types, required constraints, unique constraints, retired objects, and forbidden text internal identifiers.
+- Add negative tests for cross-organization department/team/user/workflow references.
+- Add tests for workflow transition invariants and `currentApproverUserId` projection.
+- Add tests for file ownership, orphan prevention, and deletion behavior.
+- Run the assertions after migration deployment in `pg:test` and `pg:smoke`.
+
+### C. Validate application write paths
+
+- Search every Prisma write and confirm each mutable fact has one authoritative write path.
+- Ensure APIs accept DTOs and do not become alternate persistence models.
+- Keep historical values only in explicit snapshot tables.
+- Remove or make read-only any legacy fields that duplicate department, team, manager, or organization data.
+- Replace unjustified `as any` database access with typed Prisma models or narrow boundary adapters.
+
+### D. Prove clean-start and upgrade behavior
+
+- Recreate an empty PostgreSQL database and run migrations, seed, backend tests, smoke tests, and frontend tests.
+- Run the supported upgrade path from the last development baseline and verify row counts and relationships.
+- Record command output, migration version, schema hash, and date in this document.
+- Resolve the Windows Prisma engine-lock issue or document a deterministic cleanup/retry procedure.
+
+### E. Close documentation and maintenance debt
+
+- Remove stale references to retired tables and fields from code, Swagger, fixtures, scripts, and docs.
+- Keep migration SQL as the only schema-change mechanism.
+- Update this document only after the verification gates pass; distinguish implemented, automated-test verified, browser verified, and production verified.

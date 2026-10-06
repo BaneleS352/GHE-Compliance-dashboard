@@ -601,3 +601,40 @@ UX and boundary hardening. Complete Phase 6 before or alongside Phase 5 so all
 download and export paths are consolidated before protection is introduced.
 Complete Phase 5 after the password scope, recipient model, and compatible
 protection technology have been approved.
+# Completion plan
+
+The frontend plan closes only when the behavior is verified at the rendered UI and at the API boundary. Unit tests and type checks are necessary but do not prove that a user can complete the workflow in a browser.
+
+## Remaining work
+
+### Phase 7A — production safety
+
+- Gate demo mode and preset credentials behind an explicit development-only flag.
+- Verify production builds contain no demo login shortcut, preset password, or seed credential logging.
+- Decide and document the token-storage strategy; if localStorage remains, document the accepted threat model and mitigation.
+- Disable or protect Swagger in production.
+- Decide whether password protection applies to generated reports only or also to arbitrary uploaded files.
+
+### Phase 7B — browser acceptance
+
+Run a clean browser session against a migrated PostgreSQL database and record evidence for:
+
+- OIDC login and logout;
+- declaration creation, draft save, submit, return, resubmit, approve, and reject;
+- locked profile fields and authoritative department/manager display;
+- admin user, organization, lookup, and workflow management;
+- dashboard status filters and report totals;
+- generated PDF and explicit spreadsheet downloads;
+- upload, preview, download, replacement, and error states;
+- empty, loading, expired-session, unauthorized, and server-error states.
+
+### Phase 7C — release gate
+
+- Run backend tests, frontend tests, frontend typecheck, frontend production build, `pg:test`, and `pg:smoke` from a clean checkout.
+- Run the real staging OIDC flow with a test tenant and real signed tokens.
+- Record browser evidence, environment, commit, migration version, and date.
+- Mark each acceptance item done, failed, or not applicable; unresolved items keep this plan open.
+
+## Definition of complete
+
+The plan can be closed only when all Phase 7 decisions are recorded, automated gates pass, browser acceptance passes, and real staging identity/API verification is recorded. Historical audit observations below must remain labelled historical and must not be read as current defects.

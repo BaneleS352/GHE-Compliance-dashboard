@@ -1,14 +1,13 @@
 # API reference
 
-Base URL: `http://localhost:3001`; JSON requests use `Content-Type: application/json`. Protected routes require `Authorization: Bearer <JWT>`. Interactive Swagger documentation is served at `/api/docs`.
+Base URL: `http://localhost:3001`; JSON requests use `Content-Type: application/json`. Protected routes require an Entra/OpenID access token in `Authorization: Bearer <token>`. Interactive Swagger documentation is served at `/api/docs`.
 
 ## Public and health
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/health` | Liveness response |
-| POST | `/api/auth/login` | Authenticate with email and password |
-| GET | `/api/auth/preset-users` | Development login presets |
+| GET | `/api/auth/me` | Return the provisioned local user for the authenticated OIDC token |
 
 | GET | `/api/auth/me` | authenticated; returns the current user |
 
@@ -51,4 +50,4 @@ Admin namespaces and permissions:
 
 Successful mutations return the affected resource or a confirmation; deletes may return `204`. Validation and authorization failures use 4xx responses. Unknown routes return `{ "error": "Not found" }`; unexpected failures return `{ "error": "Internal server error" }`. Do not rely on error message text as a stable API contract.
 
-`JWT_SECRET` is required. `PORT` defaults to `3001`; JWTs expire after one hour. `CORS_ORIGIN` accepts comma-separated origins. In production, CORS is denied unless explicitly configured. JSON and URL-encoded request bodies are limited to 1 MB. `EMAIL_WEBHOOK_URL` is optional and enables outbound notification delivery.
+`OIDC_AUTHORITY`, `OIDC_CLIENT_ID`, and `OIDC_AUDIENCE` are required; `OIDC_ISSUER` defaults to the authority. `PORT` defaults to `3001`; `CORS_ORIGIN` accepts comma-separated origins. In production, CORS is denied unless explicitly configured. JSON and URL-encoded request bodies are limited to 1 MB. `EMAIL_WEBHOOK_URL` is optional and enables outbound notification delivery.

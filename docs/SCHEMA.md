@@ -29,7 +29,8 @@ SystemConfig (1 record) configures thresholds
 | id | BigInt @id | Numeric user key (JWT `id`, API ids) |
 | name | String | |
 | email | String @unique | Used for login |
-| passwordHash | String | bcrypt hash |
+| providerSubject | String? @unique | Entra object ID bound on first successful login |
+| providerIssuer | String? | Issuer associated with the provider subject |
 | role | String | "admin", "approver", "teamMember" (authoritative authorization source) |
 | teamMemberNumber | String | Employee number (business code, not a key) |
 | departmentId | BigInt? | Sole department source (`Department` FK, SetNull). The legacy `department` text column was removed in `0008_department_id_only`; display values derive from the related record. Links are not organization-constrained (master-data vocabulary); unscoped users resolve to `""` |

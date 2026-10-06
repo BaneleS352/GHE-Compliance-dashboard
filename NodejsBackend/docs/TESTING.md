@@ -1,5 +1,12 @@
 # Testing Guide
 
+> Current authentication uses OpenID Connect with a throwaway test JWKS
+> provider. Password-login, SQLite, `test.db`, and local-JWT examples in older
+> sections are retired and must not be used. Use the current test JWKS provider,
+> `globalSetup.ts`, and `docs/IDENTITY-CONTRACT.md` as the authoritative test
+> contract. Current commands and counts are in `AGENTS.md` and
+> `docs/DATABASE-NORMALIZATION-GOAL.md`.
+
 ## Quick Start
 
 ```bash
