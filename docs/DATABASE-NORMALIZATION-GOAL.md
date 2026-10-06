@@ -210,21 +210,39 @@ authorization, validation, and organization scoping.
 - Added PostgreSQL integration and clean-database smoke-test commands.
 - Added deterministic identity-sequence handling for seeded numeric IDs.
 
-## Verification status (reproduced 2026-10-02)
+## Verification status (reproduced 2026-10-02; re-verified 2026-10-06)
 
-- Backend: 404/404 tests across 22 files, run locally against embedded
+- Backend: 422/422 tests across 24 files, run locally against embedded
   PostgreSQL (migrations `0000`–`0009` applied via `prisma migrate deploy`
-  in suite setup).
-- Frontend: 259/259 tests across 20 files, plus `tsc --noEmit` and the
-  production Vite build, all clean.
+  in suite setup). New since 2026-10-02: `production-posture.test.ts`
+  (6 tests: docs gating, seed guard incl. subprocess refusal proof) and a
+  counterparty cross-organization isolation test in `organization.test.ts`.
+  Also fixed a latent order-dependence the re-runs exposed:
+  `admin/users.test.ts` left the shared id-4 fixture department-less (temp-org
+  delete cascade), which broke `auth.test.ts` whenever file scheduling ran
+  auth second — the test now re-links the TST Marketing fixture after
+  asserting the cascade.
+- Frontend: 258/258 tests across 20 files, plus `tsc --noEmit` and the
+  production Vite build, all clean (one load-induced 5s timeout flake in
+  `MyDeclarationsScreen.test.tsx` fixed with an explicit 15s budget on the
+  heaviest render; passes solo in ~3.3s).
+- PostgreSQL integration (`pg:test`): 67/67 checks pass locally against a
+  scratch embedded PostgreSQL used as the dedicated database (verified
+  2026-10-06).
+- Clean-database smoke (`pg:smoke`): 20/20 checks pass locally against a
+  scratch embedded PostgreSQL used as the empty database (verified
+  2026-10-06; exercised the production `dist/` build incl. the Swagger
+  production gate).
+- Production-bundle scan (2026-10-06): `dist/assets/*.js` contains zero
+  occurrences of `e2e.auth.token`, `VITE_DEMO_MODE`, `preset-user`,
+  `/api/auth/login`, or quick-login markers.
 - New coverage since the last audit: profile-locking (Phase 1), queue
-  contract (Phase 2), dialogs/download (Phases 3/6), lookup-scope negatives.
-- PostgreSQL integration (`pg:test`) and clean-database smoke (`pg:smoke`)
-  both pass locally against a scratch embedded PostgreSQL used as the
-  dedicated database (verified 2026-10-02). Note: `pg:test` was red until
-  this run because the user-delete assertion's `await p.user.delete(...)`
-  was embedded in a comment and never executed; the delete is restored and
-  the SET-NULL + snapshot-history checks now genuinely run.
+  contract (Phase 2), dialogs/download (Phases 3/6), lookup-scope negatives,
+  production posture + seed guard (Phase 7), counterparty cross-org
+  isolation. Historical note: `pg:test` was red until the 2026-10-02 run
+  because the user-delete assertion's `await p.user.delete(...)` was
+  embedded in a comment and never executed; the delete is restored and the
+  SET-NULL + snapshot-history checks now genuinely run.
 
 ## Full Codebase Migration Requirements
 
@@ -285,9 +303,11 @@ The following items remain after the current audit:
   build` (`EPERM` while replacing `query_engine-windows.dll.node`). Confirm
   that the documented build/test workflow works with no stale Node/Prisma
   process holding the generated engine.
-- Classify the remaining `as any` uses as test transport code, untyped external
-  input, or schema-typing gaps. Runtime schema-sensitive queries no longer use
-  escape hatches.
+- Completed 2026-10-06: zero `as any` occurrences remain in runtime
+  routes/services/middleware (the single match is a code comment in
+  `workflowService.ts` describing an explicit narrowing; query-param casts
+  like `as string | undefined` are narrow boundary adapters, and remaining
+  `as` uses live in tests/seeds/fixtures as transport code).
 - Completed: removed `User.department` in `0008_department_id_only`; API/UI
   display values derive from `User.departmentId → Department.name`.
 - Completed: global counterparty naming policy is explicit — scoped names are
@@ -327,9 +347,12 @@ The following items remain after the current audit:
 - Tenant-boundary, delete-retention, duplicate-identity, and file-lifecycle
   coverage is substantially present; add lookup cross-organization negatives as
   lookup scoping lands.
-- Add negative tests for cross-organization declaration/declarer,
-  counterparty, workflow-rule, and approver references beyond the current
-  admin-user manager invariant.
+- Completed 2026-10-06: cross-organization negatives now cover
+  declaration/declarer spoofing, counterparty name isolation (same name in
+  two orgs resolves to distinct rows; declarations link only to their own
+  org's row), lookups, files, users, and the admin-user manager invariant.
+  Workflow rules are admin-only (`authorize("admin")`), so their tenant
+  boundary is the admin role itself (covered by authorization tests).
 - Completed: regression tests prove `Declaration.status` and
   `currentApproverUserId` track workflow step state, including guarded admin
   override reconvergence.

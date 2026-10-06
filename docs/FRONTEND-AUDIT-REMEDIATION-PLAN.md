@@ -17,11 +17,12 @@ This plan covers:
 - shared data-access and security consistency across lookup, download, export,
   refresh, and configuration flows.
 
-## Implementation status — 2 October 2026
+## Implementation status — 2 October 2026 (gates re-verified 6 October 2026)
 
-Phases 1–6 are implemented and covered by tests (backend 404/404,
-frontend 259/259, typecheck and production build clean — full gates re-run
-after each addition).
+Phases 1–6 are implemented and covered by tests (backend 422/422 across
+24 files, frontend 258/258 across 20 files, typecheck and production
+build clean — full gates re-run after each addition; `pg:test` 67/67 and
+`pg:smoke` 20/20 against scratch embedded PostgreSQL on 2026-10-06).
 
 ### Phase 1 — done
 
@@ -188,8 +189,13 @@ remains open.
 5. Confirmed and documented — generated reports and explicit exports are
    password-protected; uploaded supporting documents stay unprotected by
    recorded decision (see `docs/SECURITY.md`).
-6. Run all backend, frontend, PostgreSQL integration, smoke, typecheck, and
-   production-build gates in a PostgreSQL-enabled environment.
+6. Done 2026-10-06 (local scratch-PostgreSQL runs; CI re-runs against its
+   postgres services): backend `npm test` 422/422 (24 files), `npm run
+   build` clean, `pg:test` 67/67, `pg:smoke` 20/20, frontend `npm test`
+   258/258 (20 files), `npm run typecheck` clean, `npm run build` clean,
+   plus a production-bundle scan with zero demo/password-login markers.
+   Remaining: CI confirmation and the staging-OIDC + manual browser
+   acceptance below.
 7. Complete manual acceptance testing for protected exports, queue refresh,
    cross-organization access, profile tampering, and authenticated downloads.
 

@@ -106,6 +106,9 @@ describe("MyDeclarationsScreen", () => {
     });
   });
 
+  // This render is the heaviest in the file (full table + mode switch); it
+  // exceeds the default 5s timeout under full-suite parallel load, so it
+  // carries an explicit budget. Passes solo in ~3.3s.
   it("renders declarations table with user's declarations in 'my' mode", async () => {
     vi.mocked(fetchDeclarations).mockResolvedValue(mockDeclarations);
     render(<MyDeclarationsScreen />);
@@ -117,7 +120,7 @@ describe("MyDeclarationsScreen", () => {
       expect(screen.getAllByText("GHE-2026-1002").length).toBeGreaterThan(0);
     });
     expect(screen.queryAllByText("GHE-2026-1003").length).toBe(0);
-  });
+  }, 15000);
 
   it("switches to 'all' mode and shows all declarations", async () => {
     vi.mocked(fetchDeclarations).mockResolvedValue(mockDeclarations);

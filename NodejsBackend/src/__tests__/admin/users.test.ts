@@ -97,6 +97,20 @@ describe("Admin Users", () => {
     expect(restored?.name).toBe("Nomvula Team");
     expect(restored?.organizationId).toBeNull();
     expect(restored?.departmentId).toBeNull();
+
+    // Re-link the shared fixture (TST Marketing): parallel test files assert
+    // this link (auth.test.ts), so leaving it nulled makes the suite order-
+    // dependent. The null state above already proved the cascade behavior.
+    const tst = await prisma.organization.findUnique({ where: { shortCode: "TST" } });
+    const mkt = tst
+      ? await prisma.department.findFirst({ where: { name: "Marketing", organizationId: tst.id } })
+      : null;
+    if (mkt) {
+      await prisma.user.update({
+        where: { id: 4n },
+        data: { name: "Nomvula Team", organizationId: null, departmentId: mkt.id },
+      });
+    }
   });
 
   it("DELETE /api/admin/users/:id — deletes user", async () => {
