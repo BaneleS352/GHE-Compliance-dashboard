@@ -312,14 +312,21 @@ export function NewDeclarationScreen({
         (file as any).uploadId = uploadId;
         const reader = new FileReader();
       reader.onload = () => {
-        const url = typeof reader.result === "string" ? reader.result : URL.createObjectURL(file);
+        // readAsDataURL always resolves to a string on success; anything
+        // else is a read failure, not a case for an object URL (which would
+        // leak, since picked files are never revoked).
+        const result = reader.result;
+        if (typeof result !== "string") {
+          setUploadError({ title: "Could not read file", message: `${file.name} could not be previewed. Please try again.` });
+          return;
+        }
         setFiles((f) => [
           ...f,
           {
             name: file.name,
             size: file.size,
             type: file.type,
-            url,
+            url: result,
             uploadId,
           },
         ]);
@@ -419,7 +426,10 @@ export function NewDeclarationScreen({
     const priority = getPriority(value, config.highValueThreshold, config.mediumValueThreshold);
 
     return {
-      id: draft?.id || `GHE-${new Date().getFullYear()}-${typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : String(Date.now()).slice(-6)}`,
+      // The public GHE reference is server-assigned on create (the backend
+      // generates it with a collision guard and ignores any client value):
+      // only carry an id for draft updates.
+      id: draft?.id ?? "",
       employee: form.employeeName,
       employeeId: user.id,
       teamMemberNumber: form.employeeCode,
@@ -506,7 +516,15 @@ export function NewDeclarationScreen({
       const submitted = await submitDeclaration(synced.id);
       onSubmitSuccess(submitted);
     } catch (err) {
-      if (saved) await updateDeclaration(saved.id, { status: "Draft" });
+      // Best-effort rollback to Draft: guarded so a failed rollback cannot
+      // mask the original submission error with an unhandled rejection.
+      if (saved) {
+        try {
+          await updateDeclaration(saved.id, { status: "Draft" });
+        } catch {
+          // Original error below stays authoritative.
+        }
+      }
       const message = err instanceof Error ? err.message : "Failed to submit declaration.";
       setSubmitError(message);
       notifyError(message);

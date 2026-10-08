@@ -179,6 +179,42 @@ describe("Edge-Case Tests", () => {
       expect(res.status).toBe(404);
     });
 
+    it("DELETE /api/files/:id — assigned reviewer can read but not delete evidence", async () => {
+      // Owner uploads while draft, then submits: the LM step lands on the
+      // approver fixture, who may review but must not destroy evidence.
+      const created = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+          type: "Gift", counterparty: "EvidenceGuard", value: 10, submitted: "2026-07-01",
+          approver: "Sipho Approver", priority: "Low", description: "evidence guard",
+          relationship: "Test", receivedGiven: "Received", from: "Supplier",
+          contactPerson: "T", biddingProcess: "No", occasion: "Business Meeting",
+          date: "2026-07-01", instances: "1", publicOfficial: "No",
+        });
+      expect(created.status).toBe(201);
+      const declId: string = created.body.id;
+      cleanupDeclIds.push(declId);
+      const up = await request(app)
+        .post("/api/files/upload")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .field("declarationId", declId)
+        .attach("file", Buffer.from("evidence"), "evidence.txt");
+      expect(up.status).toBe(201);
+      const fileId = up.body.id;
+      await request(app).patch(`/api/declarations/${declId}/submit`).set("Authorization", `Bearer ${getTeamToken()}`);
+
+      const read = await request(app).get(`/api/files/${fileId}`).set("Authorization", `Bearer ${getApproverToken()}`);
+      expect(read.status).toBe(200);
+      const del = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getApproverToken()}`);
+      expect(del.status).toBe(403);
+      // Owner path still works.
+      const ownerDel = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getTeamToken()}`);
+      expect(ownerDel.status).toBe(200);
+    });
+
     it("DELETE /api/files/:id — unauthenticated rejected", async () => {
       const res = await request(app)
         .delete(`/api/files/${uploadedId}`);

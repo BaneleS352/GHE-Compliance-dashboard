@@ -38,7 +38,11 @@ export async function downloadFile(url: string, filename: string): Promise<void>
     const link = document.createElement("a");
     link.href = url;
     link.download = filename;
+    // Attached clicks work in every browser (detached clicks are ignored
+    // by Safari); removal is synchronous after dispatch.
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
     return;
   }
   saveBlob(await fetchBlob(url), filename);
@@ -52,7 +56,13 @@ export async function previewFile(url: string): Promise<void> {
   const blob = await fetchBlob(url);
   const objectUrl = URL.createObjectURL(blob);
   window.open(objectUrl, "_blank", "noopener,noreferrer");
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+  // A preview tab outlives the opener page's attention span: allow five
+  // minutes, and always release on page hide/unload even if the timer never
+  // fires (e.g. tab closed first).
+  const release = () => URL.revokeObjectURL(objectUrl);
+  const timer = setTimeout(release, 5 * 60 * 1000);
+  const onHide = () => { clearTimeout(timer); release(); };
+  window.addEventListener("pagehide", onHide, { once: true });
 }
 
 /**

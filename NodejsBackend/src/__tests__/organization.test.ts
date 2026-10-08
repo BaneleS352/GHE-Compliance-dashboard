@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
-import { buildApp, getAdminToken, testToken } from "./helpers";
+import { buildApp, getAdminToken, testToken, pkFor } from "./helpers";
 
 const app = buildApp();
 const prisma = new PrismaClient();
@@ -297,6 +297,57 @@ describe("Organization — multi-tenant flows", () => {
     // For HB LM, where.organizationId = hbOrg.id, so only HB counts
     // We can't assert exact counts, but should be object
     expect(typeof res.body).toBe("object");
+  });
+
+  it("GET /api/reports/sla — org-scoped caller sees only own org rows", async () => {
+    const hbTeamToken = tokenFor(hbTeam as any);
+    const hbLmToken = tokenFor(hbLm as any);
+    // Generate a decided step in HB (low value → LM-only rule).
+    const decl = await request(app).post("/api/declarations").set("Authorization", `Bearer ${hbTeamToken}`).send({ ...BASE_DECL, employee: hbTeam.name, employeeId: hbTeam.id, teamMemberNumber: hbTeam.teamMemberNumber, lineManager: hbLm.name, department: hbTeam.department, counterparty: "SlaOrgTest", value: 100 });
+    expect(decl.status).toBe(201);
+    await request(app).patch(`/api/declarations/${decl.body.id}/submit`).set("Authorization", `Bearer ${hbTeamToken}`);
+    const approve = await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${hbLmToken}`).send({ declarationId: decl.body.id, decision: "accept" });
+    expect(approve.status).toBe(200);
+
+    const hb = await request(app).get("/api/reports/sla").set("Authorization", `Bearer ${hbLmToken}`);
+    expect(hb.status).toBe(200);
+    expect(hb.body.length).toBeGreaterThan(0);
+    // NPN has no decided steps: the unfiltered fast-path must not leak HB's.
+    const npnLmToken = tokenFor(npnLm as any);
+    const npn = await request(app).get("/api/reports/sla").set("Authorization", `Bearer ${npnLmToken}`);
+    expect(npn.status).toBe(200);
+    expect(npn.body).toHaveLength(0);
+  });
+
+  it("POST /api/workflows/approve — cross-org step assignment is refused", async () => {
+    const hbTeamToken = tokenFor(hbTeam as any);
+    const npnLmToken = tokenFor(npnLm as any);
+    const decl = await request(app).post("/api/declarations").set("Authorization", `Bearer ${hbTeamToken}`).send({ ...BASE_DECL, employee: hbTeam.name, employeeId: hbTeam.id, teamMemberNumber: hbTeam.teamMemberNumber, lineManager: hbLm.name, department: hbTeam.department, counterparty: "ApproveOrgTest", value: 100 });
+    expect(decl.status).toBe(201);
+    await request(app).patch(`/api/declarations/${decl.body.id}/submit`).set("Authorization", `Bearer ${hbTeamToken}`);
+    // Mis-assign the pending step to the other org's approver directly.
+    const inst = await prisma.workflowInstance.findFirst({ where: { declarationPk: (await pkFor(decl.body.id)) } });
+    await prisma.workflowInstanceStep.updateMany({ where: { instanceId: inst!.id, status: "pending" }, data: { assigneeId: npnLm.id } });
+    // NPN's LM has a pending step but a different org: the org backstop
+    // refuses even though step assignment alone would allow it.
+    const res = await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${npnLmToken}`).send({ declarationId: decl.body.id, decision: "accept" });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/another organization/i);
+  });
+
+  it("GET /api/users/:id — global teamMember cannot enumerate other users", async () => {
+    const scoped = await prisma.user.create({
+      data: { ...(await withDeptLink({ name: "Global Team", email: "global-team@test.com", role: "teamMember", teamMemberNumber: "GT-001", department: "IT", position: "Associate", organizationId: null })) } as any,
+    });
+    try {
+      const token = tokenFor({ id: Number(scoped.id), email: "global-team@test.com", role: "teamMember" } as any);
+      const other = await request(app).get(`/api/users/${hbTeam.id}`).set("Authorization", `Bearer ${token}`);
+      expect(other.status).toBe(403);
+      const self = await request(app).get(`/api/users/${Number(scoped.id)}`).set("Authorization", `Bearer ${token}`);
+      expect(self.status).toBe(200);
+    } finally {
+      await prisma.user.delete({ where: { id: scoped.id } }).catch(() => undefined);
+    }
   });
 
   describe("Organization consistency invariant (manager must match user org)", () => {

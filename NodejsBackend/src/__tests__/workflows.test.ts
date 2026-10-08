@@ -340,4 +340,62 @@ describe("Workflows", () => {
     expect(inst3.body.steps[0].status).toBe("approved");
     expect(inst3.body.steps[1].status).toBe("approved");
   });
+
+  it("POST /api/workflows/approve — unmapped decision is rejected, never approved", async () => {
+    // An admin-created option value outside the engine vocabulary passes the
+    // live allow-list but must fail closed instead of becoming an approval.
+    const opt = await request(app)
+      .post("/api/admin/config/approval-options")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ id: "t-weird", value: "weird", label: "Weird" });
+    expect(opt.status).toBe(201);
+    try {
+      const create = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+          type: "Gift", counterparty: "WeirdDecision", value: 100, submitted: "2026-07-05",
+          approver: "Sipho Approver", priority: "Low", description: "weird decision test",
+          relationship: "Test", receivedGiven: "Received", from: "Supplier",
+          contactPerson: "T", biddingProcess: "No", occasion: "Business Meeting",
+          date: "2026-07-05", instances: "1", publicOfficial: "No",
+        });
+      expect(create.status).toBe(201);
+      await request(app).patch(`/api/declarations/${create.body.id}/submit`).set("Authorization", `Bearer ${getTeamToken()}`);
+      const res = await request(app)
+        .post("/api/workflows/approve")
+        .set("Authorization", `Bearer ${getApproverToken()}`)
+        .send({ declarationId: create.body.id, decision: "weird" });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/no workflow mapping/i);
+    } finally {
+      await request(app)
+        .delete("/api/admin/config/approval-options/t-weird")
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+    }
+  });
+
+  it("PATCH /api/declarations/:id/submit — ownerless declaration is rejected, not crashed", async () => {
+    // Admin-created for a nonexistent employee: declarer link stays null.
+    const create = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({
+        employee: "Ghost Person", employeeId: 999999, teamMemberNumber: "GH-001",
+        lineManager: "Nobody", position: "Ghost", department: "Marketing",
+        type: "Gift", counterparty: "GhostCo", value: 100, submitted: "2026-07-05",
+        approver: "Sipho Approver", priority: "Low", description: "ghost test",
+        relationship: "Test", receivedGiven: "Received", from: "Supplier",
+        contactPerson: "T", biddingProcess: "No", occasion: "Business Meeting",
+        date: "2026-07-05", instances: "1", publicOfficial: "No",
+      });
+    expect(create.status).toBe(201);
+    const submit = await request(app)
+      .patch(`/api/declarations/${create.body.id}/submit`)
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(submit.status).toBe(400);
+    expect(submit.body.error).toMatch(/no linked owner/i);
+  });
 });

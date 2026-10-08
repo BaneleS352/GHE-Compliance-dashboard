@@ -839,37 +839,44 @@ describe("Approval option CRUD integrity", () => {
       .send({ id: orgOpt.id, value: "org", label: "Organisation" });
   });
 
-  it("PUT /api/admin/config/approval-options/:id — new option value is immediately enforceable", async () => {
+  it("PUT /api/admin/config/approval-options/:id — unmapped option value fails closed at decision time", async () => {
     await request(app)
       .post("/api/admin/config/approval-options")
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ id: "opt-quick", value: "quick-approve", label: "Quick Approve" });
-    const opts = await request(app)
-      .get("/api/admin/config/approval-options")
-      .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(opts.body.some((o: any) => o.value === "quick-approve")).toBe(true);
+    try {
+      const opts = await request(app)
+        .get("/api/admin/config/approval-options")
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(opts.body.some((o: any) => o.value === "quick-approve")).toBe(true);
 
-    const create = await request(app)
-      .post("/api/declarations")
-      .set("Authorization", `Bearer ${getTeamToken()}`)
-      .send({ ...BASE, counterparty: "OptNewTest", value: 100 });
-    expect(create.status).toBe(201);
-    const id = create.body.id;
+      const create = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({ ...BASE, counterparty: "OptNewTest", value: 100 });
+      expect(create.status).toBe(201);
+      const id = create.body.id;
 
-    await request(app)
-      .patch(`/api/declarations/${id}/submit`)
-      .set("Authorization", `Bearer ${getTeamToken()}`);
+      await request(app)
+        .patch(`/api/declarations/${id}/submit`)
+        .set("Authorization", `Bearer ${getTeamToken()}`);
 
-    const approve = await request(app)
-      .post("/api/workflows/approve")
-      .set("Authorization", `Bearer ${getApproverToken()}`)
-      .send({ declarationId: id, decision: "quick-approve" });
-    expect(approve.status).toBe(200);
-    expect(approve.body.currentStep.decision).toBe("quick-approve");
-
-    await request(app)
-      .delete("/api/admin/config/approval-options/opt-quick")
-      .set("Authorization", `Bearer ${getAdminToken()}`);
+      // In the allow-list (live from the table) but without engine meaning:
+      // rejected, never silently approved. The step stays pending.
+      const approve = await request(app)
+        .post("/api/workflows/approve")
+        .set("Authorization", `Bearer ${getApproverToken()}`)
+        .send({ declarationId: id, decision: "quick-approve" });
+      expect(approve.status).toBe(400);
+      const inst = await request(app)
+        .get(`/api/workflows/instances/${id}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(inst.body.steps[0].status).toBe("pending");
+    } finally {
+      await request(app)
+        .delete("/api/admin/config/approval-options/opt-quick")
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+    }
   });
 });
 

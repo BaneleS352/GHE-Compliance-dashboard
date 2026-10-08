@@ -537,56 +537,74 @@ describe("Submit with null lineManager", () => {
   });
 });
 
-// ── DELETE WORKFLOW RULE THAT IS IN USE ──
-describe("Delete workflow rule in use", () => {
-  afterAll(async () => {
-    await prisma.workflowRule.upsert({
-      where: { id: 1n },
-      update: { name: "Low Value", condition: "low", priority: 1 },
-      create: { id: 1n, name: "Low Value", condition: "low", priority: 1 },
-    });
-    await prisma.workflowRuleStep.upsert({
-      where: { ruleId_order: { ruleId: 1n, order: 1 } },
-      create: { ruleId: 1n, order: 1, role: "lineManager", label: "Line Manager Review" },
-      update: { role: "lineManager", label: "Line Manager Review" },
-    });
-    await prisma.$disconnect();
-  });
-
-  it("DELETE /api/admin/workflows/rules/:id — deleting a rule breaks new submissions relying on it", async () => {
-    const del = await request(app)
-      .delete("/api/admin/workflows/rules/1")
-      .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(del.status).toBe(200);
+// ── DELETE WORKFLOW RULE GUARDS ──
+describe("Delete workflow rule guards", () => {
+  it("DELETE /api/admin/workflows/rules/:id — routing-critical rules cannot be deleted", async () => {
+    // Submission routing is hardcoded to rules 1/2: deleting either would
+    // brick submission org-wide, so the API refuses and submission keeps
+    // working (previously this deleted the rule and submit returned 500).
+    for (const id of ["1", "2"]) {
+      const del = await request(app)
+        .delete(`/api/admin/workflows/rules/${id}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(del.status).toBe(400);
+    }
 
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ ...BASE, counterparty: "NoRuleTest", value: 100 });
+      .send({ ...BASE, counterparty: "RuleGuardTest", value: 100 });
     expect(create.status).toBe(201);
-    const id = create.body.id;
-
     const submit = await request(app)
-      .patch(`/api/declarations/${id}/submit`)
+      .patch(`/api/declarations/${create.body.id}/submit`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(submit.status).toBe(500);
+    expect(submit.status).toBe(200);
+  });
+
+  it("DELETE /api/admin/workflows/rules/:id — unreferenced non-routing rule deletes cleanly", async () => {
+    const created = await request(app)
+      .post("/api/admin/workflows/rules")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ name: "Temp Guard Rule", condition: "temp", priority: 99, steps: [{ order: 1, role: "lineManager", label: "Temp Review" }] });
+    expect(created.status).toBe(201);
+    const del = await request(app)
+      .delete(`/api/admin/workflows/rules/${created.body.id}`)
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(del.status).toBe(200);
+  });
+
+  it("PUT /api/admin/workflows/rules/:id — rejects empty steps", async () => {
+    const res = await request(app)
+      .put("/api/admin/workflows/rules/1")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ steps: [] });
+    expect(res.status).toBe(400);
   });
 });
 
 // ── CORS HEADERS ──
 describe("CORS headers", () => {
-  it("OPTIONS request returns Access-Control-Allow-Origin", async () => {
+  // The test app mirrors production CORS (restricted origin list), so
+  // allowed origins are reflected and anything else gets no header.
+  it("OPTIONS request reflects an allowed origin", async () => {
+    const res = await request(app)
+      .options("/api/health")
+      .set("Origin", "http://localhost:5173");
+    expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
+  });
+
+  it("OPTIONS request sends no CORS header for a disallowed origin", async () => {
     const res = await request(app)
       .options("/api/health")
       .set("Origin", "http://example.com");
-    expect(res.headers["access-control-allow-origin"]).toBe("*");
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
   });
 
   it("GET request includes CORS headers", async () => {
     const res = await request(app)
       .get("/api/health")
-      .set("Origin", "http://example.com");
-    expect(res.headers["access-control-allow-origin"]).toBe("*");
+      .set("Origin", "http://localhost:5173");
+    expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:5173");
   });
 });
 

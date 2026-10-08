@@ -103,6 +103,8 @@ describe("NewDeclarationScreen", () => {
     });
   });
 
+  // Full-form renders are heavy; under full-suite parallel load the initial
+  // paint can exceed the default 5 s budget (passes solo in ~1 s).
   it("shows validation errors when submitting empty form", async () => {
     render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={vi.fn()} />);
     await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
@@ -113,7 +115,7 @@ describe("NewDeclarationScreen", () => {
     await waitFor(() => {
       expect(screen.getAllByText(/Required/).length).toBeGreaterThan(0);
     });
-  });
+  }, 15000);
 
   it("calls createDeclaration + submitDeclaration on valid submit", async () => {
     vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);

@@ -87,6 +87,9 @@ model User {
   @@index([managerId])
   @@index([departmentId])
   @@index([teamId])
+  // Matches the "User_providerIssuer_idx" created by 0010_auth_cutover —
+  // declared here so schema-vs-database diffs stay clean.
+  @@index([providerIssuer])
 }
 
 model Department {
@@ -137,6 +140,13 @@ model Counterparty {
 
   @@index([organizationId])
   @@unique([name, organizationId])
+  // NOTE (migration-managed, Prisma cannot model partial indexes): the
+  // database additionally enforces "Counterparty_name_org_unique"
+  // UNIQUE ("name", "organizationId") WHERE "organizationId" IS NOT NULL
+  // (see 0006_numeric_keys). That partial index is the source of truth for
+  // the scoped-naming policy (global NULL-org rows exempt); do not drop it
+  // in schema-driven diffs. pg:test asserts the behavior ("scoped duplicate
+  // counterparty rejected", "global same-name counterparties allowed").
 }
 
 model CounterpartyContact {

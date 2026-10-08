@@ -20,8 +20,11 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
+      # Local/dev defaults only. Production MUST override DATABASE_URL (and
+      # POSTGRES_PASSWORD below) from secrets — never ship these literals.
+      # No JWT_SECRET: authentication is provider-managed (Entra ID); no
+      # application secret exists to configure.
       - DATABASE_URL=postgresql://ghe_user:ghe_password@db:5432/ghe_compliance?schema=public
-      - JWT_SECRET=ghe-jwt-secret-change-in-production
       - CORS_ORIGIN=http://localhost:3000
     depends_on:
       db:

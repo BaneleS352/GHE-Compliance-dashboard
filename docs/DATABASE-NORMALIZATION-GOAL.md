@@ -19,8 +19,14 @@ versioned migration chain is:
 → 0003_counterparty_unique → 0004_monthly_eventdate
 → 0005_phase5_retirement → 0006_numeric_keys
 → 0007_step_identity → 0008_department_id_only
-→ 0009_domain_checks
+→ 0009_domain_checks → 0010_auth_cutover
 ```
+
+`0010_auth_cutover` completes the OpenID cutover at the schema level: it
+drops `User.passwordHash` and adds the provider identity link
+(`providerSubject`, globally unique so account mismatch fails closed, plus
+indexed `providerIssuer`). Identity resolution by email with first-login
+subject adoption is defined in `docs/IDENTITY-CONTRACT.md`.
 
 Internal primary and foreign keys use PostgreSQL `BIGINT` identity values.
 `Declaration.id` remains the public `GHE-YYYY-NNNNNN` text reference and
@@ -196,7 +202,7 @@ authorization, validation, and organization scoping.
 
 ## Completed Implementation
 
-- Added versioned PostgreSQL migrations through `0009_domain_checks`.
+- Added versioned PostgreSQL migrations through `0010_auth_cutover`.
 - Added normalized organization, user, declaration, workflow, file, and
   counterparty structures with enforced FKs.
 - Proved workflow step/instance declaration identity with a composite FK.
@@ -220,7 +226,7 @@ configured. CI must remain the authoritative clean-database verification
 environment until those gates are rerun.
 
 - Backend: 422/422 tests across 24 files, run locally against embedded
-  PostgreSQL (migrations `0000`–`0009` applied via `prisma migrate deploy`
+  PostgreSQL (migrations `0000`–`0010` applied via `prisma migrate deploy`
   in suite setup). New since 2026-10-02: `production-posture.test.ts`
   (6 tests: docs gating, seed guard incl. subprocess refusal proof) and a
   counterparty cross-organization isolation test in `organization.test.ts`.

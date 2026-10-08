@@ -51,19 +51,42 @@ is development-only and is disabled in production.
 
 ### Auth
 
-```powershell
-# Login as admin
-$token = (Invoke-RestMethod -Uri "http://localhost:3001/api/auth/login" `
-  -Method Post -Body '{"email":"admin@test.com","password":"password"}' `
-  -ContentType "application/json").token
+There is no password login and no preset-users endpoint. `POST
+/api/auth/login` and `GET /api/auth/preset-users` were removed in the
+OpenID cutover and both return `404` (pinned by `auth.test.ts`). The only
+identity route is `GET /api/auth/me`, which resolves the local user from
+a validated bearer token (see `docs/IDENTITY-CONTRACT.md`).
 
-# Get preset users (no auth required)
-Invoke-RestMethod -Uri "http://localhost:3001/api/auth/preset-users"
+To call the API manually, mint a throwaway RS256 token for a seeded local
+user. Identity resolves by email, so the email must exist in the database
+(`admin@hb.co.za`, `sipho@hb.co.za`, `lindiwe@hb.co.za`,
+`nomvula@hb.co.za` in the development seed):
+
+```powershell
+# Terminal 1 — throwaway provider (test-only, never production)
+npm run test:provider
+# Test identity provider up at http://127.0.0.1:55439
+
+# Terminal 2 — API against the throwaway provider (migrated + seeded DB)
+$env:OIDC_AUTHORITY="http://127.0.0.1:55439"
+$env:OIDC_ISSUER="http://127.0.0.1:55439"
+$env:OIDC_AUDIENCE="ghe-test-api-audience"
+$env:OIDC_CLIENT_ID="manual-testing"
+npm run dev
+
+# Mint a token (any terminal)
+$token = Invoke-RestMethod -Uri "http://127.0.0.1:55439/test-token" `
+  -Method Post -Body '{"email":"admin@hb.co.za","name":"Admin User","oid":"manual-admin"}' `
+  -ContentType "application/json"
 
 # Get current user
 Invoke-RestMethod -Uri "http://localhost:3001/api/auth/me" `
   -Headers @{Authorization="Bearer $token"}
 ```
+
+Unknown emails get `403` (default-deny, no auto-provisioning); tokens
+with a wrong issuer, audience, expiry, or missing `oid` get `401`
+(pinned by `auth-validation.test.ts`).
 
 ### Declarations
 
@@ -303,60 +326,88 @@ Invoke-RestMethod -Uri "http://localhost:3001/api/health"
 
 ## Switching User Roles
 
-Use different login tokens to test RBAC:
+Mint one token per role from the throwaway provider (`npm run
+test:provider`, then `POST /test-token` as above) using a seeded email for
+that role. Roles are database-authoritative — tokens carry no role:
 
 ```powershell
+$provider = "http://127.0.0.1:55439/test-token"
+
 # Admin token
-$admin = (Invoke-RestMethod -Uri "http://localhost:3001/api/auth/login" -Method Post `
-  -Body '{"email":"admin@test.com","password":"password"}' -ContentType "application/json").token
+$admin = Invoke-RestMethod -Uri $provider -Method Post `
+  -Body '{"email":"admin@hb.co.za","name":"Admin User","oid":"manual-admin"}' -ContentType "application/json"
 
 # Approver (Line Manager) token
-$approver = (Invoke-RestMethod -Uri "http://localhost:3001/api/auth/login" -Method Post `
-  -Body '{"email":"sipho@test.com","password":"password"}' -ContentType "application/json").token
+$approver = Invoke-RestMethod -Uri $provider -Method Post `
+  -Body '{"email":"sipho@hb.co.za","name":"Sipho Nkosi","oid":"manual-sipho"}' -ContentType "application/json"
 
 # Approver (HR) token
-$hr = (Invoke-RestMethod -Uri "http://localhost:3001/api/auth/login" -Method Post `
-  -Body '{"email":"lindiwe@test.com","password":"password"}' -ContentType "application/json").token
+$hr = Invoke-RestMethod -Uri $provider -Method Post `
+  -Body '{"email":"lindiwe@hb.co.za","name":"Lindiwe Zulu","oid":"manual-lindiwe"}' -ContentType "application/json"
 
 # Team Member token
-$team = (Invoke-RestMethod -Uri "http://localhost:3001/api/auth/login" -Method Post `
-  -Body '{"email":"nomvula@test.com","password":"password"}' -ContentType "application/json").token
+$team = Invoke-RestMethod -Uri $provider -Method Post `
+  -Body '{"email":"nomvula@hb.co.za","name":"Nomvula Dlamini","oid":"manual-nomvula"}' -ContentType "application/json"
 ```
 
 ## Test Coverage Summary
+
+Counts below are the 2026-10-06 gate results (backend 422/422 across 24
+files, frontend 258/258 across 20 files). Re-run the suites for current
+totals; counts are not fixed documentation.
 
 ### Backend coverage areas
 
 | File | Tests | What's tested |
 |------|-------|---------------|
-| `break.test.ts` | 72 | Auth attacks, JWT tampering, Zod validation, HTTP abuse, XSS, SQLi, rapid requests |
-| `edge-cases.test.ts` | 50 | File uploads, mass assignment, self-approval, workflow order, race conditions, approver isolation, cross-user, export, preset users, workflow access, status escalation, data leaks, pre-approved create, file size, orphan files, double-delete, config/workflow coupling, null LM, cascade gap, token reuse, SLA dates |
+| `break.test.ts` | 72 | Injection/XSS/SQLi shapes, auth attacks, HTTP abuse, rapid requests (negative assertions; failures return safe errors) |
+| `edge-cases.test.ts` | 50 | Self-approval blocked (403), step order enforced (403), concurrent-approve race, approver isolation, file size/orphans, config/workflow coupling, null LM, SLA dates |
+| `logical-flaws.test.ts` | 48 | Status-transition guards, edit/delete/submit preconditions, approval preconditions, admin override + reconvergence |
+| `logical-flaws-2.test.ts` | 46 | Return/resubmit preservation, credential-less user creation, file cascade on declaration delete |
+| `logical-flaws-3.test.ts` | 36 | Rule deletion effects, dashboard KPIs, threshold routing, approval notes |
+| `admin/config.test.ts` | 17 | Config/dropdown/approval-option CRUD + RBAC |
+| `organization.test.ts` | 16 | Multi-tenant isolation, cross-org 403s, counterparty per-org isolation |
+| `workflows.test.ts` | 14 | Pending list, instances, approve/decline/return |
+| `workflow-paths.test.ts` | 13 | Full approval-path scenarios |
+| `reports-protection.test.ts` | 12 | Export password validation, auth, real-encryption round-trips |
+| `workflow-e2e.test.ts` | 12 | Return/resubmit/decline lifecycle, full LM→HR chain |
+| `auth-validation.test.ts` | 11 | Wrong issuer/audience/algorithm/expiry/oid → 401 |
+| `admin/users.test.ts` | 10 | Users CRUD, department-link resolution, RBAC |
 | `declarations.test.ts` | 12 | CRUD, stats, submit, status change |
-| `workflows.test.ts` | 8 | Pending list, instances, approve/decline/return |
-| `auth.test.ts` | 7 | Login, me, preset users, RBAC |
 | `reports.test.ts` | 8 | Breakdown, SLA, concentration, high-value, list, export |
-| `admin/config.test.ts` | 17 | Config CRUD, dropdowns CRUD, approval-options CRUD, RBAC |
-| `admin/dashboard.test.ts` | 2 | Dashboard stats |
-| `admin/users.test.ts` | 10 | Users CRUD, RBAC |
+| `normalization.test.ts` | 8 | Snapshot/detail/counterparty writes, relational step rows |
+| `auth.test.ts` | 7 | Login/preset routes removed (404), `/me` identity resolution |
+| `workflow-regressions.test.ts` | 7 | Return + value-increase flows, HR escalation, approval preservation |
+| `production-posture.test.ts` | 6 | Docs disabled in production, seed refused in production |
+| `files-and-export-coverage.test.ts` | 5 | Upload/download/delete, export coverage |
 | `admin/workflows.test.ts` | 5 | Workflow rules CRUD |
-| `workflow-paths.test.ts` | 15 | Full approval path end-to-end scenarios |
+| `profile-locking.test.ts` | 3 | Crafted identity ignored, incomplete profile rejected |
+| `admin/dashboard.test.ts` | 2 | Dashboard stats |
+| `queue.test.ts` | 2 | Authoritative `{ items, total }` queue contract |
 
 ### Frontend coverage areas
 
 | File | Tests | What's tested |
 |------|-------|---------------|
-| `approval-workflow.test.tsx` | 22 | WorkflowTimeline rendering, decisions, notes, auto-fetch, submit |
-| `ApprovalQueue.test.tsx` | 10 | Queue loading, filtering, review, export |
-| `ApprovalDetail.test.tsx` | 9 | Detail loading, decisions, submission, back navigation |
-| `AdminApprovalOptions.test.tsx` | 1 | Page rendering with mocked data |
-| `MyDeclarationsScreen.test.tsx` | 8 | Loading, error, table, filters, export, KPIs |
-| `NewDeclarationScreen.test.tsx` | 9 | Form rendering, validation, submit, draft, upload |
+| `api-services.test.ts` | 43 | All API wrappers including approval-options CRUD |
+| `frontend-break.test.ts` | 31 | httpClient edge cases, API wrapper URL building |
+| `workflow-e2e.test.tsx` | 29 | Review/approve/decline journeys, file flows, error states |
+| `integration.test.ts` | 28 | Auth + screen access, dashboard stats, create declaration |
+| `approval-workflow.test.tsx` | 23 | WorkflowTimeline rendering, decisions, notes, auto-fetch, submit |
+| `ApprovalDetail.test.tsx` | 15 | Detail loading, decisions, submission, back navigation |
+| `MyDeclarationsScreen.test.tsx` | 14 | Loading, error, table, filters, export, KPIs, drafts |
+| `NewDeclarationScreen.test.tsx` | 14 | Form rendering, validation, submit, draft, upload |
+| `ApprovalQueue.test.tsx` | 11 | Queue loading, filtering, review, protected export, refresh |
+| `auth-edge-cases.test.ts` | 11 | MSAL adapter mocks, no `localStorage` token persistence, RBAC |
+| `dialogs.test.tsx` | 8 | Confirm dialog, Escape, user-dialog validation, password dialog |
+| `UserContext.test.tsx` | 6 | Auth state, loading, initialization |
+| `download.test.ts` | 6 | Auth header, failure, preview path |
 | `ErrorBoundary.test.tsx` | 5 | Error fallback, custom fallback, reset |
-| `UserContext.test.tsx` | 8 | Auth state, login/logout, localStorage persistence |
-| `integration.test.ts` | 8 | Auth + screen access, dashboard stats, create declaration |
-| `api-services.test.ts` | 40 | All API wrappers including approval-options CRUD |
-| `auth-edge-cases.test.ts` | 12 | Login edge cases, RBAC, screen access |
-| `dashboard-render.test.ts` | 1 | ApproverDashboard mount smoke test |
-| `frontend-break.test.ts` | 27 | httpClient edge cases, API wrapper URL building |
+| `org-api.test.ts` | 5 | Organization-scoped lookups |
+| `workflow-fix.test.tsx` | 3 | Completed-step states and decision text |
+| `admin-dashboard-states.test.tsx` | 2 | API errors and recovered dashboard data |
+| `notifications.test.ts` | 2 | Success/error wrapper routing |
+| `AdminApprovalOptions.test.tsx` | 1 | Page header and options table |
+| `dashboard-render.test.tsx` | 1 | ApproverDashboard mount smoke test |
 
 Run the backend and frontend test commands separately to obtain the current totals; counts are not fixed documentation.

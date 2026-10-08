@@ -61,11 +61,18 @@ describe("Admin Config", () => {
       .get("/api/admin/config/approval-options")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(5);
-    expect(res.body[0].value).toBe("return");
+    // Parallel files may add temporary options; assert the seeded core set
+    // is present rather than an absolute count.
+    const values = res.body.map((o: any) => o.value);
+    for (const v of ["return", "accept", "org", "foundation", "decline"]) {
+      expect(values).toContain(v);
+    }
   });
 
   it("POST /api/admin/config/approval-options — creates a new option", async () => {
+    const before = await request(app)
+      .get("/api/admin/config/approval-options")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
     const res = await request(app)
       .post("/api/admin/config/approval-options")
       .set("Authorization", `Bearer ${getAdminToken()}`)
@@ -77,7 +84,7 @@ describe("Admin Config", () => {
     const getRes = await request(app)
       .get("/api/admin/config/approval-options")
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(getRes.body).toHaveLength(6);
+    expect(getRes.body).toHaveLength(before.body.length + 1);
   });
 
   it("POST /api/admin/config/approval-options — rejects duplicate id", async () => {
@@ -86,6 +93,19 @@ describe("Admin Config", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ id: "test-opt", value: "dup", label: "Duplicate" });
     expect(res.status).toBe(409);
+  });
+
+  it("POST /api/admin/config/approval-options — rejects malformed identifiers", async () => {
+    const bad = await request(app)
+      .post("/api/admin/config/approval-options")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ id: "not an id!", value: "x", label: "X" });
+    expect(bad.status).toBe(400);
+    const long = await request(app)
+      .post("/api/admin/config/approval-options")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ id: "ok-id", value: "v".repeat(65), label: "X" });
+    expect(long.status).toBe(400);
   });
 
   it("PUT /api/admin/config/approval-options/:id — updates an option", async () => {
@@ -107,6 +127,9 @@ describe("Admin Config", () => {
   });
 
   it("DELETE /api/admin/config/approval-options/:id — deletes an option", async () => {
+    const before = await request(app)
+      .get("/api/admin/config/approval-options")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
     const delRes = await request(app)
       .delete("/api/admin/config/approval-options/test-opt")
       .set("Authorization", `Bearer ${getAdminToken()}`);
@@ -115,7 +138,8 @@ describe("Admin Config", () => {
     const getRes = await request(app)
       .get("/api/admin/config/approval-options")
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(getRes.body).toHaveLength(5);
+    expect(getRes.body).toHaveLength(before.body.length - 1);
+    expect(getRes.body.some((o: any) => o.id === "test-opt")).toBe(false);
   });
 
   it("DELETE /api/admin/config/approval-options/:id — 404 for non-existent", async () => {

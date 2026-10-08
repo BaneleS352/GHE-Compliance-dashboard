@@ -87,6 +87,42 @@ OIDC_ISSUER="https://login.microsoftonline.com/<tenant-id>/v2.0"
 CORS_ORIGIN="https://your-frontend-domain.com"
 ```
 
+Keep the previous working values for every variable above where you can
+retrieve them in an incident — the rollback below restores them verbatim.
+
+### 2b. Identity-configuration rollback
+
+Identity misconfiguration fails closed (401/403 on every API call, users
+stuck on sign-in), so the rollback path must not require the app to be
+healthy. Diagnose first, then revert:
+
+1. **Identify the bad knob from the symptom.**
+   - All users 401, including previously working sessions → `OIDC_ISSUER`
+     or `OIDC_AUDIENCE` changed (token `iss`/`aud` no longer match), or
+     the JWKS endpoint moved (`OIDC_AUTHORITY` wrong).
+   - Sign-in button loops back to the app unsigned-in → SPA config:
+     `VITE_ENTRA_CLIENT_ID` / `VITE_ENTRA_AUTHORITY` mismatch, or the
+     page origin is not a registered Entra redirect URI (rebuild + redeploy
+     the frontend after fixing; these values are baked in at build time).
+   - One user 403 "unprovisioned or subject mismatch" while others work →
+     not a config incident: their Entra object ID changed (recreated
+     account) or their local row was never provisioned. Provision the row
+     or re-link deliberately — do not touch global config for one user.
+2. **Revert backend config** to the previous working values and restart
+   the API (`docker compose up -d backend`, or `pm2 restart ghe-api`).
+   For a bad release rather than bad config, redeploy the previous image
+   / `dist/` build instead — migrations only ever add (never rewrite
+   history), so rolling back code never requires rolling back the schema.
+3. **Verify, in order:** `GET /api/health` → sign in as a known admin in a
+   fresh browser session → `GET /api/auth/me` returns the local row →
+   one declaration submit + one approval through the UI.
+4. **Never "fix" auth by seeding, editing `providerSubject` by hand, or
+   loosening middleware checks.** `providerSubject` mismatch fails closed
+   by design; hand-editing identity links creates account-takeover risk.
+   If a subject must be reset, do it through a reviewed database change
+   with the affected user's verified new object ID, never by disabling
+   the check.
+
 ### 3. Build & Start
 
 ```bash
@@ -110,20 +146,27 @@ For production, replace local disk storage with S3-compatible storage:
 
 ### 5. Security Hardening
 
-**Before going live, fix these vulnerabilities** (see `docs/SECURITY.md`):
+Authentication is OpenID Connect/Entra (see `docs/IDENTITY-CONTRACT.md`):
+tokens carry no role — the middleware resolves user, role, and
+organization from the database on every request, so local role changes
+apply immediately and disabling a local user fails closed (`403`) on the
+next request. There are no application-issued JWTs: token lifetime,
+refresh, and revocation are owned by the provider. The pre-OIDC
+hardening backlog below was triaged 2026-10-08; every item is resolved
+in code and pinned by tests:
 
-| Priority | Issue |
-|----------|-------|
-| P0 | Mass assignment — add field whitelist on PUT |
-| P0 | Restrict status to "Draft" on create |
-| P0 | Add role guard on PATCH /:id/status |
-| P1 | Add self-approval guard |
-| P1 | Enforce workflow step order |
-| P1 | Add ownership check on GET /:id for team members |
-| P1 | Validate JWT role against DB on each request |
-| P2 | Add cascade delete for files on declaration delete |
-| P2 | ~~Add try/catch on JSON.parse(instance.steps)~~ — resolved: workflow steps are relational rows, nothing parses step JSON (migration `0005_phase5_retirement` dropped the columns) |
-| P2 | Validate lineManager before submit |
+| Priority | Issue | Status (pinning test) |
+|----------|-------|------------------------|
+| P0 | Mass assignment — field whitelist on PUT | Resolved: Zod `createSchema.partial()` whitelist; `employeeId` immutable (`logical-flaws.test.ts`) |
+| P0 | Restrict status to "Draft" on create | Resolved: server owns status, hardcoded `"Draft"` (`declarations.ts`) |
+| P0 | Role guard on PATCH /:id/status | Resolved: admin-only `403`, with no-divergence guards (`declarations.ts`, `workflow-regressions.test.ts`) |
+| P1 | Self-approval guard | Resolved: `403` (`edge-cases.test.ts` — "FIXED: Self-approval blocked") |
+| P1 | Enforce workflow step order | Resolved: `403` (`edge-cases.test.ts` — "FIXED: Step order enforced"; `logical-flaws.test.ts`) |
+| P1 | Ownership check on GET /:id for team members | Resolved: `403` for non-owners plus org/department scoping (`declarations.ts`, `logical-flaws.test.ts`) |
+| P1 | Validate role against DB on each request | Resolved by OIDC design: role is read from the local row per request, never from the token (`IDENTITY-CONTRACT.md`, `auth.test.ts`) |
+| P2 | Cascade delete for files on declaration delete | Resolved (`logical-flaws-2.test.ts` — "file cascade-deleted") |
+| P2 | ~~JSON.parse(instance.steps)~~ | Resolved: workflow steps are relational rows, nothing parses step JSON (migration `0005_phase5_retirement` dropped the columns) |
+| P2 | Validate lineManager before submit | Resolved: manager-less self-service gets a clear `400` (`profile-locking.test.ts`) |
 
 ### 6. Additional Production Config
 
@@ -142,11 +185,22 @@ client_max_body_size 50M;
 
 ### 1. Build
 
+The SPA calls the API over same-origin relative `/api` paths (dev uses
+the Vite proxy; see `vite.config.ts`) — there is no `VITE_API_URL`.
+Serve the built frontend from the same host that proxies `/api` to the
+backend (nginx example below). Entra settings are baked in at build time:
+
 ```bash
 cd "Enterprise Compliance Platform"
-VITE_API_URL="https://api.your-domain.com" npx vite build
+VITE_ENTRA_CLIENT_ID="<spa-application-client-id>" \
+VITE_ENTRA_AUTHORITY="https://login.microsoftonline.com/<tenant-id>/v2.0" \
+VITE_ENTRA_API_SCOPE="api://<api-application-client-id>/access_as_user" \
+npx vite build
 # Output in dist/
 ```
+
+`VITE_ENTRA_REDIRECT_URI` is optional (defaults to the page origin — which
+must exactly match a registered Entra redirect URI, including scheme).
 
 ### 2. Serve
 
@@ -156,7 +210,7 @@ Deploy `dist/` to any static host:
 - **Cloudflare Pages / Vercel / Netlify:** Connect repo, set build command to `npx vite build`, output dir to `dist`
 - **AWS S3 + CloudFront:** Upload `dist/` to S3 bucket, serve via CloudFront
 
-### 3. SPA Routing
+### 3. SPA Routing and API proxy
 
 Configure your static server to serve `index.html` for all routes (for React Router):
 
@@ -164,6 +218,15 @@ Configure your static server to serve `index.html` for all routes (for React Rou
 ```nginx
 location / {
   try_files $uri $uri/ /index.html;
+}
+
+# Same-origin API: the SPA calls relative /api paths, so proxy them to
+# the backend instead of exposing the API on a second origin (which would
+# also need CORS entries).
+location /api/ {
+  proxy_pass http://localhost:3001;
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-Proto $scheme;
 }
 ```
 
@@ -188,4 +251,9 @@ pg_dump "postgresql://user:password@host:5432/ghe_db" > backup_$(date +%Y%m%d).s
 - **API is stateless** — scale horizontally behind a load balancer
 - **PostgreSQL is the only supported database** — run versioned migrations (`prisma migrate deploy`), never `db push`, against production
 - **File storage on local disk doesn't scale** — use S3 or similar object storage
-- **JWT tokens are not revocable** — use short expiry (15min) + refresh tokens, or maintain a denylist
+- **No application-issued tokens exist** — access-token lifetime, refresh,
+  and revocation are owned by Entra. To cut off a user immediately, disable
+  or delete their local `User` row: the middleware resolves identity from
+  the database on every request, so the next call fails closed (`403`)
+  even with a technically valid provider token. Prefer short provider
+  access-token lifetimes per your tenant policy.

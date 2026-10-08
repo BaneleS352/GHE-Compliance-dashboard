@@ -214,8 +214,11 @@ The next implementation should make the close-out evidence repeatable:
    tokens and record all negative-auth cases.
 6. Document a rollback procedure for incorrect issuer, audience, redirect,
    or provider-user binding configuration.
-7. Remove or label stale pre-OIDC instructions and update the migration
-   references through `0010_auth_cutover`.
+7. Done 2026-10-08 — stale pre-OIDC instructions removed: TESTING.md
+   manual sections now mint throwaway-provider tokens (`npm run
+   test:provider` + `POST /test-token`) instead of the removed
+   password-login/preset-users routes, coverage tables carry verified
+   counts, and migration references run through `0010_auth_cutover`.
 
 ## Ordered close-out
 

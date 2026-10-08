@@ -14,6 +14,7 @@ vi.mock("../app/auth/msal", () => ({
 vi.mock("../services/api", () => ({
   fetchDeclarations: vi.fn(() => Promise.resolve([])),
   fetchWorkflowQueue: vi.fn(() => Promise.resolve({ items: [], total: 0 })),
+  fetchConfig: vi.fn(() => Promise.resolve({ slaEscalationDays: 3 })),
 }));
 
 beforeAll(() => {

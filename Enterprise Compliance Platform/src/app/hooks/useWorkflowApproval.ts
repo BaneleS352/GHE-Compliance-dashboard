@@ -136,10 +136,10 @@ export function useWorkflowApproval({ declarationId, userId, initialWorkflowStep
     setIsSubmitting(true);
     try {
       if (!declarationId) return;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000);
+      // Timeout and cancellation are enforced by the shared httpClient
+      // (30 s AbortController per request) — no local controller here, so
+      // there is exactly one timeout owner and no theater aborts.
       const res: any = await approveWorkflowStep({ declarationId, decision, notes });
-      clearTimeout(timeout);
       // 204 returns undefined — treat as success
       if (res?.newStatus) onStatusUpdate?.(res.newStatus);
       else if (res === undefined) onStatusUpdate?.("Pending" as any);

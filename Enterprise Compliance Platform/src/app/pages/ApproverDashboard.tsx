@@ -30,13 +30,6 @@ type DashboardFilter = "All" | "Pending" | "Approved" | "Returned" | "Declined" 
 
 
 
-function isCurrentMonth(value: string): boolean {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return false;
-  const now = new Date();
-  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
-}
-
 const PRIORITY_ORDER: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
 
 export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Screen) => void; onReview?: (d: Declaration) => void }) {
@@ -46,6 +39,8 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   const DEPT_PAGE_SIZE = 10;
   const [declarations, setDeclarations] = useState<Declaration[]>([]);
   const [queueTotal, setQueueTotal] = useState<number | null>(null);
+  const [queueWarning, setQueueWarning] = useState<string | null>(null);
+  const [slaDays, setSlaDays] = useState(3);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,24 +50,30 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
     // Badge uses the authoritative queue total — the same source as the
-    // queue list — never declaration status counts.
+    // queue list — never declaration status counts. A badge-count failure
+    // warns instead of hiding the good declaration data below.
     const loadQueueTotal = () => {
       fetchWorkflowQueue()
-        .then((queue) => setQueueTotal(queue.total))
-        .catch((err: Error) => setError(`Failed to load approval queue total: ${err.message}`));
+        .then((queue) => { setQueueTotal(queue.total); setQueueWarning(null); })
+        .catch((err: Error) => setQueueWarning(`Approval queue total could not be loaded: ${err.message}`));
     };
     loadQueueTotal();
     window.addEventListener("ghe:queue-changed", loadQueueTotal);
+    // Overdue threshold comes from configuration like the queue page (which
+    // warns on failure); same default, same non-fatal behavior. The outer
+    // catch also covers module-resolution failures (e.g. partial test
+    // doubles of the api module), which must never surface as unhandled.
+    import("@/services/api")
+      .then(({ fetchConfig }) => fetchConfig())
+      .then((c) => setSlaDays(c.slaEscalationDays ?? 3))
+      .catch(() => setQueueWarning((w) => w ?? "SLA configuration could not be loaded — overdue highlighting uses a 3-day default."));
     return () => window.removeEventListener("ghe:queue-changed", loadQueueTotal);
   }, []);
 
+  useEffect(() => { setDeptPage(0); }, [activeFilter]);
+
   const isAdmin = user?.role === "admin";
   const isTeamMember = user?.role === "teamMember";
-
-  const currentMonthDeclarations = useMemo(
-    () => declarations.filter((d) => isCurrentMonth(d.submitted)),
-    [declarations]
-  );
 
   const scopedDeclarations = useMemo(() => {
     if (isTeamMember) {
@@ -132,12 +133,12 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   }, [scopedDeclarations]);
 
   const overdueDeclarations = useMemo(() => {
-    const sevenDaysAgo = Date.now() - 7 * 86400000;
+    const cutoff = Date.now() - slaDays * 86400000;
     return scopedDeclarations
       .filter((d) => {
         if (!["Pending", "Escalated"].includes(d.status)) return false;
         const t = new Date(d.submitted).getTime();
-        if (Number.isNaN(t) || t >= sevenDaysAgo) return false;
+        if (Number.isNaN(t) || t >= cutoff) return false;
         return true;
       })
       .sort((a, b) => {
@@ -146,7 +147,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
         if (Number.isNaN(ta) || Number.isNaN(tb)) return 0;
         return ta - tb || (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99);
       });
-  }, [scopedDeclarations]);
+  }, [scopedDeclarations, slaDays]);
 
   const departmentStats = useMemo(() => {
     const map = new Map<string, { declarations: number; approved: number; declined: number; pending: number; totalValue: number }>();
@@ -182,6 +183,9 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
 
   return (
     <div className="space-y-6">
+      {queueWarning && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">{queueWarning}</div>
+      )}
       <PageHeader
         title="Approver Dashboard"
         subtitle="Inception to Date"

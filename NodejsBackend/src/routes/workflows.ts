@@ -16,11 +16,18 @@ function sanitize(val: string): string {
 
 type StepStatus = "pending" | "approved" | "declined" | "returned";
 
-function toStepStatus(decision: string): StepStatus {
-  if (decision === "decline") return "declined";
-  if (decision === "return") return "returned";
-  return "approved";
-}
+/**
+ * Exhaustive decision → step-status mapping. Anything not listed here is
+ * rejected with 400 at the call site — an unknown decision must never
+ * silently become an approval (fail closed).
+ */
+const DECISION_TO_STEP_STATUS: Record<string, StepStatus> = {
+  accept: "approved",
+  org: "approved",
+  foundation: "approved",
+  decline: "declined",
+  return: "returned",
+};
 
 /** Step rows are the only workflow state (no JSON fallback). */
 async function loadSteps(declarationPk: bigint): Promise<WorkflowStep[]> {
@@ -170,6 +177,14 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
     res.status(404).json({ error: "Declaration not found" });
     return;
   }
+  // Organization backstop: step assignment is user-scoped, but a mis-assigned
+  // cross-org step (e.g. via global fallback routing) must never become a
+  // cross-org decision. Mirrors the submit/PUT/delete checks.
+  const callerOrg = req.user?.organizationId ?? undefined;
+  if (req.user!.role !== "admin" && callerOrg !== undefined && callerOrg !== null && declaration.organizationId !== null && declaration.organizationId !== toDbId(callerOrg)) {
+    res.status(403).json({ error: "Cannot approve declaration from another organization" });
+    return;
+  }
 
   const instance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
   if (!instance) {
@@ -185,7 +200,11 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
   // Atomic step update — read, check, and write within a single transaction.
   // Relational step rows are the only workflow state.
   const now = new Date().toISOString();
-  const newStepStatus = toStepStatus(decision);
+  const newStepStatus = DECISION_TO_STEP_STATUS[decision];
+  if (!newStepStatus) {
+    res.status(400).json({ error: `Decision '${decision}' has no workflow mapping` });
+    return;
+  }
   const userPk = toDbId(req.user!.id);
   const userPkJson = toJsonId(userPk);
 

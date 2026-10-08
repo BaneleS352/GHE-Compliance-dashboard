@@ -138,14 +138,23 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(404).json({ error: "User not found" });
     return;
   }
-  // Least-privilege: allow admin, self, or same-org members (needed for NewDeclarationScreen lineManager lookup)
+  // Least-privilege: admin sees all; anyone may fetch self; org-scoped
+  // callers may fetch same-org members and global (org-less) directory
+  // entries such as global managers (needed for NewDeclarationScreen
+  // lineManager lookup). Org-less (global) callers are limited by role:
+  // global approvers (HR function) retain cross-org visibility, but a
+  // global teamMember has no legitimate directory need beyond self —
+  // otherwise any org-less account could enumerate every user's PII.
   const callerOrg = req.user?.organizationId ?? undefined;
-  if (req.user!.role !== "admin" && toDbId(req.user!.id) !== userPk && callerOrg !== undefined && callerOrg !== null && user.organizationId !== null && toDbId(callerOrg) !== user.organizationId) {
+  const isSelf = toDbId(req.user!.id) === userPk;
+  const callerScoped = callerOrg !== undefined && callerOrg !== null;
+  const targetGlobal = user.organizationId === null;
+  const sameOrg = callerScoped && !targetGlobal && toDbId(callerOrg) === user.organizationId;
+  const globalHr = !callerScoped && req.user!.role === "approver";
+  if (req.user!.role !== "admin" && !isSelf && !(callerScoped && (targetGlobal || sameOrg)) && !globalHr) {
     res.status(403).json({ error: "Access denied" });
     return;
   }
-  // Global callers (no org) are allowed to fetch any user (HR/Admin global)
-  // No additional check needed for !callerOrg
   res.json({
     id: toJsonId(user.id),
     name: user.name,

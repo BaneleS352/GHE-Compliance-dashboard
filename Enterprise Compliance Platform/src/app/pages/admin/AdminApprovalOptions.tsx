@@ -84,6 +84,10 @@ export function AdminApprovalOptions() {
   return (
     <div className="space-y-6">
       <PageHeader title="Approval Options Configuration" subtitle="Manage the available approval decision options." />
+      <p className="text-xs text-muted-foreground">
+        Values drive the live decision allow-list: only <span className="font-mono">return</span>, <span className="font-mono">accept</span>, <span className="font-mono">org</span>, <span className="font-mono">foundation</span>, and <span className="font-mono">decline</span> have
+        workflow meaning — any other value is rejected when an approver tries to use it.
+      </p>
 
       <Card className="overflow-hidden border-white/70 bg-white/80 p-0 card-shadow">
         <div className="flex flex-col gap-3 border-b border-border bg-secondary/15 p-4 sm:flex-row sm:items-center sm:justify-between">

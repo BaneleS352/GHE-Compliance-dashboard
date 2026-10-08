@@ -1,4 +1,4 @@
-import { PublicClientApplication, type AccountInfo, type AuthenticationResult } from "@azure/msal-browser";
+import { PublicClientApplication, InteractionRequiredAuthError, type AccountInfo, type AuthenticationResult } from "@azure/msal-browser";
 
 /**
  * Single MSAL adapter (OpenID Phase 4): the only module that touches the
@@ -128,7 +128,19 @@ export async function getApiToken(): Promise<string> {
   const app = getClient();
   const account = app.getActiveAccount();
   if (!account) throw new Error("No authenticated Entra account");
-  return (await app.acquireTokenSilent({ scopes: scopes(), account })).accessToken;
+  try {
+    return (await app.acquireTokenSilent({ scopes: scopes(), account })).accessToken;
+  } catch (err) {
+    // Expired token, password change, or Conditional Access challenge:
+    // silent acquisition cannot proceed — restart interactive sign-in via
+    // redirect. The redirect unloads the page, so callers see a rejection
+    // for the in-flight request and must not retry it.
+    if (err instanceof InteractionRequiredAuthError) {
+      await app.acquireTokenRedirect({ scopes: scopes(), account });
+      throw new Error("Session refresh required — redirecting to sign-in.");
+    }
+    throw err;
+  }
 }
 
 export function signOut(): void {

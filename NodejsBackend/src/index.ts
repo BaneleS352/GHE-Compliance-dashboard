@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import { rateLimit } from "express-rate-limit";
 import swaggerUi from "swagger-ui-express";
 import { config, docsEnabled } from "./config/env";
 import { swaggerSpec } from "./config/swagger";
@@ -33,17 +34,31 @@ app.use(cors({
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
+// Throttling (express-rate-limit v8). Intentionally keyed on the socket IP
+// (no `trust proxy`): enabling permissive proxy trust would let clients
+// spoof X-Forwarded-For and dodge limits. Behind the Docker nginx proxy all
+// traffic shares one peer IP, so raise the budgets via environment instead
+// of enabling proxy trust.
+function numEnv(name: string, fallback: number): number {
+  const v = Number(process.env[name]);
+  return Number.isFinite(v) && v > 0 ? v : fallback;
+}
+const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: numEnv("RATE_LIMIT_MAX", 1000), standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({ windowMs: 60 * 1000, limit: numEnv("RATE_LIMIT_AUTH_MAX", 120), standardHeaders: true, legacyHeaders: false });
+const uploadLimiter = rateLimit({ windowMs: 60 * 1000, limit: numEnv("RATE_LIMIT_UPLOAD_MAX", 120), standardHeaders: true, legacyHeaders: false });
+app.use(globalLimiter);
+
 // Interactive API docs are development-only: never serve them from production.
 if (docsEnabled()) {
   app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 }
 
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/declarations", declarationRoutes);
 app.use("/api/workflows", workflowRoutes);
-app.use("/api/reports", reportRoutes);
-app.use("/api/files", fileRoutes);
+app.use("/api/reports", uploadLimiter, reportRoutes);
+app.use("/api/files", uploadLimiter, fileRoutes);
 app.use("/api/admin/dashboard", adminDashboardRoutes);
 app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/admin/config", adminConfigRoutes);

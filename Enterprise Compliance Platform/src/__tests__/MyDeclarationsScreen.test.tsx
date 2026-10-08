@@ -122,6 +122,18 @@ describe("MyDeclarationsScreen", () => {
     expect(screen.queryAllByText("GHE-2026-1003").length).toBe(0);
   }, 15000);
 
+  it("my mode matches on user id, not display name (same-name isolation)", async () => {
+    mockUserRole = "teamMember";
+    // Same display name as the user, but a different person (other id).
+    const sameNameOther: any = { ...mockDeclarations[0], id: "GHE-2026-1999", employeeId: 99, counterparty: "CorpZ" };
+    vi.mocked(fetchDeclarations).mockResolvedValue([...mockDeclarations, sameNameOther]);
+    render(<MyDeclarationsScreen />);
+    await waitFor(() => {
+      expect(screen.getAllByText("GHE-2026-1001").length).toBeGreaterThan(0);
+    });
+    expect(screen.queryByText("GHE-2026-1999")).toBeNull();
+  }, 15000);
+
   it("switches to 'all' mode and shows all declarations", async () => {
     vi.mocked(fetchDeclarations).mockResolvedValue(mockDeclarations);
     render(<MyDeclarationsScreen />);

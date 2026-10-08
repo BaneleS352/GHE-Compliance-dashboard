@@ -36,6 +36,22 @@ describe("Declarations", () => {
     expect(res.body.length).toBeGreaterThanOrEqual(3);
   });
 
+  it("GET /api/declarations — limit/offset paginates without double-skipping", async () => {
+    const first = await request(app)
+      .get("/api/declarations?limit=1&offset=0")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(first.status).toBe(200);
+    expect(first.body).toHaveLength(1);
+    // offset=1 must return the second row, not an empty page (the DB skip
+    // and the in-memory slice previously both applied the offset).
+    const second = await request(app)
+      .get("/api/declarations?limit=1&offset=1")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(second.status).toBe(200);
+    expect(second.body).toHaveLength(1);
+    expect(second.body[0].id).not.toBe(first.body[0].id);
+  });
+
   it("GET /api/declarations — filters by status", async () => {
     const res = await request(app)
       .get("/api/declarations?status=Pending")

@@ -44,7 +44,7 @@ function buildStepsFromWorkflow(wf: any, employee?: string): StepView[] {
       continue;
     }
     if (!step) {
-      result.push({ label: r.label, actor: step?.assigneeName || r.defaultActor, state: "skipped" });
+      result.push({ label: r.label, actor: r.defaultActor, state: "skipped" });
     } else if (step.status === "pending") {
       result.push({ label: step.label, actor: step.assigneeName, state: result.some((s) => s.state === "active" || s.state === "pending") ? "pending" : "active" });
     } else {
@@ -60,7 +60,6 @@ function buildStepsFromWorkflow(wf: any, employee?: string): StepView[] {
         decidedByName: step.decidedByName || null,
         notes: step.notes || "",
       });
-      if (isTerminal) hasTerminal = true;
     }
   }
   if (!hasData && result.every((s) => s.state === "skipped")) {

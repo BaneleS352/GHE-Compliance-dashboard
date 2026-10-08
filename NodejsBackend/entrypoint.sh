@@ -11,13 +11,13 @@ set -e
 mkdir -p uploads
 
 echo "Running versioned migrations..."
-NODE_TLS_REJECT_UNAUTHORIZED=0 ./node_modules/.bin/prisma migrate deploy
+./node_modules/.bin/prisma migrate deploy
 echo "Migrations applied."
 
-# Seeding must never overwrite operational data: seed-if-empty checks the
-# database is empty (0 users) before seeding, so a stale SEED_ON_BOOT=true
-# is harmless on redeploys. Set SEED_ON_BOOT=true for the very first deploy
-# of an empty database.
+# Seeding must never overwrite operational data: seed-if-empty checks all
+# root aggregates (users, organizations, declarations) are absent before
+# seeding, so a stale SEED_ON_BOOT=true is harmless on redeploys. Set
+# SEED_ON_BOOT=true for the very first deploy of an empty database.
 if [ "${SEED_ON_BOOT}" = "true" ]; then
   echo "Seeding empty database if needed (SEED_ON_BOOT=true)..."
   node dist/scripts/seed-if-empty.js

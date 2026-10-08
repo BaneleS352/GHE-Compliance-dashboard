@@ -85,12 +85,11 @@ build clean — full gates re-run after each addition; `pg:test` 67/67 and
 - Config failures that affect business rules now warn visibly
   (`NewDeclarationScreen`, `ApprovalQueue` SLA, `DeclarationDetailView`,
   `AdminConfig` templates, `AdminWorkflows` thresholds).
-- Demo quick-login restored on explicit user request (2 October 2026):
-  preset users and preselected password are back in all builds. The sign-in
-  failure message stays generic and no longer discloses the default
-  password. Full demo-mode gating (`VITE_DEMO_MODE` + standard login form)
-  remains the recommended follow-up if production must not ship demo
-  credentials.
+- Demo quick-login: superseded — the OIDC cutover removed all demo UI and
+  preset credentials, and `LandingScreen` is provider sign-in only. See
+  “Remaining Work” item 1 (“done by removal”) for the recorded end state;
+  the 2 October 2026 restoration note below is retained as history only
+  and no longer describes any build.
 - `UserDialog` department control is organization-scoped (no free text).
 - Tests: `download.test.ts` (auth header, failure, preview path).
 
@@ -238,12 +237,16 @@ remains open.
    environment configuration, test counts, browser evidence, and rollback
    steps. Confirm production has no demo credentials, password-login path, or
    exposed Swagger UI.
-5. **Documentation cleanup** — remove or clearly label stale password-login,
-   SQLite, pre-OIDC security, and pre-`0010_auth_cutover` instructions in
-   `NodejsBackend/docs/TESTING.md`, `docs/DEPLOY.md`, and the normalization
-   documents.
+5. **Documentation cleanup — done 2026-10-08 for the identified items.**
+   `NodejsBackend/docs/TESTING.md` manual sections use the throwaway
+   provider flow (removed password-login/preset-users routes documented as
+   `404`), coverage tables carry verified counts, `docs/DEPLOY.md`
+   hardening rows are triaged to resolved-with-pinning-tests, the
+   frontend deploy documents same-origin `/api` proxying plus the real
+   `VITE_ENTRA_*` build variables, and migration references run through
+   `0010_auth_cutover`.
 
-## Historical Findings (superseded by the 5 October 2026 status above)
+## Historical Findings (superseded by the 2 October 2026 status above)
 
 ### Re-audit status — 1 October 2026
 
