@@ -352,8 +352,8 @@ $team = Invoke-RestMethod -Uri $provider -Method Post `
 
 ## Test Coverage Summary
 
-Counts below are the 2026-10-06 gate results (backend 422/422 across 24
-files, frontend 258/258 across 20 files). Re-run the suites for current
+Counts below are the 2026-10-08 gate results (backend 433/433 across 24
+files, frontend 262/262 across 21 files). Re-run the suites for current
 totals; counts are not fixed documentation.
 
 ### Backend coverage areas
@@ -361,19 +361,19 @@ totals; counts are not fixed documentation.
 | File | Tests | What's tested |
 |------|-------|---------------|
 | `break.test.ts` | 72 | Injection/XSS/SQLi shapes, auth attacks, HTTP abuse, rapid requests (negative assertions; failures return safe errors) |
-| `edge-cases.test.ts` | 50 | Self-approval blocked (403), step order enforced (403), concurrent-approve race, approver isolation, file size/orphans, config/workflow coupling, null LM, SLA dates |
-| `logical-flaws.test.ts` | 48 | Status-transition guards, edit/delete/submit preconditions, approval preconditions, admin override + reconvergence |
+| `edge-cases.test.ts` | 51 | Self-approval blocked (403), step order enforced (403), reviewer file-delete refused (403), concurrent-approve race, approver isolation, file size/orphans, config/workflow coupling, null LM, SLA dates |
+| `logical-flaws.test.ts` | 48 | Status-transition guards, edit/delete/submit preconditions, approval preconditions, unmapped-decision fail-closed, admin override + reconvergence |
 | `logical-flaws-2.test.ts` | 46 | Return/resubmit preservation, credential-less user creation, file cascade on declaration delete |
-| `logical-flaws-3.test.ts` | 36 | Rule deletion effects, dashboard KPIs, threshold routing, approval notes |
-| `admin/config.test.ts` | 17 | Config/dropdown/approval-option CRUD + RBAC |
-| `organization.test.ts` | 16 | Multi-tenant isolation, cross-org 403s, counterparty per-org isolation |
-| `workflows.test.ts` | 14 | Pending list, instances, approve/decline/return |
+| `logical-flaws-3.test.ts` | 39 | Rule-delete guards (routing rules protected), empty-steps rejected, dashboard KPIs, threshold routing, approval notes |
+| `admin/config.test.ts` | 18 | Config/dropdown/approval-option CRUD + RBAC, identifier validation |
+| `organization.test.ts` | 19 | Multi-tenant isolation, cross-org 403s, counterparty per-org isolation, SLA org isolation, approve org backstop, global-enumeration block |
+| `workflows.test.ts` | 16 | Pending list, instances, approve/decline/return, unmapped-decision rejection, ownerless-submit rejection |
 | `workflow-paths.test.ts` | 13 | Full approval-path scenarios |
 | `reports-protection.test.ts` | 12 | Export password validation, auth, real-encryption round-trips |
 | `workflow-e2e.test.ts` | 12 | Return/resubmit/decline lifecycle, full LM→HR chain |
 | `auth-validation.test.ts` | 11 | Wrong issuer/audience/algorithm/expiry/oid → 401 |
 | `admin/users.test.ts` | 10 | Users CRUD, department-link resolution, RBAC |
-| `declarations.test.ts` | 12 | CRUD, stats, submit, status change |
+| `declarations.test.ts` | 13 | CRUD, stats, submit, status change, limit/offset pagination |
 | `reports.test.ts` | 8 | Breakdown, SLA, concentration, high-value, list, export |
 | `normalization.test.ts` | 8 | Snapshot/detail/counterparty writes, relational step rows |
 | `auth.test.ts` | 7 | Login/preset routes removed (404), `/me` identity resolution |
@@ -395,10 +395,11 @@ totals; counts are not fixed documentation.
 | `integration.test.ts` | 28 | Auth + screen access, dashboard stats, create declaration |
 | `approval-workflow.test.tsx` | 23 | WorkflowTimeline rendering, decisions, notes, auto-fetch, submit |
 | `ApprovalDetail.test.tsx` | 15 | Detail loading, decisions, submission, back navigation |
-| `MyDeclarationsScreen.test.tsx` | 14 | Loading, error, table, filters, export, KPIs, drafts |
+| `MyDeclarationsScreen.test.tsx` | 15 | Loading, error, table, filters, export, KPIs, drafts, same-name isolation |
 | `NewDeclarationScreen.test.tsx` | 14 | Form rendering, validation, submit, draft, upload |
 | `ApprovalQueue.test.tsx` | 11 | Queue loading, filtering, review, protected export, refresh |
 | `auth-edge-cases.test.ts` | 11 | MSAL adapter mocks, no `localStorage` token persistence, RBAC |
+| `msal-refresh.test.ts` | 3 | Silent-token success, interaction-required redirect, non-interaction passthrough |
 | `dialogs.test.tsx` | 8 | Confirm dialog, Escape, user-dialog validation, password dialog |
 | `UserContext.test.tsx` | 6 | Auth state, loading, initialization |
 | `download.test.ts` | 6 | Auth header, failure, preview path |

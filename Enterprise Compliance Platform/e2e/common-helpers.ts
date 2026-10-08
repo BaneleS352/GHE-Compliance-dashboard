@@ -26,8 +26,11 @@ export async function login(page: Page, email: string) {
   await page.addInitScript((t) => sessionStorage.setItem("e2e.auth.token", t), token);
   await page.goto("/");
   // Desktop renders the sidebar inside <aside>; mobile renders the compact
-  // navigation as a top-level <nav>.
-  await page.waitForSelector("aside nav, nav", { timeout: 15000 });
+  // navigation as a top-level <nav>. The hidden breakpoint twin is always
+  // present in the DOM, so qualify with :visible — a bare waitForSelector
+  // latches onto the first DOM match (the hidden desktop nav on mobile)
+  // and times out even though the mobile nav is showing.
+  await page.locator("aside nav:visible, nav:visible").first().waitFor({ timeout: 15000 });
 }
 
 export async function clickSidebar(page: Page, label: string) {

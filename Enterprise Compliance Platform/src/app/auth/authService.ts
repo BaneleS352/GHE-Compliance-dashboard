@@ -5,23 +5,10 @@ export async function authenticate(): Promise<void> { await signIn(); }
 export function logoutFromIdentityProvider(): void { signOut(); }
 export function isIdentityAuthenticated(): boolean { return !!activeAccount(); }
 export async function fetchCurrentUser(): Promise<User | null> {
-  if (import.meta.env.DEV) {
-    try {
-      const injected = sessionStorage.getItem("e2e.auth.token");
-      if (injected) return {
-        id: 0,
-        name: "E2E Test Identity",
-        email: "e2e@test",
-        role: "teamMember" as const,
-        teamMemberNumber: "TM-000001",
-        department: "Corporate",
-        position: "Employee",
-        lineManager: null,
-      } as User;
-    } catch {
-      // Storage unavailable — fall through to API call below.
-    }
-  }
+  // No synthetic user: the injected e2e token is a real bearer credential
+  // (httpClient attaches it via getApiToken), so /api/auth/me resolves the
+  // seeded local row with its real role. A hardcoded stub here would flatten
+  // every e2e persona to one role and break role-gated flows.
   try {
     return await api.get<User>("/api/auth/me");
   } catch {

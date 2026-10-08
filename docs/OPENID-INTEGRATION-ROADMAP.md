@@ -13,8 +13,8 @@
 > or preset-user routes (absence pinned by `auth.test.ts`), MSAL-only
 > frontend with sessionStorage cache and no demo path (production bundle
 > scans clean), Swagger disabled in production and production seeding
-> refused (both test-pinned), full gates green (backend 422/422,
-> frontend 258/258, `pg:test` 67/67, `pg:smoke` 20/20). Still genuinely
+> refused (both test-pinned), full gates green (backend 433/433,
+> frontend 262/262, `pg:test` 67/67, `pg:smoke` 20/20). Still genuinely
 > open: the staging-tenant run with real signed tokens, negative-auth
 > results against staging, browser acceptance, and the rollback procedure
 > (close-out items 1–8 below).

@@ -19,10 +19,10 @@ This plan covers:
 
 ## Implementation status — 2 October 2026 (gates re-verified 6 October 2026)
 
-Phases 1–6 are implemented and covered by tests (backend 422/422 across
-24 files, frontend 258/258 across 20 files, typecheck and production
+Phases 1–6 are implemented and covered by tests (backend 433/433 across
+24 files, frontend 262/262 across 21 files, typecheck and production
 build clean — full gates re-run after each addition; `pg:test` 67/67 and
-`pg:smoke` 20/20 against scratch embedded PostgreSQL on 2026-10-06).
+`pg:smoke` 20/20 against scratch embedded PostgreSQL on 2026-10-08).
 
 ### Phase 1 — done
 
@@ -132,14 +132,15 @@ Passwords are supplied per export, used once by the server, and never stored.
 
 ## Remaining Work
 
-Audit update — 8 October 2026: the repository was reviewed against this plan.
-Backend tests pass 422/422 across 24 files; frontend tests pass 258/258
-across 20 files; backend build, frontend typecheck, and frontend production
-build pass. The PostgreSQL integration and smoke gates were not runnable on the
-audit host because `TEST_PG_DATABASE_URL` and `SMOKE_PG_DATABASE_URL` were not
-configured. No code changes were made during the audit. The remaining work is
-therefore release evidence and environment-level acceptance, not another
-frontend remediation phase.
+Audit update — 8 October 2026: the repository was reviewed against this plan
+and every finding fixed the same day. Backend tests pass 433/433 across 24
+files; frontend tests pass 262/262 across 21 files; backend build, frontend
+typecheck, and frontend production build pass; `pg:test` (67/67) and
+`pg:smoke` (20/20) pass against scratch embedded PostgreSQL, and CI runs
+all of these plus a new Playwright e2e job against postgres services. The
+remaining work is therefore release evidence (staging OIDC run, browser
+acceptance) and environment-level acceptance, not another remediation
+phase.
 
 The remediation plan is approximately 90–95% complete. The core remediation
 features are implemented, but deployment hardening and final verification
@@ -208,13 +209,13 @@ remains open.
 5. Confirmed and documented — generated reports and explicit exports are
    password-protected; uploaded supporting documents stay unprotected by
    recorded decision (see `docs/SECURITY.md`).
-6. Done 2026-10-06 (local scratch-PostgreSQL runs; CI re-runs against its
-   postgres services): backend `npm test` 422/422 (24 files), `npm run
-   build` clean, `pg:test` 67/67, `pg:smoke` 20/20, frontend `npm test`
-   258/258 (20 files), `npm run typecheck` clean, `npm run build` clean,
-   plus a production-bundle scan with zero demo/password-login markers.
-   Remaining: CI confirmation and the staging-OIDC + manual browser
-   acceptance below.
+6. Done 2026-10-06, re-verified 2026-10-08 (local scratch-PostgreSQL runs;
+   CI re-runs against its postgres services): backend `npm test` 433/433
+   (24 files), `npm run build` clean, `pg:test` 67/67, `pg:smoke` 20/20,
+   frontend `npm test` 262/262 (21 files), `npm run typecheck` clean,
+   `npm run build` clean, plus a production-bundle scan with zero
+   demo/password-login markers. Remaining: CI confirmation and the
+   staging-OIDC + manual browser acceptance below.
 7. Complete manual acceptance testing for protected exports, queue refresh,
    cross-organization access, profile tampering, and authenticated downloads.
 
@@ -606,6 +607,16 @@ Project split in `playwright.config.ts`: desktop runs table-driven
 `approval-flows`, mobile runs `mobile-interactions` (mobile card-flow
 coverage is a follow-up). Playwright `test-results/` and
 `playwright-report/` are git-ignored test artifacts.
+
+Re-verified post-OIDC-cutover 2026-10-08 against embedded PostgreSQL +
+seeded data: desktop 17/17, mobile 2/2. Two harness repairs were needed
+for the provider-auth world: (1) the e2e `fetchCurrentUser` stub returned
+a hardcoded teamMember for every persona, hiding all role-gated screens —
+removed, so `/api/auth/me` resolves each persona's real seeded role;
+(2) the login gate `waitForSelector("aside nav, nav")` latched onto the
+hidden desktop twin on mobile viewports — now waits on
+`aside nav:visible, nav:visible`. A Playwright `e2e` job now runs this
+suite in CI against postgres services.
 
 Product changes found necessary by the E2E resurrection:
 

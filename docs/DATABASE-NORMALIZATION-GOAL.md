@@ -216,46 +216,37 @@ authorization, validation, and organization scoping.
 - Added PostgreSQL integration and clean-database smoke-test commands.
 - Added deterministic identity-sequence handling for seeded numeric IDs.
 
-## Verification status (reproduced 2026-10-02; re-verified 2026-10-06)
+## Verification status (reproduced 2026-10-02; re-verified 2026-10-06 and 2026-10-08)
 
-Audit update (2026-10-08): backend tests pass 422/422, frontend tests pass
-258/258, backend build passes, frontend typecheck passes, and the frontend
-production build passes. `pg:test` and `pg:smoke` were not executable on the
-audit host because their required dedicated PostgreSQL URL variables were not
-configured. CI must remain the authoritative clean-database verification
-environment until those gates are rerun.
-
-- Backend: 422/422 tests across 24 files, run locally against embedded
-  PostgreSQL (migrations `0000`–`0010` applied via `prisma migrate deploy`
-  in suite setup). New since 2026-10-02: `production-posture.test.ts`
-  (6 tests: docs gating, seed guard incl. subprocess refusal proof) and a
-  counterparty cross-organization isolation test in `organization.test.ts`.
-  Also fixed a latent order-dependence the re-runs exposed:
-  `admin/users.test.ts` left the shared id-4 fixture department-less (temp-org
-  delete cascade), which broke `auth.test.ts` whenever file scheduling ran
-  auth second — the test now re-links the TST Marketing fixture after
-  asserting the cascade.
-- Frontend: 258/258 tests across 20 files, plus `tsc --noEmit` and the
-  production Vite build, all clean (one load-induced 5s timeout flake in
-  `MyDeclarationsScreen.test.tsx` fixed with an explicit 15s budget on the
-  heaviest render; passes solo in ~3.3s).
+- Backend: 433/433 tests across 24 files, run locally against embedded
+  PostgreSQL (migrations `0000`–`0011` applied via `prisma migrate deploy`
+  in suite setup). New since 2026-10-06: `production-posture.test.ts`
+  (docs gating, seed guard incl. subprocess refusal proof), counterparty
+  cross-organization isolation, SLA org isolation, approve org backstop,
+  global-enumeration block, reviewer file-delete refusal, rule-delete
+  guards, pagination, approval-option validation, fail-closed decisions,
+  and ownerless-submit rejection tests.
+- Frontend: 262/262 tests across 21 files, plus `tsc --noEmit` and the
+  production Vite build, all clean (new: `msal-refresh.test.ts` for
+  interaction-required recovery; same-name isolation test; explicit 15s
+  budgets on the two heaviest renders against parallel-load timeouts).
 - PostgreSQL integration (`pg:test`): 67/67 checks pass locally against a
   scratch embedded PostgreSQL used as the dedicated database (verified
-  2026-10-06).
+  2026-10-06 and 2026-10-08, incl. migration `0011_sla_org_scope` deploy).
 - Clean-database smoke (`pg:smoke`): 20/20 checks pass locally against a
   scratch embedded PostgreSQL used as the empty database (verified
-  2026-10-06; exercised the production `dist/` build incl. the Swagger
-  production gate).
+  2026-10-06 and 2026-10-08 against the production `dist/` build).
 - Production-bundle scan (2026-10-06): `dist/assets/*.js` contains zero
   occurrences of `e2e.auth.token`, `VITE_DEMO_MODE`, `preset-user`,
   `/api/auth/login`, or quick-login markers.
 - New coverage since the last audit: profile-locking (Phase 1), queue
   contract (Phase 2), dialogs/download (Phases 3/6), lookup-scope negatives,
   production posture + seed guard (Phase 7), counterparty cross-org
-  isolation. Historical note: `pg:test` was red until the 2026-10-02 run
-  because the user-delete assertion's `await p.user.delete(...)` was
-  embedded in a comment and never executed; the delete is restored and the
-  SET-NULL + snapshot-history checks now genuinely run.
+  isolation, audit-fix regression tests (Phase 7 hardening). Historical
+  note: `pg:test` was red until the 2026-10-02 run because the user-delete
+  assertion's `await p.user.delete(...)` was embedded in a comment and never
+  executed; the delete is restored and the SET-NULL + snapshot-history
+  checks now genuinely run.
 
 ## Full Codebase Migration Requirements
 
@@ -324,8 +315,8 @@ The following items remain after the current audit:
 
 ### High priority
 
-- Backend tests reproduce locally via embedded PostgreSQL (404/404 on
-  2026-10-05, including the 12 document-protection tests). The earlier
+- Backend tests reproduce locally via embedded PostgreSQL (433/433 on
+  2026-10-08, including the 12 document-protection tests). The earlier
   Windows `initdb` failure was stale state (a held `postgres` process /
   existing temp data dir); the documented setup works once those are
   cleared. Keep the dedicated `TEST_PG_DATABASE_URL` path for CI and

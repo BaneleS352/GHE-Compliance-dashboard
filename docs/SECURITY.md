@@ -100,6 +100,52 @@ The application has been hardened across authentication, workflow authorization,
   uploaded formats would require conversion/repackaging that alters file
   fidelity and needs separate stakeholder approval.
 
+## Audit hardening (2026-10-08)
+
+A code audit found and fixed the following; each item is pinned by a
+regression test unless noted:
+
+- Request throttling was missing despite the installed dependency:
+  `express-rate-limit` now guards all routes globally with stricter
+  per-minute budgets on `/api/auth/*`, `/api/files/*`, and
+  `/api/reports/*` (env-tunable via `RATE_LIMIT_*`; keyed on socket IP,
+  no proxy trust).
+- The unfiltered SLA report served global averages to org-scoped callers:
+  migration `0011_sla_org_scope` adds `organizationId` to
+  `v_workflow_step_sla` and the endpoint scopes like every other report.
+- `POST /api/workflows/approve` had no organization check: a mis-assigned
+  cross-org step is now refused with 403.
+- Assigned reviewers could delete the evidence under review: file DELETE is
+  owner/admin only (reviewers keep read access).
+- Org-less non-HR callers could fetch any user's record: global callers are
+  now limited to self, except global approvers (HR function).
+- Custom approval-option values silently approved steps: the engine mapping
+  is exhaustive and unmapped decisions return 400; option identifiers are
+  schema-validated.
+- Deleting routing-critical workflow rules (or emptying their steps) bricked
+  submission: rules 1/2 and referenced rules cannot be deleted, empty step
+  arrays are rejected.
+- Declaration delete was non-atomic: all child deletes now run in one
+  `$transaction`.
+- Paginated list double-applied `offset` (empty pages past page 1): DB
+  `take`/`skip` is the single pagination mechanism; the in-memory slice
+  remains only for the search-filtered path.
+- Ownerless declarations crashed submit with a 500: clear 400s guard submit
+  and workflow rebuild.
+- Expired/challenged MSAL sessions bricked the SPA: silent-acquisition
+  `InteractionRequired` now restarts interactive sign-in via redirect.
+- Same-name users conflated in "My" lists: ownership matches on numeric id
+  only.
+- TLS verification was disabled in Docker builds and the production
+  entrypoint (`NODE_TLS_REJECT_UNAUTHORIZED=0`, `npm_config_strict_ssl`):
+  removed. Dead `bcryptjs` (frontend) and dead `JWT_SECRET` (compose)
+  removed.
+- `seed-if-empty` treated "zero users" as empty: now requires zero users,
+  organizations, and declarations.
+- Test harness diverged from production (open CORS, 50 MB body limit): the
+  test app mirrors production middleware; CORS tests assert reflection for
+  allowed origins and absence otherwise.
+
 ## Notification and reporting controls
 
 - Notification templates are admin-only and validated as a complete five-event configuration.
