@@ -133,6 +133,15 @@ Passwords are supplied per export, used once by the server, and never stored.
 
 ## Remaining Work
 
+Audit update — 8 October 2026: the repository was reviewed against this plan.
+Backend tests pass 422/422 across 24 files; frontend tests pass 258/258
+across 20 files; backend build, frontend typecheck, and frontend production
+build pass. The PostgreSQL integration and smoke gates were not runnable on the
+audit host because `TEST_PG_DATABASE_URL` and `SMOKE_PG_DATABASE_URL` were not
+configured. No code changes were made during the audit. The remaining work is
+therefore release evidence and environment-level acceptance, not another
+frontend remediation phase.
+
 The remediation plan is approximately 90–95% complete. The core remediation
 features are implemented, but deployment hardening and final verification
 remain:
@@ -155,6 +164,17 @@ remain:
    - cross-organization lookups return `403`;
    - profile fields cannot be altered through crafted requests;
    - all downloads use the shared authenticated path.
+
+   Implement this as a repeatable release-acceptance suite:
+
+   - Add or complete Playwright coverage for login/logout, declaration
+     lifecycle, queue refresh, locked profile fields, admin management,
+     protected exports, supporting-file flows, and loading/empty/error/
+     expired-session states.
+   - Run the suite against a clean migrated PostgreSQL database, not mocked
+     persistence alone.
+   - Store the browser report, screenshots/traces for failures, commit SHA,
+     migration version, environment, and date as release evidence.
 
 3. **Production security hardening — code items done (2026-10-06)**
 
@@ -198,6 +218,30 @@ remains open.
    acceptance below.
 7. Complete manual acceptance testing for protected exports, queue refresh,
    cross-organization access, profile tampering, and authenticated downloads.
+
+### Release-acceptance implementation plan
+
+1. **CI PostgreSQL gate** — provision dedicated PostgreSQL services and wire
+   `TEST_PG_DATABASE_URL` and `SMOKE_PG_DATABASE_URL` into CI. Run migrations,
+   `npm test`, `npm run pg:test`, `npm run build`, and `npm run pg:smoke` in
+   serial order where they share generated Prisma artifacts. Run frontend
+   tests, typecheck, and production build in the same workflow.
+2. **Browser gate** — run Playwright against the built frontend and backend,
+   using the development-only injected test token seam or a staging identity
+   provider as appropriate. Cover the acceptance list above and fail the
+   release when any item is unverified.
+3. **Staging OIDC gate** — use a real Entra test tenant and provisioned local
+   users. Record successful login, returning login, logout, token refresh,
+   unprovisioned-user rejection, subject mismatch, expired token, wrong
+   issuer, wrong audience, and role-boundary results.
+4. **Deployment evidence** — record commit, migration version, schema hash,
+   environment configuration, test counts, browser evidence, and rollback
+   steps. Confirm production has no demo credentials, password-login path, or
+   exposed Swagger UI.
+5. **Documentation cleanup** — remove or clearly label stale password-login,
+   SQLite, pre-OIDC security, and pre-`0010_auth_cutover` instructions in
+   `NodejsBackend/docs/TESTING.md`, `docs/DEPLOY.md`, and the normalization
+   documents.
 
 ## Historical Findings (superseded by the 5 October 2026 status above)
 

@@ -27,23 +27,25 @@ cd "..\Enterprise Compliance Platform"
 npx vitest run
 ```
 
-## Preset Users (for manual testing)
+## Authentication and manual acceptance
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@test.com | password |
-| Approver (LM) | sipho@test.com | password |
-| Approver (HR) | lindiwe@test.com | password |
-| Team Member | nomvula@test.com | password |
+There are no preset users, passwords, local login endpoints, or SQLite manual
+testing workflows. Automated tests use the throwaway JWKS provider started by
+`globalSetup.ts`; manual acceptance must use the development OIDC seam or a
+real staging Entra tenant with provisioned local users. Never copy credentials
+from historical examples into a deployment.
+
+The release acceptance pass must cover login/logout, declaration lifecycle,
+workflow approval and queue refresh, profile locking, organization isolation,
+protected PDF/XLSX exports, supporting-file lifecycle, and unauthorized,
+expired-session, empty, loading, and server-error states.
 
 ## Swagger UI
 
 Start the server, then open: `http://localhost:3001/api/docs`
 
-```bash
-cd NodejsBackend
-JWT_SECRET=test-secret DATABASE_URL="file:./dev.db" npx tsx watch src/index.ts
-```
+The current API docs require OIDC configuration from `.env.example`; Swagger
+is development-only and is disabled in production.
 
 ## Manual API Tests (curl / PowerShell)
 

@@ -19,6 +19,12 @@
 > results against staging, browser acceptance, and the rollback procedure
 > (close-out items 1–8 below).
 
+> Audit update (2026-10-08): local backend/frontend tests and builds still
+> pass. The PostgreSQL gates were not re-run on the audit host because the
+> dedicated `TEST_PG_DATABASE_URL` and `SMOKE_PG_DATABASE_URL` variables were
+> absent. This is an environment-evidence gap, not a recorded application
+> failure.
+
 ## Purpose
 
 Move the GHE Compliance Dashboard from application-managed password/JWT authentication to Microsoft Entra ID OpenID Connect, while leaving one clear source of truth for identity, authorization, configuration, API contracts, and tests.
@@ -189,6 +195,27 @@ OIDC | Entra | MSAL | openid | access token | audience | issuer | JWKS
 # Completion plan
 
 Core OIDC implementation is present. The remaining roadmap is deployment and evidence work, not another authentication rewrite.
+
+## Next implementation: release and staging verification
+
+The next implementation should make the close-out evidence repeatable:
+
+1. Add CI PostgreSQL service configuration and pass dedicated
+   `TEST_PG_DATABASE_URL` and `SMOKE_PG_DATABASE_URL` values to the backend
+   integration and clean-database smoke jobs.
+2. Run backend tests/build and PostgreSQL gates serially so Prisma client
+   generation cannot race Vitest or a second build process.
+3. Add a Playwright release suite covering OIDC login/logout, declaration
+   lifecycle, queue refresh, profile locking, organization isolation,
+   protected exports, file flows, and expired/unauthorized/error states.
+4. Run the suite against a clean migrated database and retain traces,
+   screenshots, commit SHA, migration version, and date.
+5. Execute the same suite against a staging Entra tenant with real signed
+   tokens and record all negative-auth cases.
+6. Document a rollback procedure for incorrect issuer, audience, redirect,
+   or provider-user binding configuration.
+7. Remove or label stale pre-OIDC instructions and update the migration
+   references through `0010_auth_cutover`.
 
 ## Ordered close-out
 

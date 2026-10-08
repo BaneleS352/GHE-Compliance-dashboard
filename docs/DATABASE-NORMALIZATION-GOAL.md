@@ -212,6 +212,13 @@ authorization, validation, and organization scoping.
 
 ## Verification status (reproduced 2026-10-02; re-verified 2026-10-06)
 
+Audit update (2026-10-08): backend tests pass 422/422, frontend tests pass
+258/258, backend build passes, frontend typecheck passes, and the frontend
+production build passes. `pg:test` and `pg:smoke` were not executable on the
+audit host because their required dedicated PostgreSQL URL variables were not
+configured. CI must remain the authoritative clean-database verification
+environment until those gates are rerun.
+
 - Backend: 422/422 tests across 24 files, run locally against embedded
   PostgreSQL (migrations `0000`–`0009` applied via `prisma migrate deploy`
   in suite setup). New since 2026-10-02: `production-posture.test.ts`
@@ -278,6 +285,24 @@ authorization, validation, and organization scoping.
   references, unique keys, indexes, delete behavior, and view results.
 - CI runs backend tests, PostgreSQL integration, clean-database smoke tests,
   frontend typecheck, frontend tests, and frontend build.
+
+## Release verification implementation plan
+
+The normalization implementation is code-complete, but its release gate must
+be made reproducible:
+
+- Configure CI PostgreSQL services and expose dedicated
+  `TEST_PG_DATABASE_URL` and `SMOKE_PG_DATABASE_URL` variables.
+- Run migration deployment, backend tests, backend build, `pg:test`, and
+  `pg:smoke` serially where generated Prisma artifacts are shared.
+- Run the supported upgrade path from the previous development baseline and
+  record migration version, schema hash, row-count checks, and command output.
+- Add or finish browser acceptance checks for declaration/workflow state,
+  organization isolation, file lifecycle, and protected exports.
+- Record staging OIDC evidence separately; local embedded-JWKS tests do not
+  prove real Entra configuration correctness.
+- Reconcile stale docs and fixtures so password-login, SQLite, and pre-
+  `0010_auth_cutover` instructions cannot be mistaken for supported workflows.
 
 ## Audit Findings and Cleanup Plan
 
