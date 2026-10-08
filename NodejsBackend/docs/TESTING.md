@@ -352,8 +352,8 @@ $team = Invoke-RestMethod -Uri $provider -Method Post `
 
 ## Test Coverage Summary
 
-Counts below are the 2026-10-08 gate results (backend 433/433 across 24
-files, frontend 262/262 across 21 files). Re-run the suites for current
+Counts below are the 2026-10-08 gate results (backend 445/445 across 26
+files, frontend 270/270 across 23 files). Re-run the suites for current
 totals; counts are not fixed documentation.
 
 ### Backend coverage areas
@@ -378,12 +378,14 @@ totals; counts are not fixed documentation.
 | `normalization.test.ts` | 8 | Snapshot/detail/counterparty writes, relational step rows |
 | `auth.test.ts` | 7 | Login/preset routes removed (404), `/me` identity resolution |
 | `workflow-regressions.test.ts` | 7 | Return + value-increase flows, HR escalation, approval preservation |
-| `production-posture.test.ts` | 6 | Docs disabled in production, seed refused in production |
+| `production-posture.test.ts` | 9 | Docs gating (incl. production-app mount), seed guard incl. subprocess refusal proof, rate-limit 429 behavior |
 | `files-and-export-coverage.test.ts` | 5 | Upload/download/delete, export coverage |
 | `admin/workflows.test.ts` | 5 | Workflow rules CRUD |
 | `profile-locking.test.ts` | 3 | Crafted identity ignored, incomplete profile rejected |
 | `admin/dashboard.test.ts` | 2 | Dashboard stats |
 | `queue.test.ts` | 2 | Authoritative `{ items, total }` queue contract |
+| `seed-if-empty.test.ts` | 5 | Emptiness predicate (partial-wipe cases), live counts |
+| `notifications.test.ts` | 4 | Webhook no-op paths, placeholder rendering, failure never throws |
 
 ### Frontend coverage areas
 
@@ -402,12 +404,14 @@ totals; counts are not fixed documentation.
 | `msal-refresh.test.ts` | 3 | Silent-token success, interaction-required redirect, non-interaction passthrough |
 | `dialogs.test.tsx` | 8 | Confirm dialog, Escape, user-dialog validation, password dialog |
 | `UserContext.test.tsx` | 6 | Auth state, loading, initialization |
-| `download.test.ts` | 6 | Auth header, failure, preview path |
+| `download.test.ts` | 8 | Auth header, failure, preview path, data-URL click attach, pagehide release |
 | `ErrorBoundary.test.tsx` | 5 | Error fallback, custom fallback, reset |
 | `org-api.test.ts` | 5 | Organization-scoped lookups |
 | `workflow-fix.test.tsx` | 3 | Completed-step states and decision text |
 | `admin-dashboard-states.test.tsx` | 2 | API errors and recovered dashboard data |
 | `notifications.test.ts` | 2 | Success/error wrapper routing |
+| `LandingScreen.test.tsx` | 3 | Sign-in CTA, provider start, generic failure (no detail leak) |
+| `AdminDropdownOptions.test.tsx` | 3 | Reference-list render, optimistic add, failure rollback |
 | `AdminApprovalOptions.test.tsx` | 1 | Page header and options table |
 | `dashboard-render.test.tsx` | 1 | ApproverDashboard mount smoke test |
 

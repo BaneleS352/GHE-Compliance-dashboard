@@ -57,7 +57,7 @@ Latest recorded verification is documented in docs/DATABASE-NORMALIZATION-GOAL.m
 
 ### Completed
 - Full clean plan implemented across Phases A-F (normalization + numeric identifier cutover)
-- Latest recorded verification (2026-10-08) is 433/433 backend tests, 262/262 frontend tests, typecheck/build, PostgreSQL integration (67/67) and smoke (20/20) gates; see the goal document for evidence and limitations
+- Latest recorded verification (2026-10-08) is 445/445 backend tests, 270/270 frontend tests, typecheck/build, PostgreSQL integration (69/69) and smoke (20/20) gates, and Playwright e2e (desktop 18/18, mobile 2/2); see the goal document for evidence and limitations
 - Audit fixes applied 2026-10-08: rate limiting, SLA/approve/file/user org scoping, approval-option validation with fail-closed decisions, workflow-rule delete guards, atomic declaration delete, pagination fix, MSAL refresh recovery, seed-if-empty multi-table check, TLS-bypass removal, dead crypto/secret removal, Playwright CI job, identity rollback procedure
 - `(prisma/db/tx as any)` model hatches removed from runtime code, seeds, scripts, tests; `BigInt()` centralized via `services/ids.ts` (`tsc --noEmit` clean)
 - `readWorkflowSteps` renamed to `readWorkflowStepRows`; Swagger `Dropdowns` → `DropdownOptions` with PUT as 410 Gone

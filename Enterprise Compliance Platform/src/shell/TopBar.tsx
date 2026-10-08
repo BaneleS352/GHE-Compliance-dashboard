@@ -60,6 +60,8 @@ export function TopBar({
         </div>
         <button
           onClick={onSignOut}
+          aria-label="Sign out"
+          title="Sign out"
           className="w-10 h-10 flex items-center justify-center rounded-full bg-white/60 border border-white/80 shadow-sm hover:shadow-md hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all text-slate-500"
         >
           <LogOut size={16} />

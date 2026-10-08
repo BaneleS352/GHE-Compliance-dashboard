@@ -60,6 +60,33 @@ describe("shared download service", () => {
     expect(windowOpen).toHaveBeenCalledWith("blob:mock", "_blank", "noopener,noreferrer");
     windowOpen.mockRestore();
   });
+
+  it("attaches the anchor before clicking for data URLs (Safari ignores detached clicks)", async () => {
+    const click = vi.fn();
+    const appendChild = vi.spyOn(document.body, "appendChild").mockImplementation(((node: any) => { node.click = click; return node; }) as any);
+    const removeChild = vi.spyOn(document.body, "removeChild").mockImplementation(((node: any) => node) as any);
+
+    await downloadFile("data:text/plain,hi", "f.txt");
+
+    expect(appendChild).toHaveBeenCalledTimes(1);
+    expect(click).toHaveBeenCalledTimes(1);
+    appendChild.mockRestore();
+    removeChild.mockRestore();
+  });
+
+  it("releases the preview URL on page hide instead of a fixed 30s timer", async () => {
+    mockBlobFetch(200);
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:mock"), revokeObjectURL });
+    const windowOpen = vi.spyOn(window, "open").mockImplementation((() => null) as any);
+
+    await previewFile("/api/files/1");
+
+    expect(revokeObjectURL).not.toHaveBeenCalled();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:mock");
+    windowOpen.mockRestore();
+  });
 });
 
 describe("requestProtectedDocument", () => {

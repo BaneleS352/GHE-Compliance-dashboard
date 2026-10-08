@@ -145,6 +145,12 @@ regression test unless noted:
 - Test harness diverged from production (open CORS, 50 MB body limit): the
   test app mirrors production middleware; CORS tests assert reflection for
   allowed origins and absence otherwise.
+- Previously untested surfaces now pinned: rate-limit 429 behavior on the
+  production wiring, seed-emptiness predicate (partial-wipe cases),
+  notification webhook (no-op paths, placeholder rendering, failures never
+  throw), sign-out e2e (landing returns, session token cleared),
+  `LandingScreen`, `AdminDropdownOptions`, MSAL redirect recovery, and
+  org-scoped SLA assertions at the DB gate.
 
 ## Notification and reporting controls
 

@@ -13,15 +13,35 @@
 import "dotenv/config";
 import { prisma } from "../config/prisma";
 
-async function main() {
+export interface RootCounts {
+  users: number;
+  organizations: number;
+  declarations: number;
+}
+
+/** Pure emptiness predicate: every root aggregate must be absent. */
+export function isDatabaseEmpty(counts: RootCounts): boolean {
+  return counts.users === 0 && counts.organizations === 0 && counts.declarations === 0;
+}
+
+export async function readRootCounts(client: {
+  user: { count(): Promise<number> };
+  organization: { count(): Promise<number> };
+  declaration: { count(): Promise<number> };
+}): Promise<RootCounts> {
   const [users, organizations, declarations] = await Promise.all([
-    prisma.user.count(),
-    prisma.organization.count(),
-    prisma.declaration.count(),
+    client.user.count(),
+    client.organization.count(),
+    client.declaration.count(),
   ]);
-  if (users > 0 || organizations > 0 || declarations > 0) {
+  return { users, organizations, declarations };
+}
+
+async function main() {
+  const counts = await readRootCounts(prisma);
+  if (!isDatabaseEmpty(counts)) {
     console.log(
-      `Database not empty (users=${users}, organizations=${organizations}, declarations=${declarations}) — skipping seed.`,
+      `Database not empty (users=${counts.users}, organizations=${counts.organizations}, declarations=${counts.declarations}) — skipping seed.`,
     );
     return;
   }
@@ -29,9 +49,18 @@ async function main() {
   await import("../seed");
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+// Entry guard: tests import isDatabaseEmpty/readRootCounts without
+// seeding (or disconnecting the shared client) as a side effect.
+// Matches both the tsx source path and the compiled dist path used by
+// entrypoint.sh (`node dist/scripts/seed-if-empty.js`).
+const invokedDirectly =
+  process.argv[1]?.endsWith("seed-if-empty.ts") === true ||
+  process.argv[1]?.endsWith("seed-if-empty.js") === true;
+if (invokedDirectly) {
+  main()
+    .catch((e) => {
+      console.error(e);
+      process.exitCode = 1;
+    })
+    .finally(() => prisma.$disconnect());
+}

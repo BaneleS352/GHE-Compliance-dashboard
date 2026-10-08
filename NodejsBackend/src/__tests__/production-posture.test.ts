@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import request from "supertest";
 import { execSync } from "node:child_process";
 import { docsEnabled, assertNonProductionSeed } from "../config/env";
 
@@ -35,8 +36,7 @@ describe("production posture", () => {
     expect(() => assertNonProductionSeed()).not.toThrow();
   });
 
-  it("seed entrypoint refuses before touching the database in production", () => {
-    // A bogus DATABASE_URL proves the refusal happens before any database
+  it("seed entrypoint refuses before touching the database in production", () => {    // A bogus DATABASE_URL proves the refusal happens before any database
     // work: a late guard would fail with a Prisma connection error instead.
     let output = "";
     try {
@@ -57,4 +57,42 @@ describe("production posture", () => {
     }
     expect(output).toMatch(/Refusing to seed/);
   }, 120000);
+});
+
+// The limiters live on the production app (src/index.ts), not the bare
+// test harness — boot the real wiring with tight env budgets and prove the
+// behavior (429), not just the configuration.
+describe("production wiring", () => {
+  it("serves API docs from the production app outside production", async () => {
+    vi.resetModules();
+    const { createApp } = await import("../index");
+    const res = await request(createApp()).get("/api/docs/");
+    expect([200, 301]).toContain(res.status);
+  });
+
+  it("throttles abusive clients with 429", async () => {
+    vi.stubEnv("RATE_LIMIT_MAX", "3");
+    vi.stubEnv("RATE_LIMIT_AUTH_MAX", "1000");
+    vi.resetModules();
+    const { createApp } = await import("../index");
+    const app = createApp();
+    for (let i = 0; i < 3; i++) {
+      const ok = await request(app).get("/api/health");
+      expect(ok.status).toBe(200);
+    }
+    const limited = await request(app).get("/api/health");
+    expect(limited.status).toBe(429);
+  });
+
+  it("throttles the auth path independently", async () => {
+    vi.stubEnv("RATE_LIMIT_MAX", "1000");
+    vi.stubEnv("RATE_LIMIT_AUTH_MAX", "2");
+    vi.resetModules();
+    const { createApp } = await import("../index");
+    const app = createApp();
+    await request(app).get("/api/auth/me");
+    await request(app).get("/api/auth/me");
+    const limited = await request(app).get("/api/auth/me");
+    expect(limited.status).toBe(429);
+  });
 });

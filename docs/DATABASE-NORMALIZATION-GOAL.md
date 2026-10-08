@@ -218,21 +218,22 @@ authorization, validation, and organization scoping.
 
 ## Verification status (reproduced 2026-10-02; re-verified 2026-10-06 and 2026-10-08)
 
-- Backend: 433/433 tests across 24 files, run locally against embedded
+- Backend: 445/445 tests across 26 files, run locally against embedded
   PostgreSQL (migrations `0000`–`0011` applied via `prisma migrate deploy`
-  in suite setup). New since 2026-10-06: `production-posture.test.ts`
-  (docs gating, seed guard incl. subprocess refusal proof), counterparty
-  cross-organization isolation, SLA org isolation, approve org backstop,
-  global-enumeration block, reviewer file-delete refusal, rule-delete
-  guards, pagination, approval-option validation, fail-closed decisions,
-  and ownerless-submit rejection tests.
-- Frontend: 262/262 tests across 21 files, plus `tsc --noEmit` and the
+  in suite setup). New since 2026-10-06: rate-limit behavior tests,
+  seed-emptiness predicate tests, notification webhook tests, plus the
+  audit-fix regression tests (SLA/approve/file/user org scoping,
+  approval-option validation, fail-closed decisions, rule-delete guards,
+  pagination, ownerless-submit rejection).
+- Frontend: 270/270 tests across 23 files, plus `tsc --noEmit` and the
   production Vite build, all clean (new: `msal-refresh.test.ts` for
-  interaction-required recovery; same-name isolation test; explicit 15s
+  interaction-required recovery, `LandingScreen` and
+  `AdminDropdownOptions` suites, same-name isolation test; explicit 15s
   budgets on the two heaviest renders against parallel-load timeouts).
-- PostgreSQL integration (`pg:test`): 67/67 checks pass locally against a
+- PostgreSQL integration (`pg:test`): 69/69 checks pass locally against a
   scratch embedded PostgreSQL used as the dedicated database (verified
-  2026-10-06 and 2026-10-08, incl. migration `0011_sla_org_scope` deploy).
+  2026-10-06 and 2026-10-08, incl. migration `0011_sla_org_scope` deploy
+  and org-scoped SLA assertions).
 - Clean-database smoke (`pg:smoke`): 20/20 checks pass locally against a
   scratch embedded PostgreSQL used as the empty database (verified
   2026-10-06 and 2026-10-08 against the production `dist/` build).

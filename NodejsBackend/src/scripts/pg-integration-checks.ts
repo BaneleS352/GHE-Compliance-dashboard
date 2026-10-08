@@ -274,6 +274,12 @@ async function main() {
   // 5. SLA rows from relational steps.
   const sla = await viewSlaRows();
   check("view SLA rows present", Array.isArray(sla) && sla.length === 1 && sla[0].role === "lineManager", JSON.stringify(sla));
+  // The decided fixture step belongs to org A: org scoping must include it
+  // for A and exclude everything for B (migration 0011_sla_org_scope).
+  const slaA = await viewSlaRows(orgA.id);
+  check("view SLA rows org A scoped", Array.isArray(slaA) && slaA.length === 1 && slaA[0].role === "lineManager", JSON.stringify(slaA));
+  const slaB = await viewSlaRows(orgB.id);
+  check("view SLA rows org B isolated", Array.isArray(slaB) && slaB.length === 0, JSON.stringify(slaB));
 
   // 6. Counterparty concentration, org-scoped.
   const cpA = await viewCounterparty(orgA.id);

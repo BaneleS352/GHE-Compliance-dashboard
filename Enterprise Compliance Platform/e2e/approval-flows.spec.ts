@@ -330,4 +330,18 @@ test.describe("Edge Cases & Error Handling", () => {
 
     await expect(app.page.getByRole("button", { name: "Approval Queue", exact: true }).first()).toBeVisible();
   });
+
+  test("Sign out returns to landing and clears the session token", async ({ page }) => {
+    const app = new AppPage(page);
+
+    await app.login(USERS.nomvula.email);
+    await page.getByRole("button", { name: "Sign out" }).click();
+    // Landing screen again (provider sign-in offered, app shell gone)…
+    await expect(page.getByRole("button", { name: "Sign in with Microsoft" })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator("aside nav, nav")).toHaveCount(0);
+    // …and the injected session token is cleared, so a reload cannot
+    // silently re-authenticate.
+    const token = await page.evaluate(() => sessionStorage.getItem("e2e.auth.token"));
+    expect(token).toBeNull();
+  });
 });
