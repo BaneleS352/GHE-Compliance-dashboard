@@ -17,11 +17,12 @@ This plan covers:
 - shared data-access and security consistency across lookup, download, export,
   refresh, and configuration flows.
 
-## Implementation status — 2 October 2026
+## Implementation status — 2 October 2026 (gates re-verified 6 October 2026)
 
-Phases 1–6 are implemented and covered by tests (backend 404/404,
-frontend 259/259, typecheck and production build clean — full gates re-run
-after each addition).
+Phases 1–6 are implemented and covered by tests (backend 445/445 across
+26 files, frontend 270/270 across 23 files, typecheck and production
+build clean — full gates re-run after each addition; `pg:test` 69/69 and
+`pg:smoke` 20/20 against scratch embedded PostgreSQL on 2026-10-08).
 
 ### Phase 1 — done
 
@@ -84,12 +85,11 @@ after each addition).
 - Config failures that affect business rules now warn visibly
   (`NewDeclarationScreen`, `ApprovalQueue` SLA, `DeclarationDetailView`,
   `AdminConfig` templates, `AdminWorkflows` thresholds).
-- Demo quick-login restored on explicit user request (2 October 2026):
-  preset users and preselected password are back in all builds. The sign-in
-  failure message stays generic and no longer discloses the default
-  password. Full demo-mode gating (`VITE_DEMO_MODE` + standard login form)
-  remains the recommended follow-up if production must not ship demo
-  credentials.
+- Demo quick-login: superseded — the OIDC cutover removed all demo UI and
+  preset credentials, and `LandingScreen` is provider sign-in only. See
+  “Remaining Work” item 1 (“done by removal”) for the recorded end state;
+  the 2 October 2026 restoration note below is retained as history only
+  and no longer describes any build.
 - `UserDialog` department control is organization-scoped (no free text).
 - Tests: `download.test.ts` (auth header, failure, preview path).
 
@@ -125,6 +125,129 @@ stored. Failures never produce an unprotected copy (400/415 validation,
 Recommended first scope (unchanged): generated PDF reports and explicitly
 exported documents; uploaded files need a separately approved conversion or
 repackaging approach.
+
+Implementation is complete for the approved scope through
+`POST /api/reports/protect-document` and the shared `PasswordDialog` flow.
+Passwords are supplied per export, used once by the server, and never stored.
+
+## Remaining Work
+
+Audit update — 8 October 2026: the repository was reviewed against this plan
+and every finding fixed the same day, then the remaining test gaps filled:
+backend tests pass 445/445 across 26 files; frontend tests pass 270/270
+across 23 files; backend build, frontend typecheck, and frontend production
+build pass; `pg:test` (69/69) and `pg:smoke` (20/20) pass against scratch
+embedded PostgreSQL; Playwright e2e passes desktop 18/18 + mobile 2/2; and
+CI runs all of these plus the e2e job against postgres services. The
+remaining work is therefore release evidence (staging OIDC run, browser
+acceptance) and environment-level acceptance, not another remediation
+phase.
+
+The remediation plan is approximately 90–95% complete. The core remediation
+features are implemented, but deployment hardening and final verification
+remain:
+
+1. **Demo-mode credential gating — done by removal (2026-10-06)**
+
+    No quick login, demo-user selector, preset password, or development
+    fallback remains in any build — the OIDC cutover removed them and
+    `LandingScreen` is provider sign-in only, so there is no demo path
+    left to gate behind `VITE_DEMO_MODE`. Authentication errors stay
+    generic.
+
+2. **Final full regression and acceptance verification**
+
+   Before closing the plan, confirm the full test results and manually verify:
+
+   - protected PDFs open only with the supplied password;
+   - protected Excel exports open only with the supplied password;
+   - the queue badge equals the queue total after approval actions;
+   - cross-organization lookups return `403`;
+   - profile fields cannot be altered through crafted requests;
+   - all downloads use the shared authenticated path.
+
+   Implement this as a repeatable release-acceptance suite:
+
+   - Add or complete Playwright coverage for login/logout, declaration
+     lifecycle, queue refresh, locked profile fields, admin management,
+     protected exports, supporting-file flows, and loading/empty/error/
+     expired-session states.
+   - Run the suite against a clean migrated PostgreSQL database, not mocked
+     persistence alone.
+   - Store the browser report, screenshots/traces for failures, commit SHA,
+     migration version, environment, and date as release evidence.
+
+3. **Production security hardening — code items done (2026-10-06)**
+
+    - Token storage is MSAL-managed `sessionStorage` with no
+      `localStorage` persistence (test-pinned); the threat model and the
+      cookie-migration option are recorded in `docs/SECURITY.md`.
+    - `/api/docs` is disabled in production (test-pinned).
+    - Production seeding is refused without `GHE_ALLOW_PROD_SEED=1`
+      (test-pinned); seeds carry no credentials and log no passwords.
+    - Supporting-document downloads remain intentionally unprotected by
+      recorded decision (conversion/repackaging needs separate approval).
+
+### Phase 7 — production hardening and audit closure
+
+Status: code items complete 2026-10-06; human-gated verification (items 6–7)
+remains open.
+
+1. Done by removal — there is no quick login or preset demo credential left
+   to gate: the OIDC cutover removed all demo UI/credentials and
+   `LandingScreen` is provider sign-in only (no `VITE_DEMO_MODE` flag
+   exists because no demo path remains). Verify with a production-build
+   scan (`grep` the bundle for demo/preset markers) when the build runs.
+2. Decided and documented — tokens live only in the MSAL-managed
+   `sessionStorage` cache with no `localStorage` persistence
+   (test-pinned); see `docs/SECURITY.md` “Production posture”. Cookie
+   migration stays available if a deployment threat model requires it.
+3. Done — `/api/docs` is mounted only when `NODE_ENV !== "production"`
+   (`docsEnabled()`, test-pinned); production answers `404`.
+4. Done — `seed.ts` refuses `NODE_ENV=production` without
+   `GHE_ALLOW_PROD_SEED=1` (test-pinned, including a subprocess proof
+   that refusal precedes any database work); seeds carry no credentials.
+5. Confirmed and documented — generated reports and explicit exports are
+   password-protected; uploaded supporting documents stay unprotected by
+   recorded decision (see `docs/SECURITY.md`).
+6. Done 2026-10-06, re-verified 2026-10-08 (local scratch-PostgreSQL runs;
+   CI re-runs against its postgres services): backend `npm test` 445/445
+   (26 files), `npm run build` clean, `pg:test` 69/69, `pg:smoke` 20/20,
+   frontend `npm test` 270/270 (23 files), `npm run typecheck` clean,
+   `npm run build` clean, Playwright e2e desktop 18/18 + mobile 2/2,
+   plus a production-bundle scan with zero demo/password-login markers.
+   Remaining: CI confirmation and the staging-OIDC + manual browser
+   acceptance below.
+7. Complete manual acceptance testing for protected exports, queue refresh,
+   cross-organization access, profile tampering, and authenticated downloads.
+
+### Release-acceptance implementation plan
+
+1. **CI PostgreSQL gate** — provision dedicated PostgreSQL services and wire
+   `TEST_PG_DATABASE_URL` and `SMOKE_PG_DATABASE_URL` into CI. Run migrations,
+   `npm test`, `npm run pg:test`, `npm run build`, and `npm run pg:smoke` in
+   serial order where they share generated Prisma artifacts. Run frontend
+   tests, typecheck, and production build in the same workflow.
+2. **Browser gate** — run Playwright against the built frontend and backend,
+   using the development-only injected test token seam or a staging identity
+   provider as appropriate. Cover the acceptance list above and fail the
+   release when any item is unverified.
+3. **Staging OIDC gate** — use a real Entra test tenant and provisioned local
+   users. Record successful login, returning login, logout, token refresh,
+   unprovisioned-user rejection, subject mismatch, expired token, wrong
+   issuer, wrong audience, and role-boundary results.
+4. **Deployment evidence** — record commit, migration version, schema hash,
+   environment configuration, test counts, browser evidence, and rollback
+   steps. Confirm production has no demo credentials, password-login path, or
+   exposed Swagger UI.
+5. **Documentation cleanup — done 2026-10-08 for the identified items.**
+   `NodejsBackend/docs/TESTING.md` manual sections use the throwaway
+   provider flow (removed password-login/preset-users routes documented as
+   `404`), coverage tables carry verified counts, `docs/DEPLOY.md`
+   hardening rows are triaged to resolved-with-pinning-tests, the
+   frontend deploy documents same-origin `/api` proxying plus the real
+   `VITE_ENTRA_*` build variables, and migration references run through
+   `0010_auth_cutover`.
 
 ## Historical Findings (superseded by the 2 October 2026 status above)
 
@@ -394,7 +517,8 @@ from production builds or protected behind an explicit demo-mode flag.
 
 ## Re-audit Exit Criteria
 
-Status after the 2 October 2026 implementation (all phases delivered):
+Status after the 5 October 2026 implementation (core phases delivered; Phase
+7 open):
 
 1. Done — team-member screens render profile-owned values read-only.
 2. Done — backend derives/ignores on create/update, including drafts;
@@ -409,9 +533,21 @@ Status after the 2 October 2026 implementation (all phases delivered):
    uploads stay unprotected by decision.
 9. Done — queue/badge refresh on `ghe:queue-changed`; config failures warn
    visibly where they affect business rules.
-10. Partial — quick login restored on request; failure messages stay generic
-   (no password disclosure), but preset demo credentials ship in all builds
-   until demo-mode gating is reinstated.
+10. Done — no quick login, demo credential, preset password, or development
+    fallback exists in any build (removed in the OIDC cutover; sign-in
+    failures stay generic).
+11. Done for code posture — MSAL `sessionStorage`-only token storage,
+    production Swagger disabled, production seed refused, and the
+    supporting document-protection scope decision are implemented,
+    test-pinned, and recorded in `docs/SECURITY.md`.
+12. The earlier environment limitation was resolved in a subsequent dedicated
+    run: backend tests, frontend tests/typecheck/build, PostgreSQL integration,
+    and smoke gates were recorded as passing. Preserve exact command output in
+    the normalization goal when gates are re-run; this historical note is not a
+    substitute for current verification.
+
+The plan remains open until Phase 7 and final manual acceptance verification
+are complete.
 
 ## Acceptance Criteria
 
@@ -474,6 +610,17 @@ Project split in `playwright.config.ts`: desktop runs table-driven
 coverage is a follow-up). Playwright `test-results/` and
 `playwright-report/` are git-ignored test artifacts.
 
+Re-verified post-OIDC-cutover 2026-10-08 against embedded PostgreSQL +
+seeded data: desktop 18/18 (incl. a sign-out flow test: landing returns,
+session token cleared), mobile 2/2. Two harness repairs were needed
+for the provider-auth world: (1) the e2e `fetchCurrentUser` stub returned
+a hardcoded teamMember for every persona, hiding all role-gated screens —
+removed, so `/api/auth/me` resolves each persona's real seeded role;
+(2) the login gate `waitForSelector("aside nav, nav")` latched onto the
+hidden desktop twin on mobile viewports — now waits on
+`aside nav:visible, nav:visible`. A Playwright `e2e` job now runs this
+suite in CI against postgres services.
+
 Product changes found necessary by the E2E resurrection:
 
 - Inline workflow success banner removed (it collided with the shared toast
@@ -533,3 +680,40 @@ UX and boundary hardening. Complete Phase 6 before or alongside Phase 5 so all
 download and export paths are consolidated before protection is introduced.
 Complete Phase 5 after the password scope, recipient model, and compatible
 protection technology have been approved.
+# Completion plan
+
+The frontend plan closes only when the behavior is verified at the rendered UI and at the API boundary. Unit tests and type checks are necessary but do not prove that a user can complete the workflow in a browser.
+
+## Remaining work
+
+### Phase 7A — production safety
+
+- Gate demo mode and preset credentials behind an explicit development-only flag.
+- Verify production builds contain no demo login shortcut, preset password, or seed credential logging.
+- Decide and document the token-storage strategy; if localStorage remains, document the accepted threat model and mitigation.
+- Disable or protect Swagger in production.
+- Decide whether password protection applies to generated reports only or also to arbitrary uploaded files.
+
+### Phase 7B — browser acceptance
+
+Run a clean browser session against a migrated PostgreSQL database and record evidence for:
+
+- OIDC login and logout;
+- declaration creation, draft save, submit, return, resubmit, approve, and reject;
+- locked profile fields and authoritative department/manager display;
+- admin user, organization, lookup, and workflow management;
+- dashboard status filters and report totals;
+- generated PDF and explicit spreadsheet downloads;
+- upload, preview, download, replacement, and error states;
+- empty, loading, expired-session, unauthorized, and server-error states.
+
+### Phase 7C — release gate
+
+- Run backend tests, frontend tests, frontend typecheck, frontend production build, `pg:test`, and `pg:smoke` from a clean checkout.
+- Run the real staging OIDC flow with a test tenant and real signed tokens.
+- Record browser evidence, environment, commit, migration version, and date.
+- Mark each acceptance item done, failed, or not applicable; unresolved items keep this plan open.
+
+## Definition of complete
+
+The plan can be closed only when all Phase 7 decisions are recorded, automated gates pass, browser acceptance passes, and real staging identity/API verification is recorded. Historical audit observations below must remain labelled historical and must not be read as current defects.

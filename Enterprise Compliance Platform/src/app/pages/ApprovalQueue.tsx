@@ -82,11 +82,12 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const employees = Array.from(new Set(queue.map((d) => d.employee))).sort();
   const filteredQueue = queue.filter((d) => {
     const query = search.trim().toLowerCase();
+    const text = (v: unknown) => (v ?? "").toString().toLowerCase();
     return (
       (!query ||
-        d.id.toLowerCase().includes(query) ||
-        d.employee.toLowerCase().includes(query) ||
-        d.counterparty.toLowerCase().includes(query)) &&
+        text(d.id).includes(query) ||
+        text(d.employee).includes(query) ||
+        text(d.counterparty).includes(query)) &&
       (department === "All" || d.department === department) &&
       (status === "All" || d.status === status) &&
       (priority === "All" || d.priority === priority) &&

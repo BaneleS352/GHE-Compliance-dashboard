@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { prisma } from "../config/prisma";
 import request from "supertest";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, testToken } from "./helpers";
 
 const app = buildApp();
 
@@ -501,9 +501,7 @@ describe("User deletion integrity", () => {
     expect(empRes.status).toBe(201);
     const empId = empRes.body.id;
 
-    const empToken = require("jsonwebtoken").sign(
-      { id: empId, email: "empact@test.com", role: "teamMember" }, "test-secret", { expiresIn: "1h" }
-    );
+    const empToken = testToken({ oid: "test-oid-empact", email: "empact@test.com", name: "Emp for Active" });
 
     const declRes = await request(app)
       .post("/api/declarations")
@@ -560,17 +558,13 @@ describe("User deletion integrity", () => {
     expect(declRes.status).toBe(201);
     const declId = declRes.body.id;
 
-    const teamToken = require("jsonwebtoken").sign(
-      { id: teamId, email: "teamdone@test.com", role: "teamMember" }, "test-secret", { expiresIn: "1h" }
-    );
+    const teamToken = testToken({ oid: "test-oid-teamdone", email: "teamdone@test.com", name: "Team for Done" });
 
     await request(app)
       .patch(`/api/declarations/${declId}/submit`)
       .set("Authorization", `Bearer ${teamToken}`);
 
-    const lmToken = require("jsonwebtoken").sign(
-      { id: userId, email: "doneappr@test.com", role: "approver" }, "test-secret", { expiresIn: "1h" }
-    );
+    const lmToken = testToken({ oid: "test-oid-doneappr", email: "doneappr@test.com", name: "Done Approver" });
 
     await request(app)
       .post("/api/workflows/approve")
@@ -615,9 +609,7 @@ describe("File access control", () => {
     expect(upload.status).toBe(201);
     const fileId = upload.body.id;
 
-    const otherToken = require("jsonwebtoken").sign(
-      { id: 2, email: "sipho@test.com", role: "approver" }, "test-secret", { expiresIn: "1h" }
-    );
+    const otherToken = testToken({ oid: "test-oid-sipho", email: "sipho@test.com", name: "Sipho Approver" });
     const access = await request(app)
       .get(`/api/files/${fileId}`)
       .set("Authorization", `Bearer ${otherToken}`);
@@ -847,37 +839,44 @@ describe("Approval option CRUD integrity", () => {
       .send({ id: orgOpt.id, value: "org", label: "Organisation" });
   });
 
-  it("PUT /api/admin/config/approval-options/:id — new option value is immediately enforceable", async () => {
+  it("PUT /api/admin/config/approval-options/:id — unmapped option value fails closed at decision time", async () => {
     await request(app)
       .post("/api/admin/config/approval-options")
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ id: "opt-quick", value: "quick-approve", label: "Quick Approve" });
-    const opts = await request(app)
-      .get("/api/admin/config/approval-options")
-      .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(opts.body.some((o: any) => o.value === "quick-approve")).toBe(true);
+    try {
+      const opts = await request(app)
+        .get("/api/admin/config/approval-options")
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(opts.body.some((o: any) => o.value === "quick-approve")).toBe(true);
 
-    const create = await request(app)
-      .post("/api/declarations")
-      .set("Authorization", `Bearer ${getTeamToken()}`)
-      .send({ ...BASE, counterparty: "OptNewTest", value: 100 });
-    expect(create.status).toBe(201);
-    const id = create.body.id;
+      const create = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({ ...BASE, counterparty: "OptNewTest", value: 100 });
+      expect(create.status).toBe(201);
+      const id = create.body.id;
 
-    await request(app)
-      .patch(`/api/declarations/${id}/submit`)
-      .set("Authorization", `Bearer ${getTeamToken()}`);
+      await request(app)
+        .patch(`/api/declarations/${id}/submit`)
+        .set("Authorization", `Bearer ${getTeamToken()}`);
 
-    const approve = await request(app)
-      .post("/api/workflows/approve")
-      .set("Authorization", `Bearer ${getApproverToken()}`)
-      .send({ declarationId: id, decision: "quick-approve" });
-    expect(approve.status).toBe(200);
-    expect(approve.body.currentStep.decision).toBe("quick-approve");
-
-    await request(app)
-      .delete("/api/admin/config/approval-options/opt-quick")
-      .set("Authorization", `Bearer ${getAdminToken()}`);
+      // In the allow-list (live from the table) but without engine meaning:
+      // rejected, never silently approved. The step stays pending.
+      const approve = await request(app)
+        .post("/api/workflows/approve")
+        .set("Authorization", `Bearer ${getApproverToken()}`)
+        .send({ declarationId: id, decision: "quick-approve" });
+      expect(approve.status).toBe(400);
+      const inst = await request(app)
+        .get(`/api/workflows/instances/${id}`)
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(inst.body.steps[0].status).toBe("pending");
+    } finally {
+      await request(app)
+        .delete("/api/admin/config/approval-options/opt-quick")
+        .set("Authorization", `Bearer ${getAdminToken()}`);
+    }
   });
 });
 

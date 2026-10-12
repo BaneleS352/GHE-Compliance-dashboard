@@ -19,8 +19,14 @@ versioned migration chain is:
 → 0003_counterparty_unique → 0004_monthly_eventdate
 → 0005_phase5_retirement → 0006_numeric_keys
 → 0007_step_identity → 0008_department_id_only
-→ 0009_domain_checks
+→ 0009_domain_checks → 0010_auth_cutover
 ```
+
+`0010_auth_cutover` completes the OpenID cutover at the schema level: it
+drops `User.passwordHash` and adds the provider identity link
+(`providerSubject`, globally unique so account mismatch fails closed, plus
+indexed `providerIssuer`). Identity resolution by email with first-login
+subject adoption is defined in `docs/IDENTITY-CONTRACT.md`.
 
 Internal primary and foreign keys use PostgreSQL `BIGINT` identity values.
 `Declaration.id` remains the public `GHE-YYYY-NNNNNN` text reference and
@@ -196,7 +202,7 @@ authorization, validation, and organization scoping.
 
 ## Completed Implementation
 
-- Added versioned PostgreSQL migrations through `0009_domain_checks`.
+- Added versioned PostgreSQL migrations through `0010_auth_cutover`.
 - Added normalized organization, user, declaration, workflow, file, and
   counterparty structures with enforced FKs.
 - Proved workflow step/instance declaration identity with a composite FK.
@@ -210,21 +216,38 @@ authorization, validation, and organization scoping.
 - Added PostgreSQL integration and clean-database smoke-test commands.
 - Added deterministic identity-sequence handling for seeded numeric IDs.
 
-## Verification status (reproduced 2026-10-02)
+## Verification status (reproduced 2026-10-02; re-verified 2026-10-06 and 2026-10-08)
 
-- Backend: 404/404 tests across 22 files, run locally against embedded
-  PostgreSQL (migrations `0000`–`0009` applied via `prisma migrate deploy`
-  in suite setup).
-- Frontend: 259/259 tests across 20 files, plus `tsc --noEmit` and the
-  production Vite build, all clean.
+- Backend: 445/445 tests across 26 files, run locally against embedded
+  PostgreSQL (migrations `0000`–`0011` applied via `prisma migrate deploy`
+  in suite setup). New since 2026-10-06: rate-limit behavior tests,
+  seed-emptiness predicate tests, notification webhook tests, plus the
+  audit-fix regression tests (SLA/approve/file/user org scoping,
+  approval-option validation, fail-closed decisions, rule-delete guards,
+  pagination, ownerless-submit rejection).
+- Frontend: 270/270 tests across 23 files, plus `tsc --noEmit` and the
+  production Vite build, all clean (new: `msal-refresh.test.ts` for
+  interaction-required recovery, `LandingScreen` and
+  `AdminDropdownOptions` suites, same-name isolation test; explicit 15s
+  budgets on the two heaviest renders against parallel-load timeouts).
+- PostgreSQL integration (`pg:test`): 69/69 checks pass locally against a
+  scratch embedded PostgreSQL used as the dedicated database (verified
+  2026-10-06 and 2026-10-08, incl. migration `0011_sla_org_scope` deploy
+  and org-scoped SLA assertions).
+- Clean-database smoke (`pg:smoke`): 20/20 checks pass locally against a
+  scratch embedded PostgreSQL used as the empty database (verified
+  2026-10-06 and 2026-10-08 against the production `dist/` build).
+- Production-bundle scan (2026-10-06): `dist/assets/*.js` contains zero
+  occurrences of `e2e.auth.token`, `VITE_DEMO_MODE`, `preset-user`,
+  `/api/auth/login`, or quick-login markers.
 - New coverage since the last audit: profile-locking (Phase 1), queue
-  contract (Phase 2), dialogs/download (Phases 3/6), lookup-scope negatives.
-- PostgreSQL integration (`pg:test`) and clean-database smoke (`pg:smoke`)
-  both pass locally against a scratch embedded PostgreSQL used as the
-  dedicated database (verified 2026-10-02). Note: `pg:test` was red until
-  this run because the user-delete assertion's `await p.user.delete(...)`
-  was embedded in a comment and never executed; the delete is restored and
-  the SET-NULL + snapshot-history checks now genuinely run.
+  contract (Phase 2), dialogs/download (Phases 3/6), lookup-scope negatives,
+  production posture + seed guard (Phase 7), counterparty cross-org
+  isolation, audit-fix regression tests (Phase 7 hardening). Historical
+  note: `pg:test` was red until the 2026-10-02 run because the user-delete
+  assertion's `await p.user.delete(...)` was embedded in a comment and never
+  executed; the delete is restored and the SET-NULL + snapshot-history
+  checks now genuinely run.
 
 ## Full Codebase Migration Requirements
 
@@ -261,6 +284,24 @@ authorization, validation, and organization scoping.
 - CI runs backend tests, PostgreSQL integration, clean-database smoke tests,
   frontend typecheck, frontend tests, and frontend build.
 
+## Release verification implementation plan
+
+The normalization implementation is code-complete, but its release gate must
+be made reproducible:
+
+- Configure CI PostgreSQL services and expose dedicated
+  `TEST_PG_DATABASE_URL` and `SMOKE_PG_DATABASE_URL` variables.
+- Run migration deployment, backend tests, backend build, `pg:test`, and
+  `pg:smoke` serially where generated Prisma artifacts are shared.
+- Run the supported upgrade path from the previous development baseline and
+  record migration version, schema hash, row-count checks, and command output.
+- Add or finish browser acceptance checks for declaration/workflow state,
+  organization isolation, file lifecycle, and protected exports.
+- Record staging OIDC evidence separately; local embedded-JWKS tests do not
+  prove real Entra configuration correctness.
+- Reconcile stale docs and fixtures so password-login, SQLite, and pre-
+  `0010_auth_cutover` instructions cannot be mistaken for supported workflows.
+
 ## Audit Findings and Cleanup Plan
 
 Already removed from the active schema:
@@ -275,8 +316,8 @@ The following items remain after the current audit:
 
 ### High priority
 
-- Backend tests reproduce locally via embedded PostgreSQL (404/404 on
-  2026-10-05, including the 12 document-protection tests). The earlier
+- Backend tests reproduce locally via embedded PostgreSQL (433/433 on
+  2026-10-08, including the 12 document-protection tests). The earlier
   Windows `initdb` failure was stale state (a held `postgres` process /
   existing temp data dir); the documented setup works once those are
   cleared. Keep the dedicated `TEST_PG_DATABASE_URL` path for CI and
@@ -285,9 +326,11 @@ The following items remain after the current audit:
   build` (`EPERM` while replacing `query_engine-windows.dll.node`). Confirm
   that the documented build/test workflow works with no stale Node/Prisma
   process holding the generated engine.
-- Classify the remaining `as any` uses as test transport code, untyped external
-  input, or schema-typing gaps. Runtime schema-sensitive queries no longer use
-  escape hatches.
+- Completed 2026-10-06: zero `as any` occurrences remain in runtime
+  routes/services/middleware (the single match is a code comment in
+  `workflowService.ts` describing an explicit narrowing; query-param casts
+  like `as string | undefined` are narrow boundary adapters, and remaining
+  `as` uses live in tests/seeds/fixtures as transport code).
 - Completed: removed `User.department` in `0008_department_id_only`; API/UI
   display values derive from `User.departmentId → Department.name`.
 - Completed: global counterparty naming policy is explicit — scoped names are
@@ -327,9 +370,12 @@ The following items remain after the current audit:
 - Tenant-boundary, delete-retention, duplicate-identity, and file-lifecycle
   coverage is substantially present; add lookup cross-organization negatives as
   lookup scoping lands.
-- Add negative tests for cross-organization declaration/declarer,
-  counterparty, workflow-rule, and approver references beyond the current
-  admin-user manager invariant.
+- Completed 2026-10-06: cross-organization negatives now cover
+  declaration/declarer spoofing, counterparty name isolation (same name in
+  two orgs resolves to distinct rows; declarations link only to their own
+  org's row), lookups, files, users, and the admin-user manager invariant.
+  Workflow rules are admin-only (`authorize("admin")`), so their tenant
+  boundary is the admin role itself (covered by authorization tests).
 - Completed: regression tests prove `Declaration.status` and
   `currentApproverUserId` track workflow step state, including guarded admin
   override reconvergence.
@@ -383,3 +429,55 @@ documentation, the remaining `as any` uses are justified, `departmentId` and
 `managerId` are the only authoritative hierarchy relationships, and
 maintainers can add a schema change through one documented
 migration/test/repository process.
+# Completion plan
+
+This section is the executable close-out plan for the normalization work. A task is not complete merely because the Prisma schema or migration exists; it must be migrated on a clean PostgreSQL database, exercised through the API, and verified against the application read models.
+
+## Exit criteria
+
+1. `prisma migrate deploy` succeeds on an empty PostgreSQL database and on a database containing the supported development seed.
+2. Every primary key and foreign key has the documented type and matching referenced type.
+3. Retired tables, columns, text internal identifiers, and compatibility write paths are absent or explicitly documented as read-only snapshots.
+4. Organization, department, team, user, declaration, workflow, and file relationships reject cross-organization or orphaned writes.
+5. Workflow status, current approver, and step status remain consistent after submit, approve, reject, return, and resubmit operations.
+6. File lifecycle behavior is defined and tested for upload, replacement, declaration deletion, and missing/orphaned records.
+7. Backend tests, frontend tests, type checks, build, `pg:test`, and `pg:smoke` pass from a clean checkout.
+8. The database assertions are run in CI, not only from a developer workstation.
+
+## Ordered work to completion
+
+### A. Freeze the contract
+
+- Treat this document, `SCHEMA.md`, and `IDENTITY-CONTRACT.md` as the current contract.
+- Record the intended owner and removal decision for every compatibility field.
+- Decide whether declaration employee data is an immutable historical snapshot; if yes, document the snapshot boundary and prohibit treating it as the current employee profile.
+- Decide and document status-transition rules, deletion/retention rules, and file orphan handling.
+
+### B. Add database-level verification
+
+- Add a PostgreSQL assertion script that checks primary-key types, foreign-key types, required constraints, unique constraints, retired objects, and forbidden text internal identifiers.
+- Add negative tests for cross-organization department/team/user/workflow references.
+- Add tests for workflow transition invariants and `currentApproverUserId` projection.
+- Add tests for file ownership, orphan prevention, and deletion behavior.
+- Run the assertions after migration deployment in `pg:test` and `pg:smoke`.
+
+### C. Validate application write paths
+
+- Search every Prisma write and confirm each mutable fact has one authoritative write path.
+- Ensure APIs accept DTOs and do not become alternate persistence models.
+- Keep historical values only in explicit snapshot tables.
+- Remove or make read-only any legacy fields that duplicate department, team, manager, or organization data.
+- Replace unjustified `as any` database access with typed Prisma models or narrow boundary adapters.
+
+### D. Prove clean-start and upgrade behavior
+
+- Recreate an empty PostgreSQL database and run migrations, seed, backend tests, smoke tests, and frontend tests.
+- Run the supported upgrade path from the last development baseline and verify row counts and relationships.
+- Record command output, migration version, schema hash, and date in this document.
+- Resolve the Windows Prisma engine-lock issue or document a deterministic cleanup/retry procedure.
+
+### E. Close documentation and maintenance debt
+
+- Remove stale references to retired tables and fields from code, Swagger, fixtures, scripts, and docs.
+- Keep migration SQL as the only schema-change mechanism.
+- Update this document only after the verification gates pass; distinguish implemented, automated-test verified, browser verified, and production verified.

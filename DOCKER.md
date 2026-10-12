@@ -33,7 +33,7 @@ Pre-migration databases must use the one-time baseline procedure in
 
 ## Configuration and operations
 
-Replace `JWT_SECRET`, database credentials, and `CORS_ORIGIN` before production. `BACKEND_URL` controls the Nginx upstream and defaults to `http://backend:3001`. Set `EMAIL_WEBHOOK_URL` to deliver notifications; without it, events are logged.
+Replace OIDC settings, database credentials, and `CORS_ORIGIN` before production. `BACKEND_URL` controls the Nginx upstream and defaults to `http://backend:3001`. Set `EMAIL_WEBHOOK_URL` to deliver notifications; without it, events are logged.
 
 ```bash
 docker compose logs -f frontend backend db

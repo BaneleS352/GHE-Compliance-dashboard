@@ -28,7 +28,7 @@ Explore and test all endpoints interactively.
 | `npm run dev` | Start dev server with hot reload (`tsx watch`) |
 | `npm run build` | Compile TypeScript to `dist/` |
 | `npm start` | Run compiled production build |
-| `npm run test` | Run all tests once (embedded PostgreSQL) |
+| `npm run test` | Run all tests once against PostgreSQL |
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run db:seed` | Seed with sample data |
 | `npm run db:pg:up` | Versioned bring-up: migrate deploy + seed-if-empty |
@@ -42,7 +42,10 @@ Copy `.env.example` to `.env`:
 
 ```env
 DATABASE_URL="postgresql://ghe_user:ghe_password@localhost:5432/ghe_compliance?schema=public"
-JWT_SECRET="change-this-to-a-random-secret"
+OIDC_AUTHORITY="https://login.microsoftonline.com/<tenant-id>/v2.0"
+OIDC_CLIENT_ID="<api-application-client-id>"
+OIDC_AUDIENCE="api://<api-application-client-id>"
+OIDC_ISSUER="https://login.microsoftonline.com/<tenant-id>/v2.0"
 PORT=3001
 ```
 
@@ -54,7 +57,7 @@ All endpoints are documented in Swagger at `/api/docs`. Summary:
 
 | Group | Endpoints | Auth |
 |-------|-----------|------|
-| **Auth** | `POST /api/auth/login`, `GET /api/auth/me` | None / Bearer |
+| **Auth** | `GET /api/auth/me` | Bearer OIDC token |
 | **Declarations** | CRUD, submit, status change | Bearer |
 | **Workflows** | Pending steps, timeline, approve/decline/return | Bearer |
 | **Reports** | Status breakdown, SLA, counterparty concentration, high-value, filtered list, Excel export | Bearer |
@@ -127,7 +130,7 @@ src/
     *.test.ts           # Test suites
 prisma/
   schema.prisma         # PostgreSQL schema, BIGINT keys (see DATABASE-NORMALIZATION-GOAL.md)
-  migrations/           # Versioned migrations (0000_baseline → 0006_numeric_keys)
+  migrations/           # Versioned migrations (0000_baseline → 0009_domain_checks)
 ```
 
 ## Frontend Integration

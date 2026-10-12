@@ -126,13 +126,24 @@ router.get("/approval-options", authenticate, authorize("admin"), asyncHandler(a
   res.json(options.map((o) => ({ id: o.id, value: o.value, label: o.label })));
 }));
 
+// Approval-option values feed the live decision allow-list on
+// POST /api/workflows/approve, so they are validated as tight identifiers:
+// the engine only maps the documented decision vocabulary and rejects
+// anything else at decision time (fail closed, never default-approve).
+const approvalOptionSchema = z.object({
+  id: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/),
+  value: z.string().min(1).max(64),
+  label: z.string().min(1).max(200),
+});
+
 // POST /api/admin/config/approval-options
 router.post("/approval-options", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-  const { id, value, label } = req.body;
-  if (!id || !value || !label) {
-    res.status(400).json({ error: "id, value, and label are required" });
+  const parsed = approvalOptionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "id (A–Z, 0–9, _-) , value, and label are required within length limits" });
     return;
   }
+  const { id, value, label } = parsed.data;
   const existing = await prisma.approvalOption.findUnique({ where: { id } });
   if (existing) {
     res.status(409).json({ error: "An option with this id already exists" });
@@ -145,11 +156,12 @@ router.post("/approval-options", authenticate, authorize("admin"), asyncHandler(
 // PUT /api/admin/config/approval-options/:id
 router.put("/approval-options/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
-  const { value, label } = req.body;
-  if (!value || !label) {
-    res.status(400).json({ error: "value and label are required" });
+  const parsed = approvalOptionSchema.omit({ id: true }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "value and label are required within length limits" });
     return;
   }
+  const { value, label } = parsed.data;
   const existing = await prisma.approvalOption.findUnique({ where: { id } });
   if (!existing) {
     res.status(404).json({ error: "Approval option not found" });

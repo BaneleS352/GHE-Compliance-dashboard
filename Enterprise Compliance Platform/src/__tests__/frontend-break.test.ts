@@ -1,14 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { api, ApiClientError, setToken, clearToken } from "../services/httpClient";
+import { api, ApiClientError } from "../services/httpClient";
+import { getApiToken } from "../app/auth/msal";
 import {
   fetchDeclarations, fetchDeclarationById, createDeclaration,
   fetchDashboardStats, fetchUsers,
 } from "../services/api";
 import { Declaration } from "../types/declaration";
 
+vi.mock("../app/auth/msal", () => ({
+  activeAccount: vi.fn(() => null),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  getApiToken: vi.fn(() => Promise.resolve("break-test-token")),
+  initializeIdentity: vi.fn(),
+}));
+
 beforeEach(() => {
-  clearToken();
   vi.restoreAllMocks();
+  vi.mocked(getApiToken).mockResolvedValue("break-test-token");
 });
 
 function mockFetch(status: number, body: unknown, headers?: Record<string, string>) {
@@ -76,25 +85,19 @@ describe("httpClient — api.get", () => {
     await expect(api.get("/api/test")).rejects.toThrow();
   });
 
-  it("sets Authorization header when token exists", async () => {
-    setToken("my-secret-token");
+  it("sets the MSAL bearer token on requests", async () => {
     let capturedHeaders: Record<string, string> = {};
     vi.spyOn(globalThis, "fetch").mockImplementation(async (_, opts: any) => {
       capturedHeaders = opts.headers ?? {};
       return { ok: true, status: 200, json: () => Promise.resolve({}), headers: new Headers() } as Response;
     });
     await api.get("/api/test");
-    expect(capturedHeaders["Authorization"]).toBe("Bearer my-secret-token");
+    expect(capturedHeaders["Authorization"]).toBe("Bearer break-test-token");
   });
 
-  it("omits Authorization header when no token", async () => {
-    let capturedHeaders: Record<string, string> = {};
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (_, opts: any) => {
-      capturedHeaders = opts.headers ?? {};
-      return { ok: true, status: 200, json: () => Promise.resolve({}), headers: new Headers() } as Response;
-    });
-    await api.get("/api/test");
-    expect(capturedHeaders["Authorization"]).toBeUndefined();
+  it("rejects when there is no authenticated MSAL account", async () => {
+    vi.mocked(getApiToken).mockRejectedValue(new Error("No authenticated Entra account"));
+    await expect(api.get("/api/test")).rejects.toThrow("No authenticated Entra account");
   });
 
   it("sends Content-Type: application/json", async () => {

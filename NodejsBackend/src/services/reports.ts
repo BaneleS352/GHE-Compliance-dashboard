@@ -75,7 +75,10 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
   const unfiltered = !startDate && !endDate && (!department || department === "All Departments") && (!status || status === "All Statuses");
   if (unfiltered) {
     try {
-      const rows = await viewSlaRows();
+      // Scope like every other view-backed report: global callers (admin,
+      // org-less) see all rows; org-scoped callers see only their own.
+      const orgId = req.user?.organizationId ?? undefined;
+      const rows = await viewSlaRows(orgId ?? undefined);
       if (rows && rows.length > 0) {
         const roleMap: Record<string, string> = { lineManager: "Line Manager", hr: "HR" };
         const byRole: Record<string, number[]> = {};

@@ -6,7 +6,7 @@ Gift, Hospitality & Entertainment compliance declaration management system.
 
 | Directory | Description |
 |-----------|-------------|
-| `NodejsBackend/` | REST API (Express + Prisma + SQLite/PostgreSQL) — port 3001 |
+| `NodejsBackend/` | REST API (Express + Prisma + PostgreSQL) — port 3001 |
 | `Enterprise Compliance Platform/` | React frontend (Vite + TypeScript) — port 5173 (dev) / 80 (Docker) |
 
 ## Quick Start
@@ -21,7 +21,7 @@ Or start individually:
 
 ```bash
 cd NodejsBackend
-npm install && npx prisma generate && npm run db:push && npm run db:seed && npm run dev
+npm install && npx prisma generate && npm run db:pg:up && npm run dev
 ```
 
 ```bash
@@ -42,7 +42,7 @@ open http://localhost:3000
 A 3-container setup is defined in [`docker-compose.yml`](./docker-compose.yml):
 
 - **Frontend** (Nginx, port 3000) — serves the built SPA and proxies API requests to the backend; files are accessed through authenticated `/api/files/:id`
-- **Backend** (Node, port 3001) — Express API with Prisma (PostgreSQL via sed-swapped schema)
+- **Backend** (Node, port 3001) — Express API with Prisma and PostgreSQL migrations
 - **Database** (PostgreSQL 16, port 5432) — persistent volume
 
 See [`DOCKER.md`](./DOCKER.md) for full details.
@@ -54,7 +54,7 @@ All status, priority, and brand colours are centralized in `src/config/theme.ts`
 ## Testing
 
 ```bash
-# Backend (360 tests, Vitest)
+# Backend (current suite; run command for live count)
 cd NodejsBackend && npm test
 
 # Frontend (Vitest + Testing Library)

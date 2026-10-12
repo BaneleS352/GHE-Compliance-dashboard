@@ -21,6 +21,7 @@ import { spawn, spawnSync, ChildProcess } from "child_process";
 import fs from "fs";
 import path from "path";
 import { PrismaClient } from "@prisma/client";
+import { startTestJwksServer, TEST_AUDIENCE } from "../test-utils/test-jwks-server";
 
 const ROOT = process.cwd();
 const PORT = Number(process.env.SMOKE_PORT || 3210);
@@ -61,6 +62,18 @@ async function waitForHealth(server: ChildProcess): Promise<boolean> {
   return false;
 }
 
+let jwksBase = "";
+
+async function mintSmokeToken(email: string, name: string, oid: string): Promise<string> {
+  const r = await fetch(`${jwksBase}/test-token`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, name, oid }),
+  });
+  if (!r.ok) throw new Error(`test identity minting failed: ${r.status}`);
+  return r.text();
+}
+
 async function main() {
   const url = process.env.SMOKE_PG_DATABASE_URL || "";
   if (!url.startsWith("postgres")) {
@@ -80,10 +93,28 @@ async function main() {
   console.log("--- seed normalized model ---");
   sh("npx tsx src/seed.ts", env, "seed");
 
+  // Test-only identity provider (OpenID Phase 5 seam): the smoke backend
+  // validates RS256 tokens against this throwaway JWKS, and tokens below
+  // are minted from it per seeded email. No production credentials exist.
+  console.log("--- start test identity provider ---");
+  const jwks = await startTestJwksServer();
+  jwksBase = jwks.baseUrl;
+  const stopJwks = () => {
+    jwks.close().catch(() => undefined);
+  };
+  process.on("exit", stopJwks);
+
   console.log(`--- start API on ${PORT} ---`);
   const server = spawn(process.execPath, ["dist/index.js"], {
     cwd: ROOT,
-    env: { ...env, PORT: String(PORT) },
+    env: {
+      ...env,
+      PORT: String(PORT),
+      OIDC_AUTHORITY: jwksBase,
+      OIDC_ISSUER: jwksBase,
+      OIDC_AUDIENCE: TEST_AUDIENCE,
+      OIDC_CLIENT_ID: "smoke-client-id",
+    },
     stdio: "pipe",
   });
   let serverOutput = "";
@@ -113,13 +144,12 @@ async function main() {
       return { status: r.status, body: parsed };
     };
 
-    const adminLogin = await j("POST", "/api/auth/login", { email: "admin@hb.co.za", password: "password" });
-    check("admin login", adminLogin.status === 200 && typeof adminLogin.body.token === "string");
-    check("login returns numeric user id", typeof adminLogin.body?.user?.id === "number", JSON.stringify(adminLogin.body?.user));
-    const A = adminLogin.body.token;
-    const teamLogin = await j("POST", "/api/auth/login", { email: "nomvula@hb.co.za", password: "password" });
-    check("team login", teamLogin.status === 200);
-    const T = teamLogin.body.token;
+    const adminToken = await mintSmokeToken("admin@hb.co.za", "Admin User", "test-oid-admin");
+    const me = await j("GET", "/api/auth/me", undefined, adminToken);
+    check("identity resolves to the local user", me.status === 200 && typeof me.body?.id === "number" && me.body?.role === "admin", JSON.stringify(me.body));
+    const A = adminToken;
+    const T = await mintSmokeToken("nomvula@hb.co.za", "Nomvula Dlamini", "test-oid-nomvula");
+    check("team identity resolves", (await j("GET", "/api/auth/me", undefined, T)).status === 200);
 
     const stats = await j("GET", "/api/declarations/stats", undefined, A);
     check("dashboard stats", stats.status === 200 && typeof stats.body?.kpis?.total === "number" && Array.isArray(stats.body?.complianceTrend));
@@ -137,11 +167,11 @@ async function main() {
     const submitted = await j("PATCH", `/api/declarations/${declId}/submit`, {}, T);
     check("submit declaration", submitted.status === 200 && submitted.body?.status === "Pending");
 
-    const lmLogin = await j("POST", "/api/auth/login", { email: "sipho@hb.co.za", password: "password" });
-    const lmApprove = await j("POST", "/api/workflows/approve", { declarationId: declId, decision: "accept" }, lmLogin.body.token);
+    const lmToken = await mintSmokeToken("sipho@hb.co.za", "Sipho Nkosi", "test-oid-sipho");
+    const lmApprove = await j("POST", "/api/workflows/approve", { declarationId: declId, decision: "accept" }, lmToken);
     check("LM approve", lmApprove.status === 200 && lmApprove.body?.newStatus === "Pending");
-    const hrLogin = await j("POST", "/api/auth/login", { email: "lindiwe@hb.co.za", password: "password" });
-    const hrApprove = await j("POST", "/api/workflows/approve", { declarationId: declId, decision: "org" }, hrLogin.body.token);
+    const hrToken = await mintSmokeToken("lindiwe@hb.co.za", "Lindiwe Zulu", "test-oid-lindiwe");
+    const hrApprove = await j("POST", "/api/workflows/approve", { declarationId: declId, decision: "org" }, hrToken);
     check("HR approve completes", hrApprove.status === 200 && hrApprove.body?.newStatus === "Approved");
 
     const timeline = await j("GET", `/api/workflows/instances/${declId}`, undefined, A);

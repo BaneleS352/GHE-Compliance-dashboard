@@ -1,44 +1,46 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, testToken } from "./helpers";
 
 const app = buildApp();
 
 describe("Breaking / Negative / Edge-Case Tests", () => {
   // ── Auth ──────────────────────────────────────────────
-  it("POST /api/auth/login — SQL injection in email (rejected by Zod)", async () => {
+  // Password login is removed (Entra cutover): every payload shape against
+  // the retired route returns 404 without touching auth logic.
+  it("POST /api/auth/login — removed route ignores SQL injection payloads", async () => {
     const res = await request(app)
       .post("/api/auth/login")
       .send({ email: "' OR 1=1 --", password: "' OR '1'='1" });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
   });
 
-  it("POST /api/auth/login — XSS in email field (rejected by Zod)", async () => {
+  it("POST /api/auth/login — removed route ignores XSS payloads", async () => {
     const res = await request(app)
       .post("/api/auth/login")
       .send({ email: "<script>alert('xss')</script>@test.com", password: "test" });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
   });
 
-  it("POST /api/auth/login — extremely long email (passes Zod, fails lookup)", async () => {
+  it("POST /api/auth/login — removed route ignores oversized payloads", async () => {
     const res = await request(app)
       .post("/api/auth/login")
       .send({ email: "a".repeat(10000) + "@test.com", password: "password" });
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(404);
   });
 
-  it("POST /api/auth/login — missing password field", async () => {
+  it("POST /api/auth/login — removed route ignores missing fields", async () => {
     const res = await request(app)
       .post("/api/auth/login")
       .send({ email: "admin@test.com" });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
   });
 
-  it("POST /api/auth/login — array instead of string", async () => {
+  it("POST /api/auth/login — removed route ignores mistyped fields", async () => {
     const res = await request(app)
       .post("/api/auth/login")
       .send({ email: ["admin@test.com"], password: "password" });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
   });
 
   it("GET /api/auth/me — expired-format token", async () => {
@@ -412,22 +414,22 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
     expect(res.status).toBe(401);
   });
 
-  it("GET /api/auth/me — JWT signed with different secret", async () => {
-    const jwt = require("jsonwebtoken");
-    const fake = jwt.sign({ id: 1, role: "admin" }, "wrong-secret");
+  it("GET /api/auth/me — token from a foreign issuer is rejected", async () => {
+    const fake = testToken({ oid: "test-oid-admin", email: "admin@test.com", name: "Admin User", iss: "https://login.evil.example/tenant" });
     const res = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${fake}`);
     expect(res.status).toBe(401);
   });
 
-  it("GET /api/auth/me — JWT with manipulated role in payload", async () => {
-    const jwt = require("jsonwebtoken");
-    const tampered = jwt.sign({ id: 4, role: "admin" }, "wrong-secret");
+  it("GET /api/auth/me — token claims cannot escalate privilege", async () => {
+    // Roles resolve from the database; extra claims are ignored. A team
+    // member token stays a team member even with crafted role claims.
+    const tampered = testToken({ oid: "test-oid-nomvula", email: "nomvula@test.com", name: "Nomvula Team" });
     const res = await request(app)
-      .get("/api/auth/me")
+      .get("/api/admin/config")
       .set("Authorization", `Bearer ${tampered}`);
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(403);
   });
 
   it("GET /api/auth/me — Bearer token with trailing whitespace (accepted, trimmed)", async () => {
@@ -447,20 +449,19 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
   });
 
   // ── NEW: Content-Type / Body Attacks ──────────────
-  it("POST /api/auth/login — URL-encoded body (accepted by Express urlencoded middleware)", async () => {
+  it("POST /api/auth/login — removed route ignores urlencoded bodies", async () => {
     const res = await request(app)
       .post("/api/auth/login")
       .set("Content-Type", "application/x-www-form-urlencoded")
       .send("email=admin@test.com&password=password");
-    // Express urlencoded middleware parses it — Zod validates it — login succeeds
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
   });
 
-  it("POST /api/auth/login — null body", async () => {
+  it("POST /api/auth/login — removed route ignores empty bodies", async () => {
     const res = await request(app)
       .post("/api/auth/login")
       .send("");
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
   });
 
   it("POST /api/declarations — empty JSON object (IDOR check runs first, returns 400)", async () => {

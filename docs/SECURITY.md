@@ -1,5 +1,10 @@
 # Security & Hardening — Audit Fix Log
 
+Authentication is now OpenID Connect/Entra-based. The numbered findings below
+are historical remediation records; current authentication behavior is defined
+by `docs/IDENTITY-CONTRACT.md`, not by the retired password/JWT examples in
+older finding descriptions.
+
 The application has been hardened across authentication, workflow authorization, file access, organization isolation, reporting access, and notification delivery. This document records the principal controls; run the current test suites before release.
 
 ---
@@ -26,7 +31,7 @@ The application has been hardened across authentication, workflow authorization,
 | 11 | `Counterparty` casing mismatch (frontend↔backend) | `Enterprise Compliance Platform/src/types/declaration.ts` + all consumers | Renamed to `counterparty` (lowercase) consistently |
 | 12 | `err.message` leaked to client — approvals | `NodejsBackend/src/routes/workflows.ts` catch block | Sanitized to generic messages |
 | 13 | Multer/file errors leak internals | `NodejsBackend/src/routes/files.ts` | Sanitized error messages |
-| 14 | Missing role guard on `/preset-users` | `NodejsBackend/src/routes/auth.ts` | Preserved as intentional public endpoint |
+| 14 | Retired preset-user route was previously exposed | `NodejsBackend/src/routes/auth.ts` | Route removed; unknown requests do not reveal development identities |
 | 15 | Line-manager declaration visibility was not department-scoped | `NodejsBackend/src/routes/declarations.ts` | Department scoping applies to users with position `Line Manager`; HR users retain global visibility |
 
 ## MEDIUM Fixes (15)
@@ -60,6 +65,93 @@ The application has been hardened across authentication, workflow authorization,
 
 ---
 
+## Production posture (Phase 7 — implemented, test-pinned)
+
+- Token storage: the SPA keeps provider tokens only in the MSAL-managed
+  `sessionStorage` cache (`cacheLocation: "sessionStorage"` in
+  `src/app/auth/msal.ts`); components never read token storage directly and
+  no raw token is persisted to `localStorage` (pinned by
+  `auth-edge-cases.test.ts`). Sign-out clears the injected session key in
+  dev and calls provider logout otherwise. A move to `HttpOnly` cookies
+  remains available if a deployment threat model requires it, but the
+  current posture is session-scoped storage with no long-lived browser
+  credential.
+- Interactive API docs: `GET /api/docs` is mounted only when
+  `NODE_ENV !== "production"` (`docsEnabled()` in
+  `NodejsBackend/src/config/env.ts`, wired in `src/index.ts`, pinned by
+  `production-posture.test.ts`). Production answers the docs path with the
+  standard `404`.
+- Demo data: `NodejsBackend/src/seed.ts` refuses to run when
+  `NODE_ENV=production` unless `GHE_ALLOW_PROD_SEED=1` is set explicitly
+  (`assertNonProductionSeed()`, pinned by unit tests plus a subprocess
+  test proving the refusal happens before any database work). Seeded users
+  carry no credentials — sign-in is provider-managed.
+- Demo login: there is no quick-login, demo-user selector, preset
+  password, or development fallback anywhere in the product UI — the
+  OIDC cutover removed them and `LandingScreen` is provider sign-in only.
+  No `VITE_DEMO_MODE` flag exists because there is no demo path left to
+  gate.
+- Document protection scope (confirmed): generated report PDFs and
+  explicitly exported spreadsheets are password-protected with a
+  downloader-set per-export password (POST body only, passed to the
+  encryption helper via environment, never stored; failures never produce
+  an unprotected copy). Uploaded supporting documents download
+  unprotected by recorded decision — password-protecting arbitrary
+  uploaded formats would require conversion/repackaging that alters file
+  fidelity and needs separate stakeholder approval.
+
+## Audit hardening (2026-10-08)
+
+A code audit found and fixed the following; each item is pinned by a
+regression test unless noted:
+
+- Request throttling was missing despite the installed dependency:
+  `express-rate-limit` now guards all routes globally with stricter
+  per-minute budgets on `/api/auth/*`, `/api/files/*`, and
+  `/api/reports/*` (env-tunable via `RATE_LIMIT_*`; keyed on socket IP,
+  no proxy trust).
+- The unfiltered SLA report served global averages to org-scoped callers:
+  migration `0011_sla_org_scope` adds `organizationId` to
+  `v_workflow_step_sla` and the endpoint scopes like every other report.
+- `POST /api/workflows/approve` had no organization check: a mis-assigned
+  cross-org step is now refused with 403.
+- Assigned reviewers could delete the evidence under review: file DELETE is
+  owner/admin only (reviewers keep read access).
+- Org-less non-HR callers could fetch any user's record: global callers are
+  now limited to self, except global approvers (HR function).
+- Custom approval-option values silently approved steps: the engine mapping
+  is exhaustive and unmapped decisions return 400; option identifiers are
+  schema-validated.
+- Deleting routing-critical workflow rules (or emptying their steps) bricked
+  submission: rules 1/2 and referenced rules cannot be deleted, empty step
+  arrays are rejected.
+- Declaration delete was non-atomic: all child deletes now run in one
+  `$transaction`.
+- Paginated list double-applied `offset` (empty pages past page 1): DB
+  `take`/`skip` is the single pagination mechanism; the in-memory slice
+  remains only for the search-filtered path.
+- Ownerless declarations crashed submit with a 500: clear 400s guard submit
+  and workflow rebuild.
+- Expired/challenged MSAL sessions bricked the SPA: silent-acquisition
+  `InteractionRequired` now restarts interactive sign-in via redirect.
+- Same-name users conflated in "My" lists: ownership matches on numeric id
+  only.
+- TLS verification was disabled in Docker builds and the production
+  entrypoint (`NODE_TLS_REJECT_UNAUTHORIZED=0`, `npm_config_strict_ssl`):
+  removed. Dead `bcryptjs` (frontend) and dead `JWT_SECRET` (compose)
+  removed.
+- `seed-if-empty` treated "zero users" as empty: now requires zero users,
+  organizations, and declarations.
+- Test harness diverged from production (open CORS, 50 MB body limit): the
+  test app mirrors production middleware; CORS tests assert reflection for
+  allowed origins and absence otherwise.
+- Previously untested surfaces now pinned: rate-limit 429 behavior on the
+  production wiring, seed-emptiness predicate (partial-wipe cases),
+  notification webhook (no-op paths, placeholder rendering, failures never
+  throw), sign-out e2e (landing returns, session token cleared),
+  `LandingScreen`, `AdminDropdownOptions`, MSAL redirect recovery, and
+  org-scoped SLA assertions at the DB gate.
+
 ## Notification and reporting controls
 
 - Notification templates are admin-only and validated as a complete five-event configuration.
@@ -72,4 +164,4 @@ The application has been hardened across authentication, workflow authorization,
 
 - Backend build passes.
 - Targeted workflow, report, and configuration tests pass.
-- Frontend Vite builds may fail in the OneDrive workspace with an esbuild directory-access error; verify from a local checkout if encountered.
+- If Windows/OneDrive file locks produce Prisma or esbuild access errors, use a local checkout or the documented external PostgreSQL/test-provider path; treat the result as unverified until the command succeeds.

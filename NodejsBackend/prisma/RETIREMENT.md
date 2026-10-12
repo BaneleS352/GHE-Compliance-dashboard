@@ -1,4 +1,4 @@
-# Compatibility retirement — COMPLETE (Phase 5 + numeric identifier cutover)
+# Compatibility retirement — COMPLETE (Phases 5–9)
 
 ## Phase 5 (0005_phase5_retirement) — applied
 
@@ -11,7 +11,7 @@ passed: `Declaration` legacy text/JSON columns, `WorkflowRule.steps` and
 `PUT /api/admin/config/dropdowns` returns 410 (dropdowns served from
 Department master data + fixed domain lists).
 
-## Numeric identifier cutover (0006_numeric_keys) — applied
+## Numeric identifier cutover and integrity hardening (0006–0009) — applied
 
 Every internal primary/foreign key is now native PostgreSQL BIGINT identity;
 `Declaration.id` (`GHE-YYYY-NNNNNN`) stays the public text reference with an
@@ -28,6 +28,10 @@ remain validated strings per the frozen Phase 5 ownership decision.
   user ids; legacy text ids have no compatibility lookup and are rejected.
 - `User.lineManager` is display text only; the authoritative manager
   reference is the `managerId` FK (workflow step resolution uses it).
+- `User.departmentId` is the sole department source; the legacy
+  `User.department` column was removed by `0008_department_id_only`.
+- `0009_domain_checks` enforces declaration and workflow-critical values at
+  the database boundary.
 - Reporting views are migration-owned; the runtime DDL helper,
   provider-branching (`bindParams`/`isPostgresProvider`), JSON fallbacks
   (`safeJsonParse`), dual-write helpers, backfill/verify scripts, and the
@@ -39,7 +43,7 @@ remain validated strings per the frozen Phase 5 ownership decision.
 
 - Backend `npx tsc` clean (sources + tests); frontend `npm run typecheck`
   clean; `git diff --check` clean.
-- Backend suite (381 tests) runs against PostgreSQL via embedded PG in
+- Backend suite runs against PostgreSQL via embedded PG in
   `globalSetup` (versioned `migrate deploy` + normalized fixtures); frontend
   suite green (mocked API).
 - `npm run pg:test` + `postgres-normalization` CI job cover the full

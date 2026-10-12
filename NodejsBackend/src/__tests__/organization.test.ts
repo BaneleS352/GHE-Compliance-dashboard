@@ -1,19 +1,17 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
-import { buildApp, getAdminToken } from "./helpers";
-import bcrypt from "bcryptjs";
+import { buildApp, getAdminToken, testToken, pkFor } from "./helpers";
 
 const app = buildApp();
 const prisma = new PrismaClient();
 
 function tokenFor(user: { id: number | bigint; name?: string; email: string; role: string; organizationId?: number | bigint | null; department?: string; position?: string }) {
-  return jwt.sign(
-    { id: Number(user.id), email: user.email, role: user.role, name: user.name, department: user.department || "IT", position: user.position || "Staff", organizationId: user.organizationId === null || user.organizationId === undefined ? null : Number(user.organizationId) },
-    "test-secret",
-    { expiresIn: "1h" }
-  );
+  return testToken({
+    oid: `test-oid-${user.email}`,
+    email: user.email,
+    name: user.name || user.email,
+  });
 }
 
 const BASE_DECL = {  teamMemberNumber: "T-001",
@@ -65,7 +63,6 @@ describe("Organization — multi-tenant flows", () => {
   }
 
   beforeAll(async () => {
-    const hash = bcrypt.hashSync("password", 10);
     for (const o of [hbOrg, npnOrg]) {
       const row = await prisma.organization.upsert({
         where: { shortCode: o.shortCode },
@@ -84,7 +81,7 @@ describe("Organization — multi-tenant flows", () => {
       const row = await prisma.user.upsert({
         where: { email: u.email },
         update: { name: u.name, role: u.role, organizationId: u.organizationId ?? null, departmentId: data.departmentId } as any,
-        create: { ...data, passwordHash: hash } as any,
+        create: { ...data } as any,
       });
       u.id = Number(row.id);
     }
@@ -173,6 +170,31 @@ describe("Organization — multi-tenant flows", () => {
     expect(hbLmList.body.some((d: any) => d.organizationId === npnOrg.id)).toBe(false);
   });
 
+  it("counterparty names are isolated per organization (no cross-org attachment)", async () => {
+    const vendor = `SharedVendor-${Date.now()}`;
+    const hbToken = tokenFor(hbTeam as any);
+    const npnToken = tokenFor(npnTeam as any);
+    const hb = await request(app).post("/api/declarations").set("Authorization", `Bearer ${hbToken}`).send({ ...BASE_DECL, employee: hbTeam.name, employeeId: hbTeam.id, teamMemberNumber: hbTeam.teamMemberNumber, lineManager: hbLm.name, department: hbTeam.department, counterparty: vendor, value: 100 });
+    expect(hb.status).toBe(201);
+    const npn = await request(app).post("/api/declarations").set("Authorization", `Bearer ${npnToken}`).send({ ...BASE_DECL, employee: npnTeam.name, employeeId: npnTeam.id, teamMemberNumber: npnTeam.teamMemberNumber, lineManager: npnLm.name, department: npnTeam.department, counterparty: vendor, value: 100 });
+    expect(npn.status).toBe(201);
+
+    // The same display name resolves to two distinct organization-scoped rows.
+    const rows = await prisma.counterparty.findMany({ where: { name: vendor } });
+    expect(rows).toHaveLength(2);
+    const orgs = rows.map((r) => (r.organizationId === null ? null : Number(r.organizationId))).sort();
+    expect(orgs).toEqual([hbOrg.id, npnOrg.id].sort((a: number, b: number) => a - b));
+
+    // Each declaration links to its own organization's row — never the other's.
+    const hbDecl = await prisma.declaration.findUnique({ where: { id: hb.body.id } });
+    const npnDecl = await prisma.declaration.findUnique({ where: { id: npn.body.id } });
+    const hbCp = rows.find((r) => r.organizationId !== null && Number(r.organizationId) === hbOrg.id)!;
+    const npnCp = rows.find((r) => r.organizationId !== null && Number(r.organizationId) === npnOrg.id)!;
+    expect(hbDecl!.counterpartyId).toEqual(hbCp.id);
+    expect(npnDecl!.counterpartyId).toEqual(npnCp.id);
+    expect(hbDecl!.counterpartyId).not.toEqual(npnDecl!.counterpartyId);
+  });
+
   it("GET /api/workflows/pending — per-org pending isolation", async () => {
     const hbTeamToken = tokenFor(hbTeam as any);
     const hbLmToken = tokenFor(hbLm as any);
@@ -192,7 +214,7 @@ describe("Organization — multi-tenant flows", () => {
   it("Global HR can see pending from both orgs", async () => {
     const hbTeamToken = tokenFor(hbTeam as any);
     // Use the original HR (user-hr) which is the global HR that workflow assigns when no org-specific HR exists
-    const hrToken = jwt.sign({ id: 3, email: "lindiwe@test.com", role: "approver", department: "HR", position: "Head of HR", organizationId: null }, "test-secret", { expiresIn: "1h" });
+    const hrToken = testToken({ oid: "test-oid-lindiwe", email: "lindiwe@test.com", name: "Lindiwe HR" });
     const decl = await request(app).post("/api/declarations").set("Authorization", `Bearer ${hbTeamToken}`).send({ ...BASE_DECL, employee: hbTeam.name, employeeId: hbTeam.id, teamMemberNumber: hbTeam.teamMemberNumber, lineManager: hbLm.name, department: hbTeam.department, counterparty: "GlobalHRTest", value: 5000 });
     await request(app).patch(`/api/declarations/${decl.body.id}/submit`).set("Authorization", `Bearer ${hbTeamToken}`);
     const hbLmToken = tokenFor(hbLm as any);
@@ -234,8 +256,7 @@ describe("Organization — multi-tenant flows", () => {
     const dbCheck = await prisma.user.findUnique({ where: { id: hbTeam.id } });
     if (!dbCheck) {
       // Recreate if missing (test isolation)
-      const hash = bcrypt.hashSync("password", 10);
-      await prisma.user.create({ data: { ...(await withDeptLink(hbTeam)), passwordHash: hash } as any });
+      await prisma.user.create({ data: { ...(await withDeptLink(hbTeam)) } as any });
     }
     const self = await request(app).get(`/api/users/${hbTeam.id}`).set("Authorization", `Bearer ${hbToken}`);
     expect(self.status).toBe(200);
@@ -251,9 +272,8 @@ describe("Organization — multi-tenant flows", () => {
     // Ensure HB users exist for departments
     const hbUsers = await prisma.user.findMany({ where: { organizationId: hbOrg.id } });
     if (hbUsers.length === 0) {
-      const hash = bcrypt.hashSync("password", 10);
-      await prisma.user.create({ data: { ...(await withDeptLink(hbTeam)), passwordHash: hash } as any });
-      await prisma.user.create({ data: { ...(await withDeptLink(hbLm)), passwordHash: hash } as any });
+      await prisma.user.create({ data: { ...(await withDeptLink(hbTeam)) } as any });
+      await prisma.user.create({ data: { ...(await withDeptLink(hbLm)) } as any });
     }
     const deps = await request(app).get(`/api/users/departments?organizationId=${hbOrg.id}`).set("Authorization", `Bearer ${hbToken}`);
     expect(deps.status).toBe(200);
@@ -277,6 +297,57 @@ describe("Organization — multi-tenant flows", () => {
     // For HB LM, where.organizationId = hbOrg.id, so only HB counts
     // We can't assert exact counts, but should be object
     expect(typeof res.body).toBe("object");
+  });
+
+  it("GET /api/reports/sla — org-scoped caller sees only own org rows", async () => {
+    const hbTeamToken = tokenFor(hbTeam as any);
+    const hbLmToken = tokenFor(hbLm as any);
+    // Generate a decided step in HB (low value → LM-only rule).
+    const decl = await request(app).post("/api/declarations").set("Authorization", `Bearer ${hbTeamToken}`).send({ ...BASE_DECL, employee: hbTeam.name, employeeId: hbTeam.id, teamMemberNumber: hbTeam.teamMemberNumber, lineManager: hbLm.name, department: hbTeam.department, counterparty: "SlaOrgTest", value: 100 });
+    expect(decl.status).toBe(201);
+    await request(app).patch(`/api/declarations/${decl.body.id}/submit`).set("Authorization", `Bearer ${hbTeamToken}`);
+    const approve = await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${hbLmToken}`).send({ declarationId: decl.body.id, decision: "accept" });
+    expect(approve.status).toBe(200);
+
+    const hb = await request(app).get("/api/reports/sla").set("Authorization", `Bearer ${hbLmToken}`);
+    expect(hb.status).toBe(200);
+    expect(hb.body.length).toBeGreaterThan(0);
+    // NPN has no decided steps: the unfiltered fast-path must not leak HB's.
+    const npnLmToken = tokenFor(npnLm as any);
+    const npn = await request(app).get("/api/reports/sla").set("Authorization", `Bearer ${npnLmToken}`);
+    expect(npn.status).toBe(200);
+    expect(npn.body).toHaveLength(0);
+  });
+
+  it("POST /api/workflows/approve — cross-org step assignment is refused", async () => {
+    const hbTeamToken = tokenFor(hbTeam as any);
+    const npnLmToken = tokenFor(npnLm as any);
+    const decl = await request(app).post("/api/declarations").set("Authorization", `Bearer ${hbTeamToken}`).send({ ...BASE_DECL, employee: hbTeam.name, employeeId: hbTeam.id, teamMemberNumber: hbTeam.teamMemberNumber, lineManager: hbLm.name, department: hbTeam.department, counterparty: "ApproveOrgTest", value: 100 });
+    expect(decl.status).toBe(201);
+    await request(app).patch(`/api/declarations/${decl.body.id}/submit`).set("Authorization", `Bearer ${hbTeamToken}`);
+    // Mis-assign the pending step to the other org's approver directly.
+    const inst = await prisma.workflowInstance.findFirst({ where: { declarationPk: (await pkFor(decl.body.id)) } });
+    await prisma.workflowInstanceStep.updateMany({ where: { instanceId: inst!.id, status: "pending" }, data: { assigneeId: npnLm.id } });
+    // NPN's LM has a pending step but a different org: the org backstop
+    // refuses even though step assignment alone would allow it.
+    const res = await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${npnLmToken}`).send({ declarationId: decl.body.id, decision: "accept" });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/another organization/i);
+  });
+
+  it("GET /api/users/:id — global teamMember cannot enumerate other users", async () => {
+    const scoped = await prisma.user.create({
+      data: { ...(await withDeptLink({ name: "Global Team", email: "global-team@test.com", role: "teamMember", teamMemberNumber: "GT-001", department: "IT", position: "Associate", organizationId: null })) } as any,
+    });
+    try {
+      const token = tokenFor({ id: Number(scoped.id), email: "global-team@test.com", role: "teamMember" } as any);
+      const other = await request(app).get(`/api/users/${hbTeam.id}`).set("Authorization", `Bearer ${token}`);
+      expect(other.status).toBe(403);
+      const self = await request(app).get(`/api/users/${Number(scoped.id)}`).set("Authorization", `Bearer ${token}`);
+      expect(self.status).toBe(200);
+    } finally {
+      await prisma.user.delete({ where: { id: scoped.id } }).catch(() => undefined);
+    }
   });
 
   describe("Organization consistency invariant (manager must match user org)", () => {

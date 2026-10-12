@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { setToken, clearToken } from "../services/httpClient";
+import { getApiToken } from "../app/auth/msal";
 import {
   fetchDeclarations, fetchDeclarationById, createDeclaration,
   updateDeclaration, updateDeclarationStatus, submitDeclaration,
@@ -19,9 +19,17 @@ import {
 } from "../services/api";
 import { Declaration } from "../types/declaration";
 
+vi.mock("../app/auth/msal", () => ({
+  activeAccount: vi.fn(() => null),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  getApiToken: vi.fn(() => Promise.resolve("test-token-123")),
+  initializeIdentity: vi.fn(),
+}));
+
 beforeEach(() => {
-  clearToken();
   vi.restoreAllMocks();
+  vi.mocked(getApiToken).mockResolvedValue("test-token-123");
 });
 
 function mockFetch(status: number, body: unknown) {
@@ -412,8 +420,7 @@ describe("error handling", () => {
     await expect(fetchDeclarations()).rejects.toThrow("Request failed with status 500");
   });
 
-  it("includes auth token when set", async () => {
-    setToken("test-token-123");
+  it("includes the MSAL bearer token", async () => {
     const spy = mockFetch(200, []);
     await fetchDeclarations();
     const headers = (spy.mock.calls[0][1] as any).headers as Record<string, string>;

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, pkFor } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, pkFor, testToken } from "./helpers";
 import path from "path";
 import fs from "fs";
 import { prisma } from "../config/prisma";
@@ -177,6 +177,42 @@ describe("Edge-Case Tests", () => {
         .delete("/api/files/nonexistent-id-12345")
         .set("Authorization", `Bearer ${getAdminToken()}`);
       expect(res.status).toBe(404);
+    });
+
+    it("DELETE /api/files/:id — assigned reviewer can read but not delete evidence", async () => {
+      // Owner uploads while draft, then submits: the LM step lands on the
+      // approver fixture, who may review but must not destroy evidence.
+      const created = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .send({
+          employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
+          lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+          type: "Gift", counterparty: "EvidenceGuard", value: 10, submitted: "2026-07-01",
+          approver: "Sipho Approver", priority: "Low", description: "evidence guard",
+          relationship: "Test", receivedGiven: "Received", from: "Supplier",
+          contactPerson: "T", biddingProcess: "No", occasion: "Business Meeting",
+          date: "2026-07-01", instances: "1", publicOfficial: "No",
+        });
+      expect(created.status).toBe(201);
+      const declId: string = created.body.id;
+      cleanupDeclIds.push(declId);
+      const up = await request(app)
+        .post("/api/files/upload")
+        .set("Authorization", `Bearer ${getTeamToken()}`)
+        .field("declarationId", declId)
+        .attach("file", Buffer.from("evidence"), "evidence.txt");
+      expect(up.status).toBe(201);
+      const fileId = up.body.id;
+      await request(app).patch(`/api/declarations/${declId}/submit`).set("Authorization", `Bearer ${getTeamToken()}`);
+
+      const read = await request(app).get(`/api/files/${fileId}`).set("Authorization", `Bearer ${getApproverToken()}`);
+      expect(read.status).toBe(200);
+      const del = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getApproverToken()}`);
+      expect(del.status).toBe(403);
+      // Owner path still works.
+      const ownerDel = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getTeamToken()}`);
+      expect(ownerDel.status).toBe(200);
     });
 
     it("DELETE /api/files/:id — unauthenticated rejected", async () => {
@@ -528,24 +564,17 @@ describe("Edge-Case Tests", () => {
     });
   });
 
-  // ── PRESET USERS ──
+  // ── PRESET USERS (removed in the Entra cutover) ──
   describe("Auth preset users", () => {
-    it("GET /api/auth/preset-users — returns list of 7 preset users", async () => {
+    it("GET /api/auth/preset-users — removed route returns 404", async () => {
       const res = await request(app).get("/api/auth/preset-users");
-      expect(res.status).toBe(200);
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBe(7);
-      for (const u of res.body) {
-        expect(u.label).toBeDefined();
-        expect(u.email).toBeDefined();
-        expect(u.role).toBeDefined();
-        expect(["teamMember", "approver", "admin"]).toContain(u.role);
-      }
+      expect(res.status).toBe(404);
     });
 
-    it("GET /api/auth/preset-users — no auth required", async () => {
+    it("GET /api/auth/preset-users — removed route requires nothing and reveals nothing", async () => {
       const res = await request(app).get("/api/auth/preset-users");
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(404);
+      expect(res.body).not.toHaveProperty("length");
     });
   });
 
@@ -1041,9 +1070,9 @@ describe("Edge-Case Tests", () => {
       expect(createRes.status).toBe(201);
       const userId = createRes.body.id;
 
-      // Generate a token with original teamMember role
-      const jwt = require("jsonwebtoken");
-      const oldToken = jwt.sign({ id: userId, email: "rolechange@test.com", role: "teamMember" }, "test-secret", { expiresIn: "1h" });
+      // Identity (hence role) resolves from the database on every request:
+      // the same token sees the role change take effect immediately.
+      const oldToken = testToken({ oid: "test-oid-rolechange", email: "rolechange@test.com", name: "Role Change User" });
 
       // Verify it can't access admin endpoints (teamMember → 403)
       const before = await request(app)
@@ -1063,8 +1092,8 @@ describe("Edge-Case Tests", () => {
         .set("Authorization", `Bearer ${oldToken}`);
       expect(after.status).toBe(200);
 
-      // A NEW token with the updated role would work
-      const newToken = jwt.sign({ id: userId, email: "rolechange@test.com", role: "admin" }, "test-secret", { expiresIn: "1h" });
+      // A NEW token for the same identity also works (role still from DB)
+      const newToken = testToken({ oid: "test-oid-rolechange", email: "rolechange@test.com", name: "Role Change User" });
       const newAccess = await request(app)
         .get("/api/admin/config")
         .set("Authorization", `Bearer ${newToken}`);

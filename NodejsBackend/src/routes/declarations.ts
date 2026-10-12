@@ -186,15 +186,15 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
         String(d.id || "").toLowerCase().includes(qLower) ||
         String(d.detail?.description || "").toLowerCase().includes(qLower)
     );
+    // Search filters in memory, so paginate in memory too (the DB paths
+    // below paginate with take/skip instead — never both).
+    if (limit !== undefined) {
+      declarations = declarations.slice(offset, offset + limit);
+    }
   } else if (limit !== undefined) {
     declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, take: limit, skip: offset, include: declarationIncludes });
   } else {
     declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, include: declarationIncludes });
-  }
-
-  // Pagination (in-memory slice after search; keeps backwards compatible when no limit)
-  if (limit !== undefined) {
-    declarations = declarations.slice(offset, offset + limit);
   }
 
   res.json(declarations.map(declarationResponse));
@@ -600,6 +600,10 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   if (willRebuildSteps) {
     const instance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
     if (instance) {
+      if (existing.declarerUserId === null) {
+        res.status(400).json({ error: "Declaration has no linked owner and its workflow cannot be rebuilt" });
+        return;
+      }
       const savedSteps = (await readWorkflowStepRows(pk)) || [];
       const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId!, updated.value);
       const approvedMap = new Map(savedSteps.filter((s) => s.status === "approved").map((s) => [s.role, s]));
@@ -660,17 +664,18 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     try { await fs.promises.unlink(fp); } catch { /* file may have been deleted already */ }
   }));
   const fileIds = links.map((l) => l.fileId);
-  await prisma.declarationFile.deleteMany({ where: { declarationPk: pk } });
-  if (fileIds.length > 0) {
-    await prisma.uploadedFile.deleteMany({ where: { id: { in: fileIds } } });
-  }
-  await Promise.all([
+  // One transaction for all database deletes: a failure rolls everything
+  // back instead of leaving orphaned child rows behind a deleted parent
+  // (disk files above are already unlinked and best-effort by nature).
+  await prisma.$transaction([
+    prisma.declarationFile.deleteMany({ where: { declarationPk: pk } }),
+    ...(fileIds.length > 0 ? [prisma.uploadedFile.deleteMany({ where: { id: { in: fileIds } } })] : []),
     prisma.workflowInstance.deleteMany({ where: { declarationPk: pk } }),
-    prisma.workflowInstanceStep.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined),
-    prisma.declarationSnapshot.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined),
-    prisma.declarationDetail.deleteMany({ where: { declarationPk: pk } }).catch(() => undefined),
+    prisma.workflowInstanceStep.deleteMany({ where: { declarationPk: pk } }),
+    prisma.declarationSnapshot.deleteMany({ where: { declarationPk: pk } }),
+    prisma.declarationDetail.deleteMany({ where: { declarationPk: pk } }),
+    prisma.declaration.delete({ where: { declarationPk: pk } }),
   ]);
-  await prisma.declaration.delete({ where: { declarationPk: pk } });
 
   res.json({ message: "Declaration deleted" });
 }));
@@ -693,6 +698,12 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
   }
   if (existing.declarerUserId !== toDbId(req.user!.id) && req.user!.role !== "admin") {
     res.status(403).json({ error: "Cannot submit another user's declaration" });
+    return;
+  }
+  // Ownerless (legacy/imported) rows cannot enter workflow: step creation
+  // requires a declarer to resolve the manager chain.
+  if (existing.declarerUserId === null) {
+    res.status(400).json({ error: "Declaration has no linked owner and cannot be submitted" });
     return;
   }
   if (denyCrossDepartmentLM(req, res, existing.snapshot?.department)) return;

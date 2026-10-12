@@ -1,8 +1,13 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
 import { execFileSync } from "child_process";
+import fs from "fs";
 import os from "os";
 import path from "path";
+import {
+  startTestJwksServer,
+  testKeyMaterialPath,
+  TEST_AUDIENCE,
+} from "../test-utils/test-jwks-server";
 
 // PostgreSQL is the only supported provider (Identifier Strategy cutover).
 // The suite boots an embedded PostgreSQL, applies the versioned migrations,
@@ -15,6 +20,7 @@ const PG_URL = process.env.TEST_PG_DATABASE_URL ||
   `postgresql://postgres:postgres@localhost:${PG_PORT}/ghe_test?schema=public`;
 
 let embedded: any = null;
+let jwksClose: (() => Promise<void>) | null = null;
 
 async function startEmbeddedPostgres(): Promise<void> {
   if (process.env.TEST_PG_DATABASE_URL) return;
@@ -51,7 +57,18 @@ async function startEmbeddedPostgres(): Promise<void> {
 export async function setup() {
   await startEmbeddedPostgres();
   process.env.DATABASE_URL = PG_URL;
-  process.env.JWT_SECRET = "test-secret";
+
+  // Test-only identity provider (OpenID Phase 5 seam): a throwaway local
+  // JWKS + fixed test issuer/audience. Forked workers inherit these vars,
+  // exactly like DATABASE_URL above. Production points OIDC_AUTHORITY at
+  // the real Entra tenant and never sees this server.
+  const jwks = await startTestJwksServer();
+  jwksClose = jwks.close;
+  fs.writeFileSync(testKeyMaterialPath(), JSON.stringify(jwks.material), { mode: 0o600 });
+  process.env.OIDC_AUTHORITY = jwks.baseUrl;
+  process.env.OIDC_ISSUER = jwks.baseUrl;
+  process.env.OIDC_AUDIENCE = TEST_AUDIENCE;
+  process.env.OIDC_CLIENT_ID = "test-client-id";
 
   // Invoke the LOCAL Prisma CLI directly via node instead of `npx`: on hosts
   // where npx resolves a different Prisma version, setup fails before any
@@ -85,7 +102,9 @@ export async function setup() {
   }
 
   const prisma = new PrismaClient();
-  const hash = bcrypt.hashSync("password", 10);
+
+  // Fixture users carry no credentials: authentication is Entra-shaped
+  // RS256 in tests (see testAuth.ts), resolved to these rows by email.
 
   // Numeric fixture ids (shared with helpers.ts tokens).
   // Fixture organization exists only to host Department master rows:
@@ -106,10 +125,10 @@ export async function setup() {
   }
   await prisma.user.createMany({
     data: [
-      { id: 1n, name: "Admin User", email: "admin@test.com", passwordHash: hash, role: "admin", teamMemberNumber: "ADM-001", departmentId: deptByName.get("IT"), position: "System Admin", lineManager: null },
-      { id: 2n, name: "Sipho Approver", email: "sipho@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-001", departmentId: deptByName.get("Marketing"), position: "Line Manager", lineManager: null },
-      { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", passwordHash: hash, role: "approver", teamMemberNumber: "APR-002", departmentId: deptByName.get("HR"), position: "Head of HR", lineManager: null },
-      { id: 4n, name: "Nomvula Team", email: "nomvula@test.com", passwordHash: hash, role: "teamMember", teamMemberNumber: "TM-001", departmentId: deptByName.get("Marketing"), position: "Brand Manager", lineManager: "Sipho Approver" },
+      { id: 1n, name: "Admin User", email: "admin@test.com", role: "admin", teamMemberNumber: "ADM-001", departmentId: deptByName.get("IT"), position: "System Admin", lineManager: null },
+      { id: 2n, name: "Sipho Approver", email: "sipho@test.com", role: "approver", teamMemberNumber: "APR-001", departmentId: deptByName.get("Marketing"), position: "Line Manager", lineManager: null },
+      { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver", teamMemberNumber: "APR-002", departmentId: deptByName.get("HR"), position: "Head of HR", lineManager: null },
+      { id: 4n, name: "Nomvula Team", email: "nomvula@test.com", role: "teamMember", teamMemberNumber: "TM-001", departmentId: deptByName.get("Marketing"), position: "Brand Manager", lineManager: "Sipho Approver" },
     ],
   });
   // Normalized user links (manager FK).
@@ -208,6 +227,14 @@ export async function setup() {
 export async function teardown() {
   const prisma = new PrismaClient();
   await prisma.$disconnect();
+  if (jwksClose) {
+    try {
+      await jwksClose();
+    } catch {
+      // Best-effort: the OS reclaims the listener in any case.
+    }
+    jwksClose = null;
+  }
   if (embedded) {
     try {
       await embedded.stop();

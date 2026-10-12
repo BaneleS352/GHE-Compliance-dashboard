@@ -1,10 +1,20 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
 import type { WorkflowStep } from "./services/workflowService";
+import { assertNonProductionSeed } from "./config/productionGuards";
+
+// Production safety (Phase 7): refuse to seed demo data into a production
+// database unless explicitly overridden with GHE_ALLOW_PROD_SEED=1. This
+// runs before any database work, so a refusal never touches the database.
+try {
+  assertNonProductionSeed();
+} catch (err) {
+  console.error(err instanceof Error ? err.message : err);
+  process.exit(1);
+}
 
 const prisma = new PrismaClient();
-const DEFAULT_PASSWORD = "password";
-const SALT_ROUNDS = 10;
+// Seed users carry no credentials: authentication is provider-managed
+// (Entra ID); sign-in uses the seeded email addresses.
 
 const organizations = [
   { id: 1n, name: "Hollywoodbets Group", shortCode: "HB" },
@@ -135,8 +145,6 @@ const workflowInstances: { declarationId: string; steps: string }[] = [
 async function main() {
   console.log("Seeding database...");
 
-  const passwordHash = bcrypt.hashSync(DEFAULT_PASSWORD, SALT_ROUNDS);
-
   for (const o of organizations) {
     await prisma.organization.upsert({
       where: { id: o.id },
@@ -171,7 +179,7 @@ async function main() {
         managerId: null,
         organizationId: u.organizationId,
       },
-      create: { ...rest, departmentId: deptIdByUser.get(u.id) ?? null, managerId: null, passwordHash },
+      create: { ...rest, departmentId: deptIdByUser.get(u.id) ?? null, managerId: null },
     });
   }
   for (const u of users) {
@@ -427,7 +435,7 @@ async function main() {
   }
 
   console.log("Seeded system config and approval options");
-  console.log(`All passwords: "${DEFAULT_PASSWORD}"`);
+  console.log("Seed users have no passwords: sign-in is provider-managed (Entra ID).");
 }
 
 main()

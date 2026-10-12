@@ -34,13 +34,15 @@ const ruleSchema = z.object({
   name: z.string().min(1),
   condition: z.string().min(1),
   priority: z.number().int(),
+  // A rule without steps breaks submission (submit throws on empty step
+  // definitions), so empty arrays are rejected at the boundary.
   steps: z.array(
     z.object({
       order: z.number().int(),
       role: z.enum(["lineManager", "hr"]),
       label: z.string().min(1),
     })
-  ),
+  ).min(1),
 });
 
 // POST /api/admin/workflows/rules
@@ -182,6 +184,18 @@ router.delete("/rules/:id", authenticate, authorize("admin"), asyncHandler(async
   const existing = await prisma.workflowRule.findUnique({ where: { id: rulePk } });
   if (!existing) {
     res.status(404).json({ error: "Workflow rule not found" });
+    return;
+  }
+  // Submission routing is hardcoded to rules 1 (low) and 2 (high) —
+  // deleting either bricks declaration submission org-wide. Edit them
+  // instead; deletion returns here until routing is data-driven.
+  if (rulePk === 1n || rulePk === 2n) {
+    res.status(400).json({ error: "Rules 1 and 2 drive submission routing and cannot be deleted; edit them instead" });
+    return;
+  }
+  const referencing = await prisma.workflowInstance.count({ where: { ruleId: rulePk } });
+  if (referencing > 0) {
+    res.status(400).json({ error: `Cannot delete rule with ${referencing} workflow instance(s) referencing it` });
     return;
   }
 

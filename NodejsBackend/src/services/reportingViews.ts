@@ -163,8 +163,13 @@ export interface SlaRow {
   eventDate: string | Date | null;
 }
 
-export async function viewSlaRows(): Promise<SlaRow[] | null> {
-  const rows = await queryView<RawRow>(`SELECT "role", "decidedAt", "eventDate" FROM "v_workflow_step_sla"`, []);
+export async function viewSlaRows(organizationId?: bigint | number): Promise<SlaRow[] | null> {
+  const scoped = organizationId !== undefined && organizationId !== null;
+  const rows = await queryView<RawRow>(
+    `SELECT "role", "decidedAt", "eventDate" FROM "v_workflow_step_sla"` +
+      (scoped ? ` WHERE "organizationId" = $1` : ``),
+    scoped ? [organizationId] : [],
+  );
   if (!rows) return null;
   return rows.map((r) => ({
     role: str(r.role),

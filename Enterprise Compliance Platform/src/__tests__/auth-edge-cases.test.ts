@@ -1,50 +1,47 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { authenticate, canAccessScreen, fetchCurrentUser } from "../app/auth/authService";
-import { getAuthToken } from "../services/httpClient";
+import { authenticate, canAccessScreen, fetchCurrentUser, isIdentityAuthenticated, logoutFromIdentityProvider } from "../app/auth/authService";
+import { activeAccount, signIn, signOut, getApiToken } from "../app/auth/msal";
+
+vi.mock("../app/auth/msal", () => ({
+  activeAccount: vi.fn(() => null),
+  signIn: vi.fn(),
+  signOut: vi.fn(),
+  getApiToken: vi.fn(),
+  initializeIdentity: vi.fn(),
+}));
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  vi.mocked(getApiToken).mockResolvedValue("msal-test-token");
 });
 
-describe("Auth — authService", () => {
-  it("authenticate with empty email returns null", async () => {
-    const r = await authenticate("", "password");
-    expect(r).toBeNull();
+describe("Auth — MSAL adapter contract", () => {
+  it("authenticate() starts provider sign-in (no passwords)", async () => {
+    await authenticate();
+    expect(signIn).toHaveBeenCalledTimes(1);
   });
 
-  it("authenticate with empty password returns null", async () => {
-    const r = await authenticate("admin@hb.co.za", "");
-    expect(r).toBeNull();
+  it("isIdentityAuthenticated reflects the MSAL account", () => {
+    vi.mocked(activeAccount).mockReturnValue(null);
+    expect(isIdentityAuthenticated()).toBe(false);
+    vi.mocked(activeAccount).mockReturnValue({ username: "a@b.c" } as never);
+    expect(isIdentityAuthenticated()).toBe(true);
   });
 
-  it("authenticate with wrong password returns null (HTTP 401)", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({
-      ok: false, status: 401, json: () => Promise.resolve({ error: "Invalid credentials" }),
-      headers: new Headers(),
-    } as Response);
-    const r = await authenticate("admin@hb.co.za", "wrongpass");
-    expect(r).toBeNull();
+  it("logout clears the provider session", () => {
+    logoutFromIdentityProvider();
+    expect(signOut).toHaveBeenCalledTimes(1);
   });
 
-  it("authenticate with non-existent email returns null (HTTP 401)", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({
-      ok: false, status: 401, json: () => Promise.resolve({ error: "Invalid credentials" }),
-      headers: new Headers(),
-    } as Response);
-    const r = await authenticate("noone@nowhere.com", "password");
-    expect(r).toBeNull();
-  });
-
-  it("authenticate returns user on success", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+  it("API calls carry the MSAL bearer token", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true, status: 200,
-      json: () => Promise.resolve({ token: "abc", user: { id: 1, email: "admin@hb.co.za", role: "admin" } }),
+      json: () => Promise.resolve({ id: 1, email: "admin@hb.co.za", role: "admin" }),
       headers: new Headers(),
     } as Response);
-    const r = await authenticate("admin@hb.co.za", "password");
-    expect(r).not.toBeNull();
-    expect(r!.role).toBe("admin");
-    expect(getAuthToken()).toBe("abc");
+    await fetchCurrentUser();
+    const [, options] = spy.mock.calls[0] as [string, { headers: Record<string, string> }];
+    expect(options.headers.Authorization).toBe("Bearer msal-test-token");
   });
 
   it("fetchCurrentUser returns null on a 401", async () => {
@@ -57,10 +54,10 @@ describe("Auth — authService", () => {
     await expect(fetchCurrentUser()).resolves.toMatchObject({ id: 1, name: "Updated User" });
   });
 
-  it("authenticate returns null on network error", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
-    const r = await authenticate("admin@hb.co.za", "password");
-    expect(r).toBeNull();
+  it("no raw token is persisted in localStorage by the auth flow", async () => {
+    localStorage.clear();
+    await fetchCurrentUser();
+    expect(localStorage.getItem("ghe.auth.token")).toBeNull();
   });
 
   it("only admin can access admin screens", () => {

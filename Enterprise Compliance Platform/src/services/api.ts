@@ -268,7 +268,8 @@ export async function deleteOrganization(id: number): Promise<any> {
 
 function toApiDeclaration(declaration: Partial<Declaration>) {
   return {
-    ...(declaration.id !== undefined && { id: declaration.id }),
+    // Public references are server-assigned: never send an empty placeholder.
+    ...(declaration.id ? { id: declaration.id } : {}),
     ...(declaration.employee !== undefined && { employee: declaration.employee }),
     ...(declaration.employeeId !== undefined && { employeeId: declaration.employeeId }),
     ...(declaration.teamMemberNumber !== undefined && { teamMemberNumber: declaration.teamMemberNumber }),

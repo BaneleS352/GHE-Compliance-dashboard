@@ -116,7 +116,7 @@ export function DeclarationDetailView({
                 border border-slate-200
                 shadow-sm
                 ${
-                  ["Description", "Substantiation (> R2 000)"].includes(k)
+                  k === "Description" || k.startsWith("Substantiation")
                     ? "sm:col-span-2"
                     : ""
                 }

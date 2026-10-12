@@ -138,3 +138,8 @@ Approval requests verify the authenticated user's role, assigned step, declarati
 | Team member | None | All rule-defined steps (normal flow) |
 | Line Manager | None | All rule-defined Line Manager steps |
 | HR approver | HR step | Line Manager step |
+# Verification and completion notes
+
+The scenarios in this document must be classified as current behavior, fixed behavior, or historical behavior. Before release, explicitly verify the workflow-rule deletion and system-configuration deletion cases; a missing rule or configuration must produce a controlled domain error rather than an unhandled `500` response. Add regression tests for the chosen behavior and update this document with the result.
+
+Workflow completion also requires testing submit, approve, reject, return, resubmit, reassignment, and unauthorized access through both the API and the browser. The database normalization plan is not closed until workflow status, current approver, step status, and organization ownership remain consistent after each transition.

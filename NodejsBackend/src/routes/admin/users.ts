@@ -1,6 +1,4 @@
 import { Router, Response } from "express";
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma";
@@ -11,7 +9,6 @@ import { managerOrgViolation } from "../../services/orgConsistency";
 import { resolveDepartmentId } from "../../services/normalization";
 
 const router = Router();
-const SALT_ROUNDS = 10;
 
 /** User row with its department link for display derivation. */
 type UserWithDepartment = Prisma.UserGetPayload<{ include: { departmentRef: true } }>;
@@ -82,7 +79,6 @@ const createUserSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   role: z.enum(["teamMember", "approver", "admin"]),
-  password: z.string().min(8).optional(),
   // DTO resolver input (not stored): resolves to departmentId through the
   // organization-scoped Department master data (created when missing).
   department: z.string().optional().default(""),
@@ -113,12 +109,8 @@ async function resolveManagerId(lineManager: string | number | null | undefined)
   return byName ? byName.id : null;
 }
 
-const generatePassword = (): string => {
-  const bytes = crypto.randomBytes(8);
-  return bytes.toString("hex").slice(0, 12);
-};
-
-// POST /api/admin/users
+// POST /api/admin/users — creates a credential-less user. Authentication is
+// provider-managed (Entra ID); the database stores identity and role only.
 router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const parsed = createUserSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -133,7 +125,6 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
     return;
   }
 
-  const password = data.password || generatePassword();
   const orgPk = data.organizationId === null || data.organizationId === undefined ? null : toDbId(data.organizationId);
   if (orgPk !== null) {
     const orgExists = await prisma.organization.findUnique({ where: { id: orgPk } });
@@ -159,7 +150,6 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
     data: {
       name: data.name,
       email: data.email.toLowerCase(),
-      passwordHash: bcrypt.hashSync(password, SALT_ROUNDS),
       role: data.role,
       teamMemberNumber: data.teamMemberNumber,
       departmentId: departmentPk,

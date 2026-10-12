@@ -5,11 +5,15 @@ on:
     paths:
       - "NodejsBackend/**"
       - "Enterprise Compliance Platform/src/**"
+      - "Enterprise Compliance Platform/e2e/**"
+      - "Enterprise Compliance Platform/playwright.config.ts"
       - ".github/workflows/postgres-normalization.yml"
   pull_request:
     paths:
       - "NodejsBackend/**"
       - "Enterprise Compliance Platform/src/**"
+      - "Enterprise Compliance Platform/e2e/**"
+      - "Enterprise Compliance Platform/playwright.config.ts"
       - ".github/workflows/postgres-normalization.yml"
   workflow_dispatch:
 
@@ -102,3 +106,41 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  e2e:
+    # Browser gate (docs/FRONTEND-AUDIT-REMEDIATION-PLAN.md): Playwright
+    # drives the built UI against a real backend + migrated PostgreSQL,
+    # authenticating through the throwaway JWKS seam (no real credentials).
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ghe_e2e
+          POSTGRES_USER: ghe_user
+          POSTGRES_PASSWORD: ghe_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ghe_user -d ghe_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install document-protection sidecars (pypdf, msoffcrypto)
+        run: pip3 install --no-cache-dir --break-system-packages pypdf==6.19.0 msoffcrypto-tool==6.0.0
+      - run: npm ci
+        working-directory: NodejsBackend
+      - run: npm ci
+        working-directory: Enterprise Compliance Platform
+      - run: npx playwright install --with-deps chromium
+        working-directory: Enterprise Compliance Platform
+      - run: npx playwright test
+        working-directory: Enterprise Compliance Platform
+        env:
+          E2E_PG_DATABASE_URL: postgresql://ghe_user:ghe_password@localhost:5432/ghe_e2e?schema=public

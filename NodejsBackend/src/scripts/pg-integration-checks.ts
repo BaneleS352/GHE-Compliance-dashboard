@@ -14,7 +14,6 @@
  * and the scoped counterparty identity policy. Exits 0 on success, 1
  * otherwise.
  */
-import bcrypt from "bcryptjs";
 import { prisma } from "../config/prisma";
 import type { WorkflowStep } from "../services/workflowService";
 import {
@@ -89,7 +88,6 @@ async function main() {
 
   await wipe();
 
-  const hash = bcrypt.hashSync("password", 4);
   const p = prisma;
   const orgA = await p.organization.create({ data: { name: "PG Org A", shortCode: "PGA" } });
   const orgB = await p.organization.create({ data: { name: "PG Org B", shortCode: "PGB" } });
@@ -106,7 +104,7 @@ async function main() {
     // departmentId is the sole department source: resolve the display string
     // to the organization-scoped link before insert.
     const departmentId = await resolveDepartmentId(department, u.organizationId, p);
-    users[key] = await p.user.create({ data: { ...data, departmentId, passwordHash: hash } });
+    users[key] = await p.user.create({ data: { ...data, departmentId } });
   }
   await p.user.update({ where: { id: users.tmA.id }, data: { managerId: users.lmA.id, lineManager: users.lmA.name } });
   await p.user.update({ where: { id: users.tmB.id }, data: { managerId: users.lmB.id, lineManager: users.lmB.name } });
@@ -276,6 +274,12 @@ async function main() {
   // 5. SLA rows from relational steps.
   const sla = await viewSlaRows();
   check("view SLA rows present", Array.isArray(sla) && sla.length === 1 && sla[0].role === "lineManager", JSON.stringify(sla));
+  // The decided fixture step belongs to org A: org scoping must include it
+  // for A and exclude everything for B (migration 0011_sla_org_scope).
+  const slaA = await viewSlaRows(orgA.id);
+  check("view SLA rows org A scoped", Array.isArray(slaA) && slaA.length === 1 && slaA[0].role === "lineManager", JSON.stringify(slaA));
+  const slaB = await viewSlaRows(orgB.id);
+  check("view SLA rows org B isolated", Array.isArray(slaB) && slaB.length === 0, JSON.stringify(slaB));
 
   // 6. Counterparty concentration, org-scoped.
   const cpA = await viewCounterparty(orgA.id);

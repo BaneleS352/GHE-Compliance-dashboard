@@ -234,8 +234,9 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     return;
   }
 
-  // Ownership scoping — same as GET
-  const userPkJson = toJsonId(req.user!.id);
+  // Ownership scoping — read allows owner, admin, or assigned workflow
+  // reviewer; DELETE is owner/admin only (a reviewer must never destroy
+  // the evidence they are judging).
   if (req.user!.role !== "admin") {
     const declPk = await declarationPkForFile(filePk);
     if (declPk === null) {
@@ -244,14 +245,8 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     }
     const decl = await prisma.declaration.findUnique({ where: { declarationPk: declPk } });
     if (!decl || decl.declarerUserId !== toDbId(req.user!.id)) {
-      let isApprover = false;
-      if (decl) {
-        isApprover = await isWorkflowAssignee(decl.declarationPk, userPkJson);
-      }
-      if (!isApprover) {
-        res.status(403).json({ error: "Access denied" });
-        return;
-      }
+      res.status(403).json({ error: "Only the owner or admin can delete files" });
+      return;
     }
     // Evidence is immutable after decision — no deletes once Approved/Declined.
     if (decl && (decl.status === "Approved" || decl.status === "Declined")) {

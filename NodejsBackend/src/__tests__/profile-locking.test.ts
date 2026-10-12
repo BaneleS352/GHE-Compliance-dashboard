@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
-import { buildApp, getAdminToken } from "./helpers";
+import { buildApp, getAdminToken, testToken } from "./helpers";
 
 const app = buildApp();
 const prisma = new PrismaClient();
@@ -35,12 +33,11 @@ const BASE = {
 };
 
 function tokenFor(id: number, email: string): string {
-  return jwt.sign({ id, email, role: "teamMember", name: "PL User" }, "test-secret", { expiresIn: "1h" });
+  return testToken({ oid: `test-oid-${email}`, email, name: "PL User" });
 }
 
 describe("Phase 1 — profile-owned declaration identity", () => {
   beforeAll(async () => {
-    const hash = bcrypt.hashSync("password", 10);
     const org = await prisma.organization.upsert({
       where: { shortCode: "PLT" },
       update: { name: "Profile Lock Org" },
@@ -53,7 +50,7 @@ describe("Phase 1 — profile-owned declaration identity", () => {
       where: { email: "pl-manager@test.com" },
       update: { name: "PL Manager", departmentId: deptId, organizationId: org.id },
       create: {
-        name: "PL Manager", email: "pl-manager@test.com", passwordHash: hash,
+        name: "PL Manager", email: "pl-manager@test.com",
         role: "approver", teamMemberNumber: "PL-LM-001", position: "Line Manager",
         departmentId: deptId, organizationId: org.id,
       },
@@ -62,7 +59,7 @@ describe("Phase 1 — profile-owned declaration identity", () => {
       where: { email: "pl-managed@test.com" },
       update: { name: "PL Managed", departmentId: deptId, managerId: lm.id, lineManager: lm.name, organizationId: org.id },
       create: {
-        name: "PL Managed", email: "pl-managed@test.com", passwordHash: hash,
+        name: "PL Managed", email: "pl-managed@test.com",
         role: "teamMember", teamMemberNumber: "PL-TM-001", position: "Tester",
         departmentId: deptId, managerId: lm.id, lineManager: lm.name, organizationId: org.id,
       },
@@ -74,7 +71,7 @@ describe("Phase 1 — profile-owned declaration identity", () => {
       where: { email: "pl-bare@test.com" },
       update: { departmentId: null, managerId: null, lineManager: null },
       create: {
-        name: "PL Bare", email: "pl-bare@test.com", passwordHash: hash,
+        name: "PL Bare", email: "pl-bare@test.com",
         role: "teamMember", teamMemberNumber: "PL-TM-002", position: "Tester",
         departmentId: null, managerId: null, lineManager: null,
       },

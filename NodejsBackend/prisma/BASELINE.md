@@ -7,9 +7,11 @@ reconciles duplicate organisation-scoped counterparties and enforces scoped
 uniqueness, `0004_monthly_eventdate` moves the monthly reporting view to the
 canonical `eventDate` column, `0005_phase5_retirement` retires the legacy
 compatibility columns/tables and places all 7 reporting views under migration
-ownership, and `0006_numeric_keys` converts every internal primary/foreign key
-from TEXT to native BIGINT identity columns (deterministic mapping, orphan
-refs fail the migration). `Declaration.id` (`GHE-YYYY-NNNNNN`) stays the
+ownership, `0006_numeric_keys` converts every internal primary/foreign key
+from TEXT to native BIGINT identity columns, `0007_step_identity` enforces
+workflow declaration identity, `0008_department_id_only` removes the
+duplicated user department field, and `0009_domain_checks` adds database
+domain constraints. `Declaration.id` (`GHE-YYYY-NNNNNN`) stays the
 public text reference with an internal numeric `declarationPk` that all child
 tables reference. All migrations are forward-only; rollback is
 backup/restore, never DDL reversal.
@@ -34,7 +36,7 @@ pg_dump "postgresql://ghe_user:ghe_password@db:5432/ghe_compliance?schema=public
 ## 1. New database
 
 No action needed. The Docker entrypoint runs `prisma migrate deploy`, which
-applies `0000_baseline` through `0006_numeric_keys` in order, then the server.
+applies `0000_baseline` through `0009_domain_checks` in order, then the server.
 
 ```sh
 SEED_ON_BOOT=true docker compose up -d --build   # empty database, first boot only
@@ -50,7 +52,7 @@ One-time procedure, run by the release operator:
 #    applied without running its DDL:
 npx prisma migrate resolve --applied "0000_baseline"
 
-# 3. Confirm the plan (must list every pending migration through 0006_numeric_keys):
+# 3. Confirm the plan (must list every pending migration through 0009_domain_checks):
 npx prisma migrate status
 
 # 4. Apply on a COPY first: 0006 fails loudly on any unmapped legacy

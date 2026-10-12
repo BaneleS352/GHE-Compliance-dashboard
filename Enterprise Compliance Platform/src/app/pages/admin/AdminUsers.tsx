@@ -63,7 +63,6 @@ export function AdminUsers() {
       await createUser({
         name: data.name,
         email: data.email,
-        passwordHash: "",
         role: data.role,
         department: data.department,
         teamMemberNumber: "",

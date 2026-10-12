@@ -77,10 +77,13 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
 
   useEffect(() => { setPage(0); }, [search, typeFilter, statusFilter, approverFilter, employeeFilter, dateFilterStart, dateFilterEnd, sortKey, sortDir]);
 
+  // Ownership is matched on the stable numeric id only. Matching on the
+  // display name would conflate same-name users (backend scoping already
+  // limits team members to their own rows; this filter must not widen it).
   const userDeclarations = user
-    ? declarations.filter((d) => d.employeeId === user.id || d.employee === user.name)
+    ? declarations.filter((d) => d.employeeId === user.id)
     : declarations;
-  const ownDraftsOnly = (d: Declaration) => d.status !== "Draft" || d.employeeId === user?.id || d.employee === user?.name;
+  const ownDraftsOnly = (d: Declaration) => d.status !== "Draft" || d.employeeId === user?.id;
   const visibleDeclarations = (viewMode === "my" ? userDeclarations : declarations).filter(ownDraftsOnly);
 
   if (loading) {
@@ -100,13 +103,15 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
   }
 
 
+  const q = (search || "").toLowerCase();
+  const text = (v: unknown) => (v ?? "").toString().toLowerCase();
   const filtered = visibleDeclarations.filter(
     (d) =>
       (!search ||
-        d.id.toLowerCase().includes(search.toLowerCase()) ||
-        d.counterparty.toLowerCase().includes(search.toLowerCase()) ||
-        d.employee.toLowerCase().includes(search.toLowerCase()) ||
-        (d.approver || "").toLowerCase().includes(search.toLowerCase())) &&
+        text(d.id).includes(q) ||
+        text(d.counterparty).includes(q) ||
+        text(d.employee).includes(q) ||
+        text(d.approver).includes(q)) &&
       (typeFilter === "All" || d.type === typeFilter) &&
       (statusFilter === "All" || d.status === statusFilter) &&
       (approverFilter === "All" || d.approver === approverFilter) &&
@@ -341,7 +346,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
         {sorted.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted-foreground">No declarations found</div>
         ) : (
-          sorted.map((d) => (
+          paged.map((d) => (
             <div key={d.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -388,6 +393,32 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
             </div>
           ))
         )}
+        <div className="flex items-center justify-between border-t border-border px-1 pt-3">
+          <p className="text-xs text-muted-foreground">
+            Showing <span className="font-semibold text-foreground">{sorted.length}</span> declarations
+          </p>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <span className="text-xs text-muted-foreground">
+                Page {page + 1} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={page >= totalPages - 1}
+                className="rounded-lg border border-border bg-white px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
       </Card>
 
       <Card className="hidden overflow-x-auto md:block">

@@ -51,10 +51,6 @@ function AppInner() {
     : s === "approver-dashboard" || s === "approval-queue" || s === "approval-detail" ? "approver"
     : "teamMember";
 
-  const handleLogin = (r: Role, _name: string) => {
-    setScreen(r === "admin" ? "admin-dashboard" : r === "approver" ? "approver-dashboard" : "new-declaration");
-  };
-
   const handleSignOut = () => {
     logout();
     setScreen("landing");
@@ -63,6 +59,21 @@ function AppInner() {
     setShowSuccess(false);
     setShowSubmittedView(false);
   };
+
+  // After provider sign-in the authenticated user lands here with no explicit
+  // navigation event (there is no login callback anymore): route by role,
+  // mirroring the old quick-login destinations.
+  useEffect(() => {
+    if (!user) return;
+    setScreen((current) => {
+      if (current !== "landing" && current !== "login") return current;
+      return user.role === "admin"
+        ? "admin-dashboard"
+        : user.role === "approver"
+          ? "approver-dashboard"
+          : "new-declaration";
+    });
+  }, [user]);
 
   const handleSubmitSuccess = useCallback((data: Declaration) => {
     setSubmittedData(data);
@@ -80,11 +91,11 @@ function AppInner() {
   };
 
   if (screen === "landing" || screen === "login") {
-    return <LandingScreen onEnter={handleLogin} />;
+    return <LandingScreen />;
   }
 
   if (!canAccessScreen(user, screen)) {
-    return <LandingScreen onEnter={handleLogin} />;
+    return <LandingScreen />;
   }
 
   return (

@@ -15,19 +15,10 @@ const options: swaggerJsdoc.Options = {
         bearerAuth: {
           type: "http",
           scheme: "bearer",
-          bearerFormat: "JWT",
+          bearerFormat: "Entra ID access token",
         },
       },
       schemas: {
-        LoginRequest: {
-          type: "object",
-          required: ["email", "password"],
-          properties: { email: { type: "string", format: "email" }, password: { type: "string", minLength: 1 } },
-        },
-        LoginResponse: {
-          type: "object",
-          properties: { token: { type: "string" }, user: { $ref: "#/components/schemas/User" } },
-        },
         User: {
           type: "object",
           properties: {
@@ -132,25 +123,6 @@ const options: swaggerJsdoc.Options = {
     },
     paths: {
       // ── Auth ──────────────────────────────────────────────
-      "/api/auth/preset-users": {
-        get: {
-          tags: ["Auth"],
-          summary: "Get preset user list for login screen (no auth required)",
-          responses: { 200: { description: "Array of { label, email, role } preset users" } },
-        },
-      },
-      "/api/auth/login": {
-        post: {
-          tags: ["Auth"],
-          summary: "Authenticate user",
-          requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/LoginRequest" } } } },
-          responses: {
-            200: { description: "Returns JWT token and user profile", content: { "application/json": { schema: { $ref: "#/components/schemas/LoginResponse" } } } },
-            400: { description: "Validation error", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
-            401: { description: "Invalid email or password", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
-          },
-        },
-      },
       "/api/auth/me": {
         get: {
           tags: ["Auth"],
