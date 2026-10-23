@@ -21,6 +21,22 @@ describe("ConfirmDialog", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps keyboard focus inside the dialog and restores it on close", () => {
+    const trigger = document.createElement("button");
+    document.body.appendChild(trigger);
+    trigger.focus();
+    const { unmount } = render(<ConfirmDialog title="T" message="M" onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    const dialog = screen.getByRole("dialog");
+    const buttons = screen.getAllByRole("button");
+    expect(dialog).toHaveAttribute("aria-labelledby", "confirm-dialog-title");
+    expect(dialog).toHaveAttribute("aria-describedby", "confirm-dialog-message");
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(buttons[buttons.length - 1]);
+    unmount();
+    expect(document.activeElement).toBe(trigger);
+    trigger.remove();
+  });
 });
 
 describe("UserDialog", () => {

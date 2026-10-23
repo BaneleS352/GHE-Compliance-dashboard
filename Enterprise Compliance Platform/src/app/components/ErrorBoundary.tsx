@@ -1,4 +1,4 @@
-import { Component, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode } from "react";
 
 interface Props {
   children: ReactNode;
@@ -17,8 +17,10 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, info: unknown) {
-    console.error("ErrorBoundary caught:", error, info);
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    // Keep diagnostics out of the rendered UI. Production telemetry can be
+    // added here without exposing provider/API details to end users.
+    console.error("ErrorBoundary caught:", { name: error.name, message: error.message, componentStack: info.componentStack });
   }
 
   handleReset = () => {
@@ -33,7 +35,8 @@ export class ErrorBoundary extends Component<Props, State> {
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
             <h2 className="text-lg font-bold text-red-700">Something went wrong</h2>
             <p className="mt-2 max-w-md text-sm text-red-600">
-              {this.state.error?.message || "An unexpected error occurred."}
+              We could not load this part of the application. Please try again,
+              or contact support if the problem continues.
             </p>
             <button
               onClick={this.handleReset}

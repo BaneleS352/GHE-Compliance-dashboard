@@ -1,37 +1,43 @@
-import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile } from"@/types/declaration" 
+import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile, User, SystemConfig, DropdownOptions, WorkflowRule } from"@/types/declaration" 
 import { api } from "@/services/httpClient" 
+import type { RequestOptions } from "@/services/httpClient";
+
+/** The declaration response contract returned by the backend. Keep mapping at this boundary. */
+type DeclarationResponse = Declaration & {
+  workflowSteps?: Declaration["workflowSteps"];
+};
 
 export async function fetchDeclarations(status?: string, search?: string): Promise<Declaration[]> {
   const params = new URLSearchParams();
   if (status) params.set("status", status);
   if (search) params.set("search", search);
   const qs = params.toString();
-  const raw = await api.get<any[]>(`/api/declarations${qs ? `?${qs}` : ""}`);
+  const raw = await api.get<DeclarationResponse[]>(`/api/declarations${qs ? `?${qs}` : ""}`);
   return raw.map(mapDeclaration);
 }
 
 export async function fetchDeclarationById(id: string): Promise<Declaration> {
-  const raw = await api.get<any>(`/api/declarations/${id}`);
+  const raw = await api.get<DeclarationResponse>(`/api/declarations/${id}`);
   return { ...mapDeclaration(raw), workflowSteps: raw.workflowSteps ?? [] };
 }
 
 export async function createDeclaration(declaration: Partial<Declaration>): Promise<Declaration> {
-  const raw = await api.post<any>("/api/declarations", toApiDeclaration(declaration));
+  const raw = await api.post<DeclarationResponse>("/api/declarations", toApiDeclaration(declaration));
   return mapDeclaration(raw);
 }
 
 export async function updateDeclaration(id: string, data: Partial<Declaration>): Promise<Declaration> {
-  const raw = await api.put<any>(`/api/declarations/${id}`, toApiDeclaration(data as Declaration));
+  const raw = await api.put<DeclarationResponse>(`/api/declarations/${id}`, toApiDeclaration(data as Declaration));
   return mapDeclaration(raw);
 }
 
 export async function updateDeclarationStatus(id: string, status: string): Promise<Declaration> {
-  const raw = await api.patch<any>(`/api/declarations/${id}/status`, { status });
+  const raw = await api.patch<DeclarationResponse>(`/api/declarations/${id}/status`, { status });
   return mapDeclaration(raw);
 }
 
 export async function submitDeclaration(id: string): Promise<Declaration> {
-  const raw = await api.patch<any>(`/api/declarations/${id}/submit`);
+  const raw = await api.patch<DeclarationResponse>(`/api/declarations/${id}/submit`);
   return mapDeclaration(raw);
 }
 
@@ -58,7 +64,7 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
   return api.get<DashboardStats>("/api/declarations/stats");
 }
 
-function mapDeclaration(raw: any): Declaration {
+function mapDeclaration(raw: DeclarationResponse): Declaration {
   return {
     id:                  raw.id,
     employee:            raw.employee,
@@ -95,56 +101,65 @@ function mapDeclaration(raw: any): Declaration {
 }
 
 // ── Admin: Users ─────────────────────────────────────
-export async function fetchUsers(search?: string, role?: string): Promise<any[]> {
+export type UserMutation = Pick<User, "name" | "email" | "role"> & Partial<Pick<User, "department" | "position" | "lineManager">> & {
+  teamMemberNumber?: string;
+  organizationId?: number | null;
+};
+
+export async function fetchUsers(search?: string, role?: string): Promise<User[]> {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
   if (role) params.set("role", role);
   const qs = params.toString();
-  return api.get<any[]>(`/api/admin/users${qs ? `?${qs}` : ""}`);
+  return api.get<User[]>(`/api/admin/users${qs ? `?${qs}` : ""}`);
 }
 
-export async function fetchUserById(id: number): Promise<any> {
-  return api.get<any>(`/api/users/${id}`);
+export async function fetchUserById(id: number, options?: RequestOptions): Promise<User> {
+  return api.get<User>(`/api/users/${id}`, options);
 }
 
-export async function fetchManagers(organizationId?: number): Promise<any[]> {
+export type Manager = Pick<User, "id" | "name" | "email" | "position" | "department">;
+
+export async function fetchManagers(organizationId?: number, options?: RequestOptions): Promise<Manager[]> {
   const qs = organizationId !== undefined ? `?organizationId=${encodeURIComponent(organizationId)}` : "";
-  return api.get<any[]>(`/api/users/managers${qs}`);
+  return api.get<Manager[]>(`/api/users/managers${qs}`, options);
 }
 
-export async function fetchDepartments(organizationId?: number): Promise<string[]> {
+export async function fetchDepartments(organizationId?: number, options?: RequestOptions): Promise<string[]> {
   const qs = organizationId !== undefined ? `?organizationId=${encodeURIComponent(organizationId)}` : "";
-  return api.get<string[]>(`/api/users/departments${qs}`);
+  return api.get<string[]>(`/api/users/departments${qs}`, options);
 }
 
-export async function createUser(data: any): Promise<any> {
-  return api.post<any>("/api/admin/users", data);
+export async function createUser(data: UserMutation): Promise<User> {
+  return api.post<User>("/api/admin/users", data);
 }
 
-export async function updateUser(id: number, data: any): Promise<any> {
-  return api.put<any>(`/api/admin/users/${id}`, data);
+export async function updateUser(id: number, data: Partial<UserMutation>): Promise<User> {
+  return api.put<User>(`/api/admin/users/${id}`, data);
 }
 
-export async function deleteUser(id: number): Promise<any> {
-  return api.del<any>(`/api/admin/users/${id}`);
+export async function deleteUser(id: number): Promise<{ success?: boolean; message?: string }> {
+  return api.del<{ success?: boolean; message?: string }>(`/api/admin/users/${id}`);
 }
 
 // ── Admin: Config ─────────────────────────────────────
-export async function fetchConfig(): Promise<any> {
-  return api.get<any>("/api/admin/config");
+export async function fetchConfig(options?: RequestOptions): Promise<SystemConfig> {
+  return api.get<SystemConfig>("/api/admin/config", options);
 }
 
-export async function saveConfig(data: any): Promise<any> {
-  return api.put<any>("/api/admin/config", data);
+export async function saveConfig(data: Partial<SystemConfig>): Promise<SystemConfig> {
+  return api.put<SystemConfig>("/api/admin/config", data);
 }
 
 // ── Admin: Dropdown Options (department master data + fixed domain lists) ──
-export async function fetchDropdownOptions(): Promise<any> {
-  return api.get<any>("/api/admin/config/dropdowns");
+export type DropdownOptionsResponse = Partial<DropdownOptions> & Record<string, string[]>;
+
+export async function fetchDropdownOptions(): Promise<DropdownOptionsResponse> {
+  return api.get<DropdownOptionsResponse>("/api/admin/config/dropdowns");
 }
 
-export async function updateDropdownOptions(data: any): Promise<any> {
-  return api.put<any>("/api/admin/config/dropdowns", data);
+export async function updateDropdownOptions(data: DropdownOptionsResponse): Promise<DropdownOptionsResponse> {
+  return api.put<DropdownOptionsResponse>("/api/admin/config/dropdowns", data);
 }
 
 // ── Admin: Dashboard ──────────────────────────────────
@@ -153,20 +168,22 @@ export async function fetchAdminDashboard(): Promise<any> {
 }
 
 // ── Admin: Workflow Rules ─────────────────────────────
-export async function fetchWorkflowRules(): Promise<any[]> {
-  return api.get<any[]>("/api/admin/workflows/rules");
+export async function fetchWorkflowRules(): Promise<WorkflowRule[]> {
+  return api.get<WorkflowRule[]>("/api/admin/workflows/rules");
 }
 
-export async function createWorkflowRule(data: any): Promise<any> {
-  return api.post<any>("/api/admin/workflows/rules", data);
+export type WorkflowRuleMutation = Omit<Partial<WorkflowRule>, "steps"> & { steps?: WorkflowRule["steps"] | string };
+
+export async function createWorkflowRule(data: WorkflowRuleMutation): Promise<WorkflowRule> {
+  return api.post<WorkflowRule>("/api/admin/workflows/rules", data);
 }
 
-export async function updateWorkflowRule(id: number, data: any): Promise<any> {
-  return api.put<any>(`/api/admin/workflows/rules/${id}`, data);
+export async function updateWorkflowRule(id: number, data: WorkflowRuleMutation): Promise<WorkflowRule> {
+  return api.put<WorkflowRule>(`/api/admin/workflows/rules/${id}`, data);
 }
 
-export async function deleteWorkflowRule(id: number): Promise<any> {
-  return api.del<any>(`/api/admin/workflows/rules/${id}`);
+export async function deleteWorkflowRule(id: number): Promise<{ success?: boolean; message?: string }> {
+  return api.del<{ success?: boolean; message?: string }>(`/api/admin/workflows/rules/${id}`);
 }
 
 // ── Workflows ─────────────────────────────────────────
@@ -246,8 +263,8 @@ export async function deleteApprovalOption(id: string): Promise<any> {
 }
 
 // ── Organizations ─────────────────────────────────────
-export async function fetchOrganizations(): Promise<{ id: number; name: string; shortCode: string }[]> {
-  return api.get<{ id: number; name: string; shortCode: string }[]>("/api/users/organizations");
+export async function fetchOrganizations(options?: RequestOptions): Promise<{ id: number; name: string; shortCode: string }[]> {
+  return api.get<{ id: number; name: string; shortCode: string }[]>("/api/users/organizations", options);
 }
 
 export async function fetchAdminOrganizations(): Promise<{ id: number; name: string; shortCode: string }[]> {

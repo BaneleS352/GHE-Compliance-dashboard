@@ -15,6 +15,9 @@ export interface SelProps {
   children?: ReactNode;
   placeholder?: string;
   disabled?: boolean;
+  id?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "true" | "false";
 }
 
 type OptionProps = {
@@ -29,6 +32,9 @@ export const Sel: FC<SelProps> = ({
   children,
   placeholder,
   disabled,
+  id,
+  "aria-describedby": ariaDescribedBy,
+  "aria-invalid": ariaInvalid,
 }) => {
   const options = extractOptions(children);
 
@@ -45,7 +51,7 @@ export const Sel: FC<SelProps> = ({
       onValueChange={onChange}
       disabled={disabled}
     >
-      <SelectTrigger className={`${inp} data-[size=default]:h-11 data-[size=sm]:h-10 ${className}`}>
+      <SelectTrigger id={id} aria-describedby={ariaDescribedBy} aria-invalid={ariaInvalid} className={`${inp} data-[size=default]:h-11 data-[size=sm]:h-10 ${className}`}>
         <SelectValue placeholder={placeholderText} />
       </SelectTrigger>
 

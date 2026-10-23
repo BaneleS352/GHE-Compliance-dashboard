@@ -149,8 +149,12 @@ export function useWorkflowApproval({ declarationId, userId, initialWorkflowStep
       notifySuccess("Decision submitted.");
       // Queue/badge refresh: listeners refetch the authoritative queue.
       window.dispatchEvent(new Event("ghe:queue-changed"));
-    } catch (err: any) {
-      const message = err.name === "AbortError" ? "Request timed out. Please try again." : err.message || "An error occurred while submitting the decision.";
+    } catch (err: unknown) {
+      const message = err instanceof Error && err.name === "AbortError"
+        ? "Request timed out. Please try again."
+        : err instanceof Error
+          ? err.message
+          : "An error occurred while submitting the decision.";
       setSubmitError(message);
       notifyError(message);
     } finally {

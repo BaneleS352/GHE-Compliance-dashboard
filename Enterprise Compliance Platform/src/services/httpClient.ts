@@ -5,6 +5,10 @@ interface ApiError {
   error: string;
 }
 
+export interface RequestOptions {
+  signal?: AbortSignal;
+}
+
 export class ApiClientError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -18,6 +22,7 @@ async function request<T>(
   path: string,
   body?: unknown,
   timeoutMs = 30000,
+  options?: RequestOptions,
 ): Promise<T> {
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const headers: Record<string, string> = isFormData ? {} : { "Content-Type": "application/json" };
@@ -32,7 +37,7 @@ async function request<T>(
       method,
       headers,
       body: body ? (isFormData ? body as FormData : JSON.stringify(body)) : undefined,
-      signal: controller.signal,
+      signal: options?.signal ?? controller.signal,
     });
   } finally {
     clearTimeout(timer);
@@ -55,10 +60,10 @@ async function request<T>(
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>("GET", path),
-  post: <T>(path: string, body?: unknown) => request<T>("POST", path, body),
-  postForm: <T>(path: string, body: FormData) => request<T>("POST", path, body),
-  put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body),
-  patch: <T>(path: string, body?: unknown) => request<T>("PATCH", path, body),
-  del: <T>(path: string) => request<T>("DELETE", path),
+  get: <T>(path: string, options?: RequestOptions) => request<T>("GET", path, undefined, 30000, options),
+  post: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>("POST", path, body, 30000, options),
+  postForm: <T>(path: string, body: FormData, options?: RequestOptions) => request<T>("POST", path, body, 30000, options),
+  put: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>("PUT", path, body, 30000, options),
+  patch: <T>(path: string, body?: unknown, options?: RequestOptions) => request<T>("PATCH", path, body, 30000, options),
+  del: <T>(path: string, options?: RequestOptions) => request<T>("DELETE", path, undefined, 30000, options),
 };

@@ -55,12 +55,14 @@ export function NewDeclarationScreen({
   const [showManagerDropdown, setShowManagerDropdown] = useState(false);
 
   useEffect(() => {
-    fetchConfig()
+    const controller = new AbortController();
+    fetchConfig({ signal: controller.signal })
       .then(setConfig)
-      .catch(() => setLoadWarning("System configuration could not be loaded — default thresholds apply. Ask an administrator to check the configuration before submitting high-value declarations."));
-    fetchOrganizations()
+      .catch((error: unknown) => { if (error instanceof DOMException && error.name === "AbortError") return; setLoadWarning("System configuration could not be loaded — default thresholds apply. Ask an administrator to check the configuration before submitting high-value declarations."); });
+    fetchOrganizations({ signal: controller.signal })
       .then(setOrganizations)
-      .catch(() => setLoadWarning("Organization data could not be loaded — company and department options may be incomplete."));
+      .catch((error: unknown) => { if (error instanceof DOMException && error.name === "AbortError") return; setLoadWarning("Organization data could not be loaded — company and department options may be incomplete."); });
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -72,7 +74,9 @@ export function NewDeclarationScreen({
       return;
     }
     if (/^\d+$/.test(lm.trim())) {
-      fetchUserById(Number(lm)).then((u) => { if (!cancelled) setLineManagerName(u?.name || ""); }).catch((err: Error) => console.error("Failed to fetch line manager:", err));
+      const controller = new AbortController();
+      fetchUserById(Number(lm), { signal: controller.signal }).then((u) => { if (!cancelled) setLineManagerName(u?.name || ""); }).catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) console.error("Failed to fetch line manager:", err); });
+      return () => { cancelled = true; controller.abort(); };
     } else {
       setLineManagerName(lm);
     }
@@ -250,8 +254,10 @@ export function NewDeclarationScreen({
     if (user?.role === "teamMember") return;
     const orgId = form.organizationId || user?.organizationId;
     if (!orgId) return;
-    fetchManagers(orgId).then(setManagers).catch((err: Error) => console.error("Failed to fetch managers:", err));
-    fetchDepartments(orgId).then(setDepartments).catch((err: Error) => console.error("Failed to fetch departments:", err));
+    const controller = new AbortController();
+    fetchManagers(orgId, { signal: controller.signal }).then(setManagers).catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) console.error("Failed to fetch managers:", err); });
+    fetchDepartments(orgId, { signal: controller.signal }).then(setDepartments).catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) console.error("Failed to fetch departments:", err); });
+    return () => controller.abort();
   }, [form.organizationId, user?.organizationId, user?.role]);
 
   useEffect(() => {
@@ -646,19 +652,19 @@ export function NewDeclarationScreen({
         <FS id="sec-team" num="1" title="Team Member Details">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-5">
             <div>
-              <FL required error={errors.employeeName}>Team Member Name</FL>
-              <ErrInp errors={errors} field="employeeName" value={form.employeeName} onChange={(e) => setF("employeeName", e.target.value)} maxLength={100} />
+              <FL htmlFor="employee-name" errorId="employee-name-error" required error={errors.employeeName}>Team Member Name</FL>
+              <ErrInp id="employee-name" aria-describedby="employee-name-error" aria-invalid={!!errors.employeeName} errors={errors} field="employeeName" value={form.employeeName} onChange={(e) => setF("employeeName", e.target.value)} maxLength={100} />
             </div>
             <div>
-              <FL error={errors.employeeCode}>Team Member Code</FL>
-              <ErrInp errors={errors} field="employeeCode" value={form.employeeCode} onChange={(e) => setF("employeeCode", e.target.value)} placeholder="e.g. HB-204478" maxLength={50} />
+              <FL htmlFor="employee-code" errorId="employee-code-error" error={errors.employeeCode}>Team Member Code</FL>
+              <ErrInp id="employee-code" aria-describedby="employee-code-error" aria-invalid={!!errors.employeeCode} errors={errors} field="employeeCode" value={form.employeeCode} onChange={(e) => setF("employeeCode", e.target.value)} placeholder="e.g. HB-204478" maxLength={50} />
             </div>
             <div>
-              <FL required error={errors.company}>Company</FL>
+              <FL htmlFor="company" errorId="company-error" required error={errors.company}>Company</FL>
               {profileIdentityLocked ? (
-                <input type="text" value={form.company || "No organization (global profile)"} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Company (from your profile)" />
+                <input id="company" type="text" value={form.company || "No organization (global profile)"} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Company (from your profile)" />
               ) : (
-              <Sel value={form.company} onChange={(v) => {
+              <Sel id="company" aria-describedby="company-error" aria-invalid={!!errors.company} value={form.company} onChange={(v) => {
                 const org = organizations.find((o) => o.name === v);
                 setF("company", v);
                 setFormState((f) => ({ ...f, organizationId: org?.id || "", department: "", lineManager: "" }));
@@ -670,27 +676,27 @@ export function NewDeclarationScreen({
               )}
             </div>
             <div>
-              <FL required error={errors.department}>Department</FL>
+              <FL htmlFor="department" errorId="department-error" required error={errors.department}>Department</FL>
               {profileIdentityLocked ? (
-                <input type="text" value={form.department} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Department (from your profile)" />
+                <input id="department" type="text" value={form.department} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Department (from your profile)" />
               ) : (
-              <Sel value={form.department} onChange={(v) => setF("department", v)} className={errors.department ? "border-red-500 bg-red-50" : ""}>
+              <Sel id="department" aria-describedby="department-error" aria-invalid={!!errors.department} value={form.department} onChange={(v) => setF("department", v)} className={errors.department ? "border-red-500 bg-red-50" : ""}>
                 <option value="">Select department…</option>
                 {departments.map((d) => <option key={d}>{d}</option>)}
               </Sel>
               )}
             </div>
             <div>
-              <FL required error={errors.position}>Team Member Role/Position</FL>
-              <ErrInp errors={errors} field="position" value={form.position} onChange={(e) => setF("position", e.target.value)} maxLength={100} />
+              <FL htmlFor="position" errorId="position-error" required error={errors.position}>Team Member Role/Position</FL>
+              <ErrInp id="position" aria-describedby="position-error" aria-invalid={!!errors.position} errors={errors} field="position" value={form.position} onChange={(e) => setF("position", e.target.value)} maxLength={100} />
             </div>
             <div>
-              <FL required error={errors.lineManager}>Approving Manager Name</FL>
+              <FL htmlFor="line-manager" errorId="line-manager-error" required error={errors.lineManager}>Approving Manager Name</FL>
               {profileIdentityLocked ? (
-                <input type="text" value={form.lineManager} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Approving manager (from your profile)" />
+                <input id="line-manager" type="text" value={form.lineManager} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Approving manager (from your profile)" />
               ) : (
               <div className="relative" data-manager-dropdown>
-                <input type="text" className={`${inp} ${errors.lineManager ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`} value={managerSearch || form.lineManager} onChange={(e) => { setManagerSearch(e.target.value); setShowManagerDropdown(true); setF("lineManager", e.target.value); }} onFocus={() => { setManagerSearch(""); setShowManagerDropdown(true); }} placeholder="Search for manager…" maxLength={100} />
+                <input id="line-manager" aria-describedby="line-manager-error" aria-invalid={!!errors.lineManager} type="text" className={`${inp} ${errors.lineManager ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`} value={managerSearch || form.lineManager} onChange={(e) => { setManagerSearch(e.target.value); setShowManagerDropdown(true); setF("lineManager", e.target.value); }} onFocus={() => { setManagerSearch(""); setShowManagerDropdown(true); }} placeholder="Search for manager…" maxLength={100} />
                 {showManagerDropdown && managers.length > 0 && <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-white shadow-lg">
                   {managers.filter((m) => !managerSearch || m.name.toLowerCase().includes(managerSearch.toLowerCase())).map((m) => <button key={m.id} type="button" className="w-full text-left px-4 py-2.5 text-sm hover:bg-purple-50 transition-colors border-b border-border/50 last:border-0" onClick={() => { setFormState((f) => ({ ...f, lineManager: m.name })); setManagerSearch(""); setShowManagerDropdown(false); setErrors((e) => ({ ...e, lineManager: "" })); }}><span className="font-semibold">{m.name}</span><span className="text-xs text-muted-foreground ml-2">({m.position})</span></button>)}
                   {managers.filter((m) => !managerSearch || m.name.toLowerCase().includes(managerSearch.toLowerCase())).length === 0 && <div className="px-4 py-2.5 text-sm text-muted-foreground">No managers found</div>}
@@ -705,21 +711,21 @@ export function NewDeclarationScreen({
           <div className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
               <div className="flex flex-col">
-                <FL required>Did you receive or give a Gift, Hospitality or Entertainment?</FL>
+                <FL htmlFor="received-given" required>Did you receive or give a Gift, Hospitality or Entertainment?</FL>
                 <div className="mt-auto">
-                  <Sel value={receivedGiven} onChange={setReceivedGiven}>
+                  <Sel id="received-given" value={receivedGiven} onChange={setReceivedGiven}>
                     <option>Received</option>
                     <option>Given</option>
                   </Sel>
                 </div>
               </div>
               <div className="flex flex-col">
-                <FL required error={errors.partyType}>
+                <FL htmlFor="party-type" errorId="party-type-error" required error={errors.partyType}>
                   {receivedGiven === "Received" ? "Who did you receive a Gift, Hospitality or Entertainment from?" : "Who did you give a Gift, Hospitality or Entertainment to?"}
                 </FL>
                 <div className="mt-auto">
                   <Sel
-                    value={form.partyType}
+                    id="party-type" aria-describedby="party-type-error" aria-invalid={!!errors.partyType} value={form.partyType}
                     onChange={(v) => setF("partyType", v)}
                     className={errors.partyType ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600" : ""}
                   >
@@ -730,24 +736,24 @@ export function NewDeclarationScreen({
               </div>
             </div>
             <div>
-              <FL required hint="Full Name of the organisation or Team Member" error={errors.Counterparty}>
+              <FL htmlFor="counterparty" errorId="counterparty-error" required hint="Full Name of the organisation or Team Member" error={errors.Counterparty}>
                 Name of the Supplier, Customer, Team Member or Public Official
               </FL>
               <input
                 className={`${inp} ${errors.Counterparty ? "border-red-400" : ""}`}
-                 value={form.Counterparty}
+                 id="counterparty" aria-describedby="counterparty-error" aria-invalid={!!errors.Counterparty} value={form.Counterparty}
                  onChange={(e) => setF("Counterparty", e.target.value)}
                 placeholder="Full legal name"
                 maxLength={200}
               />
             </div>
             <div>
-              <FL required error={errors.contactPerson}>
+              <FL htmlFor="contact-person" errorId="contact-person-error" required error={errors.contactPerson}>
                 Name of the person giving or receiving the GHE at the Supplier or Customer, or name of the Public Official
               </FL>
               <input
                 className={`${inp} ${errors.contactPerson ? "border-red-400" : ""}`}
-                value={form.contactPerson}
+                id="contact-person" aria-describedby="contact-person-error" aria-invalid={!!errors.contactPerson} value={form.contactPerson}
                 onChange={(e) => setF("contactPerson", e.target.value)}
                 placeholder="e.g. Ahmed Al-Rashid"
                 maxLength={200}
@@ -755,22 +761,22 @@ export function NewDeclarationScreen({
             </div>
             <div className="space-y-5">
               <div>
-                <FL required error={errors.contractNegotiation}>Are we currently negotiating a contract with the Supplier or Customer?</FL>
-                <Sel value={form.contractNegotiation} onChange={(v) => setF("contractNegotiation", v)} className={errors.contractNegotiation ? "border-red-400" : ""}>
+                <FL htmlFor="contract-negotiation" errorId="contract-negotiation-error" required error={errors.contractNegotiation}>Are we currently negotiating a contract with the Supplier or Customer?</FL>
+                <Sel id="contract-negotiation" aria-describedby="contract-negotiation-error" aria-invalid={!!errors.contractNegotiation} value={form.contractNegotiation} onChange={(v) => setF("contractNegotiation", v)} className={errors.contractNegotiation ? "border-red-400" : ""}>
                   <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
               </div>
               <div>
-                <FL required error={errors.biddingProcess}>Is the Supplier or Potential Supplier involved in a bidding process with us?</FL>
-                <Sel value={form.biddingProcess} onChange={(v) => setF("biddingProcess", v)} className={errors.biddingProcess ? "border-red-400" : ""}>
+                <FL htmlFor="bidding-process" errorId="bidding-process-error" required error={errors.biddingProcess}>Is the Supplier or Potential Supplier involved in a bidding process with us?</FL>
+                <Sel id="bidding-process" aria-describedby="bidding-process-error" aria-invalid={!!errors.biddingProcess} value={form.biddingProcess} onChange={(v) => setF("biddingProcess", v)} className={errors.biddingProcess ? "border-red-400" : ""}>
                   <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
               </div>
               <div>
-                <FL required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the Supplier or Customer?</FL>
-                <Sel value={form.existingRelationship} onChange={(v) => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
+                <FL htmlFor="existing-relationship" errorId="existing-relationship-error" required error={errors.existingRelationship}>Is there an existing or imminent business relationship with the Supplier or Customer?</FL>
+                <Sel id="existing-relationship" aria-describedby="existing-relationship-error" aria-invalid={!!errors.existingRelationship} value={form.existingRelationship} onChange={(v) => setF("existingRelationship", v)} className={errors.existingRelationship ? "border-red-400" : ""}>
                   <option value="">Select…</option>
                   {ynu.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
@@ -782,9 +788,9 @@ export function NewDeclarationScreen({
         <FS id="sec-ghe" num="3" title="Gift, Hospitality or Entertainment Details">
           <div className="space-y-5">
             <div>
-              <FL required error={errors.category}>What category does the nature of the GHE fall into?</FL>
+              <FL htmlFor="category" errorId="category-error" required error={errors.category}>What category does the nature of the GHE fall into?</FL>
               <Sel
-                value={category}
+                id="category" aria-describedby="category-error" aria-invalid={!!errors.category} value={category}
                 onChange={(v) => { setCategory(v); setErrors((e) => ({ ...e, category: "" })); }}
                 className={errors.category ? "border-red-400" : ""}
               >
@@ -803,9 +809,9 @@ export function NewDeclarationScreen({
               )}
             </div>
             <div>
-              <FL required error={errors.description}>Please describe the nature of the GHE in detail</FL>
+              <FL htmlFor="description" errorId="description-error" required error={errors.description}>Please describe the nature of the GHE in detail</FL>
               <textarea
-                className={`${inp} h-auto resize-none ${errors.description ? "border-red-400" : ""}`}
+                id="description" aria-describedby="description-error" aria-invalid={!!errors.description} className={`${inp} h-auto resize-none ${errors.description ? "border-red-400" : ""}`}
                 rows={4}
                 value={form.description}
                 onChange={(e) => setF("description", e.target.value)}
@@ -816,14 +822,14 @@ export function NewDeclarationScreen({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
               <div className="flex flex-col">
-                  <FL error={errors.occasionOther}>Reason/Occasion for the GHE</FL>
-                <Sel value={form.occasion} onChange={(v) => setF("occasion", v)}>
+                  <FL htmlFor="occasion" errorId="occasion-error" error={errors.occasionOther}>Reason/Occasion for the GHE</FL>
+                <Sel id="occasion" aria-describedby="occasion-error" aria-invalid={!!errors.occasionOther} value={form.occasion} onChange={(v) => setF("occasion", v)}>
                   <option value="">Select reason…</option>
                   {OCCASION_OPTIONS.map((o) => <option key={o}>{o}</option>)}
                 </Sel>
                 {requiresOccasionOther && (
                   <input
-                    className={`${inp} mt-3 ${errors.occasionOther ? "border-red-400" : ""}`}
+                    id="occasion-other" aria-describedby="occasion-other-error" aria-invalid={!!errors.occasionOther} className={`${inp} mt-3 ${errors.occasionOther ? "border-red-400" : ""}`}
                     value={form.occasionOther}
                     onChange={(e) => setF("occasionOther", e.target.value)}
                     placeholder="Please specify the reason"
@@ -832,10 +838,10 @@ export function NewDeclarationScreen({
                 )}
               </div>
               <div className="flex flex-col">
-                  <FL required error={errors.date}>Date of GHE</FL>
+                  <FL htmlFor="date" errorId="date-error" required error={errors.date}>Date of GHE</FL>
                 <input
                   type="date"
-                  className={`${inp} ${errors.date ? "border-red-400" : ""}`}
+                  id="date" aria-describedby="date-error" aria-invalid={!!errors.date} className={`${inp} ${errors.date ? "border-red-400" : ""}`}
                   value={form.date}
                   onChange={(e) => setF("date", e.target.value)}
                   max={new Date().toISOString().split("T")[0]}
@@ -843,12 +849,13 @@ export function NewDeclarationScreen({
               </div>
             </div>
             <div>
-              <FL hint="Enter the Rand value including VAT. Convert foreign currency to ZAR equivalent.">
+              <FL htmlFor="value" hint="Enter the Rand value including VAT. Convert foreign currency to ZAR equivalent.">
                 Rand Value or Equivalent Rand Value (including VAT)
               </FL>
               <div className="relative">
                 <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">R</span>
                 <input
+                  id="value"
                   type="text"
                   inputMode="decimal"
                   aria-describedby="rand-value-error"
@@ -911,10 +918,19 @@ export function NewDeclarationScreen({
             onChange={(e) => { processFiles(e.target.files); e.target.value = ""; }}
           />
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Choose supporting documents"
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
             className={`rounded-2xl border-2 border-dashed py-12 px-6 text-center cursor-pointer transition-all duration-300 ease-out group ${
               dragging
                 ? "border-purple-500 bg-purple-50/50 scale-[1.02] shadow-sm"

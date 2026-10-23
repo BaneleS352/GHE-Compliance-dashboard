@@ -28,7 +28,7 @@ describe("ErrorBoundary", () => {
       </ErrorBoundary>
     );
     expect(screen.getByText("Something went wrong")).toBeInTheDocument();
-    expect(screen.getByText("Test error from child")).toBeInTheDocument();
+    expect(screen.getByText("We could not load this part of the application. Please try again, or contact support if the problem continues.")).toBeInTheDocument();
     expect(screen.getByText("Try again")).toBeInTheDocument();
   });
 
@@ -61,13 +61,13 @@ describe("ErrorBoundary", () => {
     expect(screen.getByText("All good")).toBeInTheDocument();
   });
 
-  it("renders generic message when error has no message", () => {
+  it("does not expose internal error details when error has no message", () => {
     const BlankError = () => { throw new Error(); };
     render(
       <ErrorBoundary>
         <BlankError />
       </ErrorBoundary>
     );
-    expect(screen.getByText("An unexpected error occurred.")).toBeInTheDocument();
+    expect(screen.getByText("We could not load this part of the application. Please try again, or contact support if the problem continues.")).toBeInTheDocument();
   });
 });

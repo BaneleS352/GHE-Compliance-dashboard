@@ -23,14 +23,38 @@ export function ConfirmDialog({
   onCancel: () => void;
 }) {
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     confirmRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCancel();
+        return;
+      }
+      if (e.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      restoreFocusRef.current?.focus();
+    };
   }, [onCancel]);
 
   return (
@@ -41,9 +65,11 @@ export function ConfirmDialog({
       role="presentation"
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby="confirm-dialog-title"
+        aria-describedby="confirm-dialog-message"
         className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl"
         style={F}
         onClick={(e) => e.stopPropagation()}
@@ -55,8 +81,8 @@ export function ConfirmDialog({
             <AlertTriangle size={18} />
           </div>
           <div className="min-w-0">
-            <h2 className="text-base font-bold text-foreground">{title}</h2>
-            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{message}</p>
+            <h2 id="confirm-dialog-title" className="text-base font-bold text-foreground">{title}</h2>
+            <p id="confirm-dialog-message" className="mt-1 text-sm leading-relaxed text-muted-foreground">{message}</p>
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">
