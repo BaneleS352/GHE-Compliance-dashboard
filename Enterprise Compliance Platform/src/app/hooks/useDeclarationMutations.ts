@@ -5,7 +5,7 @@ import type { UploadFile } from "@/app/components/SupportingDocumentsUpload";
 import { notifyError, notifySuccess } from "@/app/components/notify";
 
 interface UseDeclarationMutationsOptions {
-  draft?: Declaration;
+  draft?: Declaration | null;
   files: UploadFile[];
   setFiles: Dispatch<SetStateAction<UploadFile[]>>;
   pendingFilesRef: MutableRefObject<Array<File & { uploadId?: string }>>;

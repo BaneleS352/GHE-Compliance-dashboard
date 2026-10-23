@@ -41,7 +41,7 @@ export default defineConfig({
       cwd: "../NodejsBackend",
       port: 3001,
       timeout: 30000,
-      reuseExistingServer: true,
+      reuseExistingServer: false,
       // The API validates bearer tokens against this throwaway provider
       // (booted by e2e/global-setup.ts); e2e specs mint per-user tokens
       // from it. No production credentials anywhere in this flow.
@@ -57,7 +57,7 @@ export default defineConfig({
       cwd: ".",
       port: 5173,
       timeout: 30000,
-      reuseExistingServer: true,
+      reuseExistingServer: false,
     },
   ],
 });

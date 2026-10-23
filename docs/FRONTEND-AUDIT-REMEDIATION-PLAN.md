@@ -828,3 +828,13 @@ Run a clean browser session against a migrated PostgreSQL database and record ev
 ## Definition of complete
 
 The plan can be closed only when all Phase 7 decisions are recorded, automated gates pass, browser acceptance passes, and real staging identity/API verification is recorded. Historical audit observations below must remain labelled historical and must not be read as current defects.
+
+## Verification update — 2026-10-23
+
+- Clean UTF-8 PostgreSQL integration gate: **69/69 checks passed**.
+- Clean PostgreSQL smoke assertions: **19/19 passed**. The temporary embedded-Postgres wrapper did not exit cleanly during teardown; this is harness cleanup noise, not an assertion failure.
+- Clean Playwright run after disabling `reuseExistingServer`: **12 passed, 3 flaky, 5 failed** across 20 tests (desktop and mobile). The run now exercised this application rather than an unrelated process on port 5173.
+- Fixed in the E2E harness: `e2e/common-helpers.ts` now locates locked identity fields through their public labels (`Team Member Name`, `Approving Manager Name`) instead of assuming a particular wrapper structure.
+- Added `NodejsBackend/requirements.txt` as the single pinned source for `pypdf` and `msoffcrypto-tool`; Docker and CI now install from that manifest so protected-export behavior is reproducible outside the developer workstation.
+- Remaining browser failures: the focused declaration rerun encountered backend `ECONNRESET`/temporary-harness instability and needs another clean run; staging OIDC and real production-like document-protection verification remain outstanding. The local sidecar dependency gap is fixed by the new manifest and installed pins.
+- The plan remains open. Do not count the browser gate as passed until the corrected E2E run and the staging identity/export checks are recorded.

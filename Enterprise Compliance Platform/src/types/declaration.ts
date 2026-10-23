@@ -42,6 +42,7 @@ export interface User {
   department: string;
   position: string;
   lineManager: string | null;
+  managerId?: number | null;
   organizationId?: number | null;
 }
 

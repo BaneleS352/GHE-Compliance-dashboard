@@ -1,0 +1,3 @@
+# Document-protection sidecars used by src/scripts/protect_document.py.
+pypdf==6.19.0
+msoffcrypto-tool==6.0.0

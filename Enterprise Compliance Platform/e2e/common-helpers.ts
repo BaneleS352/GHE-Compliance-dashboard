@@ -102,15 +102,15 @@ export class NewDeclarationPage {
   }
 
   async autoFilled(teamMember: string, manager: string) {
-    // Identity fields are read-only for team members (profile locking) and
-    // wrapped in a div for other roles — match the input inside the field
-    // container either way.
-    await expect(this.page.locator('div:has(> label:has-text("Team Member Name")) input')).toHaveValue(teamMember, { timeout: 10000 });
-    await expect(this.page.locator('div:has(> label:has-text("Manager Name")) input')).toHaveValue(manager, { timeout: 10000 });
+    // Use the public label/input contract so this remains stable when the
+    // form's layout wrappers change. The manager's user-facing label is
+    // intentionally "Approving Manager Name".
+    await expect(this.page.getByLabel("Team Member Name", { exact: true })).toHaveValue(teamMember, { timeout: 10000 });
+    await expect(this.page.getByLabel("Approving Manager Name", { exact: true })).toHaveValue(manager, { timeout: 10000 });
   }
 
   async receivedGiven(option: string) {
-    await this.page.locator('div:has(> label:has-text("Did you receive or give")) [role="combobox"]').click();
+    await this.page.getByLabel("Did you receive or give a Gift, Hospitality or Entertainment?", { exact: true }).click();
     await this.page.getByRole("option", { name: option, exact: true }).click();
   }
 

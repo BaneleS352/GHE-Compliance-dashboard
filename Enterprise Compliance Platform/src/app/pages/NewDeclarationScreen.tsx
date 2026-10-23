@@ -59,8 +59,19 @@ export function NewDeclarationScreen({
 
   useEffect(() => {
     let cancelled = false;
-    // lineManager is display text; only numeric references need a lookup.
+    // Resolve the authoritative manager FK when available. The display field
+    // remains a compatibility fallback for historical/global profiles.
+    const managerId = user?.managerId;
     const lm = user?.lineManager;
+    if (lm?.trim()) {
+      setLineManagerName(lm);
+      return () => { cancelled = true; };
+    }
+    if (managerId) {
+      const controller = new AbortController();
+      fetchUserById(managerId, { signal: controller.signal }).then((u) => { if (!cancelled) setLineManagerName(u?.name || lm || ""); }).catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) reportClientError(err, { feature: "declaration", operation: "load-line-manager" }); });
+      return () => { cancelled = true; controller.abort(); };
+    }
     if (!lm) {
       setLineManagerName("");
       return;
@@ -69,8 +80,6 @@ export function NewDeclarationScreen({
       const controller = new AbortController();
       fetchUserById(Number(lm), { signal: controller.signal }).then((u) => { if (!cancelled) setLineManagerName(u?.name || ""); }).catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) reportClientError(err, { feature: "declaration", operation: "load-line-manager" }); });
       return () => { cancelled = true; controller.abort(); };
-    } else {
-      setLineManagerName(lm);
     }
     return () => { cancelled = true; };
   }, [user]);
@@ -464,7 +473,7 @@ export function NewDeclarationScreen({
             <div>
               <FL htmlFor="line-manager" errorId="line-manager-error" required error={errors.lineManager}>Approving Manager Name</FL>
               {profileIdentityLocked ? (
-                <input id="line-manager" type="text" value={form.lineManager} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Approving manager (from your profile)" />
+                <input id="line-manager" type="text" value={form.lineManager} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Approving Manager Name" />
               ) : (
               <div className="relative" data-manager-dropdown>
                 <input id="line-manager" aria-describedby="line-manager-error" aria-invalid={!!errors.lineManager} type="text" className={`${inp} ${errors.lineManager ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`} value={managerSearch || form.lineManager} onChange={(e) => { setManagerSearch(e.target.value); setShowManagerDropdown(true); setF("lineManager", e.target.value); }} onFocus={() => { setManagerSearch(""); setShowManagerDropdown(true); }} placeholder="Search for manager…" maxLength={100} />
