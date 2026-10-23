@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { fetchWorkflowInstance, approveWorkflowStep } from "@/services/api";
+import type { WorkflowInstanceResponse, WorkflowStepResponse } from "@/services/api";
 import { notifySuccess, notifyError } from "@/app/components/notify";
 import { DECISION_LABELS } from "@/config/theme";
 import type { StepView } from "@/app/components/WorkflowTimeline"
@@ -8,15 +9,24 @@ import type {
     StatusType,
 } from "@/types/declaration";
 
+type WorkflowHookStep = Omit<WorkflowStepResponse, "status"> & { status: WorkflowStepResponse["status"] | "skipped" };
+type WorkflowHookInstance = Omit<WorkflowInstanceResponse, "steps"> & { steps: WorkflowHookStep[] };
+
+function toApprovalDecision(value: string | null): ApprovalDecision {
+  return value === "return" || value === "accept" || value === "org" || value === "foundation" || value === "decline"
+    ? value
+    : null;
+}
+
 interface UseWorkflowApprovalOptions {
     declarationId: string | null;
     userId: number | null;
-    initialWorkflowSteps?: any[];
+    initialWorkflowSteps?: WorkflowHookStep[];
     onStatusUpdate?: (status: StatusType) => void;
 }
 
 export function useWorkflowApproval({ declarationId, userId, initialWorkflowSteps, onStatusUpdate }: UseWorkflowApprovalOptions) {
-  const [wfInstance, setWfInstance] = useState<any>(null);
+  const [wfInstance, setWfInstance] = useState<WorkflowHookInstance | null>(null);
   const [wfLoading, setWfLoading] = useState(!!declarationId);
   const [lmDecision, setLmDecision] = useState<ApprovalDecision>(null);
   const [hrDecision, setHrDecision] = useState<ApprovalDecision>(null);
@@ -39,11 +49,12 @@ export function useWorkflowApproval({ declarationId, userId, initialWorkflowStep
     setWfLoading(true);
     try {
       const wf = await fetchWorkflowInstance(declarationId);
-      setWfInstance(wf);
+      // The API adapter owns runtime validation; keep the hook's domain model narrow.
+      setWfInstance({ declarationId: wf.declarationId, steps: wf.steps as WorkflowHookStep[] });
       if (wf) {
-        const getStep = (role: string) => wf.steps.find((s: any) => s.role === role);
-        setLmDecision(getStep("lineManager")?.decision ?? null);
-        setHrDecision(getStep("hr")?.decision ?? null);
+        const getStep = (role: string) => wf.steps.find((s) => s.role === role);
+        setLmDecision(toApprovalDecision(getStep("lineManager")?.decision ?? null));
+        setHrDecision(toApprovalDecision(getStep("hr")?.decision ?? null));
         setLmNotes(getStep("lineManager")?.notes ?? "");
         setHrNotes(getStep("hr")?.notes ?? "");
       }
@@ -59,8 +70,8 @@ export function useWorkflowApproval({ declarationId, userId, initialWorkflowStep
   }, [loadWorkflowInstance]);
 
   const steps = wfInstance?.steps ?? [];
-  const lmStep = steps.find((s: any) => s.role === "lineManager");
-  const hrStep = steps.find((s: any) => s.role === "hr");
+  const lmStep = steps.find((s: WorkflowHookStep) => s.role === "lineManager");
+  const hrStep = steps.find((s: WorkflowHookStep) => s.role === "hr");
 
   const hasLm = !!lmStep;
   const hasHr = !!hrStep;
@@ -118,7 +129,7 @@ export function useWorkflowApproval({ declarationId, userId, initialWorkflowStep
   }, [allRoles]);
 
   const currentUserStep = useMemo(() => steps.find(
-    (s: any, i: number) => s.status === "pending" && steps.slice(0, i).every((p: any) => p.status === "approved" || p.status === "skipped")
+    (s: WorkflowHookStep, i: number) => s.status === "pending" && steps.slice(0, i).every((p: WorkflowHookStep) => p.status === "approved" || p.status === "skipped")
   ), [steps]);
   const canApprove = !!(currentUserStep?.assignee === userId && currentUserStep);
   const currentUserStepRole = canApprove ? currentUserStep?.role : undefined;
@@ -139,10 +150,10 @@ export function useWorkflowApproval({ declarationId, userId, initialWorkflowStep
       // Timeout and cancellation are enforced by the shared httpClient
       // (30 s AbortController per request) — no local controller here, so
       // there is exactly one timeout owner and no theater aborts.
-      const res: any = await approveWorkflowStep({ declarationId, decision, notes });
+      const res = await approveWorkflowStep({ declarationId, decision, notes });
       // 204 returns undefined — treat as success
       if (res?.newStatus) onStatusUpdate?.(res.newStatus);
-      else if (res === undefined) onStatusUpdate?.("Pending" as any);
+      else if (res === undefined) onStatusUpdate?.("Pending");
       await loadWorkflowInstance();
       // Success feedback is the shared toast (single source); no inline
       // success banner, so success text matches in exactly one place.

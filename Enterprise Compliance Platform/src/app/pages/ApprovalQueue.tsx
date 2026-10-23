@@ -45,9 +45,10 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
   const [protectingExport, setProtectingExport] = useState(false);
 
   useEffect(() => {
+    const controller = new AbortController();
     const load = () => {
       setLoading(true);
-      fetchWorkflowQueue()
+      fetchWorkflowQueue({ signal: controller.signal })
         .then((queue) => {
           setAllDeclarations(queue.items.map((item) => item.declaration));
           // Authoritative total from the same response — never recomputed
@@ -57,22 +58,24 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
           queue.items.forEach((item) => { if (item.step) map[item.declaration.id] = item.step.label; });
           setStepsMap(map);
         })
-        .catch((err: Error) => setError(err.message))
-        .finally(() => setLoading(false));
+        .catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) setError(err instanceof Error ? err.message : "Failed to load approval queue."); })
+        .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     };
     load();
     window.addEventListener("ghe:queue-changed", load);
-    return () => window.removeEventListener("ghe:queue-changed", load);
+    return () => { controller.abort(); window.removeEventListener("ghe:queue-changed", load); };
     // Fetch SLA threshold for overdue calculation
     // (kept separate so queue refreshes do not refetch config)
   }, []);
 
   useEffect(() => {
-    import("@/services/api").then(({ fetchConfig }) => fetchConfig()
+    const controller = new AbortController();
+    import("@/services/api").then(({ fetchConfig }) => fetchConfig({ signal: controller.signal })
       .then((c) => setSlaDays(c.slaEscalationDays ?? 3))
       // Overdue display depends on this threshold — a silent default would
       // mislead, so warn instead of failing the whole queue.
-      .catch(() => setSlaWarning("SLA configuration could not be loaded — overdue highlighting uses a 3-day default.")));
+      .catch((error: unknown) => { if (!(error instanceof DOMException && error.name === "AbortError")) setSlaWarning("SLA configuration could not be loaded — overdue highlighting uses a 3-day default."); }));
+    return () => controller.abort();
   }, []);
 
   useEffect(() => { setPage(0); }, [search, department, status, priority, employeeFilter, overdueOnly, sortKey, sortDir]);

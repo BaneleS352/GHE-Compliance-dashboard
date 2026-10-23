@@ -1,4 +1,4 @@
-import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile, User, SystemConfig, DropdownOptions, WorkflowRule } from"@/types/declaration" 
+import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile, User, SystemConfig, DropdownOptions, WorkflowRule, WorkflowStep, StatusType } from"@/types/declaration" 
 import { api } from "@/services/httpClient" 
 import type { RequestOptions } from "@/services/httpClient";
 
@@ -7,17 +7,17 @@ type DeclarationResponse = Declaration & {
   workflowSteps?: Declaration["workflowSteps"];
 };
 
-export async function fetchDeclarations(status?: string, search?: string): Promise<Declaration[]> {
+export async function fetchDeclarations(status?: string, search?: string, options?: RequestOptions): Promise<Declaration[]> {
   const params = new URLSearchParams();
   if (status) params.set("status", status);
   if (search) params.set("search", search);
   const qs = params.toString();
-  const raw = await api.get<DeclarationResponse[]>(`/api/declarations${qs ? `?${qs}` : ""}`);
+  const raw = await api.get<DeclarationResponse[]>(`/api/declarations${qs ? `?${qs}` : ""}`, options);
   return raw.map(mapDeclaration);
 }
 
-export async function fetchDeclarationById(id: string): Promise<Declaration> {
-  const raw = await api.get<DeclarationResponse>(`/api/declarations/${id}`);
+export async function fetchDeclarationById(id: string, options?: RequestOptions): Promise<Declaration> {
+  const raw = await api.get<DeclarationResponse>(`/api/declarations/${id}`, options);
   return { ...mapDeclaration(raw), workflowSteps: raw.workflowSteps ?? [] };
 }
 
@@ -187,16 +187,38 @@ export async function deleteWorkflowRule(id: number): Promise<{ success?: boolea
 }
 
 // ── Workflows ─────────────────────────────────────────
-export async function fetchPendingWorkflows(): Promise<any[]> {
-  const raw = await api.get<any[]>("/api/workflows/pending");
+interface PendingWorkflowResponse {
+  declaration: DeclarationResponse;
+  [key: string]: unknown;
+}
+
+export async function fetchPendingWorkflows(): Promise<PendingWorkflowResponse[]> {
+  const raw = await api.get<PendingWorkflowResponse[]>("/api/workflows/pending");
   return raw.map((item) => ({
     ...item,
     declaration: mapDeclaration(item.declaration),
   }));
 }
 
+export interface WorkflowStepResponse {
+  order: number;
+  role: string;
+  assignee: number | null;
+  assigneeName: string;
+  label: string;
+  status: string;
+  decision: string | null;
+  notes: string;
+  decidedAt: string | null;
+  decidedById?: number | null;
+  decidedByName?: string | null;
+}
+export interface WorkflowInstanceResponse {
+  declarationId: string;
+  steps: WorkflowStepResponse[];
+}
 export interface WorkflowQueue {
-  items: { declaration: Declaration; step: any }[];
+  items: { declaration: Declaration; step: { label: string } | null }[];
   total: number;
 }
 
@@ -204,8 +226,8 @@ export interface WorkflowQueue {
 // response, computed after organization scoping and actionable-step
 // resolution. Badge and list must consume this — never recompute the total
 // from declaration statuses.
-export async function fetchWorkflowQueue(): Promise<WorkflowQueue> {
-  const raw = await api.get<{ items: any[]; total: number }>("/api/workflows/queue");
+export async function fetchWorkflowQueue(options?: RequestOptions): Promise<WorkflowQueue> {
+  const raw = await api.get<{ items: Array<{ declaration: DeclarationResponse; step: { label: string } | null }>; total: number }>("/api/workflows/queue", options);
   return {
     items: raw.items.map((item) => ({
       ...item,
@@ -215,16 +237,21 @@ export async function fetchWorkflowQueue(): Promise<WorkflowQueue> {
   };
 }
 
-export async function fetchWorkflowInstance(declarationId: string): Promise<any> {
-  return api.get<any>(`/api/workflows/instances/${declarationId}`);
+export async function fetchWorkflowInstance(declarationId: string): Promise<WorkflowInstanceResponse> {
+  return api.get<WorkflowInstanceResponse>(`/api/workflows/instances/${declarationId}`);
+}
+
+export interface WorkflowApprovalResponse {
+  status?: StatusType;
+  newStatus?: StatusType;
 }
 
 export async function approveWorkflowStep(data: {
   declarationId: string;
   decision: string;
   notes?: string;
-}): Promise<any> {
-  return api.post<any>("/api/workflows/approve", data);
+}): Promise<WorkflowApprovalResponse> {
+  return api.post<WorkflowApprovalResponse>("/api/workflows/approve", data);
 }
 
 // ── Reports ───────────────────────────────────────────

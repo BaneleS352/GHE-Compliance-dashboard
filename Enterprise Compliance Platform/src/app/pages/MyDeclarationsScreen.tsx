@@ -30,10 +30,12 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchDeclarations()
+    const controller = new AbortController();
+    fetchDeclarations(undefined, undefined, { signal: controller.signal })
       .then(setDeclarations)
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
+      .catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) setError(err instanceof Error ? err.message : "Failed to load declarations."); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
   }, []);
 
   const isTeamMember = user?.role === "teamMember";
@@ -67,11 +69,12 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
   });
 
   const handleViewDeclaration = async (declaration: Declaration) => {
+    const controller = new AbortController();
     try {
-      setViewDecl(await fetchDeclarationById(declaration.id));
+      setViewDecl(await fetchDeclarationById(declaration.id, { signal: controller.signal }));
     } catch {
       // Keep the list row available if the refresh fails.
-      setViewDecl(declaration);
+      if (!controller.signal.aborted) setViewDecl(declaration);
     }
   };
 
