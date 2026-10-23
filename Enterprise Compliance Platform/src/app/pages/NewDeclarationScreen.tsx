@@ -14,14 +14,10 @@ import { downloadFile } from "@/services/download";
 import { notifySuccess, notifyError } from "@/app/components/notify";
 import { useUser } from "@/app/auth/UserContext";
 import { fetchConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
+import { formatRandValue, getPriority, OCCASION_OPTIONS, parseRandInput, validateDeclarationForm } from "./newDeclarationModel";
+import type { DeclarationFormState } from "./newDeclarationModel";
 
 // determineRuleId now handled server-side via workflowService.determineRuleId (2-tier: >=high → rule-2)
-
-const getPriority = (value: number, highThreshold: number, mediumThreshold: number): "High" | "Medium" | "Low" => {
-  if (value >= highThreshold) return "High";
-  if (value >= mediumThreshold) return "Medium";
-  return "Low";
-};
 
 function ErrInp({ field, errors, ...props }: { field: string; errors: Record<string, string> } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
@@ -31,10 +27,6 @@ function ErrInp({ field, errors, ...props }: { field: string; errors: Record<str
     />
   );
 }
-
-const OCCASION_OPTIONS = [
-  "Business Meeting", "Festive Season", "Milestone", "Other", "Relationship Maintenance", "Year End",
-];
 
 export function NewDeclarationScreen({
   onSubmitSuccess,
@@ -144,31 +136,6 @@ export function NewDeclarationScreen({
     }
   }, [draft]);
 
-  const formatRandValue = (value: string, fixedDecimals = false) => {
-    if (!value) return "";
-    const hasTrailingDot = value.endsWith(".");
-    const [integerPartRaw, decimalPartRaw = ""] = value.split(".");
-    const integerPart = (integerPartRaw || "0").replace(/^0+(?=\d)/, "") || "0";
-    const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-    if (fixedDecimals) {
-      return `${groupedInteger}.${(decimalPartRaw + "00").slice(0, 2)}`;
-    }
-    return `${groupedInteger}${hasTrailingDot ? "." : decimalPartRaw ? `.${decimalPartRaw.slice(0, 2)}` : ""}`;
-  };
-
-  const parseRandInput = (raw: string) => {
-    const cleaned = raw.replace(/[Rr\s]/g, "").replace(/[^\d.,]/g, "");
-    if (!cleaned) return "";
-    const separatorIndex = Math.max(cleaned.lastIndexOf("."), cleaned.lastIndexOf(","));
-    if (separatorIndex === -1) {
-      const integerOnly = cleaned.replace(/[^\d]/g, "");
-      return integerOnly.replace(/^0+(?=\d)/, "") || "0";
-    }
-    const integerPart = cleaned.slice(0, separatorIndex).replace(/[^\d]/g, "");
-    const decimalPart = cleaned.slice(separatorIndex + 1).replace(/[^\d]/g, "").slice(0, 2);
-    const normalizedInteger = integerPart.replace(/^0+(?=\d)/, "") || "0";
-    return `${normalizedInteger}.${decimalPart}`;
-  };
 
   const [receivedGiven, setReceivedGiven] = useState("Received");
   const [category, setCategory] = useState("");
@@ -187,7 +154,7 @@ export function NewDeclarationScreen({
   const pendingFilesRef = useRef<Array<File & { uploadId?: string }>>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const [form, setFormState] = useState({
+  const [form, setFormState] = useState<DeclarationFormState>({
     employeeName: user?.name || "",
     employeeCode: user?.teamMemberNumber || "",
     lineManager: lineManagerName,
@@ -359,31 +326,7 @@ export function NewDeclarationScreen({
       jumpTo("sec-team");
       return false;
     }
-    const value = Number(form.value || 0);
-    const requiresSubstantiation = Number.isFinite(value) && value >= config.highValueThreshold;
-    const requiresOccasionOther = form.occasion === "Other";
-
-    const errs: Record<string, string> = {};
-    if (!form.employeeName.trim())       errs.employeeName = "Required";
-    if (!form.employeeCode.trim())       errs.employeeCode = "Required";
-    if (!profileIdentityLocked) {
-      if (!form.lineManager.trim())        errs.lineManager = "Required";
-      if (!form.company.trim())            errs.company = "Required";
-      if (!form.department.trim())         errs.department = "Required";
-    }
-    if (!form.position.trim())           errs.position = "Required";
-     if (!form.partyType)                 errs.partyType = "Required";
-      if (!form.Counterparty.trim())       errs.Counterparty = "Required";
-    if (!form.contactPerson.trim())      errs.contactPerson = "Required";
-    if (!form.existingRelationship)      errs.existingRelationship = "Required";
-    if (!form.contractNegotiation)       errs.contractNegotiation = "Required";
-    if (!form.biddingProcess)            errs.biddingProcess = "Required";
-    if (!category)                       errs.category = "Required";
-    if (!form.description.trim())        errs.description = "Required";
-    if (!form.date)                      errs.date = "Required";
-    if (form.value && Number(form.value) > (config.maximumValue ?? 1000000)) errs.value = `Maximum value exceeded. Please enter an amount of R${(config.maximumValue ?? 1000000).toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.`;
-    if (requiresOccasionOther && !form.occasionOther.trim()) errs.occasionOther = "Required";
-    if (requiresSubstantiation && !form.substantiation.trim()) errs.substantiation = "Required";
+    const errs = validateDeclarationForm(form, category, config, profileIdentityLocked);
     setErrors(errs);
     if (Object.keys(errs).length > 0) {
       const sectionMap: Record<string, string> = {

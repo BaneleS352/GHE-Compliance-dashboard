@@ -6,7 +6,7 @@ import {
   FileText,
 } from "lucide-react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
-import { fetchDeclarations, fetchWorkflowQueue } from "@/services/api";
+import { fetchDeclarations, fetchWorkflowQueue, fetchConfig } from "@/services/api";
 import { Screen, Declaration } from "@/types/declaration";
 import { PURPLE, YELLOW, formatRand, PRIORITY_COLORS, STATUS_COLORS, GRADIENT_PRIMARY, TYPE_COLORS } from "@/config/theme";
 import { useUser } from "@/app/auth/UserContext";
@@ -63,8 +63,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
     // warns on failure); same default, same non-fatal behavior. The outer
     // catch also covers module-resolution failures (e.g. partial test
     // doubles of the api module), which must never surface as unhandled.
-    import("@/services/api")
-      .then(({ fetchConfig }) => fetchConfig())
+    fetchConfig()
       .then((c) => setSlaDays(c.slaEscalationDays ?? 3))
       .catch(() => setQueueWarning((w) => w ?? "SLA configuration could not be loaded — overdue highlighting uses a 3-day default."));
     return () => window.removeEventListener("ghe:queue-changed", loadQueueTotal);

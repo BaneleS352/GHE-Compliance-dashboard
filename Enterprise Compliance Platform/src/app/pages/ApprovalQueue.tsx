@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 import { Download, Search, AlertTriangle } from "lucide-react";
-import { fetchWorkflowQueue } from "@/services/api";
+import { fetchWorkflowQueue, fetchConfig } from "@/services/api";
 import { Declaration } from "@/types/declaration";
 import { PURPLE, formatRand, PRIORITY_COLORS } from "@/config/theme";
 import { Card } from "@/app/components/Card";
@@ -70,11 +70,11 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
 
   useEffect(() => {
     const controller = new AbortController();
-    import("@/services/api").then(({ fetchConfig }) => fetchConfig({ signal: controller.signal })
+    fetchConfig({ signal: controller.signal })
       .then((c) => setSlaDays(c.slaEscalationDays ?? 3))
       // Overdue display depends on this threshold — a silent default would
       // mislead, so warn instead of failing the whole queue.
-      .catch((error: unknown) => { if (!(error instanceof DOMException && error.name === "AbortError")) setSlaWarning("SLA configuration could not be loaded — overdue highlighting uses a 3-day default."); }));
+      .catch((error: unknown) => { if (!(error instanceof DOMException && error.name === "AbortError")) setSlaWarning("SLA configuration could not be loaded — overdue highlighting uses a 3-day default."); });
     return () => controller.abort();
   }, []);
 
