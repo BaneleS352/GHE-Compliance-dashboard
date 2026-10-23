@@ -3,9 +3,9 @@ import { Users, Activity, FileText } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { KpiCard } from "../../components/KpiCard";
-import { PURPLE, GRADIENT_PRIMARY, GRADIENT_ACCENT } from "../../../config/theme";
-import { Screen } from "../../../types/declaration";
-import { fetchAdminDashboard } from "../../../services/api";
+import { PURPLE, GRADIENT_PRIMARY, GRADIENT_ACCENT } from "@/config/theme";
+import { Screen } from "@/types/declaration";
+import { fetchAdminDashboard } from "@/services/api";
 
 export function AdminDashboard({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   const [stats, setStats] = useState({ users: 0, declarations: 0, workflows: 0, threshold: 1000 });

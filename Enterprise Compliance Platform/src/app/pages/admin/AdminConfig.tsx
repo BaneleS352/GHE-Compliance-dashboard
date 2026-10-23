@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { Save, Shield, Mail, ChevronDown, ChevronRight, Building2, Plus, Pencil, Trash2 } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
-import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
-import { fetchConfig, saveConfig, fetchAdminOrganizations, createOrganization, updateOrganization, deleteOrganization } from "../../../services/api";
-import { SystemConfig, NotificationTemplates } from "../../../types/declaration";
+import { PURPLE, GRADIENT_PRIMARY } from "@/config/theme";
+import { fetchConfig, saveConfig, fetchAdminOrganizations, createOrganization, updateOrganization, deleteOrganization } from "@/services/api";
+import { SystemConfig, NotificationTemplates } from "@/types/declaration";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { notifySuccess, notifyError } from "../../components/notify";
 

@@ -70,4 +70,29 @@ if (violations.length > 0) {
   process.exit(1);
 }
 
-console.log("Quality gate passed: no forbidden any types or circular production dependencies.");
+const deepImportViolations = sourceFiles.flatMap((file) => {
+  const source = fs.readFileSync(file, "utf8");
+  return source.split(/\r?\n/).flatMap((line, index) => /from\s+["']\.\.\/\.\.\/\.\.\//.test(line)
+    ? [`${path.relative(root, file)}:${index + 1}`]
+    : []);
+});
+if (deepImportViolations.length > 0) {
+  console.error("Quality gate failed: production source contains deep relative imports; use the @/ alias:");
+  deepImportViolations.forEach((violation) => console.error(`- ${violation}`));
+  process.exit(1);
+}
+
+const serviceBoundaryViolations = sourceFiles.flatMap((file) => {
+  if (!file.includes(`${path.sep}src${path.sep}services${path.sep}`)) return [];
+  const source = fs.readFileSync(file, "utf8");
+  return source.split(/\r?\n/).flatMap((line, index) => /from\s+["'](?:@\/app|\.\.\/.*app)/.test(line)
+    ? [`${path.relative(root, file)}:${index + 1}`]
+    : []);
+});
+if (serviceBoundaryViolations.length > 0) {
+  console.error("Quality gate failed: service modules must not depend on app/auth or UI modules:");
+  serviceBoundaryViolations.forEach((violation) => console.error(`- ${violation}`));
+  process.exit(1);
+}
+
+console.log("Quality gate passed: no forbidden any types, deep relative imports, service boundary violations, or circular production dependencies.");

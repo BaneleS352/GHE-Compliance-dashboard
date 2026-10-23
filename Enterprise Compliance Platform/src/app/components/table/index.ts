@@ -1,4 +1,4 @@
-import { PURPLE } from "../../../config/theme";
+import { PURPLE } from "@/config/theme";
 
 export { Table } from "./Table";
 export { Thead } from "./Thead";

@@ -5,10 +5,10 @@ import html2canvas from "html2canvas";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { Table, Thead, Th, Tbody, Tr, Td, COL } from "../../components/table";
-import { PURPLE, formatRand, GRADIENT_PRIMARY } from "../../../config/theme";
-import { fetchReports, CounterpartyReportRow, HighValueSummaryRow, SlaReportRow } from "../../../services/reports";
+import { PURPLE, formatRand, GRADIENT_PRIMARY } from "@/config/theme";
+import { fetchReports, CounterpartyReportRow, HighValueSummaryRow, SlaReportRow } from "@/services/reports";
 import { buildReportXlsxBlob, ColumnDef } from "../../utils/excelExport";
-import { requestProtectedDocument, saveBlob } from "../../../services/download";
+import { requestProtectedDocument, saveBlob } from "@/services/download";
 import { notifySuccess, notifyError } from "../../components/notify";
 import { PasswordDialog } from "../../components/PasswordDialog";
 

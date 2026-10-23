@@ -3,8 +3,8 @@ import { Plus, Edit, Trash2, CheckCircle2 } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { THead } from "../../components/THead";
-import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
-import { fetchApprovalOptions, createApprovalOption, updateApprovalOption, deleteApprovalOption } from "../../../services/api";
+import { PURPLE, GRADIENT_PRIMARY } from "@/config/theme";
+import { fetchApprovalOptions, createApprovalOption, updateApprovalOption, deleteApprovalOption } from "@/services/api";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { notifySuccess, notifyError } from "../../components/notify";
 

@@ -1,4 +1,4 @@
-import { getApiToken } from "@/app/auth/msal";
+import { getApiToken } from "@/services/authToken";
 
 interface ApiError {
   status: number;

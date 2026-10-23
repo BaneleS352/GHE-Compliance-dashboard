@@ -1,4 +1,4 @@
-import { getApiToken } from "@/app/auth/msal";
+import { getApiToken } from "@/services/authToken";
 
 /**
  * Single authenticated download/preview service (Phase 6).

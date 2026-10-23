@@ -158,6 +158,14 @@ of the release plan:
 - The production quality gate also resolves local TypeScript imports and
   fails on circular dependencies, making this module-boundary check repeatable
   in CI rather than dependent on manual review.
+- Admin pages and shared table components no longer use three-level relative
+  imports to reach config, service, or domain modules; those imports now use
+  the `@/` alias. The quality gate rejects new `../../../` production imports.
+- API and download services no longer import the MSAL/UI adapter directly.
+  They consume the `services/authToken.ts` token-provider port, configured by
+  the authenticated application shell. The quality gate rejects service-to-app
+  imports, preserving the dependency direction between transport and UI/auth
+  layers.
 - Abort signals are propagated through the shared HTTP client and the main
   lookup/listing flows so unmounted or superseded requests cannot update state.
 - `clientTelemetry.ts` is the single client error-reporting seam. It emits
@@ -169,6 +177,8 @@ of the release plan:
 - Frontend tests: 279 passing across 26 files.
 - Frontend typecheck: passing.
 - Frontend production quality gate: passing.
+- Frontend architecture gate: passing for circular dependencies, deep
+  relative imports, and service-to-app boundary violations.
 - The remaining React error stacks printed by the test runner are expected
   React/jsdom diagnostics from intentional ErrorBoundary tests; the tests
   themselves pass.
@@ -185,9 +195,9 @@ of the release plan:
    doing so preserves behavior; do not split JSX merely to reduce line count.
 4. Add the remaining automated dependency-boundary checks and a lint rule set
    covering hooks, accessibility, unused exports, and import direction. The
-   circular-import portion is implemented in `scripts/quality-gate.mjs`;
-   deep-import and feature-direction rules remain open because they require
-   first normalizing the existing import graph.
+   circular-import and three-level deep-import portions are implemented in
+   `scripts/quality-gate.mjs`; finer-grained feature-direction rules remain
+   open because they require first documenting the intended ownership graph.
 5. Connect the `ghe:client-error` event to the approved production telemetry
    backend, with redaction tests and a retention policy. Until then, the
    event is an integration seam, not a claim of centralized production

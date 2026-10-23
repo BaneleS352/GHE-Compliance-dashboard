@@ -2,9 +2,12 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback,
 import { User } from "@/types/declaration";
 import { fetchCurrentUser, isIdentityAuthenticated, logoutFromIdentityProvider } from "./authService";
 import { initializeIdentity } from "./msal";
+import { configureApiTokenProvider } from "@/services/authToken";
+import { getApiToken } from "./msal";
 interface UserContextValue { user: User | null; setUser: (u: User | null) => void; isAuthenticated: boolean; logout: () => void; loading: boolean; }
 const UserContext = createContext<UserContextValue>({ user: null, setUser: () => {}, isAuthenticated: false, logout: () => {}, loading: true });
 export function UserProvider({ children }: { children: ReactNode }) {
+  configureApiTokenProvider(getApiToken);
   const [user, setUser] = useState<User | null>(null); const [loading, setLoading] = useState(true);
   useEffect(() => { initializeIdentity().then(async () => { if (isIdentityAuthenticated()) setUser(await fetchCurrentUser()); }).catch(() => setUser(null)).finally(() => setLoading(false)); }, []);
   const login = useCallback((u: User | null) => setUser(u), []);

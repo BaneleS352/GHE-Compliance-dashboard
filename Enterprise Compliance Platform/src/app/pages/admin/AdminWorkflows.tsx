@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { Plus, Edit, Trash2, ArrowRight, Workflow } from "lucide-react";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
-import { PURPLE, GRADIENT_PRIMARY } from "../../../config/theme";
-import { WorkflowRule } from "../../../types/declaration";
-import { fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule, fetchConfig } from "../../../services/api";
+import { PURPLE, GRADIENT_PRIMARY } from "@/config/theme";
+import { WorkflowRule } from "@/types/declaration";
+import { fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule, fetchConfig } from "@/services/api";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { notifySuccess, notifyError } from "../../components/notify";
 
