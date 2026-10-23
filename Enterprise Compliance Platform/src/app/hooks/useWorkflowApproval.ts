@@ -35,7 +35,7 @@ export function useWorkflowApproval({ declarationId, userId, initialWorkflowStep
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const loadWorkflowInstance = useCallback(async () => {
+  const loadWorkflowInstance = useCallback(async (signal?: AbortSignal) => {
     if (!declarationId) {
       setWfInstance(null);
       return;
@@ -48,7 +48,7 @@ export function useWorkflowApproval({ declarationId, userId, initialWorkflowStep
     }
     setWfLoading(true);
     try {
-      const wf = await fetchWorkflowInstance(declarationId);
+      const wf = await fetchWorkflowInstance(declarationId, { signal });
       // The API adapter owns runtime validation; keep the hook's domain model narrow.
       setWfInstance({ declarationId: wf.declarationId, steps: wf.steps as WorkflowHookStep[] });
       if (wf) {
@@ -58,15 +58,17 @@ export function useWorkflowApproval({ declarationId, userId, initialWorkflowStep
         setLmNotes(getStep("lineManager")?.notes ?? "");
         setHrNotes(getStep("hr")?.notes ?? "");
       }
-    } catch {
-      setSubmitError("Failed to load workflow instance.");
+    } catch (error: unknown) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) setSubmitError("Failed to load workflow instance.");
     } finally {
       setWfLoading(false);
     }
   }, [declarationId, initialWorkflowSteps]);
 
   useEffect(() => {
-    loadWorkflowInstance();
+    const controller = new AbortController();
+    loadWorkflowInstance(controller.signal);
+    return () => controller.abort();
   }, [loadWorkflowInstance]);
 
   const steps = wfInstance?.steps ?? [];

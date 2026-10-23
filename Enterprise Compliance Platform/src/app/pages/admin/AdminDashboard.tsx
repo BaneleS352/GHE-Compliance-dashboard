@@ -59,14 +59,13 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: Screen) => void
               { label: "System Config", desc: "Update compliance thresholds and configuration.", screen: "admin-config" as Screen },
             ].map((link, idx) => (
               <div key={idx}
-                className="group flex cursor-pointer flex-col gap-3 rounded-2xl border border-primary/10 bg-secondary/15 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-purple-200/70 hover:bg-purple-50/45 sm:flex-row sm:items-center sm:justify-between"
-                onClick={() => onNavigate(link.screen)}
+                className="group flex flex-col gap-3 rounded-2xl border border-primary/10 bg-secondary/15 p-4 transition-all duration-300 hover:-translate-y-0.5 hover:border-purple-200/70 hover:bg-purple-50/45 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <p className="text-sm font-bold text-foreground">{link.label}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">{link.desc}</p>
                 </div>
-                <button className="h-8 w-full rounded-xl border border-white/80 bg-white/90 px-3 text-xs font-semibold text-foreground shadow-sm transition-all group-hover:border-purple-200 group-hover:bg-white group-hover:text-purple-900 sm:w-auto">
+                <button type="button" onClick={() => onNavigate(link.screen)} className="h-8 w-full rounded-xl border border-white/80 bg-white/90 px-3 text-xs font-semibold text-foreground shadow-sm transition-all group-hover:border-purple-200 group-hover:bg-white group-hover:text-purple-900 sm:w-auto">
                   Manage
                 </button>
               </div>

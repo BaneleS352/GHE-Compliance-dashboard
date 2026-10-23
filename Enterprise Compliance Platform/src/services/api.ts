@@ -163,8 +163,15 @@ export async function updateDropdownOptions(data: DropdownOptionsResponse): Prom
 }
 
 // ── Admin: Dashboard ──────────────────────────────────
-export async function fetchAdminDashboard(): Promise<any> {
-  return api.get<any>("/api/admin/dashboard");
+export interface AdminDashboardStats {
+  users: number;
+  declarations: number;
+  workflows: number;
+  threshold: number;
+}
+
+export async function fetchAdminDashboard(): Promise<AdminDashboardStats> {
+  return api.get<AdminDashboardStats>("/api/admin/dashboard");
 }
 
 // ── Admin: Workflow Rules ─────────────────────────────
@@ -237,8 +244,8 @@ export async function fetchWorkflowQueue(options?: RequestOptions): Promise<Work
   };
 }
 
-export async function fetchWorkflowInstance(declarationId: string): Promise<WorkflowInstanceResponse> {
-  return api.get<WorkflowInstanceResponse>(`/api/workflows/instances/${declarationId}`);
+export async function fetchWorkflowInstance(declarationId: string, options?: RequestOptions): Promise<WorkflowInstanceResponse> {
+  return api.get<WorkflowInstanceResponse>(`/api/workflows/instances/${declarationId}`, options);
 }
 
 export interface WorkflowApprovalResponse {
@@ -255,59 +262,77 @@ export async function approveWorkflowStep(data: {
 }
 
 // ── Reports ───────────────────────────────────────────
-export async function fetchReportStatusBreakdown(params?: Record<string, string>): Promise<any> {
-  return api.get<any>(`/api/reports/status-breakdown${params ? `?${new URLSearchParams(params)}` : ""}`);
+export type ReportStatusBreakdown = Record<string, number>;
+export interface ReportSlaRow { role: string; avg: number; min: number; max: number; count: number; }
+export interface ReportCounterpartyRow { counterparty: string; count: number; totalValue: number; avgValue: number; }
+export interface ReportHighValueRow { employee: string; lineManager?: string | null; value: number; type: string; counterparty?: string | null; }
+export interface ReportListRow { department?: string | null; [key: string]: unknown; }
+
+export async function fetchReportStatusBreakdown(params?: Record<string, string>): Promise<ReportStatusBreakdown> {
+  return api.get<ReportStatusBreakdown>(`/api/reports/status-breakdown${params ? `?${new URLSearchParams(params)}` : ""}`);
 }
 
-export async function fetchReportSLA(params?: Record<string, string>): Promise<any[]> {
-  return api.get<any[]>(`/api/reports/sla${params ? `?${new URLSearchParams(params)}` : ""}`);
+export async function fetchReportSLA(params?: Record<string, string>): Promise<ReportSlaRow[]> {
+  return api.get<ReportSlaRow[]>(`/api/reports/sla${params ? `?${new URLSearchParams(params)}` : ""}`);
 }
 
-export async function fetchReportCounterpartyConcentration(params?: Record<string, string>): Promise<any[]> {
-  return api.get<any[]>(`/api/reports/counterparty-concentration${params ? `?${new URLSearchParams(params)}` : ""}`);
+export async function fetchReportCounterpartyConcentration(params?: Record<string, string>): Promise<ReportCounterpartyRow[]> {
+  return api.get<ReportCounterpartyRow[]>(`/api/reports/counterparty-concentration${params ? `?${new URLSearchParams(params)}` : ""}`);
 }
 
-export async function fetchReportHighValue(): Promise<any[]> {
-  return api.get<any[]>("/api/reports/high-value");
+export async function fetchReportHighValue(): Promise<ReportHighValueRow[]> {
+  return api.get<ReportHighValueRow[]>("/api/reports/high-value");
 }
 
-export async function fetchReportList(params?: Record<string, string>): Promise<any[]> {
-  return api.get<any[]>(`/api/reports/list${params ? `?${new URLSearchParams(params)}` : ""}`);
+export async function fetchReportList(params?: Record<string, string>): Promise<ReportListRow[]> {
+  return api.get<ReportListRow[]>(`/api/reports/list${params ? `?${new URLSearchParams(params)}` : ""}`);
 }
 
 // ── Approval Options ──────────────────────────────────
-export async function fetchApprovalOptions(): Promise<any[]> {
-  return api.get<any[]>("/api/admin/config/approval-options");
+export interface ApprovalOption {
+  id: string;
+  value: string;
+  label: string;
 }
-export async function createApprovalOption(data: { id: string; value: string; label: string }): Promise<any> {
-  return api.post<any>("/api/admin/config/approval-options", data);
+
+export async function fetchApprovalOptions(): Promise<ApprovalOption[]> {
+  return api.get<ApprovalOption[]>("/api/admin/config/approval-options");
 }
-export async function updateApprovalOption(id: string, data: { value: string; label: string }): Promise<any> {
-  return api.put<any>(`/api/admin/config/approval-options/${id}`, data);
+export async function createApprovalOption(data: ApprovalOption): Promise<ApprovalOption> {
+  return api.post<ApprovalOption>("/api/admin/config/approval-options", data);
 }
-export async function deleteApprovalOption(id: string): Promise<any> {
-  return api.del<any>(`/api/admin/config/approval-options/${id}`);
+export async function updateApprovalOption(id: string, data: Omit<ApprovalOption, "id">): Promise<ApprovalOption> {
+  return api.put<ApprovalOption>(`/api/admin/config/approval-options/${id}`, data);
+}
+export async function deleteApprovalOption(id: string): Promise<{ success?: boolean; message?: string }> {
+  return api.del<{ success?: boolean; message?: string }>(`/api/admin/config/approval-options/${id}`);
 }
 
 // ── Organizations ─────────────────────────────────────
-export async function fetchOrganizations(options?: RequestOptions): Promise<{ id: number; name: string; shortCode: string }[]> {
-  return api.get<{ id: number; name: string; shortCode: string }[]>("/api/users/organizations", options);
+export interface Organization {
+  id: number;
+  name: string;
+  shortCode: string;
 }
 
-export async function fetchAdminOrganizations(): Promise<{ id: number; name: string; shortCode: string }[]> {
-  return api.get<{ id: number; name: string; shortCode: string }[]>("/api/admin/config/organizations");
+export async function fetchOrganizations(options?: RequestOptions): Promise<Organization[]> {
+  return api.get<Organization[]>("/api/users/organizations", options);
 }
 
-export async function createOrganization(data: { name: string; shortCode: string }): Promise<any> {
-  return api.post<any>("/api/admin/config/organizations", data);
+export async function fetchAdminOrganizations(): Promise<Organization[]> {
+  return api.get<Organization[]>("/api/admin/config/organizations");
 }
 
-export async function updateOrganization(id: number, data: { name: string; shortCode: string }): Promise<any> {
-  return api.put<any>(`/api/admin/config/organizations/${id}`, data);
+export async function createOrganization(data: Omit<Organization, "id">): Promise<Organization> {
+  return api.post<Organization>("/api/admin/config/organizations", data);
 }
 
-export async function deleteOrganization(id: number): Promise<any> {
-  return api.del<any>(`/api/admin/config/organizations/${id}`);
+export async function updateOrganization(id: number, data: Omit<Organization, "id">): Promise<Organization> {
+  return api.put<Organization>(`/api/admin/config/organizations/${id}`, data);
+}
+
+export async function deleteOrganization(id: number): Promise<{ success?: boolean; message?: string }> {
+  return api.del<{ success?: boolean; message?: string }>(`/api/admin/config/organizations/${id}`);
 }
 
 function toApiDeclaration(declaration: Partial<Declaration>) {

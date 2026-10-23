@@ -1,14 +1,14 @@
 ﻿import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
-  FileText, Upload, Download, Check, AlertCircle,
-  Paperclip, Trash2, Send, X,
+  Check, AlertCircle, Send, X,
 } from "lucide-react";
 import { Sel } from "@/app/components/Sel"
 import { FL } from "@/app/components/FL";
+import { SupportingDocumentsUpload, UploadFile } from "@/app/components/SupportingDocumentsUpload";
+import { DeclarationGuidanceSidebar } from "@/app/components/DeclarationGuidanceSidebar";
 import { FS, FORM_SECTIONS } from "@/app/components/FS";
-import { Card } from "@/app/components/Card";
 import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG, DEFAULT_HIGH_VALUE_THRESHOLD, DEFAULT_MEDIUM_VALUE_THRESHOLD, DEFAULT_MAXIMUM_VALUE } from "@/config/theme";
-import { Declaration, UploadedFile } from "@/types/declaration";
+import { Declaration } from "@/types/declaration";
 import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "@/services/api";
 import { downloadFile } from "@/services/download";
 import { notifySuccess, notifyError } from "@/app/components/notify";
@@ -173,7 +173,7 @@ export function NewDeclarationScreen({
   const [receivedGiven, setReceivedGiven] = useState("Received");
   const [category, setCategory] = useState("");
   const [activeSection, setActiveSection] = useState("sec-team");
-  const [files, setFiles] = useState<(UploadedFile & { uploadId?: string })[]>([]);
+  const [files, setFiles] = useState<UploadFile[]>([]);
   const [dragging, setDragging] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploadError, setUploadError] = useState<{ title: string; message: string } | null>(null);
@@ -184,8 +184,7 @@ export function NewDeclarationScreen({
   const [submitting, setSubmitting] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isValueFocused, setIsValueFocused] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const pendingFilesRef = useRef<File[]>([]);
+  const pendingFilesRef = useRef<Array<File & { uploadId?: string }>>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [form, setFormState] = useState({
@@ -315,7 +314,9 @@ export function NewDeclarationScreen({
       setUploadError(null);
       pendingFilesRef.current = [...pendingFilesRef.current, file];
         const uploadId = `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-        (file as any).uploadId = uploadId;
+        const pendingFile = file as File & { uploadId?: string };
+        pendingFile.uploadId = uploadId;
+        pendingFilesRef.current[pendingFilesRef.current.length - 1] = pendingFile;
         const reader = new FileReader();
       reader.onload = () => {
         // readAsDataURL always resolves to a string on success; anything
@@ -340,12 +341,6 @@ export function NewDeclarationScreen({
       reader.readAsDataURL(file);
     }
   }, []);
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    processFiles(e.dataTransfer.files);
-  };
 
   const isTeamMember = user?.role === "teamMember";
   const profileIdentityLocked = Boolean(isTeamMember);
@@ -575,69 +570,7 @@ export function NewDeclarationScreen({
         </div>
       )}
 
-      <aside className="hidden w-48 flex-shrink-0 flex-col gap-3 self-start lg:sticky lg:top-4 lg:flex lg:min-h-[calc(100vh-2rem)]">
-        <Card className="p-3.5">
-          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2.5 px-1">
-            Sections
-          </p>
-          <nav className="space-y-0.5">
-            {FORM_SECTIONS.map((s) => {
-              const active = activeSection === s.id;
-              return (
-                <button
-                  key={s.id}
-                  onClick={() => jumpTo(s.id)}
-                  className={`w-full flex items-center gap-3 text-left py-2.5 px-3 rounded-xl text-sm transition-all duration-200 ${
-                    active
-                      ? "text-purple-900 font-semibold bg-purple-50 shadow-sm"
-                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-medium"
-                  }`}
-                >
-                  <span
-                    className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 shadow-sm transition-colors duration-200"
-                    style={
-                      active
-                        ? { background: GRADIENT_PRIMARY, color: "#fff" }
-                        : { background: "var(--muted)", color: "var(--muted-foreground)" }
-                    }
-                  >
-                    {s.num}
-                  </span>
-                  <span className="leading-tight">{s.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </Card>
-
-        <div className="rounded-2xl border border-white p-3.5 bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          <p className="text-xs font-bold uppercase tracking-widest mb-2.5" style={{ color: PURPLE }}>
-            Definitions
-          </p>
-          {[
-            { t: "Gift",          d: "Anything of value including cash, vouchers, goods, services, preferential discounts or favours." },
-            { t: "Hospitality",   d: "Accommodation, travel, conferences, tickets or formal business functions." },
-            { t: "Entertainment", d: "Meals, events, sporting, cultural or recreational activities." },
-          ].map((d) => (
-            <div key={d.t} className="mb-2.5 last:mb-0">
-              <p className="text-sm font-bold text-foreground">{d.t}</p>
-              <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{d.d}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-auto rounded-2xl border border-white/60 bg-white/70 p-3.5 shadow-[0_8px_30px_rgb(0,0,0,0.03)] backdrop-blur-xl">
-          <p className="text-xs font-bold uppercase tracking-widest mb-2.5" style={{ color: PURPLE }}>
-            Related Policies
-          </p>
-          {["Gifts, Hospitality & Entertainment Policy", "Anti-Bribery and Corruption Policy"].map((policy) => (
-            <div key={policy} className="flex items-start gap-2 rounded-xl border border-primary/5 bg-secondary/20 p-2.5 mb-2 last:mb-0">
-              <FileText size={13} className="mt-0.5 flex-shrink-0" style={{ color: PURPLE }} />
-              <p className="text-xs font-semibold text-foreground leading-snug">{policy}</p>
-            </div>
-          ))}
-        </div>
-      </aside>
+      <DeclarationGuidanceSidebar activeSection={activeSection} onNavigate={jumpTo} />
 
       <div ref={scrollRef} className="flex-1 min-w-0 space-y-7 pb-2">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-5 border-b border-border gap-4">
@@ -909,78 +842,17 @@ export function NewDeclarationScreen({
         </FS>
 
         <FS id="sec-docs" num="4" title="Supporting Documents">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
-            className="sr-only"
-            onChange={(e) => { processFiles(e.target.files); e.target.value = ""; }}
-          />
-          <div
-            role="button"
-            tabIndex={0}
-            aria-label="Choose supporting documents"
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                fileInputRef.current?.click();
-              }
+          <SupportingDocumentsUpload
+            files={files}
+            dragging={dragging}
+            onDraggingChange={setDragging}
+            onFilesSelected={processFiles}
+            onRemove={(fileId) => {
+              pendingFilesRef.current = pendingFilesRef.current.filter((file) => file.uploadId !== fileId);
+              setFiles((current) => current.filter((file) => (file.uploadId || `${file.name}-${file.size}`) !== fileId));
             }}
-            className={`rounded-2xl border-2 border-dashed py-12 px-6 text-center cursor-pointer transition-all duration-300 ease-out group ${
-              dragging
-                ? "border-purple-500 bg-purple-50/50 scale-[1.02] shadow-sm"
-                : "border-slate-300 bg-slate-50 hover:border-purple-400 hover:bg-purple-50/30 hover:shadow-sm"
-            }`}
-          >
-            <div className="w-14 h-14 rounded-full bg-white shadow-sm flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:shadow-md transition-all duration-300">
-              <Upload size={24} style={{ color: PURPLE }} />
-            </div>
-            <p className="text-sm font-semibold text-foreground mb-1.5">Drag & drop files here, or click to browse</p>
-            <p className="text-xs text-muted-foreground">PDF (preferred), PNG, JPG, DOCX — max 20 MB each</p>
-          </div>
-          {files.length > 0 && (
-            <div className="mt-4 space-y-2">
-              {files.map((f) => {
-                const fileId = (f as any).uploadId || `${f.name}-${f.size}`;
-                return (
-                <div key={fileId} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/50">
-                  <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0">
-                    <Paperclip size={13} style={{ color: PURPLE }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{f.name}</p>
-                    <p className="text-xs text-muted-foreground">{(f.size / 1024).toFixed(0)} KB</p>
-                  </div>
-                  <button
-                    type="button"
-                    title={`Download ${f.name}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      downloadFile(f.url, f.name).catch((err: Error) => setSubmitError(err.message));
-                    }}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-primary"
-                  >
-                    <Download size={13} />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); pendingFilesRef.current = pendingFilesRef.current.filter((pf) => (pf as any).uploadId !== fileId); setFiles((fs) => fs.filter((f2) => ((f2 as any).uploadId || `${f2.name}-${f2.size}`) !== fileId)); }}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-500"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-                );
-              })}
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground mt-3">
-            Upload invoices, receipts, photos, or event invitations that support this declaration.
-          </p>
+            onDownload={(file) => { downloadFile(file.url, file.name).catch((err: Error) => setSubmitError(err.message)); }}
+          />
         </FS>
 
         <FS id="sec-undertaking" num="5" title="Declaration & Undertaking">

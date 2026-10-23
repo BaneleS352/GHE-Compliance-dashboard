@@ -104,6 +104,7 @@ jobs:
           cache-dependency-path: Enterprise Compliance Platform/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run quality
       - run: npm test
       - run: npm run build
 

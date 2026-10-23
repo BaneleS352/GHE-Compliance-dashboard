@@ -7,6 +7,7 @@
     "build": "vite build",
     "dev": "vite",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "quality": "node scripts/quality-gate.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
