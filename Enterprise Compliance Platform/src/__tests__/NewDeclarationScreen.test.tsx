@@ -117,6 +117,23 @@ describe("NewDeclarationScreen", () => {
     });
   }, 15000);
 
+  it("associates required fields with labels and validation messages", async () => {
+    render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={vi.fn()} />);
+    await waitFor(() => expect(screen.getByText(/New Declaration/i)).toBeInTheDocument());
+
+    const counterparty = screen.getByPlaceholderText("Full legal name");
+    expect(counterparty).toHaveAttribute("id");
+
+    fireEvent.click(screen.getByRole("button", { name: /Submit Declaration/i }));
+
+    await waitFor(() => {
+      expect(counterparty).toHaveAttribute("aria-invalid", "true");
+      expect(counterparty).toHaveAttribute("aria-describedby");
+      const describedBy = counterparty.getAttribute("aria-describedby");
+      expect(describedBy && document.getElementById(describedBy)).toBeTruthy();
+    });
+  });
+
   it("calls createDeclaration + submitDeclaration on valid submit", async () => {
     vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
     vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: 1, name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/1" } as any);

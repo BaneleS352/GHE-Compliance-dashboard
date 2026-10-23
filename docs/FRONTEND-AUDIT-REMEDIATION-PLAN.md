@@ -166,6 +166,24 @@ of the release plan:
   the authenticated application shell. The quality gate rejects service-to-app
   imports, preserving the dependency direction between transport and UI/auth
   layers.
+- The production quality gate also rejects direct browser `fetch` calls
+  outside transport services, native `alert`/`confirm`/`prompt`, and
+  unapproved console logging. Current production source passes this check.
+- CI path filters now include frontend package manifests, quality scripts,
+  TypeScript/Vite configuration, and the architecture gate itself, so changes
+  to the release checks cannot bypass the frontend CI job.
+- Previously swallowed organization-lookup failures in `AdminConfig` and
+  `AdminUsers` now produce actionable, user-safe error states instead of
+  silently leaving selectors empty.
+- Admin user and organization lookup effects now pass `AbortSignal` through
+  the API boundary and abort on unmount, preventing stale state writes during
+  navigation.
+- Admin configuration and workflow-rule loading now use the same cancellation
+  pattern, and aborted requests are excluded from user-facing error states.
+- The shared declaration detail renderer now lives under
+  `app/components/DeclarationDetailView.tsx`; approval and self-service pages
+  no longer import one another's page modules. The quality gate rejects future
+  page-to-page imports.
 - Abort signals are propagated through the shared HTTP client and the main
   lookup/listing flows so unmounted or superseded requests cannot update state.
 - `clientTelemetry.ts` is the single client error-reporting seam. It emits
@@ -174,11 +192,23 @@ of the release plan:
 
 ### Verification for this continuation
 
-- Frontend tests: 279 passing across 26 files.
+- Frontend tests: 282 passing across 27 files.
 - Frontend typecheck: passing.
 - Frontend production quality gate: passing.
 - Frontend architecture gate: passing for circular dependencies, deep
   relative imports, and service-to-app boundary violations.
+- Declaration accessibility coverage now verifies required-field label
+  association, `aria-invalid`, and `aria-describedby` linkage in the rendered
+  form; the focused declaration suite passes 15/15.
+- `clientTelemetry.test.ts` now pins the observability contract: emitted
+  events contain feature/operation/status plus normalized error metadata,
+  never the original error object, raw error messages, or non-`Error` response
+  bodies.
+- Declaration persistence orchestration was extracted from the page into
+  `useDeclarationMutations.ts`. The hook owns create/update, upload sync,
+  submit, draft rollback, loading state, and operation feedback; the page now
+  owns form state, validation, and presentation. The declaration workflow
+  suite passes 15/15 after extraction.
 - The remaining React error stacks printed by the test runner are expected
   React/jsdom diagnostics from intentional ErrorBoundary tests; the tests
   themselves pass.
@@ -215,8 +245,8 @@ explicitly accepted by the owning team.
 
 Audit update — 8 October 2026: the repository was reviewed against this plan
 and every finding fixed the same day, then the remaining test gaps filled:
-backend tests pass 445/445 across 26 files; frontend tests pass 270/270
-across 23 files; backend build, frontend typecheck, and frontend production
+backend tests pass 445/445 across 26 files; frontend tests pass 283/283
+across 27 files; backend build, frontend typecheck, and frontend production
 build pass; `pg:test` (69/69) and `pg:smoke` (20/20) pass against scratch
 embedded PostgreSQL; Playwright e2e passes desktop 18/18 + mobile 2/2; and
 CI runs all of these plus the e2e job against postgres services. The
@@ -294,7 +324,7 @@ remains open.
 6. Done 2026-10-06, re-verified 2026-10-08 (local scratch-PostgreSQL runs;
    CI re-runs against its postgres services): backend `npm test` 445/445
    (26 files), `npm run build` clean, `pg:test` 69/69, `pg:smoke` 20/20,
-   frontend `npm test` 270/270 (23 files), `npm run typecheck` clean,
+   frontend `npm test` 283/283 (27 files), `npm run typecheck` clean,
    `npm run build` clean, Playwright e2e desktop 18/18 + mobile 2/2,
    plus a production-bundle scan with zero demo/password-login markers.
    Remaining: CI confirmation and the staging-OIDC + manual browser

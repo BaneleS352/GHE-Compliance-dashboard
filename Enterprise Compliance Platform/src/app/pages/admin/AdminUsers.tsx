@@ -30,8 +30,16 @@ export function AdminUsers() {
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
 
   useEffect(() => {
-    fetchUsers().then(setUsers).catch((err: Error) => setError(err.message));
-    fetchAdminOrganizations().then(setOrganizations).catch(() => {});
+    const controller = new AbortController();
+    fetchUsers(undefined, undefined, { signal: controller.signal }).then(setUsers).catch((err: unknown) => {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setError(err instanceof Error ? err.message : "Could not load users.");
+    });
+    fetchAdminOrganizations({ signal: controller.signal }).then(setOrganizations).catch((err: unknown) => {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      setError("Could not load organizations. Please refresh and try again.");
+    });
+    return () => controller.abort();
   }, []);
 
   const refresh = () => fetchUsers().then(setUsers).catch((err: Error) => setError(err.message));

@@ -9,7 +9,7 @@ import { PageHeader } from "@/app/components/PageHeader";
 import { KpiCard, STATUS_KPI } from "@/app/components/KpiCard";
 import { StatusBadge } from "@/app/components/StatusBadge";
 import { TypeBadge } from "@/app/components/TypeBadge";
-import { DeclarationDetailView, SupportingDocuments } from "@/app/pages/DeclarationDetailView";
+import { DeclarationDetailView, SupportingDocuments } from "@/app/components/DeclarationDetailView";
 import { WorkflowTimeline } from "@/app/components/WorkflowTimeline";
 import { Table, Thead, Th, Tbody, Tr, Td, COL } from "@/app/components/table";
 import { PURPLE } from "@/config/theme";

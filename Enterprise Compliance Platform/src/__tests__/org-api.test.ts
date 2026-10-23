@@ -63,4 +63,11 @@ describe("Organization API — per-org", () => {
     expect(orgs.length).toBe(1);
     expect(spy).toHaveBeenCalledWith(expect.stringContaining("/api/admin/config/organizations"), expect.any(Object));
   });
+
+  it("forwards cancellation to admin organization lookups", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockImplementation(mockFetch(200, []) as any);
+    const controller = new AbortController();
+    await fetchAdminOrganizations({ signal: controller.signal });
+    expect(spy.mock.calls[0]?.[1]).toEqual(expect.objectContaining({ signal: controller.signal }));
+  });
 });

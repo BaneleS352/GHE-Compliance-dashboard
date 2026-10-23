@@ -14,7 +14,6 @@ import type { Declaration, Screen, User } from "@/types/declaration";
 
 interface AppScreenRendererProps {
   screen: Screen;
-  user: User;
   editingDraft: Declaration | null;
   selectedDeclaration: Declaration | null;
   showSubmittedView: boolean;
@@ -29,7 +28,7 @@ interface AppScreenRendererProps {
 }
 
 export function AppScreenRenderer({
-  screen, user, editingDraft, selectedDeclaration, showSubmittedView, submittedData,
+  screen, editingDraft, selectedDeclaration, showSubmittedView, submittedData,
   onNavigate, onSubmitSuccess, onDraftSaved, onEditDraft, onReview, onBackFromApproval, onBackFromSubmitted,
 }: AppScreenRendererProps) {
   if (screen === "new-declaration" && !showSubmittedView) {

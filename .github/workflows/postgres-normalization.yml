@@ -5,6 +5,11 @@ on:
     paths:
       - "NodejsBackend/**"
       - "Enterprise Compliance Platform/src/**"
+      - "Enterprise Compliance Platform/package.json"
+      - "Enterprise Compliance Platform/package-lock.json"
+      - "Enterprise Compliance Platform/scripts/**"
+      - "Enterprise Compliance Platform/tsconfig.json"
+      - "Enterprise Compliance Platform/vite.config.ts"
       - "Enterprise Compliance Platform/e2e/**"
       - "Enterprise Compliance Platform/playwright.config.ts"
       - ".github/workflows/postgres-normalization.yml"
@@ -12,6 +17,11 @@ on:
     paths:
       - "NodejsBackend/**"
       - "Enterprise Compliance Platform/src/**"
+      - "Enterprise Compliance Platform/package.json"
+      - "Enterprise Compliance Platform/package-lock.json"
+      - "Enterprise Compliance Platform/scripts/**"
+      - "Enterprise Compliance Platform/tsconfig.json"
+      - "Enterprise Compliance Platform/vite.config.ts"
       - "Enterprise Compliance Platform/e2e/**"
       - "Enterprise Compliance Platform/playwright.config.ts"
       - ".github/workflows/postgres-normalization.yml"

@@ -18,8 +18,22 @@ export function AdminWorkflows() {
   const [threshold, setThreshold] = useState<{ highValueThreshold: number; maximumValue: number } | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
-  useEffect(() => { fetchWorkflowRules().then(setRules).catch((err: Error) => setError(err.message)); }, []);
-  useEffect(() => { fetchConfig().then((c) => setThreshold({ highValueThreshold: c.highValueThreshold, maximumValue: c.maximumValue ?? 1000000 })).catch((err: Error) => setError(`Could not load system thresholds: ${err.message}`)); }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchWorkflowRules({ signal: controller.signal }).then(setRules).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setError(error instanceof Error ? error.message : "Could not load workflow rules.");
+    });
+    return () => controller.abort();
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchConfig({ signal: controller.signal }).then((c) => setThreshold({ highValueThreshold: c.highValueThreshold, maximumValue: c.maximumValue ?? 1000000 })).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setError("Could not load system thresholds.");
+    });
+    return () => controller.abort();
+  }, []);
 
   const handleAdd = async () => {
     try {

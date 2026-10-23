@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Declaration } from "@/types/declaration";
 import { StatusBadge } from "@/app/components/StatusBadge";
-import { DeclarationDetailView, SupportingDocuments } from "@/app/pages/DeclarationDetailView";
+import { DeclarationDetailView, SupportingDocuments } from "@/app/components/DeclarationDetailView";
 import { WorkflowTimeline } from "@/app/components/WorkflowTimeline";
 import { useUser } from "@/app/auth/UserContext";
 import { useWorkflowApproval } from "@/app/hooks/useWorkflowApproval";

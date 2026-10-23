@@ -6,15 +6,14 @@ export interface ClientErrorContext {
 
 interface SafeClientError {
   name: string;
-  message: string;
 }
 
 function normalizeClientError(error: unknown): SafeClientError {
   if (error instanceof Error) {
-    return { name: error.name, message: error.message };
+    return { name: error.name };
   }
 
-  return { name: "UnknownError", message: "Unknown client error" };
+  return { name: "UnknownError" };
 }
 
 /**

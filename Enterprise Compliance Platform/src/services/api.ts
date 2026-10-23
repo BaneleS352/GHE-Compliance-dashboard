@@ -106,12 +106,12 @@ export type UserMutation = Pick<User, "name" | "email" | "role"> & Partial<Pick<
   organizationId?: number | null;
 };
 
-export async function fetchUsers(search?: string, role?: string): Promise<User[]> {
+export async function fetchUsers(search?: string, role?: string, options?: RequestOptions): Promise<User[]> {
   const params = new URLSearchParams();
   if (search) params.set("search", search);
   if (role) params.set("role", role);
   const qs = params.toString();
-  return api.get<User[]>(`/api/admin/users${qs ? `?${qs}` : ""}`);
+  return api.get<User[]>(`/api/admin/users${qs ? `?${qs}` : ""}`, options);
 }
 
 export async function fetchUserById(id: number, options?: RequestOptions): Promise<User> {
@@ -175,8 +175,8 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardStats> {
 }
 
 // ── Admin: Workflow Rules ─────────────────────────────
-export async function fetchWorkflowRules(): Promise<WorkflowRule[]> {
-  return api.get<WorkflowRule[]>("/api/admin/workflows/rules");
+export async function fetchWorkflowRules(options?: RequestOptions): Promise<WorkflowRule[]> {
+  return api.get<WorkflowRule[]>("/api/admin/workflows/rules", options);
 }
 
 export type WorkflowRuleMutation = Omit<Partial<WorkflowRule>, "steps"> & { steps?: WorkflowRule["steps"] | string };
@@ -319,8 +319,8 @@ export async function fetchOrganizations(options?: RequestOptions): Promise<Orga
   return api.get<Organization[]>("/api/users/organizations", options);
 }
 
-export async function fetchAdminOrganizations(): Promise<Organization[]> {
-  return api.get<Organization[]>("/api/admin/config/organizations");
+export async function fetchAdminOrganizations(options?: RequestOptions): Promise<Organization[]> {
+  return api.get<Organization[]>("/api/admin/config/organizations", options);
 }
 
 export async function createOrganization(data: Omit<Organization, "id">): Promise<Organization> {

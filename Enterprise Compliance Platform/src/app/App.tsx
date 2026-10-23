@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
 import { UserProvider, useUser } from "@/app/auth/UserContext";
-import { canAccessScreen } from "@/app/auth/authService";
 import { AppShell } from "@/shell/AppShell";
 import { LandingScreen } from "@/app/pages/LandingScreen";
 import { AppScreenRenderer } from "@/app/AppScreenRenderer";
@@ -86,7 +85,6 @@ function AppInner() {
       <AppShell role={user?.role || roleForScreen(screen)} screen={screen} userName={user?.name || ""} onNavigate={guardedNavigate} onSignOut={handleSignOut} user={user}>
         <AppScreenRenderer
           screen={screen}
-          user={user}
           editingDraft={editingDraft}
           selectedDeclaration={selectedDecl}
           showSubmittedView={showSubmittedView}

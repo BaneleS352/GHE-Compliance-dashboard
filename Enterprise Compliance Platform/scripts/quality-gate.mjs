@@ -95,4 +95,34 @@ if (serviceBoundaryViolations.length > 0) {
   process.exit(1);
 }
 
-console.log("Quality gate passed: no forbidden any types, deep relative imports, service boundary violations, or circular production dependencies.");
+const pageBoundaryViolations = sourceFiles.flatMap((file) => {
+  if (!file.includes(`${path.sep}src${path.sep}app${path.sep}pages${path.sep}`)) return [];
+  const source = fs.readFileSync(file, "utf8");
+  return source.split(/\r?\n/).flatMap((line, index) => /from\s+["'](?:@\/app\/pages|\.\.\/.*pages)/.test(line)
+    ? [`${path.relative(root, file)}:${index + 1}`]
+    : []);
+});
+if (pageBoundaryViolations.length > 0) {
+  console.error("Quality gate failed: page modules must not import other page modules; move shared views to app/components:");
+  pageBoundaryViolations.forEach((violation) => console.error(`- ${violation}`));
+  process.exit(1);
+}
+
+const forbiddenBrowserSideChannels = sourceFiles.flatMap((file) => {
+  const relative = path.relative(root, file);
+  const source = fs.readFileSync(file, "utf8");
+  return source.split(/\r?\n/).flatMap((line, index) => {
+    if (/^\s*(?:\/\/|\*|\/\*)/.test(line)) return [];
+    const directFetch = /^\s*(?:await\s+)?fetch\s*\(/.test(line) && !relative.includes(`${path.sep}src${path.sep}services${path.sep}`);
+    const nativeDialog = /\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/.test(line);
+    const unapprovedConsole = /\bconsole\.(?:error|warn|log)\s*\(/.test(line) && !relative.endsWith("clientTelemetry.ts");
+    return directFetch || nativeDialog || unapprovedConsole ? [`${relative}:${index + 1}`] : [];
+  });
+});
+if (forbiddenBrowserSideChannels.length > 0) {
+  console.error("Quality gate failed: use shared services, dialogs, and telemetry for browser side channels:");
+  forbiddenBrowserSideChannels.forEach((violation) => console.error(`- ${violation}`));
+  process.exit(1);
+}
+
+console.log("Quality gate passed: no forbidden any types, deep relative imports, page/service boundary violations, browser side channels, or circular production dependencies.");

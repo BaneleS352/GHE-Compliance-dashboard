@@ -6,13 +6,12 @@ import { Sel } from "@/app/components/Sel"
 import { FL } from "@/app/components/FL";
 import { SupportingDocumentsUpload, UploadFile } from "@/app/components/SupportingDocumentsUpload";
 import { DeclarationGuidanceSidebar } from "@/app/components/DeclarationGuidanceSidebar";
+import { useDeclarationMutations } from "@/app/hooks/useDeclarationMutations";
 import { FS, FORM_SECTIONS } from "@/app/components/FS";
 import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG, DEFAULT_HIGH_VALUE_THRESHOLD, DEFAULT_MEDIUM_VALUE_THRESHOLD, DEFAULT_MAXIMUM_VALUE } from "@/config/theme";
 import { Declaration } from "@/types/declaration";
-import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "@/services/api";
 import { downloadFile } from "@/services/download";
 import { reportClientError } from "@/services/clientTelemetry";
-import { notifySuccess, notifyError } from "@/app/components/notify";
 import { useUser } from "@/app/auth/UserContext";
 import { fetchConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
 import { buildDeclarationPayload as buildPayload, formatRandValue, OCCASION_OPTIONS, parseRandInput, validateDeclarationForm } from "./newDeclarationModel";
@@ -368,76 +367,10 @@ export function NewDeclarationScreen({
     return buildPayload({ form, user, category, receivedGiven, files, highValueThreshold: config.highValueThreshold, mediumValueThreshold: config.mediumValueThreshold, draftId: draft?.id, draftStatus: draft?.status });
   };
 
-  const syncUploadedFiles = async (declaration: Declaration): Promise<Declaration> => {
-    const committedFiles = files.filter((f) => !f.url.startsWith("data:"));
-    const newPendingFiles = pendingFilesRef.current;
-
-    const uploadedFiles = newPendingFiles.length > 0
-      ? await Promise.all(newPendingFiles.map((file) => uploadDeclarationFile(file, declaration.id)))
-      : [];
-
-    pendingFilesRef.current = [];
-    const allFiles = [...committedFiles, ...uploadedFiles];
-    setFiles(allFiles);
-    return updateDeclaration(declaration.id, { files: allFiles });
-  };
-
-  const handleSaveDraft = async () => {
-    const declaration = buildDeclarationPayload();
-    if (!declaration) return;
-    try {
-      if (draft) {
-        const saved = await updateDeclaration(draft.id, { ...declaration, files: [] });
-        await syncUploadedFiles(saved);
-      } else {
-        const saved = await createDeclaration({ ...declaration, files: [] });
-        await syncUploadedFiles(saved);
-      }
-      onDraftSaved();
-      notifySuccess("Draft saved.");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to save draft.";
-      setSubmitError(message);
-      notifyError(message);
-    }
-  };
-
-  // createWorkflow is handled by the backend on submission
-
-  const handleSubmit = async () => {
-    if (!validate()) return;
-    const declaration = buildDeclarationPayload();
-    if (!declaration) return;
-    setSubmitting(true);
-    setSubmitError("");
-
-    let saved: Declaration | undefined;
-    try {
-      if (draft) {
-        saved = await updateDeclaration(draft.id, { ...declaration, files: [] });
-      } else {
-        saved = await createDeclaration({ ...declaration, files: [] });
-      }
-      const synced = await syncUploadedFiles(saved);
-      const submitted = await submitDeclaration(synced.id);
-      onSubmitSuccess(submitted);
-    } catch (err) {
-      // Best-effort rollback to Draft: guarded so a failed rollback cannot
-      // mask the original submission error with an unhandled rejection.
-      if (saved) {
-        try {
-          await updateDeclaration(saved.id, { status: "Draft" });
-        } catch {
-          // Original error below stays authoritative.
-        }
-      }
-      const message = err instanceof Error ? err.message : "Failed to submit declaration.";
-      setSubmitError(message);
-      notifyError(message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const { handleSaveDraft, handleSubmit } = useDeclarationMutations({
+    draft, files, setFiles, pendingFilesRef, buildPayload: buildDeclarationPayload,
+    validate, onDraftSaved, onSubmitSuccess, setSubmitError, setSubmitting,
+  });
 
   const partyOptions = ["Supplier", "Customer", "Team Member", "Public Official"];
   const ynu = ["Yes", "No", "N/A"];

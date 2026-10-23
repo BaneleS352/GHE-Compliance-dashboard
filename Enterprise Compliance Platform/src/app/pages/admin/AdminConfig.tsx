@@ -58,8 +58,22 @@ export function AdminConfig() {
   const [editingOrg, setEditingOrg] = useState<{ id: number; name: string; shortCode: string } | null>(null);
   const [deletingOrgId, setDeletingOrgId] = useState<number | null>(null);
 
-  useEffect(() => { fetchConfig().then(setConfig).catch((err: Error) => setFetchError(err.message)); }, []);
-  useEffect(() => { fetchAdminOrganizations().then(setOrganizations).catch(() => {}); }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchConfig({ signal: controller.signal }).then(setConfig).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setFetchError(error instanceof Error ? error.message : "Could not load configuration.");
+    });
+    return () => controller.abort();
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchAdminOrganizations({ signal: controller.signal }).then(setOrganizations).catch((error: unknown) => {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setFetchError("Could not load organizations. Please refresh and try again.");
+    });
+    return () => controller.abort();
+  }, []);
 
   const { parsedTemplates, templatesFallback }: { parsedTemplates: NotificationTemplates; templatesFallback: boolean } = (() => {
     try { return { parsedTemplates: JSON.parse(config.notificationTemplates), templatesFallback: false }; } catch { return { parsedTemplates: DEFAULT_NOTIFICATION_TEMPLATES, templatesFallback: true }; }
