@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatRandValue, getPriority, parseRandInput, validateDeclarationForm } from "../app/pages/newDeclarationModel";
+import { buildDeclarationPayload, formatRandValue, getPriority, parseRandInput, validateDeclarationForm } from "../app/pages/newDeclarationModel";
 
 describe("new declaration model helpers", () => {
   it("classifies configured value priorities", () => {
@@ -23,5 +23,18 @@ describe("new declaration model helpers", () => {
     expect(errors.employeeName).toBe("Required");
     expect(errors.occasionOther).toBe("Required");
     expect(errors.substantiation).toBe("Required");
+  });
+
+  it("builds a domain declaration with normalized conditional fields", () => {
+    const declaration = buildDeclarationPayload({
+      user: { id: 7, name: "A User", email: "a@example.com", role: "teamMember", teamMemberNumber: "TM-7", department: "IT", position: "Engineer", lineManager: "Manager" },
+      form: {
+        employeeName: "A User", employeeCode: "TM-7", lineManager: "Manager", company: "HB", organizationId: 1, department: "IT", team: "", position: "Engineer",
+        partyType: "Supplier", Counterparty: "Supplier Co", contactPerson: "Contact", existingRelationship: "Yes", contractNegotiation: "No", biddingProcess: "No",
+        occasion: "Other", occasionOther: "Business event", date: "2026-01-01", value: "5000", currency: "ZAR", substantiation: "Approved exception", instances: "1", description: "Dinner",
+      },
+      category: "Gift", receivedGiven: "Received", files: [], highValueThreshold: 1000, mediumValueThreshold: 500, draftId: "GHE-DRAFT", draftStatus: "Draft",
+    });
+    expect(declaration).toMatchObject({ id: "GHE-DRAFT", employeeId: 7, occasion: "Business event", priority: "High", substantiation: "Approved exception" });
   });
 });

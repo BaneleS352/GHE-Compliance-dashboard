@@ -15,6 +15,57 @@ export interface DeclarationFormState {
 
 export interface DeclarationValidationConfig { highValueThreshold: number; maximumValue?: number; }
 
+export interface DeclarationPayloadOptions {
+  form: DeclarationFormState;
+  user: User;
+  category: string;
+  receivedGiven: string;
+  files: Array<UploadedFile & { uploadId?: string }>;
+  highValueThreshold: number;
+  mediumValueThreshold: number;
+  draftId?: string;
+  draftStatus?: Declaration["status"];
+}
+
+export function buildDeclarationPayload(options: DeclarationPayloadOptions): Declaration {
+  const { form, user } = options;
+  const value = Number(form.value || 0);
+  const requiresSubstantiation = Number.isFinite(value) && value >= options.highValueThreshold;
+  const occasion = form.occasion === "Other" ? form.occasionOther : form.occasion;
+  return {
+    id: options.draftId ?? "",
+    employee: form.employeeName,
+    employeeId: user.id,
+    teamMemberNumber: form.employeeCode,
+    lineManager: form.lineManager,
+    company: form.company,
+    organizationId: form.organizationId || undefined,
+    department: form.department,
+    team: form.team,
+    position: form.position,
+    receivedGiven: options.receivedGiven,
+    from: form.partyType,
+    counterparty: form.Counterparty,
+    contactPerson: form.contactPerson,
+    relationship: form.existingRelationship,
+    contractNegotiation: form.contractNegotiation,
+    biddingProcess: form.biddingProcess,
+    type: options.category,
+    date: form.date,
+    submitted: new Date().toISOString().slice(0, 10),
+    value: Number.isFinite(value) ? value : 0,
+    occasion,
+    description: form.description,
+    instances: form.instances || "1",
+    publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
+    substantiation: requiresSubstantiation ? form.substantiation : "",
+    approver: "",
+    status: options.draftStatus || "Draft",
+    priority: getPriority(value, options.highValueThreshold, options.mediumValueThreshold),
+    files: options.files,
+  };
+}
+
 export function validateDeclarationForm(form: DeclarationFormState, category: string, config: DeclarationValidationConfig, profileIdentityLocked: boolean): Record<string, string> {
   const value = Number(form.value || 0);
   const requiresSubstantiation = Number.isFinite(value) && value >= config.highValueThreshold;
@@ -70,3 +121,4 @@ export function parseRandInput(raw: string): string {
   const decimalPart = cleaned.slice(separatorIndex + 1).replace(/[^\d]/g, "").slice(0, 2);
   return `${integerPart.replace(/^0+(?=\d)/, "") || "0"}.${decimalPart}`;
 }
+import type { Declaration, User, UploadedFile } from "@/types/declaration";

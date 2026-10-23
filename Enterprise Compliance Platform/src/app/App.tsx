@@ -3,23 +3,13 @@ import { UserProvider, useUser } from "@/app/auth/UserContext";
 import { canAccessScreen } from "@/app/auth/authService";
 import { AppShell } from "@/shell/AppShell";
 import { LandingScreen } from "@/app/pages/LandingScreen";
-import { NewDeclarationScreen } from "@/app/pages/NewDeclarationScreen";
-import { MyDeclarationsScreen } from "@/app/pages/MyDeclarationsScreen";
-import { ApproverDashboard } from "@/app/pages/ApproverDashboard";
-import { ApprovalQueue } from "@/app/pages/ApprovalQueue";
-import { ApprovalDetail } from "@/app/pages/ApprovalDetail";
-import { AdminDashboard } from "@/app/pages/admin/AdminDashboard";
-import { AdminUsers } from "@/app/pages/admin/AdminUsers";
-import { AdminWorkflows } from "@/app/pages/admin/AdminWorkflows";
-import { AdminDropdownOptions } from "@/app/pages/admin/AdminDropdownOptions";
-import { AdminConfig } from "@/app/pages/admin/AdminConfig";
-import { AdminReports } from "@/app/pages/admin/AdminReports";
-import { AdminApprovalOptions } from "@/app/pages/admin/AdminApprovalOptions";
+import { AppScreenRenderer } from "@/app/AppScreenRenderer";
 import { SuccessModal } from "@/app/components/SuccessModal";
 import { DraftBanner } from "@/app/components/DraftBanner";
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
-import { Screen, Role, Declaration } from "@/types/declaration";
+import { Screen, Declaration } from "@/types/declaration";
 import { Toaster } from "sonner";
+import { canNavigateTo, landingScreenForUser, roleForScreen } from "@/app/screenPolicy";
 
 function AppInner() {
   const { user, logout } = useUser();
@@ -46,11 +36,6 @@ function AppInner() {
     return () => clearTimeout(id);
   }, [showSubmittedView]);
 
-  const getRoleForScreen = (s: Screen): Role =>
-    s === "admin-dashboard" || s === "admin-users" || s === "admin-workflows" || s === "admin-dropdown-options" || s === "admin-config" || s === "admin-reports" || s === "admin-approval-options" ? "admin"
-    : s === "approver-dashboard" || s === "approval-queue" || s === "approval-detail" ? "approver"
-    : "teamMember";
-
   const handleSignOut = () => {
     logout();
     setScreen("landing");
@@ -67,11 +52,7 @@ function AppInner() {
     if (!user) return;
     setScreen((current) => {
       if (current !== "landing" && current !== "login") return current;
-      return user.role === "admin"
-        ? "admin-dashboard"
-        : user.role === "approver"
-          ? "approver-dashboard"
-          : "new-declaration";
+      return landingScreenForUser(user);
     });
   }, [user]);
 
@@ -83,7 +64,7 @@ function AppInner() {
 
   const guardedNavigate = (s: Screen) => {
     if (s === "new-declaration") setEditingDraft(null);
-    if (!canAccessScreen(user, s)) {
+    if (!canNavigateTo(user, s)) {
       setScreen("landing");
       return;
     }
@@ -94,7 +75,7 @@ function AppInner() {
     return <LandingScreen />;
   }
 
-  if (!canAccessScreen(user, screen)) {
+  if (!user || !canNavigateTo(user, screen)) {
     return <LandingScreen />;
   }
 
@@ -102,28 +83,22 @@ function AppInner() {
     <>
       {showDraftBanner && <DraftBanner onDismiss={() => setShowDraftBanner(false)} />}
 
-      <AppShell role={user?.role || getRoleForScreen(screen)} screen={screen} userName={user?.name || ""} onNavigate={guardedNavigate} onSignOut={handleSignOut} user={user}>
-        {screen === "new-declaration" && !showSubmittedView && (
-          <NewDeclarationScreen
-            onSubmitSuccess={(data) => { setEditingDraft(null); handleSubmitSuccess(data); }}
-            onDraftSaved={() => setShowDraftBanner(true)}
-            draft={editingDraft}
-          />
-        )}
-        {screen === "new-declaration" && showSubmittedView && submittedData && (
-          <ApprovalDetail declaration={submittedData} onBack={() => setShowSubmittedView(false)} readOnly />
-        )}
-        {screen === "my-declarations" && <MyDeclarationsScreen onEditDraft={(d) => { setEditingDraft(d); setScreen("new-declaration"); }} />}
-        {screen === "approver-dashboard" && <ApproverDashboard onNavigate={guardedNavigate} onReview={(d) => { setSelectedDecl(d); guardedNavigate("approval-detail"); }} />}
-        {screen === "approval-queue" && <ApprovalQueue onReview={(d) => { setSelectedDecl(d); guardedNavigate("approval-detail"); }} />}
-        {screen === "approval-detail" && selectedDecl && <ApprovalDetail declaration={selectedDecl} onBack={() => guardedNavigate("approval-queue")} />}
-        {screen === "admin-dashboard" && <AdminDashboard onNavigate={guardedNavigate} />}
-        {screen === "admin-users" && <AdminUsers />}
-        {screen === "admin-workflows" && <AdminWorkflows />}
-        {screen === "admin-dropdown-options" && <AdminDropdownOptions />}
-        {screen === "admin-config" && <AdminConfig />}
-        {screen === "admin-reports" && <AdminReports />}
-        {screen === "admin-approval-options" && <AdminApprovalOptions />}
+      <AppShell role={user?.role || roleForScreen(screen)} screen={screen} userName={user?.name || ""} onNavigate={guardedNavigate} onSignOut={handleSignOut} user={user}>
+        <AppScreenRenderer
+          screen={screen}
+          user={user}
+          editingDraft={editingDraft}
+          selectedDeclaration={selectedDecl}
+          showSubmittedView={showSubmittedView}
+          submittedData={submittedData}
+          onNavigate={guardedNavigate}
+          onSubmitSuccess={(data) => { setEditingDraft(null); handleSubmitSuccess(data); }}
+          onDraftSaved={() => setShowDraftBanner(true)}
+          onEditDraft={(declaration) => { setEditingDraft(declaration); setScreen("new-declaration"); }}
+          onReview={(declaration) => { setSelectedDecl(declaration); guardedNavigate("approval-detail"); }}
+          onBackFromApproval={() => guardedNavigate("approval-queue")}
+          onBackFromSubmitted={() => setShowSubmittedView(false)}
+        />
       </AppShell>
 
       {showSuccess && submittedData && (

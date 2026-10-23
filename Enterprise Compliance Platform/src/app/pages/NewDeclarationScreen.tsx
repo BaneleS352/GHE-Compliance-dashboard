@@ -11,10 +11,11 @@ import { PURPLE, F, inp, GRADIENT_PRIMARY, GRADIENT_ACCENT, INFO_BG, DEFAULT_HIG
 import { Declaration } from "@/types/declaration";
 import { createDeclaration, submitDeclaration, uploadDeclarationFile } from "@/services/api";
 import { downloadFile } from "@/services/download";
+import { reportClientError } from "@/services/clientTelemetry";
 import { notifySuccess, notifyError } from "@/app/components/notify";
 import { useUser } from "@/app/auth/UserContext";
 import { fetchConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
-import { formatRandValue, getPriority, OCCASION_OPTIONS, parseRandInput, validateDeclarationForm } from "./newDeclarationModel";
+import { buildDeclarationPayload as buildPayload, formatRandValue, OCCASION_OPTIONS, parseRandInput, validateDeclarationForm } from "./newDeclarationModel";
 import type { DeclarationFormState } from "./newDeclarationModel";
 
 // determineRuleId now handled server-side via workflowService.determineRuleId (2-tier: >=high → rule-2)
@@ -67,7 +68,7 @@ export function NewDeclarationScreen({
     }
     if (/^\d+$/.test(lm.trim())) {
       const controller = new AbortController();
-      fetchUserById(Number(lm), { signal: controller.signal }).then((u) => { if (!cancelled) setLineManagerName(u?.name || ""); }).catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) console.error("Failed to fetch line manager:", err); });
+      fetchUserById(Number(lm), { signal: controller.signal }).then((u) => { if (!cancelled) setLineManagerName(u?.name || ""); }).catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) reportClientError(err, { feature: "declaration", operation: "load-line-manager" }); });
       return () => { cancelled = true; controller.abort(); };
     } else {
       setLineManagerName(lm);
@@ -221,8 +222,8 @@ export function NewDeclarationScreen({
     const orgId = form.organizationId || user?.organizationId;
     if (!orgId) return;
     const controller = new AbortController();
-    fetchManagers(orgId, { signal: controller.signal }).then(setManagers).catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) console.error("Failed to fetch managers:", err); });
-    fetchDepartments(orgId, { signal: controller.signal }).then(setDepartments).catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) console.error("Failed to fetch departments:", err); });
+    fetchManagers(orgId, { signal: controller.signal }).then(setManagers).catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) reportClientError(err, { feature: "declaration", operation: "load-managers" }); });
+    fetchDepartments(orgId, { signal: controller.signal }).then(setDepartments).catch((err: unknown) => { if (!(err instanceof DOMException && err.name === "AbortError")) reportClientError(err, { feature: "declaration", operation: "load-departments" }); });
     return () => controller.abort();
   }, [form.organizationId, user?.organizationId, user?.role]);
 
@@ -364,46 +365,7 @@ export function NewDeclarationScreen({
 
   const buildDeclarationPayload = (): Declaration | null => {
     if (!user) return null;
-    const value = Number(form.value || 0);
-    const requiresSubstantiation = Number.isFinite(value) && value >= config.highValueThreshold;
-    const requiresOccasionOther = form.occasion === "Other";
-    const priority = getPriority(value, config.highValueThreshold, config.mediumValueThreshold);
-
-    return {
-      // The public GHE reference is server-assigned on create (the backend
-      // generates it with a collision guard and ignores any client value):
-      // only carry an id for draft updates.
-      id: draft?.id ?? "",
-      employee: form.employeeName,
-      employeeId: user.id,
-      teamMemberNumber: form.employeeCode,
-      lineManager: form.lineManager,
-      company: form.company,
-      organizationId: form.organizationId || undefined,
-      department: form.department,
-      team: form.team,
-      position: form.position,
-      receivedGiven,
-      from: form.partyType,
-      counterparty: form.Counterparty,
-      contactPerson: form.contactPerson,
-      relationship: form.existingRelationship,
-      contractNegotiation: form.contractNegotiation,
-      biddingProcess: form.biddingProcess,
-      type: category,
-      date: form.date,
-      submitted: new Date().toISOString().slice(0, 10),
-      value: Number.isFinite(value) ? value : 0,
-      occasion: requiresOccasionOther ? form.occasionOther : form.occasion,
-      description: form.description,
-      instances: form.instances || "1",
-      publicOfficial: form.partyType === "Public Official" ? "Yes" : "No",
-      substantiation: requiresSubstantiation ? form.substantiation : "",
-      approver: "",
-      status: draft?.status || "Draft",
-      priority,
-      files,
-    };
+    return buildPayload({ form, user, category, receivedGiven, files, highValueThreshold: config.highValueThreshold, mediumValueThreshold: config.mediumValueThreshold, draftId: draft?.id, draftStatus: draft?.status });
   };
 
   const syncUploadedFiles = async (declaration: Declaration): Promise<Declaration> => {

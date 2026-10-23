@@ -1,4 +1,5 @@
-import { Component, ErrorInfo, ReactNode } from "react";
+import { Component, ReactNode } from "react";
+import { reportClientError } from "@/services/clientTelemetry";
 
 interface Props {
   children: ReactNode;
@@ -17,10 +18,10 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, info: ErrorInfo) {
+  componentDidCatch(error: Error) {
     // Keep diagnostics out of the rendered UI. Production telemetry can be
     // added here without exposing provider/API details to end users.
-    console.error("ErrorBoundary caught:", { name: error.name, message: error.message, componentStack: info.componentStack });
+    reportClientError(error, { feature: "application", operation: "render" });
   }
 
   handleReset = () => {

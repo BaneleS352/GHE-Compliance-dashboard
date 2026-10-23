@@ -130,6 +130,77 @@ Implementation is complete for the approved scope through
 `POST /api/reports/protect-document` and the shared `PasswordDialog` flow.
 Passwords are supplied per export, used once by the server, and never stored.
 
+## Audit continuation — 23 October 2026
+
+The comprehensive React/TypeScript audit identified a second layer of
+engineering-hardening work beyond the original product-security phases. The
+following items are now implemented in the working tree and must remain part
+of the release plan:
+
+### Completed in this continuation
+
+- `NewDeclarationScreen` now delegates validation, priority calculation,
+  currency parsing, and payload construction to the typed
+  `newDeclarationModel.ts` module. This keeps business rules testable without
+  rendering the page and reduces the page's responsibility to orchestration
+  and presentation.
+- Supporting-document upload UI and declaration guidance/navigation were
+  extracted from the declaration page into focused components.
+- Screen rendering was extracted from `App.tsx` into
+  `AppScreenRenderer.tsx`; role-to-screen policy and navigation authorization
+  now live in `screenPolicy.ts`.
+- Form labels, validation relationships, keyboard-operable upload controls,
+  dialog focus trapping/restoration, and admin quick-link keyboard behavior
+  were corrected. The error boundary renders only a user-safe message.
+- API boundary types were tightened across declarations, users, workflow,
+  reports, configuration, and admin data. The production quality gate rejects
+  new `any` annotations/casts in app, shell, and service code.
+- The production quality gate also resolves local TypeScript imports and
+  fails on circular dependencies, making this module-boundary check repeatable
+  in CI rather than dependent on manual review.
+- Abort signals are propagated through the shared HTTP client and the main
+  lookup/listing flows so unmounted or superseded requests cannot update state.
+- `clientTelemetry.ts` is the single client error-reporting seam. It emits
+  normalized metadata through a host event and logs only in development; it
+  does not include response bodies, bearer tokens, or raw backend details.
+
+### Verification for this continuation
+
+- Frontend tests: 279 passing across 26 files.
+- Frontend typecheck: passing.
+- Frontend production quality gate: passing.
+- The remaining React error stacks printed by the test runner are expected
+  React/jsdom diagnostics from intentional ErrorBoundary tests; the tests
+  themselves pass.
+
+### Still open after the code pass
+
+1. Run the complete backend, PostgreSQL, frontend build, and Playwright gates
+   from a clean checkout and attach current evidence rather than relying on
+   historical counts.
+2. Complete staging OIDC and browser acceptance against a real deployed
+   environment, including expired-session and unauthorized states.
+3. Finish decomposing the remaining orchestration in
+   `NewDeclarationScreen.tsx` into submission and profile/lookup hooks where
+   doing so preserves behavior; do not split JSX merely to reduce line count.
+4. Add the remaining automated dependency-boundary checks and a lint rule set
+   covering hooks, accessibility, unused exports, and import direction. The
+   circular-import portion is implemented in `scripts/quality-gate.mjs`;
+   deep-import and feature-direction rules remain open because they require
+   first normalizing the existing import graph.
+5. Connect the `ghe:client-error` event to the approved production telemetry
+   backend, with redaction tests and a retention policy. Until then, the
+   event is an integration seam, not a claim of centralized production
+   observability.
+6. Add focused accessibility tests for the complete declaration form,
+   keyboard upload interaction, focus restoration, and screen-reader error
+   associations; supplement the existing component tests with browser-level
+   assertions.
+
+The remediation goal remains open until these release, observability,
+architecture-gate, and browser-acceptance items are either completed or
+explicitly accepted by the owning team.
+
 ## Remaining Work
 
 Audit update — 8 October 2026: the repository was reviewed against this plan
