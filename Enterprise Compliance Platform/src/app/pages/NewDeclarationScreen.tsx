@@ -103,6 +103,14 @@ export function NewDeclarationScreen({
     }
   }, [lineManagerName]);
 
+  // Some scoped user responses intentionally omit display text. Once the
+  // manager lookup is available, hydrate the form from the authoritative id.
+  useEffect(() => {
+    if (lineManagerName || !user?.managerId) return;
+    const manager = managers.find((candidate) => candidate.id === user.managerId);
+    if (manager) setLineManagerName(manager.name);
+  }, [lineManagerName, managers, user?.managerId]);
+
   useEffect(() => {
     if (!draft) return;
     const occasionInList = OCCASION_OPTIONS.includes(draft.occasion);
@@ -373,7 +381,10 @@ export function NewDeclarationScreen({
 
   const buildDeclarationPayload = (): Declaration | null => {
     if (!user) return null;
-    return buildPayload({ form, user, category, receivedGiven, files, highValueThreshold: config.highValueThreshold, mediumValueThreshold: config.mediumValueThreshold, draftId: draft?.id, draftStatus: draft?.status });
+    const effectiveForm = form.lineManager
+      ? form
+      : { ...form, lineManager: lineManagerName || user.lineManager || "" };
+    return buildPayload({ form: effectiveForm, user, category, receivedGiven, files, highValueThreshold: config.highValueThreshold, mediumValueThreshold: config.mediumValueThreshold, draftId: draft?.id, draftStatus: draft?.status });
   };
 
   const { handleSaveDraft, handleSubmit } = useDeclarationMutations({
@@ -476,7 +487,7 @@ export function NewDeclarationScreen({
                 <input id="line-manager" type="text" value={form.lineManager} disabled readOnly className={`${inp} bg-muted text-muted-foreground`} aria-label="Approving Manager Name" />
               ) : (
               <div className="relative" data-manager-dropdown>
-                <input id="line-manager" aria-describedby="line-manager-error" aria-invalid={!!errors.lineManager} type="text" className={`${inp} ${errors.lineManager ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`} value={managerSearch || form.lineManager} onChange={(e) => { setManagerSearch(e.target.value); setShowManagerDropdown(true); setF("lineManager", e.target.value); }} onFocus={() => { setManagerSearch(""); setShowManagerDropdown(true); }} placeholder="Search for manager…" maxLength={100} />
+                <input id="line-manager" aria-describedby="line-manager-error" aria-invalid={!!errors.lineManager} type="text" className={`${inp} ${errors.lineManager ? "border-red-500 bg-red-50 focus:ring-4 focus:ring-red-500/20 focus:border-red-600 hover:border-red-400" : ""}`} value={managerSearch || form.lineManager || lineManagerName || user?.lineManager || ""} onChange={(e) => { setManagerSearch(e.target.value); setShowManagerDropdown(true); setF("lineManager", e.target.value); }} onFocus={() => { setManagerSearch(""); setShowManagerDropdown(true); }} placeholder="Search for manager…" maxLength={100} />
                 {showManagerDropdown && managers.length > 0 && <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-border bg-white shadow-lg">
                   {managers.filter((m) => !managerSearch || m.name.toLowerCase().includes(managerSearch.toLowerCase())).map((m) => <button key={m.id} type="button" className="w-full text-left px-4 py-2.5 text-sm hover:bg-purple-50 transition-colors border-b border-border/50 last:border-0" onClick={() => { setFormState((f) => ({ ...f, lineManager: m.name })); setManagerSearch(""); setShowManagerDropdown(false); setErrors((e) => ({ ...e, lineManager: "" })); }}><span className="font-semibold">{m.name}</span><span className="text-xs text-muted-foreground ml-2">({m.position})</span></button>)}
                   {managers.filter((m) => !managerSearch || m.name.toLowerCase().includes(managerSearch.toLowerCase())).length === 0 && <div className="px-4 py-2.5 text-sm text-muted-foreground">No managers found</div>}

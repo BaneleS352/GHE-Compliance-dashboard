@@ -59,7 +59,8 @@ export class AppPage {
 
   async clickReviewFor(id: string) {
     await this.search(id);
-    await this.page.locator(`table tr:has(td:has-text("${id}")) button:has-text('Review')`).first().click();
+    const row = this.page.getByRole("row").filter({ hasText: id }).first();
+    await row.getByRole("button", { name: "Review", exact: true }).click();
   }
 
   async clickEditResubmitFor(id: string) {
@@ -115,7 +116,7 @@ export class NewDeclarationPage {
   }
 
   async select(label: string, option: string) {
-    await this.page.locator(`div:has(> label:has-text("${label}")) [role="combobox"]`).click();
+    await this.page.getByLabel(label, { exact: true }).click();
     await this.page.getByRole("option", { name: option, exact: true }).click();
     await this.page.waitForTimeout(150);
   }
