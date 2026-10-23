@@ -301,7 +301,7 @@ export function KpiCard({
                   alignItems: "center",
                   gap: 0,
                   fontSize: 46,
-                  lineHeight: 0.85 as any,
+                  lineHeight: 0.85,
                   fontWeight: 800,
                   textShadow: "0 1px 1px rgba(0,0,0,.15)",
                 }

@@ -218,6 +218,6 @@ describe("WorkflowTimeline built-in auto-fetch", () => {
       ],
     });
     render(<WorkflowTimeline declarationId="GHE-001" />);
-    expect(fetchWorkflowInstance).toHaveBeenCalledWith("GHE-001");
+    expect(fetchWorkflowInstance).toHaveBeenCalledWith("GHE-001", expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 });

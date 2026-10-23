@@ -277,7 +277,7 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
                           <Cell key={entry.name} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number, _name, payload: any) => [`${value}`, payload?.payload?.name || ""]} />
+                      <Tooltip formatter={(value: number, _name, payload?: { payload?: { name?: string } }) => [`${value}`, payload?.payload?.name || ""]} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>

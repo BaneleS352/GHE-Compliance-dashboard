@@ -1,4 +1,5 @@
 import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, Activity, List, BarChart3, CheckCircle2 } from "lucide-react";
+import type { ComponentType } from "react";
 import { ImageWithFallback } from "@/app/components/ImageWithFallback";
 import logoImg from "@/assets/HB-Logo-NO-BG.png";
 import { YELLOW, GRADIENT_SIDEBAR } from "@/config/theme";
@@ -37,7 +38,7 @@ export function Sidebar({
           { screen: "my-declarations"  as Screen, icon: FileText,   label: "My Declarations" },
         ]
       : (() => {
-          const base: { screen: Screen; icon: any; label: string }[] = [
+          const base: { screen: Screen; icon: ComponentType<{ size?: number }>; label: string }[] = [
             { screen: "approver-dashboard" as Screen, icon: Home,        label: "Dashboard" },
             { screen: "new-declaration"    as Screen, icon: Gift,        label: "New Declaration" },
             { screen: "approval-queue"     as Screen, icon: CheckSquare, label: "Approval Queue" },

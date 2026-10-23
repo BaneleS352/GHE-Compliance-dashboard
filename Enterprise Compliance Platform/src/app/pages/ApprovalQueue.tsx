@@ -98,15 +98,16 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
       (!overdueOnly || isOutstanding(d.submitted, slaDays))
     );
   });
-  const sortFieldMap: Record<string, string> = {
+  const sortFieldMap: Record<string, keyof Declaration> = {
     "Declaration ID": "id", TeamMember: "employee", Dept: "department", Type: "type",
     Counterparty: "counterparty", Value: "value", Submitted: "submitted",
     Priority: "priority", Status: "status",
   };
   const sorted = sortKey
     ? [...filteredQueue].sort((a, b) => {
-        const aVal = (a as any)[sortFieldMap[sortKey] || sortKey] ?? "";
-        const bVal = (b as any)[sortFieldMap[sortKey] || sortKey] ?? "";
+        const field = sortFieldMap[sortKey] || "id";
+        const aVal = a[field] ?? "";
+        const bVal = b[field] ?? "";
         if (typeof aVal === "number" && typeof bVal === "number") return sortDir === "asc" ? aVal - bVal : bVal - aVal;
         const aStr = String(aVal).toLowerCase();
         const bStr = String(bVal).toLowerCase();

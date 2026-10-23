@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 import { fetchWorkflowInstance } from "@/services/api";
+import type { WorkflowInstanceResponse, WorkflowStepResponse } from "@/services/api";
 import { ApprovalDecision } from "@/types/declaration";
 import { DECISION_LABELS, APPROVAL_OPTIONS, STATUS_COLORS, labelToStatus } from "@/config/theme";
 
@@ -31,9 +32,9 @@ const ALL_ROLES = [
   { role: "hr",          label: "HR Review",           defaultActor: "Head of HR" },
 ];
 
-function buildStepsFromWorkflow(wf: any, employee?: string): StepView[] {
+function buildStepsFromWorkflow(wf: WorkflowInstanceResponse | null | undefined, employee?: string): StepView[] {
   const hasData = wf && wf.steps && wf.steps.length > 0;
-  const existing = hasData ? new Map(wf.steps.map((s: any) => [s.role, s])) : new Map();
+  const existing = hasData ? new Map(wf.steps.map((s: WorkflowStepResponse) => [s.role, s])) : new Map<string, WorkflowStepResponse>();
   const result: StepView[] = [];
   let hasTerminal = false;
   for (const r of ALL_ROLES) {
@@ -186,15 +187,17 @@ export function WorkflowTimeline({
   submitDisabled,
   submitted,
 }: WorkflowTimelineProps) {
-  const [wf, setWf] = useState<any>(undefined);
+  const [wf, setWf] = useState<WorkflowInstanceResponse | null | undefined>(undefined);
 
   useEffect(() => {
     if (!declarationId || externalSteps) return;
-    let cancelled = false;
-    fetchWorkflowInstance(declarationId)
-      .then((wf) => { if (!cancelled) setWf(wf); })
-      .catch(() => { if (!cancelled) setWf(null); });
-    return () => { cancelled = true; };
+    const controller = new AbortController();
+    fetchWorkflowInstance(declarationId, { signal: controller.signal })
+      .then(setWf)
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) setWf(null);
+      });
+    return () => controller.abort();
   }, [declarationId, externalSteps]);
 
   const steps = externalSteps || buildStepsFromWorkflow(wf, employee);

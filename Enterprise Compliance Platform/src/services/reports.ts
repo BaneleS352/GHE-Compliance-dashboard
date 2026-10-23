@@ -5,6 +5,7 @@ export interface ReportDeclarationDto {
 }
 
 export interface SlaReportRow {
+  [key: string]: unknown;
   role: string;
   avg: number;
   min: number;
@@ -13,6 +14,7 @@ export interface SlaReportRow {
 }
 
 export interface CounterpartyReportRow {
+  [key: string]: unknown;
   counterparty: string;
   count: number;
   totalValue: number;
@@ -28,6 +30,7 @@ export interface HighValueSourceRow {
 }
 
 export interface HighValueSummaryRow {
+  [key: string]: unknown;
   employee: string;
   lineManager: string;
   declarationCount: number;
