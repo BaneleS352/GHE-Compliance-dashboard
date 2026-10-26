@@ -149,9 +149,10 @@ export async function startTestJwksServer(port = TEST_JWKS_PORT): Promise<{
   });
   await new Promise<void>((resolve, reject) => {
     server.once("error", (err: unknown) => {
-      const code = (err as { code?: string }).code;
-      if (code === "EADDRINUSE") resolve(); // Orphaned run left it up; reuse.
-      else reject(err);
+      // Never pretend to own a listener we failed to bind. Reusing an
+      // unrelated/orphaned provider while returning a fresh private key
+      // makes every token fail JWKS verification with a misleading 401.
+      reject(err);
     });
     server.listen(port, "127.0.0.1", () => resolve());
   });

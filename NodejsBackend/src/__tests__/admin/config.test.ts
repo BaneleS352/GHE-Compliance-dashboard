@@ -15,12 +15,26 @@ describe("Admin Config", () => {
   });
 
   it("PUT /api/admin/config — updates config", async () => {
-    const res = await request(app)
-      .put("/api/admin/config")
-      .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ highValueThreshold: 5000, mediumValueThreshold: 500, slaEscalationDays: 5, maxDeclarationsPerCounterparty: 10, emailTemplate: "New template" });
-    expect(res.status).toBe(200);
-    expect(res.body.highValueThreshold).toBe(5000);
+    const original = await request(app)
+      .get("/api/admin/config")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(original.status).toBe(200);
+
+    try {
+      const res = await request(app)
+        .put("/api/admin/config")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send({ highValueThreshold: 5000, mediumValueThreshold: 500, slaEscalationDays: 5, maxDeclarationsPerCounterparty: 10, emailTemplate: "New template" });
+      expect(res.status).toBe(200);
+      expect(res.body.highValueThreshold).toBe(5000);
+    } finally {
+      // This suite shares the integration database with the other Vitest
+      // files, so restore routing thresholds even if an assertion fails.
+      await request(app)
+        .put("/api/admin/config")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .send(original.body);
+    }
   });
 
   it("PUT /api/admin/config — rejects invalid body", async () => {
