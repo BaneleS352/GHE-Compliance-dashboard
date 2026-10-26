@@ -1,9 +1,8 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
 COPY prisma/ ./prisma/
-RUN ./node_modules/.bin/prisma generate
+RUN npm ci
 COPY tsconfig.json ./
 COPY src/ ./src/
 RUN npm run build
