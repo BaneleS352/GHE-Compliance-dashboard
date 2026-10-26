@@ -1,7 +1,12 @@
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import { startTestJwksServer } from "../../NodejsBackend/src/test-utils/test-jwks-server";
+// NodejsBackend is compiled as CommonJS. Import its module namespace through
+// the default export so Playwright's ESM loader does not rely on synthetic
+// named-export detection for the TypeScript CommonJS module.
+import testJwksServer from "../../NodejsBackend/src/test-utils/test-jwks-server";
+
+const { startTestJwksServer } = testJwksServer;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
