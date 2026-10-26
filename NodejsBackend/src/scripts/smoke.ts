@@ -62,6 +62,21 @@ async function waitForHealth(server: ChildProcess): Promise<boolean> {
   return false;
 }
 
+async function stopChild(server: ChildProcess): Promise<void> {
+  if (server.exitCode !== null || server.signalCode !== null) return;
+  await new Promise<void>((resolve) => {
+    const timeout = setTimeout(() => {
+      server.kill("SIGKILL");
+      resolve();
+    }, 5000);
+    server.once("exit", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+    server.kill("SIGTERM");
+  });
+}
+
 let jwksBase = "";
 
 async function mintSmokeToken(email: string, name: string, oid: string): Promise<string> {
@@ -99,10 +114,6 @@ async function main() {
   console.log("--- start test identity provider ---");
   const jwks = await startTestJwksServer();
   jwksBase = jwks.baseUrl;
-  const stopJwks = () => {
-    jwks.close().catch(() => undefined);
-  };
-  process.on("exit", stopJwks);
 
   console.log(`--- start API on ${PORT} ---`);
   const server = spawn(process.execPath, ["dist/index.js"], {
@@ -120,16 +131,11 @@ async function main() {
   let serverOutput = "";
   server.stdout?.on("data", (d) => { serverOutput += d.toString(); });
   server.stderr?.on("data", (d) => { serverOutput += d.toString(); });
-  const stop = () => {
-    try { server.kill("SIGTERM"); } catch { /* already gone */ }
-  };
-  process.on("exit", stop);
-
   try {
     check("server boots and serves /api/health", await waitForHealth(server));
     if (server.exitCode !== null) {
       console.error(serverOutput);
-      process.exit(1);
+      throw new Error(`API process exited early with code ${server.exitCode}`);
     }
 
     const j = async (method: string, p: string, body?: any, token?: string) => {
@@ -230,7 +236,8 @@ async function main() {
       await prisma.$disconnect();
     }
   } finally {
-    stop();
+    await stopChild(server);
+    await jwks.close();
   }
 
   console.log(`\n${checks - failures.length}/${checks} smoke checks passed`);
