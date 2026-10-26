@@ -65,6 +65,7 @@ Latest recorded verification is documented in docs/DATABASE-NORMALIZATION-GOAL.m
 - Fixed order-dependent suite flakes: `workflow-regressions` no longer uses hardcoded user ids 12/13/14 (tokens signed from upserted rows); ghost-employeeId test asserts loud 400 at the boundary
 - Fixed real bugs surfaced by the gates: `seed.ts` two-pass user seeding (self-FK on clean DB), `smoke.ts` datasource URL + BigInt serialization, order-sensitive `equiv` in `pg-integration-checks`
 - CI runs frontend production build; ARCHITECTURE.md provider-rewrite description corrected
+- E2E verification 2026-10-26: Playwright 20/20 passed against a fresh local PostgreSQL database with the throwaway JWKS OpenID provider. `playwright.config.ts` now passes `E2E_PG_DATABASE_URL` to the backend webServer so the API uses the same database that global setup migrates and seeds. See the verification update in `docs/FRONTEND-AUDIT-REMEDIATION-PLAN.md`.
 
 ### Active
 - Database normalization is implemented; frontend product-hardening remains tracked in `docs/FRONTEND-AUDIT-REMEDIATION-PLAN.md`

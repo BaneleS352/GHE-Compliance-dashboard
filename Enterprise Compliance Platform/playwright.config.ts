@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const TEST_JWKS_URL = process.env.E2E_JWKS_URL || "http://127.0.0.1:55439";
+const TEST_DATABASE_URL = process.env.E2E_PG_DATABASE_URL || process.env.DATABASE_URL;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -44,8 +45,10 @@ export default defineConfig({
       reuseExistingServer: false,
       // The API validates bearer tokens against this throwaway provider
       // (booted by e2e/global-setup.ts); e2e specs mint per-user tokens
-      // from it. No production credentials anywhere in this flow.
+      // from it. Use the same isolated database global setup migrated and
+      // seeded; otherwise the backend silently falls back to NodejsBackend/.env.
       env: {
+        DATABASE_URL: TEST_DATABASE_URL,
         OIDC_AUTHORITY: TEST_JWKS_URL,
         OIDC_ISSUER: TEST_JWKS_URL,
         OIDC_AUDIENCE: "ghe-test-api-audience",

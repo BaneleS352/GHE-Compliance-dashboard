@@ -838,3 +838,11 @@ The plan can be closed only when all Phase 7 decisions are recorded, automated g
 - Added `NodejsBackend/requirements.txt` as the single pinned source for `pypdf` and `msoffcrypto-tool`; Docker and CI now install from that manifest so protected-export behavior is reproducible outside the developer workstation.
 - Remaining browser failures: the focused declaration rerun encountered backend `ECONNRESET`/temporary-harness instability and needs another clean run; staging OIDC and real production-like document-protection verification remain outstanding. The local sidecar dependency gap is fixed by the new manifest and installed pins.
 - The plan remains open. Do not count the browser gate as passed until the corrected E2E run and the staging identity/export checks are recorded.
+
+## Verification update — 2026-10-26
+
+- Full Playwright suite: **20/20 passed** (desktop 18/18, mobile 2/2) against a fresh local PostgreSQL database and the throwaway RS256/JWKS provider; no Entra tenant or production credentials were used.
+- Fixed the database split in `playwright.config.ts`: global setup already migrated and seeded `E2E_PG_DATABASE_URL`, but the backend webServer inherited `NodejsBackend/.env` instead. The webServer now receives the same E2E database URL, preventing stale local application data from being served to browser tests.
+- Fixed deterministic persona switching in `e2e/common-helpers.ts` by setting the newly minted token before reload, and updated form locators to match accessible-label prefixes after the UI labels were lengthened.
+- The local Prisma schema-engine failure was caused by using CI sample credentials against the local server. With a dedicated database and the configured local PostgreSQL account, migrations and seeding completed successfully.
+- Frontend typecheck, quality gate, and `git diff --check` pass. Staging OIDC and production-like document-protection checks remain outstanding; this does not close the release plan.

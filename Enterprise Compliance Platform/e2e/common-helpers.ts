@@ -23,8 +23,15 @@ export async function login(page: Page, email: string) {
   });
   if (!mint.ok) throw new Error(`test identity minting failed: ${mint.status}`);
   const token = await mint.text();
-  await page.addInitScript((t) => sessionStorage.setItem("e2e.auth.token", t), token);
+
+  // Init scripts persist across navigations, and Playwright does not promise
+  // their execution order. Adding one per persona can therefore let an older
+  // token overwrite the requested identity on a later reload. Navigate to
+  // the app origin first, set the current persona explicitly, then reload so
+  // MSAL's dev-only adapter and /api/auth/me both observe that same token.
   await page.goto("/");
+  await page.evaluate((t) => sessionStorage.setItem("e2e.auth.token", t), token);
+  await page.reload();
   // Desktop renders the sidebar inside <aside>; mobile renders the compact
   // navigation as a top-level <nav>. The hidden breakpoint twin is always
   // present in the DOM, so qualify with :visible — a bare waitForSelector
@@ -116,13 +123,14 @@ export class NewDeclarationPage {
   }
 
   async select(label: string, option: string) {
-    await this.page.getByLabel(label, { exact: true }).click();
+    // Labels are long questions in the UI; tests may use a stable prefix.
+    await this.page.getByLabel(label, { exact: false }).click();
     await this.page.getByRole("option", { name: option, exact: true }).click();
     await this.page.waitForTimeout(150);
   }
 
   async fill(label: string, value: string) {
-    await this.page.locator(`label:has-text("${label}") + input`).fill(value);
+    await this.page.getByLabel(label, { exact: false }).fill(value);
   }
 
   async textarea(value: string) {
@@ -138,7 +146,7 @@ export class NewDeclarationPage {
   }
 
   async number(label: string, value: string) {
-    await this.page.locator(`div:has(> label:has-text("${label}")) input`).fill(value);
+    await this.page.getByLabel(label, { exact: false }).fill(value);
   }
 
   async submit() {
