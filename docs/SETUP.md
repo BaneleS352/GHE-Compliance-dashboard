@@ -65,6 +65,7 @@ install Chromium with `npx playwright install chromium`.
 ## Troubleshooting
 
 - Missing OIDC configuration: set the `OIDC_*` variables from `.env.example`, or use the test JWKS provider for automated tests.
+- `TypeError: Invalid URL` while starting the backend: remove surrounding whitespace from `OIDC_AUTHORITY`/`OIDC_ISSUER`; the config trims these values and `dev.bat` now assigns the local test-provider settings with quoted `set` syntax.
 - Port conflict: inspect `netstat -ano | findstr :3001` or `:5173`.
 - Prisma errors: run `npx prisma generate` from `NodejsBackend`.
 - Vite/esbuild access errors in synced folders: use a local checkout.

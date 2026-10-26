@@ -10,6 +10,17 @@ afterEach(() => {
 // Phase 7 production hardening: interactive API docs and demo-data seeding
 // must never be available from a production deployment.
 describe("production posture", () => {
+  it("trims whitespace from OIDC URL environment values", async () => {
+    vi.stubEnv("OIDC_AUTHORITY", " http://127.0.0.1:55439 ");
+    vi.stubEnv("OIDC_ISSUER", " http://127.0.0.1:55439 ");
+    vi.stubEnv("OIDC_CLIENT_ID", " local-test-client ");
+    vi.stubEnv("OIDC_AUDIENCE", " ghe-test-api-audience ");
+    vi.resetModules();
+    const { config } = await import("../config/env");
+    expect(config.oidc.authority).toBe("http://127.0.0.1:55439");
+    expect(config.oidc.issuer).toBe("http://127.0.0.1:55439");
+  });
+
   it("serves API docs outside production", () => {
     expect(process.env.NODE_ENV).not.toBe("production");
     expect(docsEnabled()).toBe(true);

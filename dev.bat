@@ -5,7 +5,7 @@ setlocal
 :: Temporary workaround for corporate SSL inspection (Prisma download)
 :: Remove this line once NODE_EXTRA_CA_CERTS is configured correctly.
 :: ------------------------------------------------------------------
-set NODE_TLS_REJECT_UNAUTHORIZED=0
+set "NODE_TLS_REJECT_UNAUTHORIZED=0"
 
 cd /d "%~dp0"
 
@@ -79,7 +79,12 @@ echo [5/5] Starting servers...
 
 start "Test OIDC Provider" cmd /k "cd /d "%~dp0NodejsBackend" && npx tsx src/scripts/test-provider.ts"
 
-start "Backend" cmd /k "set NODE_TLS_REJECT_UNAUTHORIZED=0 && set OIDC_AUTHORITY=http://127.0.0.1:55439 && set OIDC_ISSUER=http://127.0.0.1:55439 && set OIDC_AUDIENCE=ghe-test-api-audience && set OIDC_CLIENT_ID=local-dev-testing && cd /d "%~dp0NodejsBackend" && npx tsx src/index.ts"
+set "OIDC_AUTHORITY=http://127.0.0.1:55439"
+set "OIDC_ISSUER=http://127.0.0.1:55439"
+set "OIDC_AUDIENCE=ghe-test-api-audience"
+set "OIDC_CLIENT_ID=local-dev-testing"
+
+start "Backend" cmd /k "cd /d "%~dp0NodejsBackend" && npx tsx src/index.ts"
 
 start "Frontend" cmd /k "cd /d "%~dp0Enterprise Compliance Platform" && npx vite"
 

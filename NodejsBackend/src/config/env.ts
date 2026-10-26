@@ -1,5 +1,5 @@
 function requireEnv(name: string): string {
-  const value = process.env[name];
+  const value = process.env[name]?.trim();
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
@@ -7,7 +7,7 @@ function requireEnv(name: string): string {
 }
 
 function optionalEnv(name: string, fallback: string): string {
-  return process.env[name] || fallback;
+  return process.env[name]?.trim() || fallback;
 }
 
 export const config = {
