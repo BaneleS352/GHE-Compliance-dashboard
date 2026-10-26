@@ -8,45 +8,48 @@ permissions:
 
 jobs:
   database:
+    name: PostgreSQL integration and smoke checks
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:14
+        image: postgres:16-alpine
         env:
-          POSTGRES_USER: chancery
-          POSTGRES_PASSWORD: chancery
-          POSTGRES_DB: chancery
+          POSTGRES_USER: ghe_user
+          POSTGRES_PASSWORD: ghe_password
+          POSTGRES_DB: ghe_ci
         ports:
           - 5432:5432
         options: >-
-          --health-cmd="pg_isready -U chancery -d chancery"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
-    env:
-      DATABASE_URL: postgresql://chancery:chancery@localhost:5432/chancery
+          --health-cmd "pg_isready -U ghe_user -d ghe_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: NodejsBackend
     steps:
       - name: Check out source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: backend/requirements.txt
+          node-version: 20
+          cache: npm
+          cache-dependency-path: NodejsBackend/package-lock.json
 
-      - name: Install backend and test dependencies
-        run: python -m pip install -r backend/requirements.txt pytest httpx
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Verify database connection
-        run: python -c "import os, psycopg; c=psycopg.connect(os.environ['DATABASE_URL'], connect_timeout=10); c.close()"
+      - name: Run PostgreSQL integration checks
+        run: npm run pg:test
+        env:
+          TEST_PG_DATABASE_URL: postgresql://ghe_user:ghe_password@localhost:5432/ghe_ci?schema=public
 
-      - name: Apply migrations
-        run: python -m alembic -c backend/alembic.ini upgrade head
+      - name: Run backend build
+        run: npm run build
 
-      - name: Verify complete database lifecycle
-        run: python backend/lifecycle_test.py
-
-      - name: Run backend and AI Counsel tests
-        run: python -m pytest backend/tests backend/ai_counsel/tests -q
+      - name: Run PostgreSQL smoke checks
+        run: npm run pg:smoke
+        env:
+          SMOKE_PG_DATABASE_URL: postgresql://ghe_user:ghe_password@localhost:5432/ghe_ci?schema=public

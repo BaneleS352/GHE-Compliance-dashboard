@@ -1,4 +1,4 @@
-name: CI
+name: GHE Compliance Dashboard CI
 
 on:
   push:
@@ -19,9 +19,13 @@ jobs:
     uses: ./.github/workflows/backend.yml
 
   database:
-    name: PostgreSQL lifecycle
+    name: PostgreSQL checks
     uses: ./.github/workflows/database.yml
 
   frontend:
     name: Frontend checks
     uses: ./.github/workflows/frontend.yml
+
+  browser:
+    name: End-to-end browser checks
+    uses: ./.github/workflows/postgres-normalization.yml

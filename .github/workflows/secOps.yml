@@ -1,36 +1,55 @@
 name: Dependency security audit
 
 on:
+  push:
+    branches: [main, dev, "HS-*"]
+    paths:
+      - "NodejsBackend/package-lock.json"
+      - "NodejsBackend/requirements.txt"
+      - "Enterprise Compliance Platform/package-lock.json"
+      - ".github/workflows/secOps.yml"
   pull_request:
+    paths:
+      - "NodejsBackend/package-lock.json"
+      - "NodejsBackend/requirements.txt"
+      - "Enterprise Compliance Platform/package-lock.json"
+      - ".github/workflows/secOps.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   dependency-audit:
-    name: Audit Python and npm dependencies
+    name: Audit project dependencies
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
-        uses: actions/checkout@v7
-
-      - name: Set up Python
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.12"
-
-      - name: Audit Python dependencies
-        run: |
-          python -m pip install --upgrade pip-audit
-          pip-audit -r backend/requirements.txt
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            NodejsBackend/package-lock.json
+            Enterprise Compliance Platform/package-lock.json
 
-      - name: Audit npm dependencies
-        working-directory: frontend
+      - name: Audit backend npm dependencies
+        working-directory: NodejsBackend
         run: npm audit --audit-level=high
+
+      - name: Audit frontend npm dependencies
+        working-directory: Enterprise Compliance Platform
+        run: npm audit --audit-level=high
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Audit document protection dependencies
+        run: |
+          python -m pip install --upgrade pip-audit
+          pip-audit -r NodejsBackend/requirements.txt

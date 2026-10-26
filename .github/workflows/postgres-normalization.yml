@@ -1,141 +1,16 @@
-name: postgres-normalization
+name: Playwright end-to-end checks
 
 on:
-  push:
-    paths:
-      - "NodejsBackend/**"
-      - "NodejsBackend/Dockerfile"
-      - "NodejsBackend/requirements.txt"
-      - "NodejsBackend/docker-compose.yml"
-      - "Enterprise Compliance Platform/src/**"
-      - "Enterprise Compliance Platform/Dockerfile"
-      - "Enterprise Compliance Platform/.dockerignore"
-      - "Enterprise Compliance Platform/package.json"
-      - "Enterprise Compliance Platform/package-lock.json"
-      - "Enterprise Compliance Platform/scripts/**"
-      - "Enterprise Compliance Platform/tsconfig.json"
-      - "Enterprise Compliance Platform/vite.config.ts"
-      - "Enterprise Compliance Platform/e2e/**"
-      - "Enterprise Compliance Platform/playwright.config.ts"
-      - ".github/workflows/postgres-normalization.yml"
-      - "docker-compose.yml"
-      - ".dockerignore"
-  pull_request:
-    paths:
-      - "NodejsBackend/**"
-      - "NodejsBackend/Dockerfile"
-      - "NodejsBackend/requirements.txt"
-      - "NodejsBackend/docker-compose.yml"
-      - "Enterprise Compliance Platform/src/**"
-      - "Enterprise Compliance Platform/Dockerfile"
-      - "Enterprise Compliance Platform/.dockerignore"
-      - "Enterprise Compliance Platform/package.json"
-      - "Enterprise Compliance Platform/package-lock.json"
-      - "Enterprise Compliance Platform/scripts/**"
-      - "Enterprise Compliance Platform/tsconfig.json"
-      - "Enterprise Compliance Platform/vite.config.ts"
-      - "Enterprise Compliance Platform/e2e/**"
-      - "Enterprise Compliance Platform/playwright.config.ts"
-      - ".github/workflows/postgres-normalization.yml"
-      - "docker-compose.yml"
-      - ".dockerignore"
+  workflow_call:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  postgres-migration-views:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: ghe_pg_test
-          POSTGRES_USER: ghe_user
-          POSTGRES_PASSWORD: ghe_password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U ghe_user -d ghe_pg_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    defaults:
-      run:
-        working-directory: NodejsBackend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: NodejsBackend/package-lock.json
-      - run: npm ci
-      - run: npx prisma generate
-      - run: npx tsc --noEmit
-      - name: Install document-protection sidecars (pypdf, msoffcrypto)
-        run: pip3 install --no-cache-dir --break-system-packages -r requirements.txt
-      - name: Forbid retired workflow-JSON references in active code
-        run: |
-          cd "$GITHUB_WORKSPACE"
-          ! git grep -n -E "readWorkflowSteps[^R]|instance\.steps|JSON\.parse\([^)]*[Ss]teps" -- 'NodejsBackend/src' 'Enterprise Compliance Platform/src' ':!NodejsBackend/src/seed.ts' ':!*/__tests__/*' ':!Enterprise Compliance Platform/e2e/*' || (echo "FAIL: retired workflow-JSON reference in active code (seed/tests/e2e boundaries excluded)" && exit 1)
-      - run: npm test
-      - run: npm run pg:test
-        env:
-          TEST_PG_DATABASE_URL: postgresql://ghe_user:ghe_password@localhost:5432/ghe_pg_test?schema=public
-
-  postgres-smoke:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: ghe_smoke
-          POSTGRES_USER: ghe_user
-          POSTGRES_PASSWORD: ghe_password
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U ghe_user -d ghe_smoke"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    defaults:
-      run:
-        working-directory: NodejsBackend
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: NodejsBackend/package-lock.json
-      - run: npm ci
-      - run: npm run build
-      - run: npm run pg:smoke
-        env:
-          SMOKE_PG_DATABASE_URL: postgresql://ghe_user:ghe_password@localhost:5432/ghe_smoke?schema=public
-
-  frontend-typecheck-tests:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: Enterprise Compliance Platform
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: Enterprise Compliance Platform/package-lock.json
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm run quality
-      - run: npm test
-      - run: npm run build
-
   e2e:
-    # Browser gate (docs/FRONTEND-AUDIT-REMEDIATION-PLAN.md): Playwright
-    # drives the built UI against a real backend + migrated PostgreSQL,
-    # authenticating through the throwaway JWKS seam (no real credentials).
+    # Browser gate: Playwright drives the built UI against a real backend and
+    # migrated PostgreSQL, using only the throwaway JWKS test provider.
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
@@ -153,19 +28,32 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install document-protection sidecars (pypdf, msoffcrypto)
-        run: pip3 install --no-cache-dir --break-system-packages -r NodejsBackend/requirements.txt
-      - run: npm ci
+
+      - name: Install document-protection sidecars
         working-directory: NodejsBackend
-      - run: npm ci
+        run: pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+
+      - name: Install backend dependencies
+        working-directory: NodejsBackend
+        run: npm ci
+
+      - name: Install frontend dependencies
         working-directory: Enterprise Compliance Platform
-      - run: npx playwright install --with-deps chromium
+        run: npm ci
+
+      - name: Install Playwright browser
         working-directory: Enterprise Compliance Platform
-      - run: npx playwright test
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
         working-directory: Enterprise Compliance Platform
+        run: npx playwright test
         env:
           E2E_PG_DATABASE_URL: postgresql://ghe_user:ghe_password@localhost:5432/ghe_e2e?schema=public
