@@ -1,12 +1,6 @@
-import { execSync } from "child_process";
+import { execSync, spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-// NodejsBackend is compiled as CommonJS. Import its module namespace through
-// the default export so Playwright's ESM loader does not rely on synthetic
-// named-export detection for the TypeScript CommonJS module.
-import testJwksServer from "../../NodejsBackend/src/test-utils/test-jwks-server";
-
-const { startTestJwksServer } = testJwksServer;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -25,15 +19,57 @@ async function globalSetup() {
   const env = { ...process.env, DATABASE_URL: pgUrl };
   process.env.DATABASE_URL = pgUrl;
 
-  // Throwaway identity provider for the run (OpenID test seam): boots the
-  // same JWKS/mint server the backend unit tests use. Specs mint per-user
-  // tokens from it; the API under test points OIDC_* at it via the
-  // playwright webServer env above. The server is intentionally left running
-  // for the whole Playwright run (the OS reclaims it afterwards).
-  await startTestJwksServer();
-
   execSync("npx prisma migrate deploy", { cwd: backendDir, stdio: "pipe", env });
   execSync("npx tsx src/seed.ts", { cwd: backendDir, stdio: "pipe", env });
+
+  // Start the test identity provider through the backend's own tsx runtime.
+  // Importing backend TypeScript from this ESM package makes Node interpret
+  // that source under the wrong module system.
+  const jwksUrl = process.env.E2E_JWKS_URL || "http://127.0.0.1:55439";
+  const jwksEndpoint = new URL("/discovery/v2.0/keys", jwksUrl);
+  const jwksPort = jwksEndpoint.port || (jwksEndpoint.protocol === "https:" ? "443" : "80");
+  const jwksProcess = spawn("npx", ["tsx", "src/scripts/test-jwks-server.ts"], {
+    cwd: backendDir,
+    env: { ...env, TEST_JWKS_PORT: jwksPort },
+    stdio: "ignore",
+    shell: process.platform === "win32",
+  });
+  let launchError: Error | undefined;
+  jwksProcess.once("error", (error) => {
+    launchError = error;
+  });
+  const deadline = Date.now() + 30000;
+  let providerReady = false;
+  try {
+    while (Date.now() < deadline) {
+      if (launchError) throw launchError;
+      if (jwksProcess.exitCode !== null || jwksProcess.signalCode !== null) {
+        throw new Error(
+          `Test JWKS provider exited (code ${jwksProcess.exitCode}, signal ${jwksProcess.signalCode})`
+        );
+      }
+      try {
+        const response = await fetch(jwksEndpoint);
+        if (response.ok) {
+          providerReady = true;
+          break;
+        }
+      } catch {
+        // The provider may need a moment to start listening.
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    if (!providerReady) {
+      throw new Error(`Test JWKS provider did not start at ${jwksEndpoint}`);
+    }
+  } catch (error) {
+    jwksProcess.kill();
+    throw error;
+  }
+
+  return async () => {
+    jwksProcess.kill();
+  };
 }
 
 export default globalSetup;
