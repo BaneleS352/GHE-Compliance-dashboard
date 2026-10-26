@@ -1,0 +1,44 @@
+# Local testing only. This overlay provides an isolated test identity provider
+# and enables the quick-login control in the frontend image.
+services:
+  frontend:
+    build:
+      args:
+        VITE_ENTRA_CLIENT_ID: docker-test-client
+        VITE_ENTRA_AUTHORITY: http://test-idp:55439
+        VITE_ENTRA_API_SCOPE: ghe-test-api-audience
+        VITE_ENTRA_REDIRECT_URI: http://localhost:3000
+        VITE_ENABLE_TEST_LOGIN: "true"
+    environment:
+      TEST_IDP_URL: http://test-idp:55439
+    depends_on:
+      - backend
+      - test-idp
+
+  backend:
+    environment:
+      NODE_ENV: development
+      OIDC_AUTHORITY: http://test-idp:55439
+      OIDC_ISSUER: http://test-idp:55439
+      OIDC_CLIENT_ID: docker-test-client
+      OIDC_AUDIENCE: ghe-test-api-audience
+      SEED_ON_BOOT: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      test-idp:
+        condition: service_started
+
+  test-idp:
+    build:
+      context: ./NodejsBackend
+      dockerfile: Dockerfile
+    entrypoint: ["node"]
+    command: ["dist/scripts/test-provider.js"]
+    environment:
+      TEST_JWKS_PORT: 55439
+      TEST_JWKS_BIND_HOST: 0.0.0.0
+      TEST_JWKS_ISSUER: http://test-idp:55439
+    expose:
+      - "55439"
+    restart: unless-stopped

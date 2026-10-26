@@ -118,10 +118,11 @@ export async function startTestJwksServer(port = TEST_JWKS_PORT): Promise<{
   material: TestKeyMaterial;
   close: () => Promise<void>;
 }> {
-  const issuer = `http://127.0.0.1:${port}`;
+  const bindHost = process.env.TEST_JWKS_BIND_HOST?.trim() || "127.0.0.1";
+  const issuer = process.env.TEST_JWKS_ISSUER?.trim() || `http://127.0.0.1:${port}`;
   const material = makeKeyMaterial(issuer);
   const server: Server = createServer(async (req, res: ServerResponse) => {
-    const url = new URL(req.url || "/", `http://127.0.0.1:${port}`);
+    const url = new URL(req.url || "/", issuer);
     if (req.method === "GET" && url.pathname === "/discovery/v2.0/keys") {
       res.setHeader("content-type", "application/json");
       res.setHeader("cache-control", "no-store");
@@ -154,10 +155,10 @@ export async function startTestJwksServer(port = TEST_JWKS_PORT): Promise<{
       // makes every token fail JWKS verification with a misleading 401.
       reject(err);
     });
-    server.listen(port, "127.0.0.1", () => resolve());
+    server.listen(port, bindHost, () => resolve());
   });
   return {
-    baseUrl: `http://127.0.0.1:${port}`,
+    baseUrl: issuer,
     material,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };

@@ -1,3 +1,5 @@
+import { testAuthEnabled } from "@/app/auth/msal";
+
 const QUICK_LOGIN_USERS = [
   { email: "nomvula@hb.co.za", name: "Nomvula Dlamini" },
   { email: "sipho@hb.co.za", name: "Sipho Nkosi" },
@@ -5,9 +7,9 @@ const QUICK_LOGIN_USERS = [
   { email: "admin@hb.co.za", name: "Admin User" },
 ] as const;
 
-/** Mint a real test-provider token for a seeded local account (development only). */
+/** Mint a real test-provider token for a seeded local account (dev/stub builds only). */
 export async function quickLogin(email: string): Promise<void> {
-  if (!import.meta.env.DEV) throw new Error("Quick login is available only in development.");
+  if (!testAuthEnabled) throw new Error("Quick login is disabled in this build.");
 
   const user = QUICK_LOGIN_USERS.find((candidate) => candidate.email === email);
   if (!user) throw new Error("Unknown quick-login account.");

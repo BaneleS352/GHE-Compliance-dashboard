@@ -1,5 +1,9 @@
 import { PublicClientApplication, InteractionRequiredAuthError, type AccountInfo, type AuthenticationResult } from "@azure/msal-browser";
 
+/** Enabled only for Vite dev or an explicit local Docker stub build. */
+export const dockerStubAuthEnabled = import.meta.env.VITE_ENABLE_TEST_LOGIN === "true";
+export const testAuthEnabled = import.meta.env.DEV || dockerStubAuthEnabled;
+
 /**
  * Single MSAL adapter (OpenID Phase 4): the only module that touches the
  * provider session. Components use `UserContext` and the shared HTTP
@@ -9,21 +13,20 @@ import { PublicClientApplication, InteractionRequiredAuthError, type AccountInfo
  * (unit tests mock it; misconfigured production fails loudly at sign-in,
  * not at page load).
  *
- * E2E TEST HOOK (dev builds only): when running under `vite dev` with a
+ * E2E TEST HOOK (dev or explicit local Docker stub builds): when running with a
  * token injected at sessionStorage["e2e.auth.token"] (done by the
  * Playwright harness, which mints RS256 tokens from a throwaway local
  * provider), the adapter serves that token and reports a stub account
- * instead of contacting Entra. The key literal appears ONLY inside
- * `if (import.meta.env.DEV)` branches, which bundlers eliminate from
- * production builds — verify with:
+ * instead of contacting Entra. Ordinary production builds disable this branch,
+ * while the explicit local Docker stub build enables it — verify with:
  * `grep -c "e2e.auth.token" dist/assets/*.js` (expect 0).
- * Developer quick login mints test tokens only through the separate local
- * test provider; production builds contain neither that UI nor its token hook.
+ * Quick login mints test tokens only through the separate local test provider;
+ * normal production builds contain neither that UI nor its token hook.
  */
 function e2eToken(): string | null {
-  // NOTE: the literal key below must stay inside the DEV branch so that
-  // production bundles contain neither the key nor the lookup.
-  if (import.meta.env.DEV) {
+  // Keep token storage behind testAuthEnabled so ordinary production builds
+  // contain neither the key nor the lookup.
+  if (testAuthEnabled) {
     try {
       return sessionStorage.getItem("e2e.auth.token");
     } catch {
@@ -80,8 +83,7 @@ function scopes(): string[] {
 
 export const loginRequest = { get scopes() { return scopes(); } };
 
-/** E2E stub account. Constructed inside the DEV branch so production
-    bundles contain neither it nor the hook key. */
+/** E2E stub account. Used only by development and explicit stub builds. */
 function e2eStubAccount(): AccountInfo {
   return {
     homeAccountId: "e2e-home-account",
@@ -94,7 +96,7 @@ function e2eStubAccount(): AccountInfo {
 }
 
 export async function initializeIdentity(): Promise<void> {
-  if (import.meta.env.DEV && e2eToken()) return;
+  if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) return;
   const app = getClient();
   await app.initialize();
   const result = await app.handleRedirectPromise();
@@ -106,7 +108,8 @@ export async function initializeIdentity(): Promise<void> {
 }
 
 export function activeAccount(): AccountInfo | null {
-  if (import.meta.env.DEV && e2eToken()) return e2eStubAccount();
+  if (testAuthEnabled && e2eToken()) return e2eStubAccount();
+  if (dockerStubAuthEnabled) return null;
   // getClient() throws without configuration — callers treat that as
   // unauthenticated, same as having no account.
   try {
@@ -117,14 +120,15 @@ export function activeAccount(): AccountInfo | null {
 }
 
 export async function signIn(): Promise<AuthenticationResult | void> {
-  if (import.meta.env.DEV && e2eToken()) return;
+  if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) return;
   return getClient().loginRedirect({ scopes: scopes() });
 }
 
 export async function getApiToken(): Promise<string> {
-  if (import.meta.env.DEV) {
+  if (testAuthEnabled) {
     const injected = e2eToken();
     if (injected) return injected;
+    if (dockerStubAuthEnabled) throw new Error("Sign in with a local test account first.");
   }
   const app = getClient();
   const account = app.getActiveAccount();
@@ -145,7 +149,7 @@ export async function getApiToken(): Promise<string> {
 }
 
 export function signOut(): void {
-  if (import.meta.env.DEV && e2eToken()) {
+  if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) {
     try {
       sessionStorage.removeItem("e2e.auth.token");
     } catch {

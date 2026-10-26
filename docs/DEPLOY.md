@@ -21,6 +21,23 @@ The stack starts 3 containers:
 
 The Prisma schema is PostgreSQL-native (single provider, no rewrite step).
 
+### Local Docker stub sign-in
+
+For local Docker testing without Entra credentials, start the opt-in stub
+stack instead of the production Entra configuration:
+
+```bash
+docker compose --env-file .env.docker-stub \
+  -f docker-compose.yml -f docker-compose.stub.yml up -d --build
+```
+
+Open `http://localhost:3000` and use **Quick login**. This stack runs a
+throwaway OpenID/JWKS provider in a separate container and seeds the local
+database only when empty. Its frontend scope and API audience are both
+`ghe-test-api-audience`; the test build skips MSAL and mints a provider-signed
+token through the internal Docker network. Use this overlay only for local
+testing, never for a deployed environment.
+
 ### Environment Variables
 
 For Docker Compose, create a `.env` file in the project root. Compose uses it
