@@ -85,11 +85,9 @@ build clean — full gates re-run after each addition; `pg:test` 69/69 and
 - Config failures that affect business rules now warn visibly
   (`NewDeclarationScreen`, `ApprovalQueue` SLA, `DeclarationDetailView`,
   `AdminConfig` templates, `AdminWorkflows` thresholds).
-- Demo quick-login: superseded — the OIDC cutover removed all demo UI and
-  preset credentials, and `LandingScreen` is provider sign-in only. See
-  “Remaining Work” item 1 (“done by removal”) for the recorded end state;
-  the 2 October 2026 restoration note below is retained as history only
-  and no longer describes any build.
+- A developer-only quick-login was added 2026-10-26 for local testing. It
+  mints a signed token through the loopback test OIDC provider and is omitted
+  from production builds; production remains provider sign-in only.
 - `UserDialog` department control is organization-scoped (no free text).
 - Tests: `download.test.ts` (auth header, failure, preview path).
 
@@ -258,13 +256,14 @@ The remediation plan is approximately 90–95% complete. The core remediation
 features are implemented, but deployment hardening and final verification
 remain:
 
-1. **Demo-mode credential gating — done by removal (2026-10-06)**
+1. **Development quick-login isolation — verified 2026-10-26**
 
-    No quick login, demo-user selector, preset password, or development
-    fallback remains in any build — the OIDC cutover removed them and
-    `LandingScreen` is provider sign-in only, so there is no demo path
-    left to gate behind `VITE_DEMO_MODE`. Authentication errors stay
-    generic.
+    `LandingScreen` exposes quick login only in Vite development mode. It
+    obtains a signed token from the separate loopback JWKS test provider;
+    the API still resolves the selected account and role from PostgreSQL.
+    The production build excludes the selector, token key, and test-provider
+    client. No password, preset credential, or production auth fallback is
+    introduced.
 
 2. **Final full regression and acceptance verification**
 
@@ -304,11 +303,10 @@ remain:
 Status: code items complete 2026-10-06; human-gated verification (items 6–7)
 remains open.
 
-1. Done by removal — there is no quick login or preset demo credential left
-   to gate: the OIDC cutover removed all demo UI/credentials and
-   `LandingScreen` is provider sign-in only (no `VITE_DEMO_MODE` flag
-   exists because no demo path remains). Verify with a production-build
-   scan (`grep` the bundle for demo/preset markers) when the build runs.
+1. Done — quick login is available only in the Vite dev server and uses the
+   loopback test JWKS provider; the production bundle scan confirms its UI,
+   test-token key, and helper are absent. No preset passwords or production
+   auth fallback exist.
 2. Decided and documented — tokens live only in the MSAL-managed
    `sessionStorage` cache with no `localStorage` persistence
    (test-pinned); see `docs/SECURITY.md` “Production posture”. Cookie
@@ -644,9 +642,9 @@ Status after the 5 October 2026 implementation (core phases delivered; Phase
    uploads stay unprotected by decision.
 9. Done — queue/badge refresh on `ghe:queue-changed`; config failures warn
    visibly where they affect business rules.
-10. Done — no quick login, demo credential, preset password, or development
-    fallback exists in any build (removed in the OIDC cutover; sign-in
-    failures stay generic).
+10. Done — the development quick-login uses a signed test-provider token and
+    is excluded from production; no demo credential, preset password, or
+    production auth fallback exists.
 11. Done for code posture — MSAL `sessionStorage`-only token storage,
     production Swagger disabled, production seed refused, and the
     supporting document-protection scope decision are implemented,
@@ -841,8 +839,9 @@ The plan can be closed only when all Phase 7 decisions are recorded, automated g
 
 ## Verification update — 2026-10-26
 
-- Full Playwright suite: **20/20 passed** (desktop 18/18, mobile 2/2) against a fresh local PostgreSQL database and the throwaway RS256/JWKS provider; no Entra tenant or production credentials were used.
+- Full Playwright suite: **21/21 passed** (desktop 19/19, mobile 2/2) against a fresh local PostgreSQL database and the throwaway RS256/JWKS provider; this includes the development quick-login flow, with no Entra tenant or production credentials used.
 - Fixed the database split in `playwright.config.ts`: global setup already migrated and seeded `E2E_PG_DATABASE_URL`, but the backend webServer inherited `NodejsBackend/.env` instead. The webServer now receives the same E2E database URL, preventing stale local application data from being served to browser tests.
 - Fixed deterministic persona switching in `e2e/common-helpers.ts` by setting the newly minted token before reload, and updated form locators to match accessible-label prefixes after the UI labels were lengthened.
 - The local Prisma schema-engine failure was caused by using CI sample credentials against the local server. With a dedicated database and the configured local PostgreSQL account, migrations and seeding completed successfully.
+- `dev.bat` now starts the test identity provider and configures the local backend to trust its issuer/audience. The landing page offers a development-only picker for seeded users; it preflights `/api/auth/me` and fails clearly if the account is linked to another provider identity.
 - Frontend typecheck, quality gate, and `git diff --check` pass. Staging OIDC and production-like document-protection checks remain outstanding; this does not close the release plan.

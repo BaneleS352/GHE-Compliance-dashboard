@@ -3,6 +3,9 @@ import { fileURLToPath, URL } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
+const apiProxyTarget = process.env.E2E_API_URL || 'http://localhost:3001'
+const testProviderProxyTarget = process.env.E2E_JWKS_URL || 'http://127.0.0.1:55439'
+
 function AssetResolver() {
   return {
     name: 'figma-asset-resolver',
@@ -23,7 +26,12 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      "/api": { target: "http://localhost:3001", changeOrigin: true },
+      "/api": { target: apiProxyTarget, changeOrigin: true },
+      "/__dev-auth": {
+        target: testProviderProxyTarget,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/__dev-auth/, ""),
+      },
     },
   },
   resolve: {

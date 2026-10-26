@@ -46,6 +46,7 @@ Latest recorded verification is documented in docs/DATABASE-NORMALIZATION-GOAL.m
 - Migrations 0006_numeric_keys through 0011_sla_org_scope complete the numeric-key, workflow-identity, department, domain-integrity, auth-cutover, and SLA-scoping cutovers
 - Declaration.id stays public GHE-YYYY-NNNNNN text reference with internal declarationPk referenced by all child tables
 - Bearer tokens are provider-issued RS256 JWTs validated via JWKS (no app-issued JWTs); local user ids stay numeric with no legacy text-id compatibility lookup
+- `dev.bat` starts the loopback throwaway JWKS provider and configures the dev API for it; the Vite landing page has a dev-only quick-login selector for seeded accounts, excluded from production builds
 - API responses carry no tokens beyond the Authorization header (MSAL sessionStorage cache in the SPA); `/api/docs` is disabled in production and `npm run db:seed` refuses `NODE_ENV=production` without `GHE_ALLOW_PROD_SEED=1`
 - `User.lineManager` display text only; authoritative manager reference is `managerId` FK (workflow resolution uses it)
 - API response shapes unchanged apart from numeric ids exposed as JSON numbers at boundary via services/ids.ts
@@ -65,7 +66,7 @@ Latest recorded verification is documented in docs/DATABASE-NORMALIZATION-GOAL.m
 - Fixed order-dependent suite flakes: `workflow-regressions` no longer uses hardcoded user ids 12/13/14 (tokens signed from upserted rows); ghost-employeeId test asserts loud 400 at the boundary
 - Fixed real bugs surfaced by the gates: `seed.ts` two-pass user seeding (self-FK on clean DB), `smoke.ts` datasource URL + BigInt serialization, order-sensitive `equiv` in `pg-integration-checks`
 - CI runs frontend production build; ARCHITECTURE.md provider-rewrite description corrected
-- E2E verification 2026-10-26: Playwright 20/20 passed against a fresh local PostgreSQL database with the throwaway JWKS OpenID provider. `playwright.config.ts` now passes `E2E_PG_DATABASE_URL` to the backend webServer so the API uses the same database that global setup migrates and seeds. See the verification update in `docs/FRONTEND-AUDIT-REMEDIATION-PLAN.md`.
+- E2E verification 2026-10-26: Playwright 21/21 passed against a fresh local PostgreSQL database with the throwaway JWKS OpenID provider, including the developer quick-login flow. `playwright.config.ts` passes `E2E_PG_DATABASE_URL` to the backend webServer so the API uses the same database that global setup migrates and seeds. See the verification update in `docs/FRONTEND-AUDIT-REMEDIATION-PLAN.md`.
 
 ### Active
 - Database normalization is implemented; frontend product-hardening remains tracked in `docs/FRONTEND-AUDIT-REMEDIATION-PLAN.md`

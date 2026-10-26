@@ -24,7 +24,9 @@ npm install
 npm run dev
 ```
 
-The API is `http://localhost:3001`; Vite is `http://localhost:5173`. `dev.bat` starts both on Windows.
+The API is `http://localhost:3001`; Vite is `http://localhost:5173`. `dev.bat` starts both on Windows and also starts the local throwaway OpenID provider. The development landing page then shows a **Developer testing** account picker and **Quick login** button for seeded users. This mints a signed test token and authenticates through the normal API user lookup; it does not bypass backend authentication. The control and test-token adapter are excluded from production builds.
+
+When starting the services manually, run `npm run test:provider` in `NodejsBackend`, set `OIDC_AUTHORITY` and `OIDC_ISSUER` to `http://127.0.0.1:55439`, `OIDC_AUDIENCE` to `ghe-test-api-audience`, and `OIDC_CLIENT_ID` to a local test value before starting the backend. The Vite dev server proxies the quick-login token request to that provider.
 
 ## Environment
 

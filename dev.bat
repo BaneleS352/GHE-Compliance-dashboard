@@ -77,7 +77,9 @@ cd /d "%~dp0"
 echo.
 echo [5/5] Starting servers...
 
-start "Backend" cmd /k "set NODE_TLS_REJECT_UNAUTHORIZED=0 && cd /d "%~dp0NodejsBackend" && npx tsx src/index.ts"
+start "Test OIDC Provider" cmd /k "cd /d "%~dp0NodejsBackend" && npx tsx src/scripts/test-provider.ts"
+
+start "Backend" cmd /k "set NODE_TLS_REJECT_UNAUTHORIZED=0 && set OIDC_AUTHORITY=http://127.0.0.1:55439 && set OIDC_ISSUER=http://127.0.0.1:55439 && set OIDC_AUDIENCE=ghe-test-api-audience && set OIDC_CLIENT_ID=local-dev-testing && cd /d "%~dp0NodejsBackend" && npx tsx src/index.ts"
 
 start "Frontend" cmd /k "cd /d "%~dp0Enterprise Compliance Platform" && npx vite"
 
@@ -85,6 +87,7 @@ echo.
 echo ==========================================================
 echo   Backend : http://localhost:3001
 echo   Frontend: http://localhost:5173
+echo   Test login: use the Developer testing quick-login control
 echo ==========================================================
 echo.
 echo Close the Backend and Frontend windows to stop the servers.

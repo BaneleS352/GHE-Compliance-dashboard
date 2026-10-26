@@ -17,7 +17,8 @@ import { PublicClientApplication, InteractionRequiredAuthError, type AccountInfo
  * `if (import.meta.env.DEV)` branches, which bundlers eliminate from
  * production builds — verify with:
  * `grep -c "e2e.auth.token" dist/assets/*.js` (expect 0).
- * There is intentionally no password, demo-user, or token-issuance path.
+ * Developer quick login mints test tokens only through the separate local
+ * test provider; production builds contain neither that UI nor its token hook.
  */
 function e2eToken(): string | null {
   // NOTE: the literal key below must stay inside the DEV branch so that

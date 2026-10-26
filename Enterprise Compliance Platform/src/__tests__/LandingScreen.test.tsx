@@ -14,6 +14,7 @@ describe("LandingScreen", () => {
     render(<LandingScreen />);
     expect(screen.getByText("Welcome back!")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in with Microsoft" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Quick login" })).toBeInTheDocument();
   });
 
   it("starts provider sign-in on submit", async () => {
