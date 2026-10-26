@@ -1,0 +1,75 @@
+name: Docker image validation
+
+on:
+  push:
+    branches: [main, dev, "HS-*"]
+    paths:
+      - "docker-compose.yml"
+      - ".dockerignore"
+      - "NodejsBackend/Dockerfile"
+      - "NodejsBackend/entrypoint.sh"
+      - "NodejsBackend/requirements.txt"
+      - "NodejsBackend/package.json"
+      - "NodejsBackend/package-lock.json"
+      - "NodejsBackend/prisma/**"
+      - "NodejsBackend/src/**"
+      - "Enterprise Compliance Platform/Dockerfile"
+      - "Enterprise Compliance Platform/nginx.conf"
+      - "Enterprise Compliance Platform/package.json"
+      - "Enterprise Compliance Platform/package-lock.json"
+      - "Enterprise Compliance Platform/src/**"
+      - ".github/workflows/docker.yml"
+  pull_request:
+    paths:
+      - "docker-compose.yml"
+      - ".dockerignore"
+      - "NodejsBackend/Dockerfile"
+      - "NodejsBackend/entrypoint.sh"
+      - "NodejsBackend/requirements.txt"
+      - "NodejsBackend/package.json"
+      - "NodejsBackend/package-lock.json"
+      - "NodejsBackend/prisma/**"
+      - "NodejsBackend/src/**"
+      - "Enterprise Compliance Platform/Dockerfile"
+      - "Enterprise Compliance Platform/nginx.conf"
+      - "Enterprise Compliance Platform/package.json"
+      - "Enterprise Compliance Platform/package-lock.json"
+      - "Enterprise Compliance Platform/src/**"
+      - ".github/workflows/docker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-images:
+    name: Validate Docker Compose images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+        env:
+          VITE_ENTRA_CLIENT_ID: ci-client-id
+          VITE_ENTRA_AUTHORITY: https://login.microsoftonline.com/ci-tenant
+          VITE_ENTRA_API_SCOPE: api://ci-client-id/access_as_user
+          VITE_ENTRA_REDIRECT_URI: http://localhost:3000
+          OIDC_AUTHORITY: https://login.microsoftonline.com/ci-tenant/v2.0
+          OIDC_CLIENT_ID: ci-client-id
+          OIDC_AUDIENCE: api://ci-client-id
+
+      - name: Build application images
+        run: docker compose build --pull
+        env:
+          VITE_ENTRA_CLIENT_ID: ci-client-id
+          VITE_ENTRA_AUTHORITY: https://login.microsoftonline.com/ci-tenant
+          VITE_ENTRA_API_SCOPE: api://ci-client-id/access_as_user
+          VITE_ENTRA_REDIRECT_URI: http://localhost:3000
+          OIDC_AUTHORITY: https://login.microsoftonline.com/ci-tenant/v2.0
+          OIDC_CLIENT_ID: ci-client-id
+          OIDC_AUDIENCE: api://ci-client-id
