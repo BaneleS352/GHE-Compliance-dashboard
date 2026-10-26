@@ -1,0 +1,52 @@
+name: PostgreSQL lifecycle
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: chancery
+          POSTGRES_PASSWORD: chancery
+          POSTGRES_DB: chancery
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U chancery -d chancery"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      DATABASE_URL: postgresql://chancery:chancery@localhost:5432/chancery
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend and test dependencies
+        run: python -m pip install -r backend/requirements.txt pytest httpx
+
+      - name: Verify database connection
+        run: python -c "import os, psycopg; c=psycopg.connect(os.environ['DATABASE_URL'], connect_timeout=10); c.close()"
+
+      - name: Apply migrations
+        run: python -m alembic -c backend/alembic.ini upgrade head
+
+      - name: Verify complete database lifecycle
+        run: python backend/lifecycle_test.py
+
+      - name: Run backend and AI Counsel tests
+        run: python -m pytest backend/tests backend/ai_counsel/tests -q

@@ -23,18 +23,30 @@ The Prisma schema is PostgreSQL-native (single provider, no rewrite step).
 
 ### Environment Variables
 
-For production, create a `.env` file in the project root with:
+For Docker Compose, create a `.env` file in the project root. Compose uses it
+to configure the backend and bakes the SPA settings into the frontend image:
 
 ```bash
-DATABASE_URL=postgresql://user:password@postgres:5432/ghe_db
+DATABASE_URL=postgresql://ghe_user:password@db:5432/ghe_compliance?schema=public
+POSTGRES_PASSWORD=<database-password>
 OIDC_AUTHORITY=https://login.microsoftonline.com/<tenant-id>/v2.0
 OIDC_CLIENT_ID=<api-application-client-id>
 OIDC_AUDIENCE=api://<api-application-client-id>
 OIDC_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
 CORS_ORIGIN=https://your-frontend-domain.com
+VITE_ENTRA_CLIENT_ID=<spa-application-client-id>
+VITE_ENTRA_AUTHORITY=https://login.microsoftonline.com/<tenant-id>/v2.0
+VITE_ENTRA_API_SCOPE=api://<api-application-client-id>/access_as_user
+# Optional; defaults to the browser origin.
+VITE_ENTRA_REDIRECT_URI=https://your-frontend-domain.com
 ```
 
-These are passed to the backend container via the `env_file` directive in `docker-compose.yml`.
+Set `DATABASE_URL` to use the same credentials as `POSTGRES_PASSWORD`.
+`OIDC_AUTHORITY`, `OIDC_CLIENT_ID`, and `OIDC_AUDIENCE` are required by the API.
+The three `VITE_ENTRA_*` values are required to build a working sign-in page;
+they are public application configuration, not secrets. The redirect URI must
+be registered on the Entra SPA application. Keep client secrets out of this
+file and use your deployment platform's secret store in production.
 
 ### Document protection (Phase 5)
 

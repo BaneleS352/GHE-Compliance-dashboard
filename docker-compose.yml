@@ -3,10 +3,15 @@ services:
     build:
       context: ./Enterprise Compliance Platform
       dockerfile: Dockerfile
+      args:
+        VITE_ENTRA_CLIENT_ID: ${VITE_ENTRA_CLIENT_ID:?Set VITE_ENTRA_CLIENT_ID in the root .env file}
+        VITE_ENTRA_AUTHORITY: ${VITE_ENTRA_AUTHORITY:?Set VITE_ENTRA_AUTHORITY in the root .env file}
+        VITE_ENTRA_API_SCOPE: ${VITE_ENTRA_API_SCOPE:?Set VITE_ENTRA_API_SCOPE in the root .env file}
+        VITE_ENTRA_REDIRECT_URI: ${VITE_ENTRA_REDIRECT_URI:-}
     ports:
       - "3000:80"
     environment:
-      - BACKEND_URL=http://backend:3001
+      BACKEND_URL: ${BACKEND_URL:-http://backend:3001}
     depends_on:
       - backend
     restart: unless-stopped
@@ -18,14 +23,18 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - NODE_ENV=production
-      - PORT=3001
+      NODE_ENV: production
+      PORT: 3001
       # Local/dev defaults only. Production MUST override DATABASE_URL (and
       # POSTGRES_PASSWORD below) from secrets — never ship these literals.
       # No JWT_SECRET: authentication is provider-managed (Entra ID); no
       # application secret exists to configure.
-      - DATABASE_URL=postgresql://ghe_user:ghe_password@db:5432/ghe_compliance?schema=public
-      - CORS_ORIGIN=http://localhost:3000
+      DATABASE_URL: ${DATABASE_URL:-postgresql://ghe_user:ghe_password@db:5432/ghe_compliance?schema=public}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      OIDC_AUTHORITY: ${OIDC_AUTHORITY:?Set OIDC_AUTHORITY in the root .env file}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?Set OIDC_CLIENT_ID in the root .env file}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:?Set OIDC_AUDIENCE in the root .env file}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
     depends_on:
       db:
         condition: service_healthy
@@ -37,15 +46,15 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ghe_compliance
-      POSTGRES_USER: ghe_user
-      POSTGRES_PASSWORD: ghe_password
+      POSTGRES_DB: ${POSTGRES_DB:-ghe_compliance}
+      POSTGRES_USER: ${POSTGRES_USER:-ghe_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ghe_password}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "ghe_user", "-d", "ghe_compliance"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5

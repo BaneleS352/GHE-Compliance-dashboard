@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev, "HS-*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend checks
+    uses: ./.github/workflows/backend.yml
+
+  database:
+    name: PostgreSQL lifecycle
+    uses: ./.github/workflows/database.yml
+
+  frontend:
+    name: Frontend checks
+    uses: ./.github/workflows/frontend.yml
