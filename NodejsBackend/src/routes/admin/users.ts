@@ -73,7 +73,7 @@ router.get("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
   res.json(userResponse(user));
 }));
 
-const managerInput = z.union([z.string(), z.number().int()], { errorMap: () => ({ message: "Expected a user reference" }) });
+const managerInput = z.union([z.string(), z.number().int()], { error: () => "Expected a user reference" });
 
 const createUserSchema = z.object({
   name: z.string().min(1),
@@ -85,7 +85,7 @@ const createUserSchema = z.object({
   teamMemberNumber: z.string().optional().default(""),
   position: z.string().optional().default(""),
   lineManager: managerInput.nullable().optional().default(null),
-  organizationId: z.union([z.number().int(), z.string().regex(/^\d+$/)], { errorMap: () => ({ message: "Expected a numeric identifier" }) }).nullable().optional().default(null),
+  organizationId: z.union([z.number().int(), z.string().regex(/^\d+$/)], { error: () => "Expected a numeric identifier" }).nullable().optional().default(null),
 });
 
 /**
@@ -172,7 +172,7 @@ const updateUserSchema = z.object({
   teamMemberNumber: z.string().optional(),
   position: z.string().optional(),
   lineManager: managerInput.nullable().optional(),
-  organizationId: z.union([z.number().int(), z.string().regex(/^\d+$/)], { errorMap: () => ({ message: "Expected a numeric identifier" }) }).nullable().optional(),
+  organizationId: z.union([z.number().int(), z.string().regex(/^\d+$/)], { error: () => "Expected a numeric identifier" }).nullable().optional(),
 });
 
 // PUT /api/admin/users/:id

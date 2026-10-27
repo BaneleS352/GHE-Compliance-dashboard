@@ -44,7 +44,7 @@ function sanitize(val: string): string {
 // Identifiers arrive as JSON numbers (see services/ids.ts). Accept numeric
 // strings defensively (query/form edge cases); legacy text ids have no
 // mapping and are rejected by toDbId.
-const numericId = z.union([z.number().int(), z.string().regex(/^\d+$/)], { errorMap: () => ({ message: "Expected a numeric identifier" }) });
+const numericId = z.union([z.number().int(), z.string().regex(/^\d+$/)], { error: () => "Expected a numeric identifier" });
 
 /**
  * Line-Manager department scoping for direct-ID routes. The list endpoint
