@@ -36,9 +36,16 @@ jobs:
         with:
           node-version: 20
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: NodejsBackend/requirements.txt
+
       - name: Install document-protection sidecars
         working-directory: NodejsBackend
-        run: pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+        run: python -m pip install --no-cache-dir -r requirements.txt
 
       - name: Install backend dependencies
         working-directory: NodejsBackend

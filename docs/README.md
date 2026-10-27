@@ -12,6 +12,7 @@ The current declaration UI presents Team Member Details in this order: Team Memb
 | [SCHEMA.md](SCHEMA.md) | Prisma models, JSON fields, indexes, seed data |
 | [SECURITY.md](SECURITY.md) | Implemented controls and deployment responsibilities |
 | [DEPLOY.md](DEPLOY.md) | Docker deployment and production checklist |
+| [CI-CD.md](CI-CD.md) | CI gates, Docker smoke coverage, and CD limitations |
 | [DATABASE-NORMALIZATION-GOAL.md](DATABASE-NORMALIZATION-GOAL.md) | Authoritative schema, migration, and data-integrity plan |
 | [IDENTITY-CONTRACT.md](IDENTITY-CONTRACT.md) | Authoritative OpenID/Entra identity contract |
 

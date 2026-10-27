@@ -14,6 +14,8 @@ on:
       - "NodejsBackend/requirements.txt"
       - "Enterprise Compliance Platform/package-lock.json"
       - ".github/workflows/secOps.yml"
+  schedule:
+    - cron: "23 7 * * 1"
   workflow_dispatch:
 
 permissions:

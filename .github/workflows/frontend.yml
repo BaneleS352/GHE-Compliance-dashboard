@@ -38,3 +38,11 @@ jobs:
 
       - name: Build production bundle
         run: npm run build
+
+      - name: Verify test authentication hook is absent from production bundle
+        shell: bash
+        run: |
+          if grep -R -n -F 'e2e.auth.token' dist/assets; then
+            echo "Test authentication token hook leaked into the production bundle."
+            exit 1
+          fi

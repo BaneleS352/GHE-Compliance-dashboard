@@ -87,3 +87,30 @@ jobs:
 
       - name: Build local stub images
         run: docker compose -p ghe-compliance-stub --env-file .env.docker-stub -f docker-compose.yml -f docker-compose.stub.yml build --pull
+
+      - name: Start local stub stack
+        run: docker compose -p ghe-compliance-stub --env-file .env.docker-stub -f docker-compose.yml -f docker-compose.stub.yml up -d --wait --wait-timeout 180
+
+      - name: Smoke test stub identity and authenticated API
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 60 --retry-delay 2 --retry-all-errors \
+            http://localhost:3002/api/health
+          curl --fail --silent --show-error \
+            http://localhost:3002/__dev-auth/discovery/v2.0/keys | jq -e '.keys | length > 0'
+          token="$(curl --fail --silent --show-error \
+            -H 'content-type: application/json' \
+            --data '{"email":"admin@hb.co.za","name":"Admin User","oid":"ci-docker-admin"}' \
+            http://localhost:3002/__dev-auth/test-token)"
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${token}" \
+            http://localhost:3002/api/auth/me | jq -e '.email == "admin@hb.co.za" and .role == "admin"'
+
+      - name: Show stub stack logs on failure
+        if: failure()
+        run: docker compose -p ghe-compliance-stub --env-file .env.docker-stub -f docker-compose.yml -f docker-compose.stub.yml logs
+
+      - name: Stop stub stack
+        if: always()
+        run: docker compose -p ghe-compliance-stub --env-file .env.docker-stub -f docker-compose.yml -f docker-compose.stub.yml down -v
