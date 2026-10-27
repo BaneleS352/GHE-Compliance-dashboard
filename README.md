@@ -43,6 +43,12 @@ For local testing without Entra credentials, use the isolated stub stack
 documented in [`docs/DEPLOY.md`](./docs/DEPLOY.md#local-docker-stub-sign-in).
 It starts with a separate database volume and binds its ports to loopback.
 
+```powershell
+docker compose -p ghe-compliance-stub --env-file .env.docker-stub -f docker-compose.yml -f docker-compose.stub.yml up -d --build
+```
+
+Open `http://localhost:3002` and use **Quick login**.
+
 ## Docker
 
 A 3-container setup is defined in [`docker-compose.yml`](./docker-compose.yml):

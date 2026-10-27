@@ -7,7 +7,7 @@ services:
         VITE_ENTRA_CLIENT_ID: docker-test-client
         VITE_ENTRA_AUTHORITY: http://test-idp:55439
         VITE_ENTRA_API_SCOPE: ghe-test-api-audience
-        VITE_ENTRA_REDIRECT_URI: http://localhost:3000
+        VITE_ENTRA_REDIRECT_URI: http://localhost:3002
         VITE_ENABLE_TEST_LOGIN: "true"
     environment:
       TEST_IDP_URL: http://test-idp:55439
