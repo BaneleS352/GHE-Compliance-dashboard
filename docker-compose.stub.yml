@@ -33,6 +33,8 @@ services:
     build:
       context: ./NodejsBackend
       dockerfile: Dockerfile
+      args:
+        PIP_CA_CERT_BASE64: ${PIP_CA_CERT_BASE64:-}
     entrypoint: ["node"]
     command: ["dist/scripts/test-provider.js"]
     environment:

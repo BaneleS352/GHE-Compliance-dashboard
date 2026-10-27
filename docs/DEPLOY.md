@@ -29,6 +29,19 @@ requires otherwise.
 
 The Prisma schema is PostgreSQL-native (single provider, no rewrite step).
 
+If Docker builds run behind a TLS-inspecting proxy, provide its trusted root
+CA to the backend image build. Do not disable certificate checks. On
+PowerShell, encode the PEM root CA as one line before running Compose:
+
+```powershell
+$env:PIP_CA_CERT_BASE64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\certs\corporate-root-ca.pem"))
+docker compose up -d --build
+```
+
+The same build argument is applied to the backend and the stub OpenID provider.
+Leave it unset for normal public PyPI access. The CA is installed in the image's
+trust store so pip continues to verify the certificate chain.
+
 ### Local Docker stub sign-in
 
 For local Docker testing without Entra credentials, start the opt-in stub
