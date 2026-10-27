@@ -31,6 +31,7 @@ NodejsBackend/prisma/*.db-journal
 NodejsBackend/data/
 
 # Local secrets — the example stays tracked, the real file does not
+/.env
 NodejsBackend/.env
 
 # Playwright E2E artifacts (regenerable per run)

@@ -18,7 +18,14 @@ RUN npm run build
 FROM nginx:alpine
 RUN apk add --no-cache gettext
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /tmp/nginx.conf
+COPY nginx.stub.conf /tmp/nginx.stub.conf
+ARG VITE_ENABLE_TEST_LOGIN=false
+RUN if [ "$VITE_ENABLE_TEST_LOGIN" = "true" ]; then \
+      cp /tmp/nginx.stub.conf /etc/nginx/conf.d/default.conf; \
+    else \
+      cp /tmp/nginx.conf /etc/nginx/conf.d/default.conf; \
+    fi
 EXPOSE 80
 ENV BACKEND_URL=http://backend:3001
 ENV TEST_IDP_URL=http://test-idp:55439

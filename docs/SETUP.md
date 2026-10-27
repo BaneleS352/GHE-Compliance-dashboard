@@ -43,7 +43,11 @@ Backend loads `.env` with `dotenv`:
 | `CORS_ORIGIN` | no | dev localhost origins | Comma-separated allowed origins |
 | `EMAIL_WEBHOOK_URL` | no | — | Notification webhook; absent means log-only |
 
-Frontend accepts `VITE_API_URL` (local default `http://localhost:3001`) plus `VITE_ENTRA_CLIENT_ID`, `VITE_ENTRA_AUTHORITY`, `VITE_ENTRA_API_SCOPE`, and optional `VITE_ENTRA_REDIRECT_URI`. Docker uses Nginx and `BACKEND_URL` for the upstream.
+The SPA sends API requests to same-origin `/api` paths. Vite proxies those
+requests to `http://localhost:3001` during development; Docker Nginx proxies
+them to `BACKEND_URL`. Frontend identity settings are `VITE_ENTRA_CLIENT_ID`,
+`VITE_ENTRA_AUTHORITY`, `VITE_ENTRA_API_SCOPE`, and optional
+`VITE_ENTRA_REDIRECT_URI`.
 
 ## Database and tests
 

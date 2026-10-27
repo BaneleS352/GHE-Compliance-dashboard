@@ -1,12 +1,6 @@
 @echo off
 setlocal
 
-:: ------------------------------------------------------------------
-:: Temporary workaround for corporate SSL inspection (Prisma download)
-:: Remove this line once NODE_EXTRA_CA_CERTS is configured correctly.
-:: ------------------------------------------------------------------
-set "NODE_TLS_REJECT_UNAUTHORIZED=0"
-
 cd /d "%~dp0"
 
 :: ── Backend setup ──────────────────────────────────────────────────

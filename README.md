@@ -32,10 +32,16 @@ npm install && npm run dev
 ### Docker (production-like)
 
 ```bash
+# Copy .env.example to .env and replace the Entra and database placeholders.
+cp .env.example .env
+# Set SEED_ON_BOOT=true for the first start of an empty database.
 docker compose up -d --build
-docker compose exec backend npm run db:seed   # first time only
 open http://localhost:3000
 ```
+
+For local testing without Entra credentials, use the isolated stub stack
+documented in [`docs/DEPLOY.md`](./docs/DEPLOY.md#local-docker-stub-sign-in).
+It starts with a separate database volume and binds its ports to loopback.
 
 ## Docker
 
@@ -45,7 +51,8 @@ A 3-container setup is defined in [`docker-compose.yml`](./docker-compose.yml):
 - **Backend** (Node, port 3001) — Express API with Prisma and PostgreSQL migrations
 - **Database** (PostgreSQL 16, port 5432) — persistent volume
 
-See [`DOCKER.md`](./DOCKER.md) for full details.
+See [`DOCKER.md`](./DOCKER.md) and [`docs/DEPLOY.md`](./docs/DEPLOY.md) for
+configuration, first-start seeding, and local stub sign-in details.
 
 ## Theme
 

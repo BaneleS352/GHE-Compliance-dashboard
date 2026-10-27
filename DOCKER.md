@@ -10,7 +10,15 @@ The root `docker-compose.yml` runs three services:
 
 `pgdata` and `uploads` named volumes persist database and uploaded-file data. The compose file publishes PostgreSQL and contains example credentials, so it is a deployment baseline, not a hardened internet-facing configuration.
 
+Published ports bind to loopback by default. For remote users, place a TLS
+reverse proxy in front of the frontend; expose the frontend port explicitly
+only when required, and keep the API and database ports private.
+
 ## Start
+
+For a real Entra configuration, copy `.env.example` to `.env` and replace
+its placeholders before building. For local sign-in without Entra, follow
+the isolated stub-stack instructions in `docs/DEPLOY.md`.
 
 ```bash
 docker compose up -d --build
@@ -20,8 +28,9 @@ docker compose logs -f backend
 
 Open <http://localhost:3000>. Health is at <http://localhost:3001/api/health>; Swagger UI is at <http://localhost:3001/api/docs>.
 
-Seed a new database once with `SEED_ON_BOOT=true docker compose up -d --build`
-(or `docker compose exec backend npm run db:seed` against a running stack).
+To seed an empty database on first start, set `SEED_ON_BOOT=true` in the root
+`.env` before running Compose. The entrypoint uses `seed-if-empty`; it skips
+seeding when users, organizations, or declarations already exist.
 
 The backend entrypoint runs `prisma migrate deploy` before starting — versioned
 migrations only, failing fast with no `db push` fallback — seeds an empty

@@ -7,17 +7,25 @@ This guide covers both Docker-based deployment (recommended) and manual deployme
 ### Build & Run
 
 ```bash
-# Build and start all services
+# Copy .env.example to .env and replace its placeholders first.
+# Set SEED_ON_BOOT=true in .env for the first start of an empty database.
 docker compose up -d --build
-
-# Seed database (first time only)
-docker compose exec backend npm run db:seed
 ```
+
+The backend entrypoint applies migrations and seeds only an empty database
+when `SEED_ON_BOOT=true`. Avoid running raw `db:seed` against a live stack;
+it is intended for controlled development and test setup.
 
 The stack starts 3 containers:
 - **Frontend** (Nginx, port 3000) — serves the built SPA
 - **Backend** (Node, port 3001) — Express API + Prisma
 - **Database** (PostgreSQL 16, port 5432)
+
+Host ports bind to `127.0.0.1` by default. Put a TLS reverse proxy in front
+of the frontend for remote access. If the frontend container must accept
+direct inbound traffic, set `FRONTEND_BIND_ADDRESS=0.0.0.0` deliberately;
+keep backend and database ports loopback-only unless your network design
+requires otherwise.
 
 The Prisma schema is PostgreSQL-native (single provider, no rewrite step).
 
@@ -27,35 +35,27 @@ For local Docker testing without Entra credentials, start the opt-in stub
 stack instead of the production Entra configuration:
 
 ```bash
-docker compose --env-file .env.docker-stub \
+docker compose -p ghe-compliance-stub --env-file .env.docker-stub \
   -f docker-compose.yml -f docker-compose.stub.yml up -d --build
 ```
 
-Open `http://localhost:3000` and use **Quick login**. This stack runs a
+Open `http://localhost:3002` and use **Quick login**. This stack runs a
 throwaway OpenID/JWKS provider in a separate container and seeds the local
-database only when empty. Its frontend scope and API audience are both
+database only when empty. It uses an isolated Compose project and data volume,
+and publishes its ports on loopback only.
+Its frontend scope and API audience are both
 `ghe-test-api-audience`; the test build skips MSAL and mints a provider-signed
 token through the internal Docker network. Use this overlay only for local
 testing, never for a deployed environment.
 
 ### Environment Variables
 
-For Docker Compose, create a `.env` file in the project root. Compose uses it
-to configure the backend and bakes the SPA settings into the frontend image:
+For a real Entra Docker deployment, copy the root example and replace its
+placeholders. Compose reads this root `.env` to configure the backend and bake
+the SPA settings into the frontend image:
 
 ```bash
-DATABASE_URL=postgresql://ghe_user:password@db:5432/ghe_compliance?schema=public
-POSTGRES_PASSWORD=<database-password>
-OIDC_AUTHORITY=https://login.microsoftonline.com/<tenant-id>/v2.0
-OIDC_CLIENT_ID=<api-application-client-id>
-OIDC_AUDIENCE=api://<api-application-client-id>
-OIDC_ISSUER=https://login.microsoftonline.com/<tenant-id>/v2.0
-CORS_ORIGIN=https://your-frontend-domain.com
-VITE_ENTRA_CLIENT_ID=<spa-application-client-id>
-VITE_ENTRA_AUTHORITY=https://login.microsoftonline.com/<tenant-id>/v2.0
-VITE_ENTRA_API_SCOPE=api://<api-application-client-id>/access_as_user
-# Optional; defaults to the browser origin.
-VITE_ENTRA_REDIRECT_URI=https://your-frontend-domain.com
+cp .env.example .env
 ```
 
 Set `DATABASE_URL` to use the same credentials as `POSTGRES_PASSWORD`.
@@ -99,7 +99,7 @@ Run migrations:
 
 ```bash
 npx prisma migrate deploy
-npm run db:seed    # first deploy of an empty database only; never re-run against operational data
+npx tsx src/scripts/seed-if-empty.ts  # safe on first deploy and skips non-empty databases
 # (Phase 5: db:backfill/db:verify were retired with the legacy columns.)
 ```
 

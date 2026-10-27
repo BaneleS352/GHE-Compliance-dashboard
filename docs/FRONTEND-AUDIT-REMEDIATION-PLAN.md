@@ -797,11 +797,12 @@ The frontend plan closes only when the behavior is verified at the rendered UI a
 
 ### Phase 7A — production safety
 
-- Gate demo mode and preset credentials behind an explicit development-only flag.
-- Verify production builds contain no demo login shortcut, preset password, or seed credential logging.
-- Decide and document the token-storage strategy; if localStorage remains, document the accepted threat model and mitigation.
-- Disable or protect Swagger in production.
-- Decide whether password protection applies to generated reports only or also to arbitrary uploaded files.
+Code and policy decisions are complete: quick login is dev/stub-build-only,
+production bundles exclude its UI and token seam, MSAL uses `sessionStorage`,
+Swagger is disabled in production, and password protection covers generated
+reports/exports while uploaded supporting documents remain unprotected by
+documented decision. The production-bundle scan and backend posture tests are
+recorded above. No additional Phase 7A implementation decision is pending.
 
 ### Phase 7B — browser acceptance
 

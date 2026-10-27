@@ -9,7 +9,7 @@ services:
         VITE_ENTRA_API_SCOPE: ${VITE_ENTRA_API_SCOPE:?Set VITE_ENTRA_API_SCOPE in the root .env file}
         VITE_ENTRA_REDIRECT_URI: ${VITE_ENTRA_REDIRECT_URI:-}
     ports:
-      - "3000:80"
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-3000}:80"
     environment:
       BACKEND_URL: ${BACKEND_URL:-http://backend:3001}
     depends_on:
@@ -21,7 +21,7 @@ services:
       context: ./NodejsBackend
       dockerfile: Dockerfile
     ports:
-      - "3001:3001"
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-3001}:3001"
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -35,6 +35,8 @@ services:
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?Set OIDC_CLIENT_ID in the root .env file}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:?Set OIDC_AUDIENCE in the root .env file}
       OIDC_ISSUER: ${OIDC_ISSUER:-}
+      SEED_ON_BOOT: ${SEED_ON_BOOT:-false}
+      EMAIL_WEBHOOK_URL: ${EMAIL_WEBHOOK_URL:-}
     depends_on:
       db:
         condition: service_healthy
@@ -50,7 +52,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-ghe_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ghe_password}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_HOST_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

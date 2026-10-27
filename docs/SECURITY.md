@@ -136,8 +136,8 @@ regression test unless noted:
   `InteractionRequired` now restarts interactive sign-in via redirect.
 - Same-name users conflated in "My" lists: ownership matches on numeric id
   only.
-- TLS verification was disabled in Docker builds and the production
-  entrypoint (`NODE_TLS_REJECT_UNAUTHORIZED=0`, `npm_config_strict_ssl`):
+- TLS verification was disabled in Docker builds and local development
+  startup (`NODE_TLS_REJECT_UNAUTHORIZED=0`, `npm_config_strict_ssl`):
   removed. Dead `bcryptjs` (frontend) and dead `JWT_SECRET` (compose)
   removed.
 - `seed-if-empty` treated "zero users" as empty: now requires zero users,
