@@ -37,7 +37,7 @@ export function determineRuleId(value: number, highThreshold: number, _mediumThr
 export async function resolveRuleId(value: number): Promise<bigint> {
   const config = await prisma.systemConfig.findFirst();
   if (!config) throw new Error("System config not found");
-  return determineRuleId(value, config.highValueThreshold, config.mediumValueThreshold);
+  return determineRuleId(value, Number(config.highValueThreshold), Number(config.mediumValueThreshold));
 }
 
 export async function createWorkflowSteps(_declarationPk: bigint | string | number, employeeId: bigint | number, value: number): Promise<WorkflowStep[]> {
@@ -232,7 +232,7 @@ export function declarationResponse(d: DeclarationWithRelations) {
     team: declarer?.team?.name ?? null,
     type: d.type,
     counterparty: cpName,
-    value: d.value,
+    value: Number(d.value),
     submitted: toISODate(d.submittedAt),
     approver: approverUser?.name ?? "",
     approverId: d.currentApproverUserId === null || d.currentApproverUserId === undefined ? null : toJsonId(d.currentApproverUserId),

@@ -1026,7 +1026,7 @@ describe("determineRuleId threshold boundary", () => {
     const config = await prisma.systemConfig.findFirst();
     if (!config) throw new Error("System config not found");
     const { determineRuleId } = await import("../services/workflowService");
-    const result = determineRuleId(config.highValueThreshold, config.highValueThreshold, config.mediumValueThreshold);
+    const result = determineRuleId(Number(config.highValueThreshold), Number(config.highValueThreshold), Number(config.mediumValueThreshold));
     expect(result).toBe(2n);
   });
 

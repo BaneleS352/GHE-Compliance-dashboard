@@ -7,6 +7,7 @@ import { WorkflowStep, declarationResponse, declarationIncludes, rowToStep } fro
 import { writeWorkflowStepsTx, readWorkflowStepRows, getDeclarationPk } from "../services/normalization";
 import { toDbId, toJsonId } from "../services/ids";
 import { sendNotification } from "../services/notificationService";
+import { recordDeclarationAudit } from "../services/declarationAudit";
 
 const router = Router();
 
@@ -278,6 +279,29 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
       await tx.declaration.update({
         where: { declarationPk: pk },
         data: { status: statusStr, currentApproverUserId },
+      });
+      await recordDeclarationAudit(tx, {
+        declarationPk: pk,
+        declarationId: String(declarationId),
+        organizationId: declaration.organizationId,
+        actorUserId: req.user!.id,
+        actorName: req.user!.name,
+        action: "workflow_decision",
+        changedFields: ["workflowSteps", "status", "currentApproverUserId"],
+        oldValues: {
+          status: declaration.status,
+          currentApproverUserId: declaration.currentApproverUserId,
+          stepOrder: step.order,
+          stepStatus: step.status,
+        },
+        newValues: {
+          status: statusStr,
+          currentApproverUserId,
+          stepOrder: step.order,
+          decision,
+          notes: sanitize(String(notes || "")),
+          decidedAt: now,
+        },
       });
 
       return { newStatus: statusStr, freshSteps: steps, stepIndex: currentStepIndex };

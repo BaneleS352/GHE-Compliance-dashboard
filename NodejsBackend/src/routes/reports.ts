@@ -110,7 +110,7 @@ router.get("/sla", authenticate, authorize("admin", "approver"), asyncHandler(as
 
 router.get("/high-value", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const config = await prisma.systemConfig.findFirst();
-  const threshold = config?.highValueThreshold ?? 1000;
+  const threshold = Number(config?.highValueThreshold ?? 1000);
   const data = await getHighValueDeclarations(req, { highValueThreshold: threshold });
   res.json(data);
 }));
@@ -131,7 +131,7 @@ router.get("/list", authenticate, authorize("admin", "approver"), asyncHandler(a
     department: d.snapshot?.department || "",
     type: d.type,
     counterparty: d.counterpartyRef?.name || "Unknown",
-    value: d.value,
+    value: Number(d.value),
     date: d.eventDate ? new Date(d.eventDate).toISOString().slice(0, 10) : "",
     submitted: d.submittedAt ? new Date(d.submittedAt).toISOString().slice(0, 10) : "",
     status: d.status,
@@ -176,7 +176,7 @@ router.get("/export", authenticate, authorize("admin", "approver"), asyncHandler
     department: d.snapshot?.department || "",
     type: d.type,
     counterparty: d.counterpartyRef?.name || "Unknown",
-    value: d.value,
+    value: Number(d.value),
     status: d.status,
     date: d.eventDate ? new Date(d.eventDate).toISOString().slice(0, 10) : "",
   }));

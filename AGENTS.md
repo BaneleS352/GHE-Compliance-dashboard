@@ -43,8 +43,10 @@ Latest recorded verification is documented in docs/DATABASE-NORMALIZATION-GOAL.m
 
 ## Important Details
 - **PostgreSQL is the single provider**; SQLite support fully removed (no `db push` fallback, no Dockerfile `sed` provider rewrite)
-- Migrations 0006_numeric_keys through 0011_sla_org_scope complete the numeric-key, workflow-identity, department, domain-integrity, auth-cutover, and SLA-scoping cutovers
+- Migrations 0006_numeric_keys through 0012_financial_precision_integrity complete the numeric-key, workflow-identity, department, domain-integrity, auth-cutover, SLA-scoping, exact-money, and scoped-uniqueness changes
 - Declaration.id stays public GHE-YYYY-NNNNNN text reference with internal declarationPk referenced by all child tables
+- Declaration and SystemConfig monetary fields use Decimal(19,2); numeric API boundaries deliberately convert Prisma Decimal values to JSON numbers after validation caps precision to cents
+- Migration 0012 adds scoped team-member and department-code uniqueness, priority checks, exact-money columns with a fail-fast precision preflight, and append-only declaration audit history
 - Bearer tokens are provider-issued RS256 JWTs validated via JWKS (no app-issued JWTs); local user ids stay numeric with no legacy text-id compatibility lookup
 - `dev.bat` starts the loopback throwaway JWKS provider and configures the dev API for it; the Vite landing page has a dev-only quick-login selector for seeded accounts, excluded from production builds
 - API responses carry no tokens beyond the Authorization header (MSAL sessionStorage cache in the SPA); `/api/docs` is disabled in production and `npm run db:seed` refuses `NODE_ENV=production` without `GHE_ALLOW_PROD_SEED=1`

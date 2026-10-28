@@ -82,7 +82,7 @@ const createUserSchema = z.object({
   // DTO resolver input (not stored): resolves to departmentId through the
   // organization-scoped Department master data (created when missing).
   department: z.string().optional().default(""),
-  teamMemberNumber: z.string().optional().default(""),
+  teamMemberNumber: z.string().trim().optional().default(""),
   position: z.string().optional().default(""),
   lineManager: managerInput.nullable().optional().default(null),
   organizationId: z.union([z.number().int(), z.string().regex(/^\d+$/)], { error: () => "Expected a numeric identifier" }).nullable().optional().default(null),
@@ -109,6 +109,26 @@ async function resolveManagerId(lineManager: string | number | null | undefined)
   return byName ? byName.id : null;
 }
 
+async function hasTeamMemberNumber(orgId: bigint | null, value: string, exceptUserId?: bigint): Promise<boolean> {
+  const normalized = value.trim();
+  if (!normalized) return false;
+  const rows = exceptUserId === undefined
+    ? await prisma.$queryRaw<Array<{ duplicate: boolean }>>`
+        SELECT EXISTS (
+          SELECT 1 FROM "User"
+          WHERE "organizationId" IS NOT DISTINCT FROM ${orgId}
+            AND lower(btrim("teamMemberNumber")) = lower(btrim(${normalized}))
+        ) AS duplicate`
+    : await prisma.$queryRaw<Array<{ duplicate: boolean }>>`
+        SELECT EXISTS (
+          SELECT 1 FROM "User"
+          WHERE "organizationId" IS NOT DISTINCT FROM ${orgId}
+            AND lower(btrim("teamMemberNumber")) = lower(btrim(${normalized}))
+            AND "id" <> ${exceptUserId}
+        ) AS duplicate`;
+  return Boolean(rows[0]?.duplicate);
+}
+
 // POST /api/admin/users — creates a credential-less user. Authentication is
 // provider-managed (Entra ID); the database stores identity and role only.
 router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
@@ -132,6 +152,10 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
       res.status(400).json({ error: "Invalid organizationId" });
       return;
     }
+  }
+  if (await hasTeamMemberNumber(orgPk, data.teamMemberNumber)) {
+    res.status(409).json({ error: "A user with this team member number already exists in the organization" });
+    return;
   }
 
   const managerPk = await resolveManagerId(data.lineManager);
@@ -169,7 +193,7 @@ const updateUserSchema = z.object({
   email: z.string().email().optional(),
   role: z.enum(["teamMember", "approver", "admin"]).optional(),
   department: z.string().optional(),
-  teamMemberNumber: z.string().optional(),
+  teamMemberNumber: z.string().trim().optional(),
   position: z.string().optional(),
   lineManager: managerInput.nullable().optional(),
   organizationId: z.union([z.number().int(), z.string().regex(/^\d+$/)], { error: () => "Expected a numeric identifier" }).nullable().optional(),
@@ -209,6 +233,11 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
   // consistency check both depend on the post-update org.
   const nextOrg: bigint | null =
     data.organizationId === undefined ? existing.organizationId : data.organizationId === null ? null : toDbId(data.organizationId);
+  const nextTeamMemberNumber = data.teamMemberNumber ?? existing.teamMemberNumber;
+  if ((data.teamMemberNumber !== undefined || nextOrg !== existing.organizationId) && await hasTeamMemberNumber(nextOrg, nextTeamMemberNumber, userPk)) {
+    res.status(409).json({ error: "A user with this team member number already exists in the organization" });
+    return;
+  }
   if (data.name !== undefined) updateData.name = data.name;
   if (data.email !== undefined) updateData.email = data.email.toLowerCase();
   if (data.role !== undefined) updateData.role = data.role;

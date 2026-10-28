@@ -174,7 +174,7 @@ export async function getCounterpartyConcentration(req: AuthRequest): Promise<an
     const key = d.counterpartyRef?.name || "Unknown";
     if (!groups[key]) groups[key] = { count: 0, totalValue: 0 };
     groups[key].count++;
-    groups[key].totalValue += d.value;
+    groups[key].totalValue += Number(d.value);
   }
 
   const result = Object.entries(groups)
@@ -229,10 +229,10 @@ export async function getHighValueDeclarations(req: AuthRequest, config: { highV
       suppliers: new Map<string, number>(),
     };
     row.declarationCount += 1;
-    row.totalValue += d.value;
-    if (d.type === "Gift") row.totalGift += d.value;
-    if (d.type === "Hospitality") row.totalHospitality += d.value;
-    if (d.type === "Entertainment") row.totalEntertainment += d.value;
+    row.totalValue += Number(d.value);
+    if (d.type === "Gift") row.totalGift += Number(d.value);
+    if (d.type === "Hospitality") row.totalHospitality += Number(d.value);
+    if (d.type === "Entertainment") row.totalEntertainment += Number(d.value);
     const cp = d.counterpartyRef?.name || "Unknown";
     row.suppliers.set(cp, (row.suppliers.get(cp) || 0) + 1);
     groups.set(employee, row);
@@ -287,7 +287,7 @@ export async function getReports(req: AuthRequest, config: { highValueThreshold:
     department: d.snapshot?.department || "",
     type: d.type,
     counterparty: d.counterpartyRef?.name || "Unknown",
-    value: d.value,
+    value: Number(d.value),
     submitted: d.submittedAt ? new Date(d.submittedAt).toISOString().slice(0, 10) : "",
     status: d.status,
   }));

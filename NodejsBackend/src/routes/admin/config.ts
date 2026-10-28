@@ -16,11 +16,11 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: Auth
     return;
   }
   res.json({
-    highValueThreshold: config.highValueThreshold,
-    mediumValueThreshold: config.mediumValueThreshold,
+    highValueThreshold: Number(config.highValueThreshold),
+    mediumValueThreshold: Number(config.mediumValueThreshold),
     slaEscalationDays: config.slaEscalationDays,
     maxDeclarationsPerCounterparty: config.maxDeclarationsPerCounterparty,
-    maximumValue: config.maximumValue ?? 1000000,
+    maximumValue: Number(config.maximumValue ?? 1000000),
     emailTemplate: config.emailTemplate,
     notificationTemplates: config.notificationTemplates,
   });
@@ -36,11 +36,11 @@ const notificationTemplatesSchema = z.object({
 }).strict();
 
 const configSchema = z.object({
-  highValueThreshold: z.number().nonnegative(),
-  mediumValueThreshold: z.number().nonnegative(),
+  highValueThreshold: z.number().finite().nonnegative().refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, "Amount must have no more than two decimal places"),
+  mediumValueThreshold: z.number().finite().nonnegative().refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, "Amount must have no more than two decimal places"),
   slaEscalationDays: z.number().int().nonnegative(),
   maxDeclarationsPerCounterparty: z.number().int().nonnegative(),
-  maximumValue: z.number().positive().max(10000000).optional().default(1000000),
+  maximumValue: z.number().finite().positive().max(10000000).refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, "Amount must have no more than two decimal places").optional().default(1000000),
   emailTemplate: z.string(),
   notificationTemplates: z.string().optional().refine((value) => {
     if (value === undefined) return true;
@@ -69,11 +69,11 @@ router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
   });
 
   res.json({
-    highValueThreshold: updated.highValueThreshold,
-    mediumValueThreshold: updated.mediumValueThreshold,
+    highValueThreshold: Number(updated.highValueThreshold),
+    mediumValueThreshold: Number(updated.mediumValueThreshold),
     slaEscalationDays: updated.slaEscalationDays,
     maxDeclarationsPerCounterparty: updated.maxDeclarationsPerCounterparty,
-    maximumValue: updated.maximumValue ?? 1000000,
+    maximumValue: Number(updated.maximumValue ?? 1000000),
     emailTemplate: updated.emailTemplate,
     notificationTemplates: updated.notificationTemplates,
   });

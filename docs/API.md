@@ -17,6 +17,7 @@ Base URL: `http://localhost:3001`; JSON requests use `Content-Type: application/
 |---|---|---|
 | GET | `/api/users/managers`, `/departments`, `/organizations`, `/:id` | authenticated |
 | GET | `/api/declarations`, `/:id` | authenticated; results are organization/role scoped |
+| GET | `/api/declarations/:id/audit` | declaration-scoped append-only change history; admins can also inspect retained history after a draft is deleted |
 | POST | `/api/declarations` | authenticated; create draft |
 | PUT/DELETE | `/api/declarations/:id` | owner/admin as enforced by route |
 | PATCH | `/api/declarations/:id/submit` | declaration owner/admin |

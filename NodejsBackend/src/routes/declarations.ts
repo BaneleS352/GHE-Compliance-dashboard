@@ -21,6 +21,7 @@ import {
 } from "../services/normalization";
 import { toDbId, toJsonId } from "../services/ids";
 import { sendNotification } from "../services/notificationService";
+import { recordDeclarationAudit } from "../services/declarationAudit";
 import { containedUploadPath } from "./files";
 import {
   viewStatusSummaryFull,
@@ -67,7 +68,24 @@ function denyCrossDepartmentLM(req: AuthRequest, res: Response, snapshotDepartme
   return false;
 }
 
+function auditEventResponse(event: Awaited<ReturnType<typeof prisma.declarationAuditEvent.findMany>>[number]) {
+  return {
+    id: toJsonId(event.id),
+    action: event.action,
+    changedFields: event.changedFields,
+    oldValues: event.oldValues,
+    newValues: event.newValues,
+    actorUserId: event.actorUserId === null ? null : toJsonId(event.actorUserId),
+    actorName: event.actorName,
+    createdAt: event.createdAt,
+  };
+}
+
 const VALID_STATUSES = ["Draft", "Pending", "Approved", "Declined", "Escalated", "Returned"] as const;
+const moneyAmount = z.number().finite().nonnegative().refine(
+  (value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8,
+  "Amount must have no more than two decimal places",
+);
 
 router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const orgId = req.user?.organizationId ?? undefined;
@@ -136,7 +154,7 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
     declined: countMap.get("Declined") || 0,
     returned: countMap.get("Returned") || 0,
     escalated: countMap.get("Escalated") || 0,
-    totalValue: totalValueAgg._sum.value || 0,
+    totalValue: Number(totalValueAgg._sum.value || 0),
   };
   const monthMap = new Map<string, { approved: number; declined: number }>();
   for (const d of monthly) {
@@ -209,15 +227,15 @@ const createSchema = z.object({
   department: z.string(),
   company: z.string().optional(),
   team: z.string().optional(),
-  type: z.string().min(1),
+  type: z.enum(["Gift", "Hospitality", "Entertainment"]),
   counterparty: z.string().min(1),
-  value: z.number().nonnegative(),
+  value: moneyAmount,
   submitted: z.string(),
   approver: z.string().optional(),
   approverId: numericId.optional(),
   // No `status` key: the server owns it ("Draft" on create). Accepting it
   // would silently discard a client-supplied Pending and mislead callers.
-  priority: z.string(),
+  priority: z.enum(["Low", "Medium", "High"]),
   description: z.string().max(10000),
   relationship: z.string(),
   receivedGiven: z.string(),
@@ -250,7 +268,7 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
   }
   // Enforce maximum value from SystemConfig (dynamic, not hard-coded)
   const sysCfg = await prisma.systemConfig.findFirst();
-  const maxVal = sysCfg?.maximumValue ?? 1000000;
+  const maxVal = Number(sysCfg?.maximumValue ?? 1000000);
   if (data.value > maxVal) {
     res.status(400).json({ error: `Maximum value exceeded. Please enter an amount of R${maxVal.toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.` });
     return;
@@ -380,6 +398,45 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
       publicOfficial: sanitize(data.publicOfficial),
       substantiation: data.substantiation ? sanitize(data.substantiation) : null,
     }, tx, true);
+    await recordDeclarationAudit(tx, {
+      declarationPk: created.declarationPk,
+      declarationId: created.id,
+      organizationId: orgId,
+      actorUserId: req.user!.id,
+      actorName: req.user!.name,
+      action: "created",
+      changedFields: ["type", "value", "priority", "eventDate", "submittedAt", "snapshot", "detail", "counterparty"],
+      newValues: {
+        type: created.type,
+        value: Number(created.value),
+        status: created.status,
+        priority: created.priority,
+        eventDate,
+        submittedAt,
+        declarerUserId,
+        counterparty: sanitizedCounterparty,
+        snapshot: {
+          declarerName: sanitize(data.employee),
+          employeeNumber: sanitize(data.teamMemberNumber),
+          positionTitle: sanitize(data.position),
+          department: sanitize(snapshotDepartment),
+          managerDisplayName: snapshotManager,
+        },
+        detail: {
+          description: sanitize(data.description),
+          occasion: sanitize(data.occasion),
+          relationship: sanitize(data.relationship),
+          receivedGiven: sanitize(data.receivedGiven),
+          from: sanitize(data.from),
+          contactPerson: sanitize(data.contactPerson),
+          biddingProcess: sanitize(data.biddingProcess),
+          contractNegotiation: data.contractNegotiation ? sanitize(data.contractNegotiation) : null,
+          instances: sanitize(data.instances),
+          publicOfficial: sanitize(data.publicOfficial),
+          substantiation: data.substantiation ? sanitize(data.substantiation) : null,
+        },
+      },
+    });
     return created.declarationPk;
   });
 
@@ -427,6 +484,38 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   res.json({ ...declarationResponse(declaration), workflowSteps });
 }));
 
+router.get("/:id/audit", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const declaration = await prisma.declaration.findUnique({ where: { id: req.params.id as string }, include: { snapshot: true } });
+  if (!declaration) {
+    if (req.user!.role !== "admin") {
+      res.status(404).json({ error: "Declaration not found" });
+      return;
+    }
+    const retained = await prisma.declarationAuditEvent.findMany({
+      where: { declarationId: req.params.id as string },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+    res.json(retained.map(auditEventResponse));
+    return;
+  }
+  if (req.user!.role === "teamMember" && declaration.declarerUserId !== toDbId(req.user!.id)) {
+    res.status(403).json({ error: "Cannot view another user's declaration history" });
+    return;
+  }
+  const callerOrgId = req.user?.organizationId ?? undefined;
+  if (declaration.organizationId !== null && callerOrgId !== undefined && callerOrgId !== null && declaration.organizationId !== toDbId(callerOrgId) && req.user!.role !== "admin") {
+    res.status(403).json({ error: "Cannot view declaration history from another organization" });
+    return;
+  }
+  if (denyCrossDepartmentLM(req, res, declaration.snapshot?.department)) return;
+
+  const events = await prisma.declarationAuditEvent.findMany({
+    where: { declarationPk: declaration.declarationPk },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+  res.json(events.map(auditEventResponse));
+}));
+
 router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
   const existing = await prisma.declaration.findUnique({ where: { id }, include: { snapshot: true, detail: true } });
@@ -459,7 +548,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   const data = parsed.data;
   if (data.value !== undefined) {
     const sysCfg2 = await prisma.systemConfig.findFirst();
-    const maxVal2 = sysCfg2?.maximumValue ?? 1000000;
+    const maxVal2 = Number(sysCfg2?.maximumValue ?? 1000000);
     if (data.value > maxVal2) {
       res.status(400).json({ error: `Maximum value exceeded. Please enter an amount of R${maxVal2.toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.` });
       return;
@@ -530,7 +619,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   // and in submit/approve paths).
   const pk = existing.declarationPk;
   const willRebuildSteps =
-    existing.status === "Returned" && data.value !== undefined && data.value !== existing.value;
+    existing.status === "Returned" && data.value !== undefined && data.value !== Number(existing.value);
   await prisma.$transaction(async (tx) => {
     // Boundary label: updateData is assembled from individually validated
     // zod fields above; the spread into the update input is the one place
@@ -584,6 +673,45 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
       }
       await tx.declarationDetail.upsert({ where: { declarationPk: pk }, create: { declarationPk: pk, ...base }, update: base });
     }
+    const auditFields = [...new Set([
+      ...Object.keys(updateData),
+      ...Object.keys(detailPatch),
+      ...(data.lineManager !== undefined && req.user!.role === "admin" ? ["snapshot.managerDisplayName"] : []),
+      ...(putCounterpartyId !== undefined ? ["counterpartyId"] : []),
+      ...(putApproverUser !== undefined ? ["currentApproverUserId"] : []),
+    ])];
+    if (auditFields.length > 0) {
+      await recordDeclarationAudit(tx, {
+        declarationPk: pk,
+        declarationId: existing.id,
+        organizationId: bodyOrgPut !== undefined ? bodyOrgPut : existing.organizationId,
+        actorUserId: req.user!.id,
+        actorName: req.user!.name,
+        action: "updated",
+        changedFields: auditFields,
+        oldValues: {
+          type: existing.type,
+          value: Number(existing.value),
+          priority: existing.priority,
+          eventDate: existing.eventDate,
+          submittedAt: existing.submittedAt,
+          status: existing.status,
+          snapshot: existing.snapshot,
+          detail: existing.detail,
+          organizationId: existing.organizationId,
+          counterpartyId: existing.counterpartyId,
+          currentApproverUserId: existing.currentApproverUserId,
+        },
+        newValues: {
+          ...updateData,
+          ...detailPatch,
+          ...(bodyOrgPut !== undefined ? { organizationId: bodyOrgPut } : {}),
+          ...(putCounterpartyId !== undefined ? { counterpartyId: putCounterpartyId } : {}),
+          ...(putApproverUser !== undefined ? { currentApproverUserId: putApproverUser } : {}),
+          ...(data.lineManager !== undefined && req.user!.role === "admin" ? { managerDisplayName: sanitize(data.lineManager) || null } : {}),
+        },
+      });
+    }
   });
 
   const updated = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
@@ -605,7 +733,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
         return;
       }
       const savedSteps = (await readWorkflowStepRows(pk)) || [];
-      const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId!, updated.value);
+      const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId!, Number(updated.value));
       const approvedMap = new Map(savedSteps.filter((s) => s.status === "approved").map((s) => [s.role, s]));
       const workflowSteps: WorkflowStep[] = freshSteps.map((step) => {
         const approved = approvedMap.get(step.role);
@@ -619,6 +747,20 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
         await tx.declaration.update({
           where: { declarationPk: pk },
           data: { currentApproverUserId: next?.assignee === null || next?.assignee === undefined ? null : toDbId(next.assignee) },
+        });
+        await recordDeclarationAudit(tx, {
+          declarationPk: pk,
+          declarationId: existing.id,
+          organizationId: existing.organizationId,
+          actorUserId: req.user!.id,
+          actorName: req.user!.name,
+          action: "updated",
+          changedFields: ["workflowSteps", "currentApproverUserId"],
+          oldValues: { currentApproverUserId: existing.currentApproverUserId },
+          newValues: {
+            currentApproverUserId: next?.assignee ?? null,
+            workflowSteps: workflowSteps.map((step) => ({ order: step.order, role: step.role, status: step.status, assignee: step.assignee })),
+          },
         });
       });
       const reread = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
@@ -635,7 +777,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
 
 router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const id = req.params.id as string;
-  const existing = await prisma.declaration.findUnique({ where: { id }, include: { snapshot: true, fileLinks: { include: { file: true } } } });
+  const existing = await prisma.declaration.findUnique({ where: { id }, include: { snapshot: true, detail: true, fileLinks: { include: { file: true } } } });
   if (!existing) {
     res.status(404).json({ error: "Declaration not found" });
     return;
@@ -667,15 +809,33 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
   // One transaction for all database deletes: a failure rolls everything
   // back instead of leaving orphaned child rows behind a deleted parent
   // (disk files above are already unlinked and best-effort by nature).
-  await prisma.$transaction([
-    prisma.declarationFile.deleteMany({ where: { declarationPk: pk } }),
-    ...(fileIds.length > 0 ? [prisma.uploadedFile.deleteMany({ where: { id: { in: fileIds } } })] : []),
-    prisma.workflowInstance.deleteMany({ where: { declarationPk: pk } }),
-    prisma.workflowInstanceStep.deleteMany({ where: { declarationPk: pk } }),
-    prisma.declarationSnapshot.deleteMany({ where: { declarationPk: pk } }),
-    prisma.declarationDetail.deleteMany({ where: { declarationPk: pk } }),
-    prisma.declaration.delete({ where: { declarationPk: pk } }),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    await recordDeclarationAudit(tx, {
+      declarationPk: pk,
+      declarationId: existing.id,
+      organizationId: existing.organizationId,
+      actorUserId: req.user!.id,
+      actorName: req.user!.name,
+      action: "deleted",
+      changedFields: ["declaration"],
+      oldValues: {
+        type: existing.type,
+        value: Number(existing.value),
+        status: existing.status,
+        priority: existing.priority,
+        snapshot: existing.snapshot,
+        detail: existing.detail,
+        files: existing.fileLinks.map((link) => ({ name: link.file.originalName, size: link.file.size, mimeType: link.file.mimeType })),
+      },
+    });
+    await tx.declarationFile.deleteMany({ where: { declarationPk: pk } });
+    if (fileIds.length > 0) await tx.uploadedFile.deleteMany({ where: { id: { in: fileIds } } });
+    await tx.workflowInstance.deleteMany({ where: { declarationPk: pk } });
+    await tx.workflowInstanceStep.deleteMany({ where: { declarationPk: pk } });
+    await tx.declarationSnapshot.deleteMany({ where: { declarationPk: pk } });
+    await tx.declarationDetail.deleteMany({ where: { declarationPk: pk } });
+    await tx.declaration.delete({ where: { declarationPk: pk } });
+  });
 
   res.json({ message: "Declaration deleted" });
 }));
@@ -718,7 +878,7 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     if (hasReturnedStep) {
       // Rebuild from the current value so a returned low-value declaration that
       // becomes high-value gains the HR step on resubmission.
-      const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId!, existing.value);
+      const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId!, Number(existing.value));
       // Preserve approvals only for roles present in the newly selected rule.
       const approvedMap = new Map(savedSteps.filter((s) => s.status === "approved").map((s) => [s.role, s]));
       workflowSteps = freshSteps.map((fs) => {
@@ -728,10 +888,10 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
           : fs;
       });
     } else {
-      workflowSteps = await createWorkflowSteps(pk, existing.declarerUserId!, existing.value);
+      workflowSteps = await createWorkflowSteps(pk, existing.declarerUserId!, Number(existing.value));
     }
   } else {
-    workflowSteps = await createWorkflowSteps(pk, existing.declarerUserId!, existing.value);
+    workflowSteps = await createWorkflowSteps(pk, existing.declarerUserId!, Number(existing.value));
   }
 
   const nextApprover = workflowSteps.find((step) => step.status === "pending");
@@ -750,7 +910,7 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
 
   // Single transaction: declaration status, canonical approver link, the
   // authoritative step rows, the producing rule, and the frozen snapshot/detail.
-  const ruleId = await resolveRuleId(existing.value);
+  const ruleId = await resolveRuleId(Number(existing.value));
   await prisma.$transaction(async (tx) => {
     await tx.declaration.update({
       where: { declarationPk: pk },
@@ -788,6 +948,21 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
         },
       });
     }
+    await recordDeclarationAudit(tx, {
+      declarationPk: pk,
+      declarationId: existing.id,
+      organizationId: existing.organizationId,
+      actorUserId: req.user!.id,
+      actorName: req.user!.name,
+      action: "submitted",
+      changedFields: ["status", "currentApproverUserId", "workflowSteps"],
+      oldValues: { status: existing.status, currentApproverUserId: existing.currentApproverUserId },
+      newValues: {
+        status: "Pending",
+        currentApproverUserId: submitApproverUser,
+        workflowSteps: workflowSteps.map((step) => ({ order: step.order, role: step.role, status: step.status, assignee: step.assignee })),
+      },
+    });
   });
 
   const updated = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
@@ -843,9 +1018,19 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
     }
   }
 
-  await prisma.declaration.update({
-    where: { declarationPk: pk },
-    data: { status },
+  await prisma.$transaction(async (tx) => {
+    await tx.declaration.update({ where: { declarationPk: pk }, data: { status } });
+    await recordDeclarationAudit(tx, {
+      declarationPk: pk,
+      declarationId: existing.id,
+      organizationId: existing.organizationId,
+      actorUserId: req.user!.id,
+      actorName: req.user!.name,
+      action: "status_overridden",
+      changedFields: ["status"],
+      oldValues: { status: existing.status },
+      newValues: { status },
+    });
   });
 
   const enriched = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });

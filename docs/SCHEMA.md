@@ -44,7 +44,7 @@ SystemConfig (1 record) configures thresholds
 |-------|------|-------|
 | id | String @id | Public reference: `GHE-YYYY-NNNNNN` (never replaced) |
 | declarationPk | BigInt @unique | Internal key; all child rows reference this |
-| type / value / status / priority | String / Float / String / String | Validated strings + non-negative value |
+| type / value / status / priority | String / Decimal(19,2) / String / String | Type and status checks from `0009`; `Low`/`Medium`/`High` priority and non-negative exact amount checks from `0012` |
 | eventDate / submittedAt | DateTime? | Canonical timestamps (UTC) |
 | declarerUserId / currentApproverUserId / counterpartyId / organizationId | BigInt? | Enforced FKs (SetNull / Restrict) |
 
@@ -88,11 +88,11 @@ unique `(instanceId, stepOrder)`, numeric `assigneeId`/`decidedById`):
 ### SystemConfig
 | Field | Type | Default |
 |-------|------|---------|
-| highValueThreshold | Float | 1000 |
-| mediumValueThreshold | Float | 1000 |
+| highValueThreshold | Decimal(19,2) | 1000 |
+| mediumValueThreshold | Decimal(19,2) | 1000 (retained compatibility setting) |
 | slaEscalationDays | Int | 3 |
 | maxDeclarationsPerCounterparty | Int | 5 |
-| maximumValue | Float | 1,000,000; declarations above this are blocked |
+| maximumValue | Decimal(19,2) | 1,000,000; declarations above this are blocked |
 | emailTemplate | String | Legacy single-template field |
 | notificationTemplates | String | JSON object containing the five validated event templates |
 
@@ -126,6 +126,15 @@ with a foreign-key violation (proven by `pg:test`).
 
 ### Other Models
 - **ApprovalOption** — Decision options (accept, org, foundation, decline, return)
+- **DeclarationAuditEvent** — append-only actor, field, before/after, and timestamp history. It deliberately has no parent/user/organization FK so evidence survives deletion or retirement; `GET /api/declarations/:id/audit` applies declaration access rules, with admins able to inspect events for deleted drafts.
+
+### ERD review follow-up (migration `0012_financial_precision_integrity`)
+
+- Declaration amounts and monetary thresholds use PostgreSQL `numeric(19,2)` / Prisma `Decimal`; the migration refuses values with more than two fractional digits rather than silently rounding them.
+- Declaration priority is constrained to `Low`, `Medium`, or `High`. Type and lifecycle status checks already exist in `0009_domain_checks`.
+- Non-empty team-member numbers are case/space normalized and unique within an organization (or globally for users without an organization). Non-empty department codes are unique within an organization. Migration preflight fails on existing duplicates for manual reconciliation.
+- `Organization.shortCode`, `User.email`, team name per department, and one-to-one declaration/workflow child keys were already unique; foreign-key join indexes are declared in the schema.
+- `User.managerId` remains authoritative for workflow assignment; `lineManager` is a display-only compatibility field, while declaration snapshots preserve the manager name at submission. `position` remains free text because no approved title catalog or reporting requirement was supplied. `UploadedFile.size` remains `Int` under the existing upload-size cap. Notification templates remain validated JSON text because the API contract stores the template object as a serialized string.
 
 Phase 5 retirements (see `NodejsBackend/prisma/RETIREMENT.md`): the
 `Dropdowns` JSON table (now Department master data + fixed domain lists),
@@ -181,7 +190,7 @@ lookup copies were removed.
 
 | Action | Result |
 |--------|--------|
-| Delete draft declaration | Workflow instance + step rows, snapshot, detail, file joins + file rows, and disk files are removed |
+| Delete draft declaration | Workflow instance + step rows, snapshot, detail, file joins + file rows, and disk files are removed; append-only declaration audit events survive |
 | Delete user | Declarations survive with `declarerUserId`/`currentApproverUserId` set to NULL (history stays in the immutable snapshot); step assignee links NULL the same way |
 | Delete workflow rule | Existing `WorkflowInstance` rows survive with `ruleId` set to NULL |
 | Delete counterparty | Linked declarations survive with `counterpartyId` set to NULL |
@@ -190,14 +199,15 @@ lookup copies were removed.
 
 - Team members see only their own declarations in the list endpoint (enforced in-app, not in DB)
 - Approvers can see all declarations (no DB constraint)
-- Declaration `priority`, relationship/direction strings, and the Yes/No-style
+- Relationship/direction strings and the Yes/No-style
   detail fields are validated strings (zod + valid-status lists), not
   FK-backed references
 
-## Domain integrity (enforced by DB since 0009)
+## Domain integrity (enforced by DB since 0009/0012)
 
 - `Declaration.status` ∈ Draft/Pending/Approved/Declined/Escalated/Returned
 - `Declaration.type` ∈ Gift/Hospitality/Entertainment
+- `Declaration.priority` ∈ Low/Medium/High and `Declaration.value` ≥ 0 with two-decimal precision
 - `WorkflowInstanceStep.status` ∈ pending/approved/declined/returned/skipped
 - `WorkflowInstanceStep.role` and `WorkflowRuleStep.role` ∈ lineManager/hr
 - Application validation rejects these first; the CHECK constraints defend

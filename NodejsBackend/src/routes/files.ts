@@ -8,6 +8,7 @@ import { authenticate, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { readWorkflowStepRows, getDeclarationPk } from "../services/normalization";
 import { parseIdParam, toDbId, toJsonId } from "../services/ids";
+import { recordDeclarationAudit } from "../services/declarationAudit";
 
 const router = Router();
 
@@ -158,6 +159,16 @@ router.post(
       await tx.declarationFile.create({
         data: { declarationPk: pk, fileId: created.id },
       });
+      await recordDeclarationAudit(tx, {
+        declarationPk: pk,
+        declarationId: decl.id,
+        organizationId: decl.organizationId,
+        actorUserId: req.user!.id,
+        actorName: req.user!.name,
+        action: "file_uploaded",
+        changedFields: ["files"],
+        newValues: { id: created.id, name: created.originalName, mimeType: created.mimeType, size: created.size },
+      });
       return created;
     });
 
@@ -179,7 +190,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(404).json({ error: "File not found" });
     return;
   }
-  const file = await prisma.uploadedFile.findUnique({ where: { id: filePk } });
+  const file = await prisma.uploadedFile.findUnique({ where: { id: filePk }, include: { link: { include: { declaration: true } } } });
   if (!file) {
     res.status(404).json({ error: "File not found" });
     return;
@@ -228,7 +239,7 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     res.status(404).json({ error: "File not found" });
     return;
   }
-  const file = await prisma.uploadedFile.findUnique({ where: { id: filePk } });
+  const file = await prisma.uploadedFile.findUnique({ where: { id: filePk }, include: { link: { include: { declaration: true } } } });
   if (!file) {
     res.status(404).json({ error: "File not found" });
     return;
@@ -238,13 +249,12 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
   // reviewer; DELETE is owner/admin only (a reviewer must never destroy
   // the evidence they are judging).
   if (req.user!.role !== "admin") {
-    const declPk = await declarationPkForFile(filePk);
-    if (declPk === null) {
+    const decl = file.link?.declaration;
+    if (!decl) {
       res.status(403).json({ error: "Access denied" });
       return;
     }
-    const decl = await prisma.declaration.findUnique({ where: { declarationPk: declPk } });
-    if (!decl || decl.declarerUserId !== toDbId(req.user!.id)) {
+    if (decl.declarerUserId !== toDbId(req.user!.id)) {
       res.status(403).json({ error: "Only the owner or admin can delete files" });
       return;
     }
@@ -255,13 +265,27 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     }
   }
 
+  const owningDeclaration = file.link?.declaration;
+  await prisma.$transaction(async (tx) => {
+    if (owningDeclaration) {
+      await recordDeclarationAudit(tx, {
+        declarationPk: owningDeclaration.declarationPk,
+        declarationId: owningDeclaration.id,
+        organizationId: owningDeclaration.organizationId,
+        actorUserId: req.user!.id,
+        actorName: req.user!.name,
+        action: "file_deleted",
+        changedFields: ["files"],
+        oldValues: { id: file.id, name: file.originalName, mimeType: file.mimeType, size: file.size },
+      });
+    }
+    await tx.declarationFile.deleteMany({ where: { fileId: filePk } });
+    await tx.uploadedFile.delete({ where: { id: filePk } });
+  });
   const filePath = containedUploadPath(file.path);
   if (filePath) {
     try { await fs.promises.unlink(filePath); } catch { /* file may have been deleted already */ }
   }
-
-  await prisma.declarationFile.deleteMany({ where: { fileId: filePk } }).catch(() => undefined);
-  await prisma.uploadedFile.delete({ where: { id: filePk } });
   res.json({ message: "File deleted" });
 }));
 

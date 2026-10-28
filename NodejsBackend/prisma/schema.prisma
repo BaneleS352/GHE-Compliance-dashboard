@@ -90,6 +90,9 @@ model User {
   // Matches the "User_providerIssuer_idx" created by 0010_auth_cutover —
   // declared here so schema-vs-database diffs stay clean.
   @@index([providerIssuer])
+  // Migration-managed partial unique indexes enforce normalized non-empty
+  // team member numbers within each organization (and globally for NULL-org
+  // users) without making the common empty value unique.
 }
 
 model Department {
@@ -107,6 +110,8 @@ model Department {
 
   @@unique([organizationId, name])
   @@index([organizationId])
+  // Migration-managed partial unique index enforces non-empty code uniqueness
+  // within an organization (see 0012_financial_precision_integrity).
 }
 
 model Team {
@@ -172,7 +177,7 @@ model Declaration {
   // Domain CHECKs live in migration 0009_domain_checks: status and type are
   // database-enforced value sets, not free text.
   type                String
-  value               Float
+  value               Decimal  @db.Decimal(19, 2)
   status              String
   priority            String
   organizationId      BigInt?
@@ -243,6 +248,28 @@ model DeclarationDetail {
   substantiation      String?
 
   declaration Declaration @relation(fields: [declarationPk], references: [declarationPk], onDelete: Cascade)
+}
+
+// Append-only history of declaration and evidence/workflow changes. The
+// public id, numeric key, organization, actor id, and actor name are snapshots
+// without FKs so audit evidence survives declaration, organization, or user
+// retirement. Writes are performed in the same transaction as the action.
+model DeclarationAuditEvent {
+  id            BigInt   @id @default(autoincrement())
+  declarationPk BigInt
+  declarationId String
+  organizationId BigInt?
+  actorUserId   BigInt?
+  actorName     String?
+  action        String
+  changedFields String[]
+  oldValues     Json?
+  newValues     Json?
+  createdAt     DateTime @default(now())
+
+  @@index([declarationPk, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([actorUserId, createdAt])
 }
 
 // Explicit join between declarations and uploaded file metadata — the only
@@ -345,11 +372,11 @@ model WorkflowInstanceStep {
 
 model SystemConfig {
   id                      String @id
-  highValueThreshold      Float
-  mediumValueThreshold    Float
+  highValueThreshold      Decimal @db.Decimal(19, 2)
+  mediumValueThreshold    Decimal @db.Decimal(19, 2)
   slaEscalationDays       Int
   maxDeclarationsPerCounterparty Int
-  maximumValue            Float   @default(1000000)
+  maximumValue            Decimal @default(1000000) @db.Decimal(19, 2)
   emailTemplate           String
   notificationTemplates   String @default("{}")
 }
