@@ -47,6 +47,15 @@ BEGIN
   END IF;
 END $$;
 
+-- These reporting views expose or aggregate Declaration.value. PostgreSQL
+-- cannot change the underlying column type while the views depend on it, so
+-- recreate them after the Decimal conversion.
+DROP VIEW "v_declaration_status_summary";
+DROP VIEW "v_declarations_monthly";
+DROP VIEW "v_declaration_type_breakdown";
+DROP VIEW "v_counterparty_concentration";
+DROP VIEW "v_high_value_declarations";
+
 ALTER TABLE "Declaration"
   ALTER COLUMN "value" TYPE numeric(19,2) USING "value"::numeric(19,2);
 ALTER TABLE "SystemConfig"
@@ -61,6 +70,44 @@ ALTER TABLE "SystemConfig"
   ADD CONSTRAINT "SystemConfig_highValueThreshold_nonnegative_check" CHECK ("highValueThreshold" >= 0),
   ADD CONSTRAINT "SystemConfig_mediumValueThreshold_nonnegative_check" CHECK ("mediumValueThreshold" >= 0),
   ADD CONSTRAINT "SystemConfig_maximumValue_positive_check" CHECK ("maximumValue" > 0);
+
+CREATE VIEW "v_declaration_status_summary" AS
+  SELECT "organizationId" AS "organizationId", "status" AS "status",
+         COUNT(*) AS "count", SUM("value") AS "totalValue"
+  FROM "Declaration" GROUP BY "organizationId", "status";
+
+CREATE VIEW "v_declarations_monthly" AS
+  SELECT "organizationId" AS "organizationId",
+         to_char("eventDate", 'YYYY-MM') AS "month",
+         COUNT(*) AS "count",
+         SUM(CASE WHEN "status" = 'Approved' THEN 1 ELSE 0 END) AS "approved",
+         SUM(CASE WHEN "status" = 'Declined' THEN 1 ELSE 0 END) AS "declined",
+         SUM("value") AS "totalValue"
+  FROM "Declaration" WHERE "eventDate" IS NOT NULL
+  GROUP BY "organizationId", to_char("eventDate", 'YYYY-MM');
+
+CREATE VIEW "v_declaration_type_breakdown" AS
+  SELECT "organizationId" AS "organizationId", "type" AS "type",
+         COUNT(*) AS "count", SUM("value") AS "totalValue"
+  FROM "Declaration" GROUP BY "organizationId", "type";
+
+CREATE VIEW "v_counterparty_concentration" AS
+  SELECT d."organizationId" AS "organizationId",
+         COALESCE(c."name", 'Unknown') AS "counterparty",
+         COUNT(*) AS "count", SUM(d."value") AS "totalValue",
+         AVG(d."value") AS "avgValue"
+  FROM "Declaration" d LEFT JOIN "Counterparty" c ON c."id" = d."counterpartyId"
+  GROUP BY d."organizationId", COALESCE(c."name", 'Unknown');
+
+CREATE VIEW "v_high_value_declarations" AS
+  SELECT d."id" AS "id", s."declarerName" AS "employee",
+         s."managerDisplayName" AS "lineManager", s."department" AS "department",
+         d."type" AS "type", COALESCE(c."name", 'Unknown') AS "counterparty",
+         d."value" AS "value", d."eventDate" AS "date", d."status" AS "status",
+         d."organizationId" AS "organizationId"
+  FROM "Declaration" d
+  LEFT JOIN "DeclarationSnapshot" s ON s."declarationPk" = d."declarationPk"
+  LEFT JOIN "Counterparty" c ON c."id" = d."counterpartyId";
 
 CREATE UNIQUE INDEX "User_org_teamMemberNumber_unique"
   ON "User" ("organizationId", lower(btrim("teamMemberNumber")))

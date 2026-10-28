@@ -18,7 +18,7 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: Auth
     users: userCount,
     declarations: declarationCount,
     workflows: workflowRuleCount,
-    threshold: config?.highValueThreshold || 1000,
+    threshold: Number(config?.highValueThreshold ?? 1000),
   });
 }));
 

@@ -29,9 +29,9 @@ export async function login(page: Page, email: string) {
   // token overwrite the requested identity on a later reload. Navigate to
   // the app origin first, set the current persona explicitly, then reload so
   // MSAL's dev-only adapter and /api/auth/me both observe that same token.
-  await page.goto("/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.evaluate((t) => sessionStorage.setItem("e2e.auth.token", t), token);
-  await page.reload();
+  await page.reload({ waitUntil: "domcontentloaded" });
   // Desktop renders the sidebar inside <aside>; mobile renders the compact
   // navigation as a top-level <nav>. The hidden breakpoint twin is always
   // present in the DOM, so qualify with :visible — a bare waitForSelector

@@ -230,7 +230,7 @@ describe("Database normalization (numeric identifiers)", () => {
     expect(kpis.approved).toBe(legacy.Approved || 0);
     expect(kpis.declined).toBe(legacy.Declined || 0);
     expect(kpis.returned).toBe(legacy.Returned || 0);
-    expect(kpis.totalValue).toBe(agg._sum.value || 0);
+    expect(kpis.totalValue).toBe(Number(agg._sum.value || 0));
 
     // View-backed trend/type shapes: numerics only, months bucketed YYYY-MM.
     expect(Array.isArray(complianceTrend)).toBe(true);

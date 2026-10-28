@@ -31,5 +31,9 @@ The migration fails before applying constraints if existing data contains excess
 
 ## Verification status
 
-- Backend TypeScript build and Prisma client generation passed after the changes.
-- The PostgreSQL migration and database-backed test suites have not been run as part of this remediation. Apply the migration on a disposable/backup-protected database and run the repository PostgreSQL gates before release.
+- Migration `0012_financial_precision_integrity` applied successfully to the configured local development database on 2026-10-28. Its preflight found no excess monetary precision, invalid priorities, or duplicate normalized identifiers.
+- Backend build and Prisma client generation passed.
+- Backend tests: 446/446; frontend tests: 283/283.
+- PostgreSQL integration checks: 69/69; clean-database API smoke checks: 19/19.
+- Playwright E2E: 21/21, including developer quick login; the isolated rerun passed after changing login navigation to wait for `domcontentloaded`.
+- Frontend typecheck, production build, quality gate, and `git diff --check` passed. The frontend build reports its existing large-chunk advisory.
