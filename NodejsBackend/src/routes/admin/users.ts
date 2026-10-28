@@ -10,8 +10,8 @@ import { resolveDepartmentId } from "../../services/normalization";
 
 const router = Router();
 
-/** User row with its department link for display derivation. */
-type UserWithDepartment = Prisma.UserGetPayload<{ include: { departmentRef: true } }>;
+/** User row with its display relations. */
+type UserWithDepartment = Prisma.UserGetPayload<{ include: { departmentRef: true; manager: { select: { name: true } } } }>;
 
 function userResponse(u: UserWithDepartment) {
   return {
@@ -23,7 +23,9 @@ function userResponse(u: UserWithDepartment) {
     // Display only: departmentId -> Department.name is the sole source.
     department: u.departmentRef?.name ?? "",
     position: u.position,
-    lineManager: u.lineManager,
+    // Preserve the API display shape while keeping managerId as the only
+    // persisted relationship.
+    lineManager: u.manager?.name ?? null,
     organizationId: u.organizationId === null || u.organizationId === undefined ? null : toJsonId(u.organizationId),
   };
 }
@@ -53,7 +55,7 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
     ];
   }
 
-  const users = await prisma.user.findMany({ where, orderBy: { name: "asc" }, include: { departmentRef: true } });
+  const users = await prisma.user.findMany({ where, orderBy: { name: "asc" }, include: { departmentRef: true, manager: { select: { name: true } } } });
 
   res.json(users.map(userResponse));
 }));
@@ -65,7 +67,7 @@ router.get("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     res.status(404).json({ error: "User not found" });
     return;
   }
-  const user = await prisma.user.findUnique({ where: { id: userPk }, include: { departmentRef: true } });
+  const user = await prisma.user.findUnique({ where: { id: userPk }, include: { departmentRef: true, manager: { select: { name: true } } } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -89,11 +91,10 @@ const createUserSchema = z.object({
 });
 
 /**
- * Resolve the authoritative managerId FK from a lineManager input. Accepts a
- * numeric user id (as number or string) or a display name; anything else
- * leaves the FK unset while the display text is still stored.
+ * Resolve the authoritative managerId FK from the compatibility lineManager
+ * input. Accepts a numeric user id (as number or string) or a display name.
  */
-async function resolveManagerId(lineManager: string | number | null | undefined): Promise<bigint | null> {
+async function resolveManagerId(lineManager: string | number | null | undefined, organizationId: bigint | null): Promise<bigint | null> {
   if (lineManager === null || lineManager === undefined) return null;
   if (typeof lineManager === "number") {
     const found = await prisma.user.findUnique({ where: { id: toDbId(lineManager) }, select: { id: true } });
@@ -105,8 +106,17 @@ async function resolveManagerId(lineManager: string | number | null | undefined)
     const found = await prisma.user.findUnique({ where: { id: toDbId(trimmed) }, select: { id: true } });
     if (found) return found.id;
   }
-  const byName = await prisma.user.findFirst({ where: { name: trimmed }, select: { id: true } });
-  return byName ? byName.id : null;
+  const matches = await prisma.user.findMany({
+    where: { name: trimmed, OR: [{ organizationId: null }, { organizationId }] },
+    select: { id: true },
+    take: 2,
+    orderBy: { id: "asc" },
+  });
+  return matches.length === 1 ? matches[0].id : null;
+}
+
+function hasManagerSelection(value: string | number | null | undefined): boolean {
+  return value !== null && value !== undefined && String(value).trim() !== "";
 }
 
 async function hasTeamMemberNumber(orgId: bigint | null, value: string, exceptUserId?: bigint): Promise<boolean> {
@@ -158,7 +168,11 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
     return;
   }
 
-  const managerPk = await resolveManagerId(data.lineManager);
+  const managerPk = await resolveManagerId(data.lineManager, orgPk);
+  if (hasManagerSelection(data.lineManager) && managerPk === null) {
+    res.status(400).json({ error: "lineManager must identify one existing user in the same organization or a global user" });
+    return;
+  }
   // Organization consistency: a scoped user must not reference a manager
   // from another organization (global managers are allowed).
   const violation = await managerOrgViolation(managerPk, orgPk);
@@ -178,11 +192,10 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
       teamMemberNumber: data.teamMemberNumber,
       departmentId: departmentPk,
       position: data.position,
-      lineManager: data.lineManager === null || data.lineManager === undefined ? null : String(data.lineManager),
       managerId: managerPk,
       organizationId: orgPk,
     },
-    include: { departmentRef: true },
+    include: { departmentRef: true, manager: { select: { name: true } } },
   });
 
   res.status(201).json(userResponse(user));
@@ -247,8 +260,11 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
   if (data.teamMemberNumber !== undefined) updateData.teamMemberNumber = data.teamMemberNumber;
   if (data.position !== undefined) updateData.position = data.position;
   if (data.lineManager !== undefined) {
-    updateData.lineManager = data.lineManager === null ? null : String(data.lineManager);
-    resolvedManager = await resolveManagerId(data.lineManager);
+    resolvedManager = await resolveManagerId(data.lineManager, nextOrg);
+    if (hasManagerSelection(data.lineManager) && resolvedManager === null) {
+      res.status(400).json({ error: "lineManager must identify one existing user in the same organization or a global user" });
+      return;
+    }
     updateData.managerId = resolvedManager;
   }
   if (data.organizationId !== undefined) {
@@ -272,7 +288,7 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     return;
   }
 
-  const user = await prisma.user.update({ where: { id: userPk }, data: updateData, include: { departmentRef: true } });
+  const user = await prisma.user.update({ where: { id: userPk }, data: updateData, include: { departmentRef: true, manager: { select: { name: true } } } });
 
   res.json(userResponse(user));
 }));

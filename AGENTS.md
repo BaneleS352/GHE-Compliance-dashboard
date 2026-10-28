@@ -43,14 +43,14 @@ Latest recorded verification is documented in docs/DATABASE-NORMALIZATION-GOAL.m
 
 ## Important Details
 - **PostgreSQL is the single provider**; SQLite support fully removed (no `db push` fallback, no Dockerfile `sed` provider rewrite)
-- Migrations 0006_numeric_keys through 0012_financial_precision_integrity complete the numeric-key, workflow-identity, department, domain-integrity, auth-cutover, SLA-scoping, exact-money, and scoped-uniqueness changes
+- Migrations 0006_numeric_keys through 0013_user_manager_fk_only complete the numeric-key, workflow-identity, department, domain-integrity, auth-cutover, SLA-scoping, exact-money, scoped-uniqueness, and manager-FK-only changes
 - Declaration.id stays public GHE-YYYY-NNNNNN text reference with internal declarationPk referenced by all child tables
 - Declaration and SystemConfig monetary fields use Decimal(19,2); numeric API boundaries deliberately convert Prisma Decimal values to JSON numbers after validation caps precision to cents
 - Migration 0012 adds scoped team-member and department-code uniqueness, priority checks, exact-money columns with a fail-fast precision preflight, and append-only declaration audit history
 - Bearer tokens are provider-issued RS256 JWTs validated via JWKS (no app-issued JWTs); local user ids stay numeric with no legacy text-id compatibility lookup
 - `dev.bat` starts the loopback throwaway JWKS provider and configures the dev API for it; the Vite landing page has a dev-only quick-login selector for seeded accounts, excluded from production builds
 - API responses carry no tokens beyond the Authorization header (MSAL sessionStorage cache in the SPA); `/api/docs` is disabled in production and `npm run db:seed` refuses `NODE_ENV=production` without `GHE_ALLOW_PROD_SEED=1`
-- `User.lineManager` display text only; authoritative manager reference is `managerId` FK (workflow resolution uses it)
+- `User.managerId` is the only persisted manager relationship; `lineManager` is an API display value derived from that FK, while declaration snapshots retain historical manager names
 - API response shapes unchanged apart from numeric ids exposed as JSON numbers at boundary via services/ids.ts
 - `npm run build` passes cleanly for backend (`npx tsc`) and frontend (Vite)
 - `npm run pg:smoke` added as clean-database gate; CI runs backend tests + pg:test + smoke + e2e + frontend typecheck/tests/build
@@ -81,7 +81,7 @@ Latest recorded verification is documented in docs/DATABASE-NORMALIZATION-GOAL.m
 2. Follow `docs/DATABASE-NORMALIZATION-GOAL.md` and the frontend remediation plan for remaining work.
 
 ## Relevant Files
-- `NodejsBackend/prisma/migrations/0011_sla_org_scope/migration.sql` — latest migration (SLA view org scope)
+- `NodejsBackend/prisma/migrations/0013_user_manager_fk_only/migration.sql` — latest migration (remove duplicate user manager text)
 - `NodejsBackend/src/__tests__/globalSetup.ts` — embedded PG boot + migration deploy
 - `NodejsBackend/.env` — DATABASE_URL set to PostgreSQL only
 - `NodejsBackend/package.json` — build, pg:smoke scripts added

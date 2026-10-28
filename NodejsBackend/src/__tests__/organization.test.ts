@@ -46,11 +46,11 @@ describe("Organization — multi-tenant flows", () => {
   const npnOrg: any = { name: "NPN Test Org", shortCode: "NPNT" };
 
   const hbTeam: any = { name: "HB Team", email: "hb-team@test.com", role: "teamMember", teamMemberNumber: "HB-T-001", department: "Marketing", position: "Associate" };
-  const hbLm: any = { name: "HB LM", email: "hb-lm@test.com", role: "approver", teamMemberNumber: "HB-LM-001", department: "Marketing", position: "Line Manager", lineManager: null };
+  const hbLm: any = { name: "HB LM", email: "hb-lm@test.com", role: "approver", teamMemberNumber: "HB-LM-001", department: "Marketing", position: "Line Manager" };
   const npnTeam: any = { name: "NPN Team", email: "npn-team@test.com", role: "teamMember", teamMemberNumber: "NPN-T-001", department: "Engineering", position: "Engineer" };
-  const npnLm: any = { name: "NPN LM", email: "npn-lm@test.com", role: "approver", teamMemberNumber: "NPN-LM-001", department: "Engineering", position: "Line Manager", lineManager: null };
-  const globalHr: any = { name: "Global HR", email: "global-hr@test.com", role: "approver", teamMemberNumber: "HR-G-001", department: "HR", position: "Head of HR", lineManager: null, organizationId: null };
-  const globalAdmin: any = { name: "Global Admin", email: "global-admin@test.com", role: "admin", teamMemberNumber: "ADM-G-001", department: "IT", position: "Admin", lineManager: null, organizationId: null };
+  const npnLm: any = { name: "NPN LM", email: "npn-lm@test.com", role: "approver", teamMemberNumber: "NPN-LM-001", department: "Engineering", position: "Line Manager" };
+  const globalHr: any = { name: "Global HR", email: "global-hr@test.com", role: "approver", teamMemberNumber: "HR-G-001", department: "HR", position: "Head of HR", organizationId: null };
+  const globalAdmin: any = { name: "Global Admin", email: "global-admin@test.com", role: "admin", teamMemberNumber: "ADM-G-001", department: "IT", position: "Admin", organizationId: null };
 
   // departmentId is the sole department source: resolve a fixture's display
   // string to its organization-scoped link (global users stay unlinked). The
@@ -85,9 +85,9 @@ describe("Organization — multi-tenant flows", () => {
       });
       u.id = Number(row.id);
     }
-    // Authoritative manager links (managerId FK); lineManager stays display text.
-    await prisma.user.update({ where: { email: hbTeam.email }, data: { managerId: hbLm.id, lineManager: hbLm.name } });
-    await prisma.user.update({ where: { email: npnTeam.email }, data: { managerId: npnLm.id, lineManager: npnLm.name } });
+    // The manager relation is the only persisted source of truth.
+    await prisma.user.update({ where: { email: hbTeam.email }, data: { managerId: hbLm.id } });
+    await prisma.user.update({ where: { email: npnTeam.email }, data: { managerId: npnLm.id } });
   });
 
   it("GET /api/users/organizations — scoped to the caller; admins see all", async () => {

@@ -75,8 +75,10 @@ fallbacks, and legacy declaration storage are retired from the target design.
   `User.department` text column was removed in `0008_department_id_only`;
   API and UI display values are derived from the related `Department`
   record.
-- `User.managerId` is the authoritative manager relationship. The existing
-  `User.lineManager` text is display/compatibility data only.
+- `User.managerId` is the only persisted manager relationship. `lineManager`
+  is derived for API display, and declaration snapshots retain the manager
+  name as historical evidence; migration `0013_user_manager_fk_only` removes
+  the duplicated user text column.
 - Workflow step rows are authoritative; JSON workflow fallback is unsupported.
 - `DeclarationFile` is the only declaration/file association.
 

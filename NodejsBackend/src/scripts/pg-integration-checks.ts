@@ -106,8 +106,8 @@ async function main() {
     const departmentId = await resolveDepartmentId(department, u.organizationId, p);
     users[key] = await p.user.create({ data: { ...data, departmentId } });
   }
-  await p.user.update({ where: { id: users.tmA.id }, data: { managerId: users.lmA.id, lineManager: users.lmA.name } });
-  await p.user.update({ where: { id: users.tmB.id }, data: { managerId: users.lmB.id, lineManager: users.lmB.name } });
+  await p.user.update({ where: { id: users.tmA.id }, data: { managerId: users.lmA.id } });
+  await p.user.update({ where: { id: users.tmB.id }, data: { managerId: users.lmB.id } });
   await p.systemConfig.create({
     data: { id: "default", highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "t", notificationTemplates: "{}" },
   });
@@ -242,6 +242,8 @@ async function main() {
   const userColNames = userCols.map((r) => r.column_name);
   check("User.department text column removed", !userColNames.includes("department"), JSON.stringify(userColNames));
   check("User.departmentId link present", userColNames.includes("departmentId"), JSON.stringify(userColNames));
+  check("User.lineManager text duplicate removed", !userColNames.includes("lineManager"), JSON.stringify(userColNames));
+  check("User.managerId remains the manager relation", userColNames.includes("managerId"), JSON.stringify(userColNames));
 
   // 1. Status summary, org-scoped.
   const expectedA: Record<string, number> = {};

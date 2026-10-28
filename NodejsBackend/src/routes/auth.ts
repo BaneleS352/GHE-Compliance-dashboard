@@ -9,16 +9,12 @@ const router = Router();
 router.get("/me", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const user = await prisma.user.findUnique({
     where: { id: toDbId(req.user!.id) },
-    include: { departmentRef: true },
+    include: { departmentRef: true, manager: { select: { name: true } } },
   });
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
   }
-
-  const manager = user.managerId === null
-    ? null
-    : await prisma.user.findUnique({ where: { id: user.managerId }, select: { name: true } });
 
   res.json({
     id: toJsonId(user.id),
@@ -28,9 +24,8 @@ router.get("/me", authenticate, asyncHandler(async (req: AuthRequest, res: Respo
     teamMemberNumber: user.teamMemberNumber,
     department: user.departmentRef?.name ?? "",
     position: user.position,
-    // `lineManager` is a display field; resolve the authoritative FK for
-    // current identity responses while preserving historical display text.
-    lineManager: manager?.name ?? user.lineManager,
+    // Compatibility response field derived from the authoritative relation.
+    lineManager: user.manager?.name ?? null,
     managerId: user.managerId === null ? null : toJsonId(user.managerId),
     organizationId: user.organizationId === null ? null : toJsonId(user.organizationId),
   });

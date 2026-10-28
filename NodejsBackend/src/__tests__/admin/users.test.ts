@@ -41,6 +41,14 @@ describe("Admin Users", () => {
     expect(res.body.email).toBe("admin@test.com");
   });
 
+  it("derives the lineManager display field from managerId", async () => {
+    const res = await request(app)
+      .get("/api/admin/users/4")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(res.status).toBe(200);
+    expect(res.body.lineManager).toBe("Sipho Approver");
+  });
+
   it("POST /api/admin/users — creates user", async () => {
     const res = await request(app)
       .post("/api/admin/users")
@@ -49,6 +57,18 @@ describe("Admin Users", () => {
     expect(res.status).toBe(201);
     expect(typeof res.body.id).toBe("number");
     expect(res.body.email).toBe("new@test.com");
+  });
+
+  it("resolves legacy lineManager input to managerId and returns the derived name", async () => {
+    const res = await request(app)
+      .post("/api/admin/users")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ name: "Manager Link Test", email: "manager-link@test.com", role: "teamMember", lineManager: "Sipho Approver" });
+    expect(res.status).toBe(201);
+    expect(res.body.lineManager).toBe("Sipho Approver");
+    const row = await prisma.user.findUnique({ where: { email: "manager-link@test.com" }, select: { managerId: true } });
+    expect(row?.managerId).toBe(2n);
+    await prisma.user.delete({ where: { email: "manager-link@test.com" } });
   });
 
   it("POST /api/admin/users — rejects duplicate email", async () => {

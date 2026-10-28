@@ -35,8 +35,13 @@ SystemConfig (1 record) configures thresholds
 | teamMemberNumber | String | Employee number (business code, not a key) |
 | departmentId | BigInt? | Sole department source (`Department` FK, SetNull). The legacy `department` text column was removed in `0008_department_id_only`; display values derive from the related record. Links are not organization-constrained (master-data vocabulary); unscoped users resolve to `""` |
 | position | String | User's job position |
-| lineManager | String? | Display text only; the authoritative manager reference is `managerId` |
-| managerId | BigInt? | Self-FK to User.id (SetNull) |
+| managerId | BigInt? | Self-FK to User.id (SetNull); sole persisted manager relationship |
+
+`lineManager` remains an API display/compatibility property derived from
+`managerId` → `User.name`; it is not stored on `User`. Legacy admin writes may
+send a manager id or an unambiguous display name and are resolved to the FK.
+Declaration snapshots separately retain `managerDisplayName` as historical
+evidence.
 | organizationId / departmentId / teamId | BigInt? | FKs to master data |
 
 ### Declaration
@@ -134,7 +139,7 @@ with a foreign-key violation (proven by `pg:test`).
 - Declaration priority is constrained to `Low`, `Medium`, or `High`. Type and lifecycle status checks already exist in `0009_domain_checks`.
 - Non-empty team-member numbers are case/space normalized and unique within an organization (or globally for users without an organization). Non-empty department codes are unique within an organization. Migration preflight fails on existing duplicates for manual reconciliation.
 - `Organization.shortCode`, `User.email`, team name per department, and one-to-one declaration/workflow child keys were already unique; foreign-key join indexes are declared in the schema.
-- `User.managerId` remains authoritative for workflow assignment; `lineManager` is a display-only compatibility field, while declaration snapshots preserve the manager name at submission. `position` remains free text because no approved title catalog or reporting requirement was supplied. `UploadedFile.size` remains `Int` under the existing upload-size cap. Notification templates remain validated JSON text because the API contract stores the template object as a serialized string.
+- `User.managerId` is the only persisted manager relationship. Migration `0013_user_manager_fk_only` removes the duplicate text column; the `lineManager` API display is derived from the relation, and declaration snapshots preserve historical manager names. `position` remains free text because there is no approved title vocabulary or position-based reporting requirement. `UploadedFile.size` remains `Int` under the existing upload-size cap. Notification templates remain validated JSON text because the API contract stores the template object as a serialized string.
 
 Phase 5 retirements (see `NodejsBackend/prisma/RETIREMENT.md`): the
 `Dropdowns` JSON table (now Department master data + fixed domain lists),

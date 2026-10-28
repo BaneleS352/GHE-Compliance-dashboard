@@ -125,10 +125,10 @@ export async function setup() {
   }
   await prisma.user.createMany({
     data: [
-      { id: 1n, name: "Admin User", email: "admin@test.com", role: "admin", teamMemberNumber: "ADM-001", departmentId: deptByName.get("IT"), position: "System Admin", lineManager: null },
-      { id: 2n, name: "Sipho Approver", email: "sipho@test.com", role: "approver", teamMemberNumber: "APR-001", departmentId: deptByName.get("Marketing"), position: "Line Manager", lineManager: null },
-      { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver", teamMemberNumber: "APR-002", departmentId: deptByName.get("HR"), position: "Head of HR", lineManager: null },
-      { id: 4n, name: "Nomvula Team", email: "nomvula@test.com", role: "teamMember", teamMemberNumber: "TM-001", departmentId: deptByName.get("Marketing"), position: "Brand Manager", lineManager: "Sipho Approver" },
+      { id: 1n, name: "Admin User", email: "admin@test.com", role: "admin", teamMemberNumber: "ADM-001", departmentId: deptByName.get("IT"), position: "System Admin" },
+      { id: 2n, name: "Sipho Approver", email: "sipho@test.com", role: "approver", teamMemberNumber: "APR-001", departmentId: deptByName.get("Marketing"), position: "Line Manager" },
+      { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver", teamMemberNumber: "APR-002", departmentId: deptByName.get("HR"), position: "Head of HR" },
+      { id: 4n, name: "Nomvula Team", email: "nomvula@test.com", role: "teamMember", teamMemberNumber: "TM-001", departmentId: deptByName.get("Marketing"), position: "Brand Manager" },
     ],
   });
   // Normalized user links (manager FK).

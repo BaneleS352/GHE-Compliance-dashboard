@@ -23,15 +23,28 @@ The migration fails before applying constraints if existing data contains excess
 
 ## Deliberate deferrals
 
-- `User.managerId` is authoritative for routing. `lineManager` remains a display compatibility field, and submitted declaration snapshots retain the manager's display name. Removing the stored field should wait for a data/API compatibility review.
-- `position` remains free text until the business supplies an approved title catalog and a need for canonical position reporting or validation.
+- `position` remains free text by design: the application has no position-based report or approved title vocabulary to normalize against. Creating a Position catalog without those requirements would add maintenance overhead without enforcing a useful business rule.
 - `UploadedFile.size` remains an integer because uploads are capped at 10 MB.
 - Notification templates remain validated serialized JSON text to preserve the existing API contract.
 - Direct database writes bypass route-level authorization and route-generated audit events. Operational access to the database must remain restricted; route audit records cover application operations, not arbitrary SQL changes.
 
+## Manager relationship resolution
+
+`User.managerId` is the only persisted current-manager relationship. Migration
+`0013_user_manager_fk_only` drops the duplicated `lineManager` text after
+backfilling only labels that resolve unambiguously to a same-organization or
+global user; unresolved or ambiguous legacy labels stop the migration for
+manual repair. The API keeps `lineManager` as a derived display field for
+compatibility, while each declaration snapshot independently retains the
+historical manager display name.
+
 ## Verification status
 
 - Migration `0012_financial_precision_integrity` applied successfully to the configured local development database on 2026-10-28. Its preflight found no excess monetary precision, invalid priorities, or duplicate normalized identifiers.
+- Migration `0013_user_manager_fk_only` applied successfully to the local development database; all 15 populated legacy manager labels were discarded in favor of their already-valid `managerId` references, and declaration snapshots remain intact.
+- Backend tests: 448/448; PostgreSQL integration checks: 71/71; clean-database API smoke checks: 19/19.
+- Playwright E2E exited successfully: 19 passed and 2 were flaky on the first attempt but passed on retry.
+- The manager API contract tests verify that `/api/auth/me` and admin-user responses derive the display name from `managerId`, and legacy admin input resolves to the FK.
 - Backend build and Prisma client generation passed.
 - Backend tests: 446/446; frontend tests: 283/283.
 - PostgreSQL integration checks: 69/69; clean-database API smoke checks: 19/19.

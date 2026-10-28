@@ -57,8 +57,6 @@ model User {
   // Display values derive from departmentRef; the legacy `department` text
   // column was removed in 0008_department_id_only.
   position         String
-  // Display text only. The authoritative manager reference is managerId.
-  lineManager      String?
   organizationId   BigInt?
 
   managerId    BigInt?
@@ -82,7 +80,6 @@ model User {
   stepsDecided  WorkflowInstanceStep[] @relation("StepDecider")
 
   @@index([role])
-  @@index([lineManager])
   @@index([organizationId])
   @@index([managerId])
   @@index([departmentId])

@@ -133,7 +133,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(404).json({ error: "User not found" });
     return;
   }
-  const user = await prisma.user.findUnique({ where: { id: userPk }, include: { departmentRef: true } });
+  const user = await prisma.user.findUnique({ where: { id: userPk }, include: { departmentRef: true, manager: { select: { name: true } } } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -163,7 +163,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     teamMemberNumber: user.teamMemberNumber,
     department: user.departmentRef?.name ?? "",
     position: user.position,
-    lineManager: user.lineManager,
+    lineManager: user.manager?.name ?? null,
     organizationId: user.organizationId === null ? null : toJsonId(user.organizationId),
   });
 }));

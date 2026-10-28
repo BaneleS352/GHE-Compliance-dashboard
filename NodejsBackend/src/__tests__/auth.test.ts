@@ -39,6 +39,8 @@ describe("Auth", () => {
     expect(res.body.role).toBe("teamMember");
     expect(res.body.department).toBe("Marketing");
     expect(res.body.id).toBe(4);
+    expect(res.body.managerId).toBe(2);
+    expect(res.body.lineManager).toBe("Sipho Approver");
   });
 
   it("GET /api/auth/me — no token returns 401", async () => {
