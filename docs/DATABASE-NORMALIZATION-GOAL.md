@@ -20,6 +20,7 @@ versioned migration chain is:
 → 0005_phase5_retirement → 0006_numeric_keys
 → 0007_step_identity → 0008_department_id_only
 → 0009_domain_checks → 0010_auth_cutover
+→ 0011_sla_org_scope → 0012_restore_user_line_manager
 ```
 
 `0010_auth_cutover` completes the OpenID cutover at the schema level: it

@@ -4,14 +4,32 @@
 
 - Node.js 20 (Docker uses Node 20; the code generally requires Node 18+)
 - npm
-- Docker Desktop and Compose, if using containers
+- PostgreSQL 16 or compatible
 
 ## Run locally (PostgreSQL required)
+
+### Windows
+
+1. Install Node.js 20 LTS and make sure a PostgreSQL server is available.
+2. Set `DATABASE_URL` in `NodejsBackend\.env` to that PostgreSQL server.
+3. Double-click `dev.bat` in the project folder.
+
+`dev.bat` does not install or start PostgreSQL. The first-run `.env.example`
+uses `postgres:root` on `localhost:5432`; adjust `DATABASE_URL` to match the
+PostgreSQL account on your computer. The launcher installs app dependencies
+when needed, applies database migrations, and seeds only an empty database.
+Later launches reuse those dependencies and the same database. If database
+setup fails, the dashboard windows will not open; make sure PostgreSQL is
+running and the address and login details in `NodejsBackend\.env` are correct,
+then run `dev.bat` again. For a Prisma `EPERM`/file-in-use message, close other
+GHE or Node.js windows and retry.
+
+### Other platforms or manual startup
 
 ```powershell
 cd NodejsBackend
 npm install
-# Point .env DATABASE_URL at PostgreSQL, e.g. via docker compose up -d db
+# Point .env DATABASE_URL at an available PostgreSQL server
 npm run db:pg:up   # migrate deploy + seed-if-empty
 npm run dev
 ```

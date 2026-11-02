@@ -3,73 +3,95 @@ setlocal
 
 cd /d "%~dp0"
 
-:: ── Backend setup ──────────────────────────────────────────────────
-echo [1/5] Installing backend dependencies (this may take a minute)...
-cd NodejsBackend
-
-call npm install
+:: ── Prerequisite checks ───────────────────────────────────────────
+echo Checking requirements...
+where node >nul 2>nul
 if errorlevel 1 (
     echo.
-    echo ERROR: npm install failed. Check your network connection or npm cache.
+    echo ERROR: Node.js is not installed or is not on PATH.
+    echo Install Node.js 20 LTS, restart Windows, then run dev.bat again.
     pause
     exit /b 1
 )
 
+where npm >nul 2>nul
+if errorlevel 1 (
+    echo.
+    echo ERROR: npm was not found. Reinstall Node.js 20 LTS with npm enabled.
+    pause
+    exit /b 1
+)
+
+:: ── Backend setup ──────────────────────────────────────────────────
 echo.
-echo [2/5] Setting up .env (if missing)...
+echo [1/6] Installing backend dependencies (first run only)...
+cd NodejsBackend
+
+if not exist node_modules\prisma\build\index.js (
+    call npm install
+    if errorlevel 1 (
+        echo.
+        echo ERROR: Backend setup could not download its required files.
+        echo Check your internet connection and run dev.bat again.
+        pause
+        exit /b 1
+    )
+)
+
+echo.
+echo [2/6] Setting up backend settings (if missing)...
 
 if not exist .env (
     copy .env.example .env >nul
     echo   Created .env from .env.example
 )
 
+findstr /R /C:"^DATABASE_URL=\"postgres" /C:"^DATABASE_URL=postgres" .env >nul
+if errorlevel 1 (
+    echo.
+    echo ERROR: The database address in NodejsBackend\.env is not configured.
+    echo Restore the default DATABASE_URL from .env.example, then try again.
+    pause
+    exit /b 1
+)
+
 echo.
-echo [3/5] Setting up database (PostgreSQL required)...
-
-:: PostgreSQL is the only supported provider. DATABASE_URL must be a
-:: postgres(ql) URL (see .env.example). Only uncommented DATABASE_URL lines
-:: match (^ anchors line start, so the commented example in .env.example is
-:: ignored).
-findstr /R "^DATABASE_URL.*postgres" .env >nul
+echo [3/6] Checking PostgreSQL and preparing the database...
+call npm run db:pg:up
 if errorlevel 1 (
     echo.
-    echo ERROR: DATABASE_URL must be a PostgreSQL URL.
-    echo Copy .env.example to .env and point DATABASE_URL at PostgreSQL,
-    echo e.g. via docker compose up -d db. SQLite is no longer supported.
+    echo ERROR: Database setup could not finish, so the dashboard was not started.
+    echo Make sure the PostgreSQL server in NodejsBackend\.env is running and
+    echo that its address and login details are correct.
+    echo If the message mentions EPERM or a file in use, close any other
+    echo GHE dashboard or Node.js windows, then run dev.bat again.
+    echo For other errors, share this window with your support person.
     pause
     exit /b 1
 )
-
-echo   PostgreSQL detected - running versioned bring-up...
-call npx tsx src/scripts/pg-up.ts
-if errorlevel 1 (
-    echo.
-    echo ERROR: PostgreSQL bring-up failed. See output above.
-    pause
-    exit /b 1
-)
-
-:db_done
 
 :: ── Frontend setup ─────────────────────────────────────────────────
 cd /d "%~dp0Enterprise Compliance Platform"
 
 echo.
-echo [4/5] Installing frontend dependencies...
+echo [4/6] Installing frontend dependencies (first run only)...
 
-call npm install
-if errorlevel 1 (
-    echo.
-    echo ERROR: Frontend npm install failed.
-    pause
-    exit /b 1
+if not exist node_modules\vite\bin\vite.js (
+    call npm install
+    if errorlevel 1 (
+        echo.
+        echo ERROR: Frontend setup could not download its required files.
+        echo Check your internet connection and run dev.bat again.
+        pause
+        exit /b 1
+    )
 )
 
 :: ── Launch servers ─────────────────────────────────────────────────
 cd /d "%~dp0"
 
 echo.
-echo [5/5] Starting servers...
+echo [5/6] Starting servers...
 
 start "Test OIDC Provider" cmd /k "cd /d "%~dp0NodejsBackend" && npx tsx src/scripts/test-provider.ts"
 
