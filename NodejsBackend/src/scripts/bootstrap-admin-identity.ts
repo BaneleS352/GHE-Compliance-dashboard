@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { config } from "../config/env";
+import { bootstrapAdminIdentity } from "../services/identityProvisioning";
 
 const args = process.argv.slice(2);
 const inputSchema = z.object({
@@ -24,37 +25,13 @@ async function main(): Promise<void> {
     throw new Error("Usage: npm run auth:bootstrap-admin -- <admin-name> <admin-email> <entra-oid> <evidence-reference> <operator-id>");
   }
   const { name, email, subject, evidenceReference, operatorLabel } = parsed.data;
-
-  await prisma.$transaction(async (tx) => {
-    let user = await tx.user.findUnique({ where: { email }, select: { id: true, role: true, isActive: true } });
-    if (!user) {
-      user = await tx.user.create({ data: {
-        name,
-        email,
-        role: "admin",
-        teamMemberNumber: `BOOTSTRAP-${Date.now()}`,
-        position: "System Administrator",
-      }, select: { id: true, role: true, isActive: true } });
-    }
-    if (user.role !== "admin" || !user.isActive) {
-      throw new Error("Bootstrap target must be an active local admin account; existing non-admin accounts are never promoted by this command");
-    }
-    const updated = await tx.user.updateMany({
-      where: { id: user.id, providerSubject: null },
-      data: { providerSubject: subject, providerIssuer: config.oidc.issuer },
-    });
-    if (updated.count !== 1) {
-      throw new Error("Bootstrap admin already has a provider identity link; no changes were made");
-    }
-    await tx.identityLinkAudit.create({ data: {
-      targetUserId: user.id,
-      actorUserId: null,
-      actorType: "bootstrap",
-      actorLabel: operatorLabel,
-      providerIssuer: config.oidc.issuer,
-      providerSubject: subject,
-      evidenceReference,
-    } });
+  await bootstrapAdminIdentity(prisma, {
+    name,
+    email,
+    providerSubject: subject,
+    providerIssuer: config.oidc.issuer,
+    evidenceReference,
+    operatorLabel,
   });
   console.log(`Bootstrap admin identity created or linked for ${email}. Audit evidence: ${evidenceReference}.`);
 }

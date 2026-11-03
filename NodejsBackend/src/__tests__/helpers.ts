@@ -52,7 +52,7 @@ export function buildApp() {
 // Numeric fixture ids shared with globalSetup.ts (1 = admin, 2 = approver,
 // 3 = HR, 4 = team member). Tokens are Entra-shaped RS256 JWTs minted with
 // the run's throwaway test key; identity resolves from the local user row
-// by email, exactly like production. See testAuth.ts.
+// by issuer and immutable subject, exactly like production. See testAuth.ts.
 export {
   getAdminToken,
   getApproverToken,

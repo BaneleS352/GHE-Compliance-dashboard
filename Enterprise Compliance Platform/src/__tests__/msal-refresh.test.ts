@@ -64,6 +64,14 @@ describe("MSAL silent-acquisition recovery", () => {
     expect(mocks.loginRedirect).toHaveBeenCalledWith(expect.objectContaining({ prompt: "select_account" }));
   });
 
+  it("leaves the dev landing page available for quick login when Entra config is absent", async () => {
+    vi.stubEnv("VITE_ENTRA_CLIENT_ID", "");
+    vi.stubEnv("VITE_ENTRA_AUTHORITY", "");
+    vi.stubEnv("VITE_ENTRA_API_SCOPE", "");
+    await expect(initializeIdentity()).resolves.toBeUndefined();
+    expect(mocks.initialize).not.toHaveBeenCalled();
+  });
+
   it("restarts interactive sign-in when silent acquisition requires interaction", async () => {
     const { InteractionRequiredAuthError } = await import("@azure/msal-browser");
     mocks.acquireTokenSilent.mockRejectedValue(

@@ -97,6 +97,10 @@ function e2eStubAccount(): AccountInfo {
 
 export async function initializeIdentity(): Promise<void> {
   if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) return;
+  // The local dev quick-login is a complete authentication path when no
+  // Entra settings are supplied. Do not block the landing screen with an
+  // MSAL configuration error before the developer can choose that path.
+  if (import.meta.env.DEV && testAuthEnabled && !readConfig()) return;
   const app = getClient();
   await app.initialize();
   const result = await app.handleRedirectPromise();

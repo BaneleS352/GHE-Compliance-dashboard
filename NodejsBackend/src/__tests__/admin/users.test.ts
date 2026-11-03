@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
 import { buildApp, getAdminToken, getTeamToken, testToken } from "../helpers";
+import { bootstrapAdminIdentity } from "../../services/identityProvisioning";
 
 const app = buildApp();
 const prisma = new PrismaClient();
@@ -79,6 +80,42 @@ describe("Admin Users", () => {
     expect(secondLink.status).toBe(409);
     await prisma.identityLinkAudit.deleteMany({ where: { targetUserId: BigInt(created.body.id) } });
     await request(app).delete(`/api/admin/users/${created.body.id}`).set("Authorization", `Bearer ${getAdminToken()}`);
+  });
+
+  it("bootstrap creates the first admin and records the external operator without promoting existing users", async () => {
+    const email = "bootstrap-admin-test@test.com";
+    const linked = await bootstrapAdminIdentity(prisma, {
+      name: "Bootstrap Admin Test",
+      email,
+      providerSubject: "10000000-0000-4000-8000-000000000003",
+      providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439",
+      evidenceReference: "SECURITY-APPROVAL-CASE-1",
+      operatorLabel: "operator-12345",
+    });
+    const user = await prisma.user.findUnique({ where: { email } });
+    const audit = await prisma.identityLinkAudit.findFirst({ where: { targetUserId: linked.id } });
+    expect(user?.role).toBe("admin");
+    expect(user?.providerSubject).toBe("10000000-0000-4000-8000-000000000003");
+    expect(audit).toMatchObject({ actorUserId: null, actorType: "bootstrap", actorLabel: "operator-12345", evidenceReference: "SECURITY-APPROVAL-CASE-1" });
+
+    const existing = await prisma.user.create({ data: {
+      name: "Existing Team User", email: "bootstrap-existing@test.com", role: "teamMember",
+      teamMemberNumber: "BT-EXIST", position: "Tester",
+    } });
+    await expect(bootstrapAdminIdentity(prisma, {
+      name: existing.name,
+      email: existing.email,
+      providerSubject: "10000000-0000-4000-8000-000000000004",
+      providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439",
+      evidenceReference: "SECURITY-APPROVAL-CASE-2",
+      operatorLabel: "operator-12345",
+    })).rejects.toThrow(/never promoted/i);
+    const unchanged = await prisma.user.findUnique({ where: { id: existing.id } });
+    expect(unchanged?.role).toBe("teamMember");
+    expect(unchanged?.providerSubject).toBeNull();
+
+    await prisma.identityLinkAudit.deleteMany({ where: { targetUserId: linked.id } });
+    await prisma.user.deleteMany({ where: { id: { in: [linked.id, existing.id] } } });
   });
 
   it("PUT /api/admin/users/:id — updates user and resolves the department link", async () => {

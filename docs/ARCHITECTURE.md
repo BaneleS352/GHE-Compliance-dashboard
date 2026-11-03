@@ -92,7 +92,7 @@ Express API (port 3001)
 2. MSAL obtains an access token for the configured API scope.
 3. The client sends it as `Authorization: Bearer <token>`.
 4. Middleware validates issuer, audience, RS256 signature, lifetime, and `oid` through JWKS.
-5. Middleware resolves the local User by email and binds the provider subject on first login; later subject mismatches fail closed.
+5. Middleware resolves the local User by configured issuer and immutable subject; links are established only through audited admin provisioning.
 6. Local database role, organization, department, and manager relationships remain authoritative.
 
 ## Workflow Resolution

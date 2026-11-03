@@ -57,10 +57,11 @@ OpenID cutover and both return `404` (pinned by `auth.test.ts`). The only
 identity route is `GET /api/auth/me`, which resolves the local user from
 a validated bearer token (see `docs/IDENTITY-CONTRACT.md`).
 
-To call the API manually, mint a throwaway RS256 token for a seeded local
-user. Identity resolves by email, so the email must exist in the database
-(`admin@hb.co.za`, `sipho@hb.co.za`, `lindiwe@hb.co.za`,
-`nomvula@hb.co.za` in the development seed):
+To call the API manually, mint a throwaway RS256 token for a locally linked
+test account. Authentication resolves by the token's `oid` and configured
+issuer, not email. `dev.bat` enables the test-only identity seed for the four
+quick-login accounts; other accounts need an explicit test link or the
+audited admin link command:
 
 ```powershell
 # Terminal 1 — throwaway provider (test-only, never production)
