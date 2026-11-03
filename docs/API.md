@@ -50,4 +50,4 @@ Admin namespaces and permissions:
 
 Successful mutations return the affected resource or a confirmation; deletes may return `204`. Validation and authorization failures use 4xx responses. Unknown routes return `{ "error": "Not found" }`; unexpected failures return `{ "error": "Internal server error" }`. Do not rely on error message text as a stable API contract.
 
-`OIDC_AUTHORITY`, `OIDC_CLIENT_ID`, and `OIDC_AUDIENCE` are required; `OIDC_ISSUER` defaults to the authority. `PORT` defaults to `3001`; `CORS_ORIGIN` accepts comma-separated origins. In production, CORS is denied unless explicitly configured. JSON and URL-encoded request bodies are limited to 1 MB. `EMAIL_WEBHOOK_URL` is optional and enables outbound notification delivery.
+`OIDC_AUTHORITY`, `OIDC_AUDIENCE`, `OIDC_ALLOWED_CLIENT_IDS`, and `OIDC_REQUIRED_SCOPE` are required; `OIDC_ISSUER` defaults to the authority. `PORT` defaults to `3001`; `CORS_ORIGIN` accepts comma-separated origins. In production, CORS is denied unless explicitly configured. JSON and URL-encoded request bodies are limited to 1 MB. `EMAIL_WEBHOOK_URL` is optional and enables outbound notification delivery.

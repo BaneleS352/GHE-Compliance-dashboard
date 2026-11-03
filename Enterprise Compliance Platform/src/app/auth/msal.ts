@@ -102,8 +102,10 @@ export async function initializeIdentity(): Promise<void> {
   const result = await app.handleRedirectPromise();
   if (result?.account) app.setActiveAccount(result.account);
   if (!app.getActiveAccount()) {
-    const account = app.getAllAccounts()[0];
-    if (account) app.setActiveAccount(account);
+    const accounts = app.getAllAccounts();
+    // A sole cached account is unambiguous. Multiple cached identities must
+    // go through Entra's explicit account chooser (loginRedirect below).
+    if (accounts.length === 1) app.setActiveAccount(accounts[0]);
   }
 }
 
@@ -121,7 +123,8 @@ export function activeAccount(): AccountInfo | null {
 
 export async function signIn(): Promise<AuthenticationResult | void> {
   if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) return;
-  return getClient().loginRedirect({ scopes: scopes() });
+  const app = getClient();
+  return app.loginRedirect({ scopes: scopes(), ...(app.getAllAccounts().length > 1 ? { prompt: "select_account" } : {}) });
 }
 
 export async function getApiToken(): Promise<string> {

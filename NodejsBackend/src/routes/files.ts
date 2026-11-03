@@ -248,9 +248,9 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
       res.status(403).json({ error: "Only the owner or admin can delete files" });
       return;
     }
-    // Evidence is immutable after decision — no deletes once Approved/Declined.
-    if (decl && (decl.status === "Approved" || decl.status === "Declined")) {
-      res.status(400).json({ error: "Cannot delete files from a decided declaration" });
+    // Evidence remains fixed during review; only editable declarations allow owner deletion.
+    if (decl.status !== "Draft" && decl.status !== "Returned") {
+      res.status(400).json({ error: "Cannot delete files unless the declaration is a draft or returned" });
       return;
     }
   }

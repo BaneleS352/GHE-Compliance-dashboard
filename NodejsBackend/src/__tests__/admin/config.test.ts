@@ -5,6 +5,19 @@ import { buildApp, getAdminToken, getTeamToken } from "../helpers";
 const app = buildApp();
 
 describe("Admin Config", () => {
+  it("GET /api/admin/config/public exposes only user guidance to non-admins", async () => {
+    const res = await request(app).get("/api/admin/config/public").set("Authorization", `Bearer ${getTeamToken()}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      highValueThreshold: expect.any(Number),
+      mediumValueThreshold: expect.any(Number),
+      slaEscalationDays: expect.any(Number),
+      maximumValue: expect.any(Number),
+    });
+    expect(res.body).not.toHaveProperty("emailTemplate");
+    expect(res.body).not.toHaveProperty("notificationTemplates");
+  });
+
   it("GET /api/admin/config — returns system config", async () => {
     const res = await request(app)
       .get("/api/admin/config")

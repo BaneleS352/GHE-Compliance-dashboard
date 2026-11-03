@@ -124,7 +124,8 @@ async function main() {
       OIDC_AUTHORITY: jwksBase,
       OIDC_ISSUER: jwksBase,
       OIDC_AUDIENCE: TEST_AUDIENCE,
-      OIDC_CLIENT_ID: "smoke-client-id",
+      OIDC_ALLOWED_CLIENT_IDS: "test-spa-client-id",
+      OIDC_REQUIRED_SCOPE: "access_as_user",
     },
     stdio: "pipe",
   });

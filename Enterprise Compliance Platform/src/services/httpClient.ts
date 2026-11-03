@@ -30,33 +30,29 @@ async function request<T>(
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const signal = options?.signal
+    ? AbortSignal.any([controller.signal, options.signal])
+    : controller.signal;
 
-  let res: Response;
   try {
-    res = await fetch(path, {
+    const res = await fetch(path, {
       method,
       headers,
       body: body ? (isFormData ? body as FormData : JSON.stringify(body)) : undefined,
-      signal: options?.signal ?? controller.signal,
+      signal,
     });
+    if (!res.ok) {
+      let errorBody: ApiError | null = null;
+      try { errorBody = await res.json(); } catch { /* ignore parse errors */ }
+      throw new ApiClientError(res.status, errorBody?.error || `Request failed with status ${res.status}`);
+    }
+
+    // 204 No Content — return undefined (callers must handle)
+    if (res.status === 204) return undefined as T;
+    return await res.json();
   } finally {
     clearTimeout(timer);
   }
-
-  if (!res.ok) {
-    let errorBody: ApiError | null = null;
-    try {
-      errorBody = await res.json();
-    } catch { /* ignore parse errors */ }
-    throw new ApiClientError(
-      res.status,
-      errorBody?.error || `Request failed with status ${res.status}`,
-    );
-  }
-
-  // 204 No Content — return undefined (callers must handle)
-  if (res.status === 204) return undefined as T;
-  return res.json();
 }
 
 export const api = {

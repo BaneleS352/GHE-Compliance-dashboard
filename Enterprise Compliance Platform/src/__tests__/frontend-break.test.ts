@@ -250,6 +250,20 @@ describe("api.ts — high-level wrappers", () => {
 });
 
 describe("httpClient — edge inputs", () => {
+  it("combines caller cancellation with the client timeout", async () => {
+    const caller = new AbortController();
+    let seenSignal: AbortSignal | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation((_input, init) => {
+      seenSignal = init?.signal as AbortSignal;
+      return new Promise((_resolve, reject) => seenSignal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError"))));
+    });
+    const pending = api.get("/api/slow", { signal: caller.signal });
+    await Promise.resolve();
+    expect(seenSignal).not.toBe(caller.signal);
+    caller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+  });
+
   it("handles paths with special characters", async () => {
     mockFetch(200, {});
     await expect(api.get("/api/test/path%20with%20spaces")).resolves.toBeDefined();

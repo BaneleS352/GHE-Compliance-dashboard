@@ -25,14 +25,14 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      # Local/dev defaults only. Production MUST override DATABASE_URL (and
-      # POSTGRES_PASSWORD below) from secrets — never ship these literals.
+      # Compose deployment must provide this URL from an explicit secret.
       # No JWT_SECRET: authentication is provider-managed (Entra ID); no
       # application secret exists to configure.
-      DATABASE_URL: ${DATABASE_URL:-postgresql://ghe_user:ghe_password@db:5432/ghe_compliance?schema=public}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL from a deployment secret}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
       OIDC_AUTHORITY: ${OIDC_AUTHORITY:?Set OIDC_AUTHORITY in the root .env file}
-      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?Set OIDC_CLIENT_ID in the root .env file}
+      OIDC_ALLOWED_CLIENT_IDS: ${OIDC_ALLOWED_CLIENT_IDS:?Set comma-separated SPA client IDs in the root .env file}
+      OIDC_REQUIRED_SCOPE: ${OIDC_REQUIRED_SCOPE:?Set the delegated API scope name in the root .env file}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:?Set OIDC_AUDIENCE in the root .env file}
       OIDC_ISSUER: ${OIDC_ISSUER:-}
       SEED_ON_BOOT: ${SEED_ON_BOOT:-false}
@@ -50,9 +50,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ghe_compliance}
       POSTGRES_USER: ${POSTGRES_USER:-ghe_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ghe_password}
-    ports:
-      - "${POSTGRES_BIND_ADDRESS:-127.0.0.1}:${POSTGRES_HOST_PORT:-5432}:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD from a deployment secret}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

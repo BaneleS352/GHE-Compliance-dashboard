@@ -71,7 +71,8 @@ npm run test:provider
 $env:OIDC_AUTHORITY="http://127.0.0.1:55439"
 $env:OIDC_ISSUER="http://127.0.0.1:55439"
 $env:OIDC_AUDIENCE="ghe-test-api-audience"
-$env:OIDC_CLIENT_ID="manual-testing"
+$env:OIDC_ALLOWED_CLIENT_IDS="test-spa-client-id"
+$env:OIDC_REQUIRED_SCOPE="access_as_user"
 npm run dev
 
 # Mint a token (any terminal)

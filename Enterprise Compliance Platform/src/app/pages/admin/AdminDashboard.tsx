@@ -77,9 +77,9 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: Screen) => void
           <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full shadow-[0_12px_28px_rgba(248,215,74,0.3)]" style={{ background: GRADIENT_ACCENT }}>
             <Activity size={28} className="text-purple-950" />
           </div>
-          <h3 className="text-lg font-bold text-foreground mb-2">System Healthy</h3>
+          <h3 className="text-lg font-bold text-foreground mb-2">System Overview</h3>
           <p className="text-sm text-muted-foreground max-w-sm mb-6">
-            All services are running normally. {stats.users} users and {stats.declarations} declarations in the system.
+            {loadError ? "Dashboard metrics could not be loaded." : `${stats.users} users and ${stats.declarations} declarations in the system.`}
           </p>
         </Card>
       </div>

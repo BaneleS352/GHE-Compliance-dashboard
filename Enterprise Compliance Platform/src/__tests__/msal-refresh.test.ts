@@ -33,7 +33,7 @@ vi.mock("@azure/msal-browser", () => ({
   },
 }));
 
-import { getApiToken } from "../app/auth/msal";
+import { getApiToken, initializeIdentity, signIn } from "../app/auth/msal";
 
 describe("MSAL silent-acquisition recovery", () => {
   beforeEach(() => {
@@ -49,6 +49,19 @@ describe("MSAL silent-acquisition recovery", () => {
     mocks.acquireTokenSilent.mockResolvedValue({ accessToken: "silent-token" });
     await expect(getApiToken()).resolves.toBe("silent-token");
     expect(mocks.acquireTokenRedirect).not.toHaveBeenCalled();
+  });
+
+  it("does not implicitly select among multiple cached accounts", async () => {
+    const accountA = { username: "a@test.com" } as never;
+    const accountB = { username: "b@test.com" } as never;
+    mocks.getActiveAccount.mockReturnValue(null);
+    mocks.getAllAccounts.mockReturnValue([accountA, accountB]);
+    mocks.handleRedirectPromise.mockResolvedValue(null);
+    await initializeIdentity();
+    expect(mocks.setActiveAccount).not.toHaveBeenCalled();
+    mocks.loginRedirect.mockResolvedValue(undefined);
+    await signIn();
+    expect(mocks.loginRedirect).toHaveBeenCalledWith(expect.objectContaining({ prompt: "select_account" }));
   });
 
   it("restarts interactive sign-in when silent acquisition requires interaction", async () => {

@@ -3,7 +3,7 @@ import { ArrowLeft, Download, Eye, FileText } from "lucide-react";
 import { Card } from "@/app/components/ui/card";
 import { formatRand, DEFAULT_HIGH_VALUE_THRESHOLD, DEFAULT_MEDIUM_VALUE_THRESHOLD } from "@/config/theme";
 import { Declaration, UploadedFile } from "@/types/declaration";
-import { fetchConfig } from "@/services/api";
+import { fetchPublicConfig } from "@/services/api";
 import { downloadFile as downloadSharedFile, previewFile as previewSharedFile } from "@/services/download";
 import { notifyError } from "@/app/components/notify";
 import { motion } from "framer-motion";
@@ -26,8 +26,8 @@ export function DeclarationDetailView({
   const [configWarning, setConfigWarning] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchConfig()
-      .then(setConfig)
+    fetchPublicConfig()
+      .then((publicConfig) => setConfig((current) => ({ ...current, ...publicConfig })))
       // Threshold labels depend on config — warn instead of silently
       // falling back to built-in defaults.
       .catch(() => setConfigWarning("System thresholds could not be loaded — default values are shown."));

@@ -225,6 +225,15 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
       const step = steps[currentStepIndex];
       if (step.status !== "pending") throw Object.assign(new Error("Step has already been processed"), { statusCode: 403 });
 
+      // Claim the actionable row before changing the workflow snapshot. Under
+      // READ COMMITTED, concurrent approvals may both have read pending; this
+      // conditional write serializes the winner and makes the loser conflict.
+      const claimed = await tx.workflowInstanceStep.updateMany({
+        where: { id: rows[currentStepIndex].id, status: "pending", assigneeId: userPk },
+        data: { status: newStepStatus, decision, notes: sanitize(String(notes || "")), decidedAt: new Date(now), decidedById: userPk, decidedByName: req.user!.name },
+      });
+      if (claimed.count !== 1) throw Object.assign(new Error("Step has already been processed"), { statusCode: 409 });
+
       // Self-approval guard
       if (step.assignee !== null && declaration.declarerUserId !== null && toDbId(step.assignee) === declaration.declarerUserId) {
         throw Object.assign(new Error("Cannot self-approve your own declaration"), { statusCode: 403 });

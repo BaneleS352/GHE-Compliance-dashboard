@@ -22,7 +22,7 @@ describe("AdminDashboard loading and failure states", () => {
     vi.mocked(fetchAdminDashboard).mockResolvedValue({ users: 4, declarations: 8, workflows: 2, threshold: 1000 });
     unmount();
     render(<AdminDashboard onNavigate={vi.fn()} />);
-    await waitFor(() => expect(screen.getByText("System Healthy")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("System Overview")).toBeInTheDocument());
     expect(screen.getByText(/4 users and 8 declarations in the system/)).toBeInTheDocument();
   });
 });

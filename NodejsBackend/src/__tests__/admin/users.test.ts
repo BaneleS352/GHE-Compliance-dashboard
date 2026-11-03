@@ -144,4 +144,13 @@ describe("Admin Users", () => {
       .set("Authorization", `Bearer ${getTeamToken()}`);
     expect(res.status).toBe(403);
   });
+
+  it("PUT /api/admin/users/:id — admin can disable and re-enable an account", async () => {
+    const disabled = await request(app).put("/api/admin/users/4").set("Authorization", `Bearer ${getAdminToken()}`).send({ isActive: false });
+    expect(disabled.status).toBe(200);
+    expect(disabled.body.isActive).toBe(false);
+    const enabled = await request(app).put("/api/admin/users/4").set("Authorization", `Bearer ${getAdminToken()}`).send({ isActive: true });
+    expect(enabled.status).toBe(200);
+    expect(enabled.body.isActive).toBe(true);
+  });
 });

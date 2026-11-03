@@ -175,27 +175,17 @@ router.get("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respons
   // Ordering uses the canonical submittedAt DateTime column (populated
   // synchronously on every write).
   let declarations: DeclarationWithRelations[];
-  if (search) {
-    const q = String(search);
-    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, include: declarationIncludes });
-    const qLower = q.toLowerCase();
-    declarations = declarations.filter(
-      (d) =>
-        String(d.snapshot?.declarerName || "").toLowerCase().includes(qLower) ||
-        String(d.counterpartyRef?.name || "").toLowerCase().includes(qLower) ||
-        String(d.id || "").toLowerCase().includes(qLower) ||
-        String(d.detail?.description || "").toLowerCase().includes(qLower)
-    );
-    // Search filters in memory, so paginate in memory too (the DB paths
-    // below paginate with take/skip instead — never both).
-    if (limit !== undefined) {
-      declarations = declarations.slice(offset, offset + limit);
-    }
-  } else if (limit !== undefined) {
-    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, take: limit, skip: offset, include: declarationIncludes });
-  } else {
-    declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, include: declarationIncludes });
+  if (search?.trim()) {
+    const q = search.trim().slice(0, 100);
+    where.OR = [
+      { id: { contains: q, mode: "insensitive" } },
+      { snapshot: { is: { declarerName: { contains: q, mode: "insensitive" } } } },
+      { counterpartyRef: { is: { name: { contains: q, mode: "insensitive" } } } },
+      { detail: { is: { description: { contains: q, mode: "insensitive" } } } },
+    ];
   }
+  // Never return an unbounded declaration set; callers can request subsequent pages.
+  declarations = await prisma.declaration.findMany({ where, orderBy: { submittedAt: "desc" }, take: limit ?? 100, skip: offset, include: declarationIncludes });
 
   res.json(declarations.map(declarationResponse));
 }));

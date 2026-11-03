@@ -19,6 +19,7 @@ function userResponse(u: UserWithDepartment) {
     name: u.name,
     email: u.email,
     role: u.role,
+    isActive: u.isActive,
     teamMemberNumber: u.teamMemberNumber,
     // Display only: departmentId -> Department.name is the sole source.
     department: u.departmentRef?.name ?? "",
@@ -31,6 +32,8 @@ function userResponse(u: UserWithDepartment) {
 // GET /api/admin/users
 router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const { search, role } = req.query;
+  const take = Math.min(Math.max(Number.parseInt(String(req.query.limit ?? "100"), 10) || 100, 1), 500);
+  const skip = Math.max(Number.parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
 
   const where: Prisma.UserWhereInput = {};
 
@@ -44,16 +47,16 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
   }
 
   if (search) {
-    const q = String(search);
+    const q = String(search).trim().slice(0, 100);
     const numeric = /^\d+$/.test(q.trim()) ? toDbId(q.trim()) : null;
     where.OR = [
-      { name: { contains: q } },
-      { email: { contains: q } },
+      { name: { contains: q, mode: "insensitive" } },
+      { email: { contains: q, mode: "insensitive" } },
       ...(numeric !== null ? [{ id: numeric }] : []),
     ];
   }
 
-  const users = await prisma.user.findMany({ where, orderBy: { name: "asc" }, include: { departmentRef: true } });
+  const users = await prisma.user.findMany({ where, orderBy: { name: "asc" }, take, skip, include: { departmentRef: true } });
 
   res.json(users.map(userResponse));
 }));
@@ -168,6 +171,7 @@ const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
   role: z.enum(["teamMember", "approver", "admin"]).optional(),
+  isActive: z.boolean().optional(),
   department: z.string().optional(),
   teamMemberNumber: z.string().optional(),
   position: z.string().optional(),
@@ -212,6 +216,7 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
   if (data.name !== undefined) updateData.name = data.name;
   if (data.email !== undefined) updateData.email = data.email.toLowerCase();
   if (data.role !== undefined) updateData.role = data.role;
+  if (data.isActive !== undefined) updateData.isActive = data.isActive;
   // departmentId is the sole department source: the `department` DTO string
   // resolves to the organization-scoped master row (created when missing).
   if (data.department !== undefined) updateData.departmentId = await resolveDepartmentId(data.department, nextOrg);

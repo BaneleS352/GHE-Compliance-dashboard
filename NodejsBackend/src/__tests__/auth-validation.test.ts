@@ -60,6 +60,16 @@ describe("Bearer token validation contract", () => {
     expect(res.status).toBe(401);
   });
 
+  it.each([
+    ["untrusted client", { azp: "another-spa-id" }],
+    ["missing client claim", { noAzp: true }],
+    ["missing delegated scope", { scp: "profile email" }],
+  ])("rejects token with %s", async (_label, claims) => {
+    const token = testToken({ oid: "test-oid-nomvula", email: "nomvula@test.com", ...claims });
+    const res = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(401);
+  });
+
   it("expired token returns 401", async () => {
     const token = testToken({
       oid: "test-oid-nomvula",
@@ -70,6 +80,12 @@ describe("Bearer token validation contract", () => {
     const res = await request(app)
       .get("/api/declarations")
       .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(401);
+  });
+
+  it.each(["noExp", "noIat"] as const)("token missing %s returns 401", async (claim) => {
+    const token = testToken({ oid: "test-oid-nomvula", email: "nomvula@test.com", [claim]: true });
+    const res = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${token}`);
     expect(res.status).toBe(401);
   });
 
@@ -134,6 +150,18 @@ describe("Provider-identity binding (docs/IDENTITY-CONTRACT.md)", () => {
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${impostor}`);
     expect(res.status).toBe(403);
+  });
+
+  it("disabled provisioned users are denied even with a matching provider link", async () => {
+    await prisma.user.update({ where: { email: "authbind-b@test.com" }, data: { isActive: false } });
+    try {
+      const token = testToken({ oid: "test-oid-original-owner", email: "authbind-b@test.com", name: "Auth Bind B" });
+      const res = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/disabled/i);
+    } finally {
+      await prisma.user.update({ where: { email: "authbind-b@test.com" }, data: { isActive: true } });
+    }
   });
 });
 

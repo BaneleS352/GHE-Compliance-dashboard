@@ -210,7 +210,11 @@ describe("Edge-Case Tests", () => {
       expect(read.status).toBe(200);
       const del = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getApproverToken()}`);
       expect(del.status).toBe(403);
-      // Owner path still works.
+      const ownerPendingDelete = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getTeamToken()}`);
+      expect(ownerPendingDelete.status).toBe(400);
+      expect((await request(app).get(`/api/files/${fileId}`).set("Authorization", `Bearer ${getApproverToken()}`)).status).toBe(200);
+      // Owner may delete evidence again after the declaration is returned.
+      await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${getApproverToken()}`).send({ declarationId: declId, decision: "return", notes: "Need more information" });
       const ownerDel = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getTeamToken()}`);
       expect(ownerDel.status).toBe(200);
     });

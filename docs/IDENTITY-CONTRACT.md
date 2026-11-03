@@ -12,6 +12,8 @@ normalized `AuthRequest.user`; no route parses tokens or provider claims.
   `OIDC_ISSUER` defaults to the authority. Non-standard issuers override it
   explicitly — no silent fallback.
 - Audience: `OIDC_AUDIENCE`. Tokens for any other audience are rejected.
+- Client: `azp` must match one of `OIDC_ALLOWED_CLIENT_IDS`.
+- Delegated permission: `scp` must contain `OIDC_REQUIRED_SCOPE`.
 - Subject: the Entra object ID (`oid` claim). Email comes from
   `preferred_username`, falling back to `email`. Display name falls back to
   the email address.
@@ -28,15 +30,34 @@ normalized `AuthRequest.user`; no route parses tokens or provider claims.
 ## Resolution algorithm (`middleware/auth.ts`)
 
 1. Validate the bearer token: RS256 signature via JWKS, exact issuer,
-   exact audience, lifetime. Anything else → `401`.
+   exact audience, required `exp`/`iat`, allowed `azp`, and required `scp`.
+   Invalid tokens return `401`; provider key/network outages return `503`.
 2. Require a string `oid` and a non-empty email → else `401`.
 3. Look up the local user **by email**. Unknown email → `403`
    (default-deny: no auto-provisioning in this compliance system).
-4. If the row has no linked subject, adopt the token subject (first login).
+4. If the row has no linked subject, the first successful login currently
+   adopts the token subject with a conditional database update. This is a
+   known residual risk: email is mutable and is not proof that the local
+   account and provider identity belong together. Until a reviewed explicit
+   linking workflow is implemented, provisioned email values and Entra
+   email assignment must be controlled by the tenant administrator.
 5. If the row has a linked subject different from the token subject,
    reject with `403` (fail closed on account mismatch — never re-link).
 6. Populate `AuthRequest.user` (numeric id, role, display fields) from the
    row. Local role changes apply on the next request; tokens carry no role.
+
+## Disablement and token revocation
+
+The API validates signed access tokens locally against the configured issuer,
+audience, claims, and cached/discovered signing keys. It does not call Entra
+for each request, and the local `User` model currently has no suspension flag.
+Consequently, revoking a provider session or disabling a provider account
+does not provide immediate invalidation of an already-issued access token;
+access is bounded by the token's `exp` unless the local account is removed or
+another application-side authorization control is added. Tenant operators
+must set an appropriately short access-token lifetime and use the existing
+local account/role controls for urgent response. A local suspension control
+is a follow-up item, not an implemented feature.
 
 ## Role ownership
 
@@ -57,8 +78,9 @@ leave the harness, and no test issues production credentials.
 | Variable | Backend | Required | Purpose |
 |---|---|---|---|
 | `OIDC_AUTHORITY` | yes | yes | Tenant authority (JWKS base) |
-| `OIDC_CLIENT_ID` | yes | yes | This API's Entra application id |
 | `OIDC_AUDIENCE` | yes | yes | Accepted access-token audience |
+| `OIDC_ALLOWED_CLIENT_IDS` | yes | yes | Comma-separated SPA client IDs accepted in `azp` |
+| `OIDC_REQUIRED_SCOPE` | yes | yes | Delegated API scope required in `scp` |
 | `OIDC_ISSUER` | yes | no (defaults to authority) | Expected `iss` claim |
 | `VITE_ENTRA_CLIENT_ID` | frontend | yes | SPA application id |
 | `VITE_ENTRA_AUTHORITY` | frontend | yes | Tenant authority for MSAL |

@@ -8,6 +8,14 @@ import { parseIdParam, toJsonId } from "../../services/ids";
 
 const router = Router();
 
+// Read-only business guidance for authenticated users; administrative templates stay private.
+router.get("/public", authenticate, asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
+  const config = await prisma.systemConfig.findFirst();
+  if (!config) { res.status(404).json({ error: "System config not found" }); return; }
+  res.json({ highValueThreshold: config.highValueThreshold, mediumValueThreshold: config.mediumValueThreshold,
+    slaEscalationDays: config.slaEscalationDays, maximumValue: config.maximumValue ?? 1000000 });
+}));
+
 // GET /api/admin/config
 router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const config = await prisma.systemConfig.findFirst();

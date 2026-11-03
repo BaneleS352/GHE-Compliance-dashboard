@@ -14,9 +14,10 @@ export const config = {
   port: (() => { const p = parseInt(process.env.PORT || "3001", 10); return Number.isFinite(p) ? p : 3001; })(),
   oidc: {
     authority: requireEnv("OIDC_AUTHORITY").replace(/\/$/, ""),
-    clientId: requireEnv("OIDC_CLIENT_ID"),
     audience: requireEnv("OIDC_AUDIENCE"),
     issuer: optionalEnv("OIDC_ISSUER", requireEnv("OIDC_AUTHORITY").replace(/\/$/, "")),
+    allowedClientIds: requireEnv("OIDC_ALLOWED_CLIENT_IDS").split(",").map((id) => id.trim()).filter(Boolean),
+    requiredScope: requireEnv("OIDC_REQUIRED_SCOPE"),
   },
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:5173",
 };

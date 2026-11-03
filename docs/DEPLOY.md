@@ -59,7 +59,7 @@ cp .env.example .env
 ```
 
 Set `DATABASE_URL` to use the same credentials as `POSTGRES_PASSWORD`.
-`OIDC_AUTHORITY`, `OIDC_CLIENT_ID`, and `OIDC_AUDIENCE` are required by the API.
+`OIDC_AUTHORITY`, `OIDC_AUDIENCE`, `OIDC_ALLOWED_CLIENT_IDS`, and `OIDC_REQUIRED_SCOPE` are required by the API. Set the allowlist to the SPA application ID and the scope to the delegated permission exposed by the API registration.
 The three `VITE_ENTRA_*` values are required to build a working sign-in page;
 they are public application configuration, not secrets. The redirect URI must
 be registered on the Entra SPA application. Keep client secrets out of this
@@ -110,7 +110,8 @@ NODE_ENV=production
 PORT=3001
 DATABASE_URL="postgresql://user:password@host:5432/ghe_db"
 OIDC_AUTHORITY="https://login.microsoftonline.com/<tenant-id>/v2.0"
-OIDC_CLIENT_ID="<api-application-client-id>"
+OIDC_ALLOWED_CLIENT_IDS="<spa-application-client-id>"
+OIDC_REQUIRED_SCOPE="access_as_user"
 OIDC_AUDIENCE="api://<api-application-client-id>"
 OIDC_ISSUER="https://login.microsoftonline.com/<tenant-id>/v2.0"
 CORS_ORIGIN="https://your-frontend-domain.com"
@@ -136,7 +137,9 @@ healthy. Diagnose first, then revert:
    - One user 403 "unprovisioned or subject mismatch" while others work →
      not a config incident: their Entra object ID changed (recreated
      account) or their local row was never provisioned. Provision the row
-     or re-link deliberately — do not touch global config for one user.
+     through the approved account-provisioning process; do not manually
+     change `providerSubject`. An explicit identity-link workflow remains a
+     tracked security gap.
 2. **Revert backend config** to the previous working values and restart
    the API (`docker compose up -d backend`, or `pm2 restart ghe-api`).
    For a bad release rather than bad config, redeploy the previous image
@@ -148,9 +151,9 @@ healthy. Diagnose first, then revert:
 4. **Never "fix" auth by seeding, editing `providerSubject` by hand, or
    loosening middleware checks.** `providerSubject` mismatch fails closed
    by design; hand-editing identity links creates account-takeover risk.
-   If a subject must be reset, do it through a reviewed database change
-   with the affected user's verified new object ID, never by disabling
-   the check.
+   If a subject must be reset, use a separately reviewed identity recovery
+   procedure with verified evidence and an audit record; this application
+   does not yet provide that workflow.
 
 ### 3. Build & Start
 

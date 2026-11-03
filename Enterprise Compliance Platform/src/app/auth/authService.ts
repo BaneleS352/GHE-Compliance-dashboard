@@ -1,5 +1,5 @@
 import { User } from "@/types/declaration";
-import { api } from "@/services/httpClient";
+import { api, ApiClientError } from "@/services/httpClient";
 import { activeAccount, signIn, signOut } from "./msal";
 export async function authenticate(): Promise<void> { await signIn(); }
 export function logoutFromIdentityProvider(): void { signOut(); }
@@ -11,7 +11,8 @@ export async function fetchCurrentUser(): Promise<User | null> {
   // every e2e persona to one role and break role-gated flows.
   try {
     return await api.get<User>("/api/auth/me");
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiClientError && error.status >= 500) throw error;
     return null;
   }
 }

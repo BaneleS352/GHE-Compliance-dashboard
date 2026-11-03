@@ -69,6 +69,11 @@ export interface MintClaims {
   algHS256?: boolean;
   /** Omit the `oid` claim (negative test). */
   noOid?: boolean;
+  noExp?: boolean;
+  noIat?: boolean;
+  azp?: string;
+  noAzp?: boolean;
+  scp?: string;
 }
 
 /** Synchronously sign a test token with the run's test key (unit-test path). */
@@ -81,7 +86,12 @@ export function signTestJwt(material: TestKeyMaterial, claims: MintClaims = {}):
     iat: now,
     exp: now + (claims.expOffsetSec ?? 3600),
     name: claims.name ?? "Test User",
+    azp: claims.azp ?? "test-spa-client-id",
+    scp: claims.scp ?? "access_as_user",
   };
+  if (claims.noAzp) delete payload.azp;
+  if (claims.noExp) delete payload.exp;
+  if (claims.noIat) delete payload.iat;
   if (!claims.noOid) payload.oid = claims.oid ?? `test-oid-${(claims.email ?? "user").replace(/[^a-z0-9]/gi, "-")}`;
   if (claims.email !== undefined) payload.email = claims.email;
   const signingInput = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(payload))}`;
@@ -137,6 +147,8 @@ export async function startTestJwksServer(port = TEST_JWKS_PORT): Promise<{
         name: typeof body.name === "string" ? body.name : undefined,
         iss: typeof body.iss === "string" ? body.iss : undefined,
         aud: typeof body.aud === "string" ? body.aud : undefined,
+        azp: typeof body.azp === "string" ? body.azp : undefined,
+        scp: typeof body.scp === "string" ? body.scp : undefined,
         expOffsetSec: typeof body.expOffsetSec === "number" ? body.expOffsetSec : undefined,
         algHS256: body.algHS256 === true,
         noOid: body.noOid === true,

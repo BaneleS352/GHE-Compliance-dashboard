@@ -68,7 +68,8 @@ export async function setup() {
   process.env.OIDC_AUTHORITY = jwks.baseUrl;
   process.env.OIDC_ISSUER = jwks.baseUrl;
   process.env.OIDC_AUDIENCE = TEST_AUDIENCE;
-  process.env.OIDC_CLIENT_ID = "test-client-id";
+  process.env.OIDC_ALLOWED_CLIENT_IDS = "test-spa-client-id";
+  process.env.OIDC_REQUIRED_SCOPE = "access_as_user";
 
   // Invoke the LOCAL Prisma CLI directly via node instead of `npx`: on hosts
   // where npx resolves a different Prisma version, setup fails before any
