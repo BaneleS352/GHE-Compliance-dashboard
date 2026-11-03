@@ -3,6 +3,7 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload, errors as joseErrors } 
 import { config } from "../config/env";
 import { prisma } from "../config/prisma";
 import { toJsonId } from "../services/ids";
+import { logAuthDiagnostic } from "./authDiagnostics";
 
 const tenantAuthority = config.oidc.authority.replace(/\/v2\.0$/, "");
 const jwks = createRemoteJWKSet(new URL(`${tenantAuthority}/discovery/v2.0/keys`));
@@ -24,12 +25,14 @@ type EntraClaims = JWTPayload & { oid?: string; preferred_username?: string; ema
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    logAuthDiagnostic(res, "bearer_header", "failure", "missing_or_malformed");
     res.status(401).json({ error: "Missing or invalid authorization header" });
     return;
   }
 
   const token = authHeader.slice("Bearer ".length).trim();
   if (!token) {
+    logAuthDiagnostic(res, "bearer_header", "failure", "empty_token");
     res.status(401).json({ error: "Missing or invalid authorization header" });
     return;
   }
@@ -42,15 +45,18 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       requiredClaims: ["exp", "iat", "oid"],
     });
     if (!payload.oid || typeof payload.oid !== "string") {
+      logAuthDiagnostic(res, "required_claims", "failure", "oid_missing");
       res.status(401).json({ error: "Token is missing the Entra object identifier" });
       return;
     }
     if (!payload.azp || !config.oidc.allowedClientIds.includes(payload.azp)) {
+      logAuthDiagnostic(res, "client_allowlist", "failure", "client_not_allowed");
       res.status(401).json({ error: "Token was issued to an untrusted client application" });
       return;
     }
     const scopes = typeof payload.scp === "string" ? payload.scp.split(/\s+/) : [];
     if (!scopes.includes(config.oidc.requiredScope)) {
+      logAuthDiagnostic(res, "delegated_scope", "failure", "required_scope_missing");
       res.status(401).json({ error: "Token does not include the required delegated API scope" });
       return;
     }
@@ -58,16 +64,19 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     try {
       const dbUser = await prisma.user.findUnique({ where: { providerSubject: decoded.providerSubject }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } });
       if (!dbUser) {
+        logAuthDiagnostic(res, "local_identity_lookup", "failure", "identity_not_provisioned");
         res.status(403).json({ error: "Authenticated user is not provisioned in the application" });
         return;
       }
       if (!dbUser.isActive) {
+        logAuthDiagnostic(res, "local_identity_lookup", "failure", "account_disabled");
         res.status(403).json({ error: "Application account is disabled" });
         return;
       }
       // Resolve only by immutable subject, then bind that subject to the
       // configured single issuer. Email is mutable display data only.
       if (dbUser.providerSubject !== decoded.providerSubject || dbUser.providerIssuer !== config.oidc.issuer) {
+        logAuthDiagnostic(res, "local_identity_lookup", "failure", "provider_link_mismatch");
         res.status(403).json({ error: "Provider identity does not match the linked application user" });
         return;
       }
@@ -79,19 +88,24 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       };
       req.user = user;
     } catch {
+      logAuthDiagnostic(res, "local_identity_lookup", "failure", "database_unavailable");
       res.status(503).json({ error: "Auth service unavailable" });
       return;
     }
+    logAuthDiagnostic(res, "authentication", "success");
     next();
   } catch (error) {
     if (error instanceof joseErrors.JWKSNoMatchingKey || error instanceof joseErrors.JWKSTimeout || error instanceof joseErrors.JWKSInvalid) {
+      logAuthDiagnostic(res, "jwks_verification", "failure", "provider_keys_unavailable_or_unmatched");
       res.status(503).json({ error: "Identity provider keys are temporarily unavailable" });
       return;
     }
     if (error instanceof TypeError || (error instanceof Error && /fetch|network|timeout|socket|ECONN/i.test(error.message))) {
+      logAuthDiagnostic(res, "jwks_verification", "failure", "provider_unreachable");
       res.status(503).json({ error: "Identity provider is temporarily unavailable" });
       return;
     }
+    logAuthDiagnostic(res, "jwt_validation", "failure", "signature_issuer_audience_or_lifetime_invalid");
     res.status(401).json({ error: "Invalid or expired token" });
   }
 }

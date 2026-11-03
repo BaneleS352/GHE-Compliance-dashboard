@@ -18,6 +18,7 @@ import adminUserRoutes from "./routes/admin/users";
 import adminConfigRoutes from "./routes/admin/config";
 import adminWorkflowRoutes from "./routes/admin/workflows";
 import { prisma } from "./config/prisma";
+import { requestContext, requestIdFor } from "./middleware/requestContext";
 
 /**
  * Production application factory. Exported (rather than only building at
@@ -29,7 +30,10 @@ export function createApp(): express.Express {
   const app = express();
 
   app.use(helmet());
-  app.use(morgan("dev"));
+  app.use(requestContext);
+  morgan.token("request-id", (_req, res) => requestIdFor(res as express.Response) ?? "unknown");
+  // Do not log request URLs: query strings can accidentally carry credentials.
+  app.use(morgan(":method :status :response-time ms requestId=:request-id"));
   app.use(cors({
     origin: process.env.CORS_ORIGIN
       ? process.env.CORS_ORIGIN.split(",")
@@ -37,6 +41,7 @@ export function createApp(): express.Express {
       ? false
       : ["http://localhost:5173", "http://localhost:3000"],
     credentials: false,
+    exposedHeaders: ["X-Request-Id"],
   }));
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true, limit: "1mb" }));
@@ -76,7 +81,7 @@ export function createApp(): express.Express {
   });
 
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error("Unhandled error:", err);
+    console.error(JSON.stringify({ event: "http_error", requestId: requestIdFor(res), errorName: safeErrorName(err) }));
     res.status(500).json({ error: "Internal server error" });
   });
 
@@ -108,10 +113,17 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled rejection:", reason);
+  console.error(JSON.stringify({ event: "unhandled_rejection", errorName: safeErrorName(reason) }));
 });
 process.on("uncaughtException", (err) => {
-  console.error("Uncaught exception:", err);
+  console.error(JSON.stringify({ event: "uncaught_exception", errorName: safeErrorName(err) }));
 });
+
+function safeErrorName(value: unknown): string {
+  if (value && typeof value === "object" && "name" in value && typeof value.name === "string") {
+    return value.name.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 64) || "Error";
+  }
+  return "UnknownError";
+}
 
 export default app;

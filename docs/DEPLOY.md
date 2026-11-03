@@ -134,7 +134,7 @@ DATABASE_URL="postgresql://user:password@host:5432/ghe_db"
 OIDC_AUTHORITY="https://login.microsoftonline.com/<tenant-id>/v2.0"
 OIDC_ALLOWED_CLIENT_IDS="<spa-application-client-id>"
 OIDC_REQUIRED_SCOPE="access_as_user"
-OIDC_AUDIENCE="api://<api-application-client-id>"
+OIDC_AUDIENCE="<api-application-client-id>"
 OIDC_ISSUER="https://login.microsoftonline.com/<tenant-id>/v2.0"
 CORS_ORIGIN="https://your-frontend-domain.com"
 ```
@@ -248,7 +248,7 @@ backend (nginx example below). Entra settings are baked in at build time:
 ```bash
 cd "Enterprise Compliance Platform"
 VITE_ENTRA_CLIENT_ID="<spa-application-client-id>" \
-VITE_ENTRA_AUTHORITY="https://login.microsoftonline.com/<tenant-id>/v2.0" \
+VITE_ENTRA_AUTHORITY="https://login.microsoftonline.com/<tenant-id>" \
 VITE_ENTRA_API_SCOPE="api://<api-application-client-id>/access_as_user" \
 npx vite build
 # Output in dist/

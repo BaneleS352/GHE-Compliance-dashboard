@@ -4,6 +4,7 @@ import { fetchCurrentUser, isIdentityAuthenticated, logoutFromIdentityProvider }
 import { initializeIdentity } from "./msal";
 import { configureApiTokenProvider } from "@/services/authToken";
 import { getApiToken } from "./msal";
+import { reportClientError } from "@/services/clientTelemetry";
 interface UserContextValue { user: User | null; setUser: (u: User | null) => void; isAuthenticated: boolean; logout: () => void; loading: boolean; }
 const UserContext = createContext<UserContextValue>({ user: null, setUser: () => {}, isAuthenticated: false, logout: () => {}, loading: true });
 export function UserProvider({ children }: { children: ReactNode }) {
@@ -15,10 +16,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setIdentityError(null);
     try {
       await initializeIdentity();
-      if (isIdentityAuthenticated()) setUser(await fetchCurrentUser());
     } catch (error) {
-      console.error("Identity service unavailable", error);
+      const identityStage = typeof error === "object" && error !== null && "identityStage" in error && typeof error.identityStage === "string"
+        ? error.identityStage
+        : "msal_configuration_or_initialization";
+      reportClientError(error, { feature: "identity", operation: identityStage });
       setIdentityError("Sign-in services are temporarily unavailable. Check your connection and retry.");
+      setLoading(false);
+      return;
+    }
+    try {
+      if (isIdentityAuthenticated()) setUser(await fetchCurrentUser());
+    } catch {
+      setIdentityError("The application could not verify your account. Check the sign-in diagnostics and retry.");
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { void loadIdentity(); }, [loadIdentity]);

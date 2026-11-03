@@ -33,7 +33,7 @@ async function main(): Promise<void> {
     evidenceReference,
     operatorLabel,
   });
-  console.log(`Bootstrap admin identity created or linked for ${email}. Audit evidence: ${evidenceReference}.`);
+  console.log(JSON.stringify({ event: "identity_bootstrap_succeeded" }));
 }
 
 main()
@@ -41,7 +41,10 @@ main()
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       console.error("Provider identity is already linked to another user; no changes were made.");
     } else {
-      console.error(error instanceof Error ? error.message : error);
+      const errorName = error && typeof error === "object" && "name" in error && typeof error.name === "string"
+        ? error.name.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 64) || "Error"
+        : "UnknownError";
+      console.error(JSON.stringify({ event: "identity_bootstrap_failed", errorName }));
     }
     process.exitCode = 1;
   })

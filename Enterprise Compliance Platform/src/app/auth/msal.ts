@@ -58,6 +58,37 @@ function readConfig(): EntraConfig | null {
 
 let client: PublicClientApplication | null = null;
 
+class IdentityFlowError extends Error {
+  readonly identityStage: string;
+  readonly errorCode?: string;
+  readonly errorCodes?: number[];
+  readonly correlationId?: string;
+  readonly subError?: string;
+  readonly interactionRequired: boolean;
+
+  constructor(stage: string, original: unknown) {
+    super("Identity provider operation failed");
+    this.name = "IdentityFlowError";
+    this.identityStage = stage;
+    this.interactionRequired = original instanceof InteractionRequiredAuthError;
+    if (original && typeof original === "object") {
+      const source = original as { errorCode?: unknown; errorCodes?: unknown; correlationId?: unknown; subError?: unknown };
+      if (typeof source.errorCode === "string") this.errorCode = source.errorCode;
+      if (Array.isArray(source.errorCodes)) this.errorCodes = source.errorCodes.filter((value): value is number => typeof value === "number");
+      if (typeof source.correlationId === "string") this.correlationId = source.correlationId;
+      if (typeof source.subError === "string") this.subError = source.subError;
+    }
+  }
+}
+
+async function runIdentityStage<T>(stage: string, action: () => Promise<T>): Promise<T> {
+  try {
+    return await action();
+  } catch (error) {
+    throw new IdentityFlowError(stage, error);
+  }
+}
+
 function getClient(): PublicClientApplication {
   if (!client) {
     const config = readConfig();
@@ -102,8 +133,8 @@ export async function initializeIdentity(): Promise<void> {
   // MSAL configuration error before the developer can choose that path.
   if (import.meta.env.DEV && testAuthEnabled && !readConfig()) return;
   const app = getClient();
-  await app.initialize();
-  const result = await app.handleRedirectPromise();
+  await runIdentityStage("msal_initialize", () => app.initialize());
+  const result = await runIdentityStage("msal_redirect_response", () => app.handleRedirectPromise());
   if (result?.account) app.setActiveAccount(result.account);
   if (!app.getActiveAccount()) {
     const accounts = app.getAllAccounts();
@@ -141,14 +172,14 @@ export async function getApiToken(): Promise<string> {
   const account = app.getActiveAccount();
   if (!account) throw new Error("No authenticated Entra account");
   try {
-    return (await app.acquireTokenSilent({ scopes: scopes(), account })).accessToken;
+    return (await runIdentityStage("msal_silent_token", () => app.acquireTokenSilent({ scopes: scopes(), account }))).accessToken;
   } catch (err) {
     // Expired token, password change, or Conditional Access challenge:
     // silent acquisition cannot proceed — restart interactive sign-in via
     // redirect. The redirect unloads the page, so callers see a rejection
     // for the in-flight request and must not retry it.
-    if (err instanceof InteractionRequiredAuthError) {
-      await app.acquireTokenRedirect({ scopes: scopes(), account });
+    if (err instanceof InteractionRequiredAuthError || (err instanceof IdentityFlowError && err.interactionRequired)) {
+      await runIdentityStage("msal_token_redirect", () => app.acquireTokenRedirect({ scopes: scopes(), account }));
       throw new Error("Session refresh required — redirecting to sign-in.");
     }
     throw err;

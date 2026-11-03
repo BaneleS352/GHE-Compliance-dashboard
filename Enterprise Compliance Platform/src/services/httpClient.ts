@@ -11,9 +11,11 @@ export interface RequestOptions {
 
 export class ApiClientError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  requestId?: string;
+  constructor(status: number, message: string, requestId?: string) {
     super(message);
     this.status = status;
+    this.requestId = requestId;
   }
 }
 
@@ -44,7 +46,7 @@ async function request<T>(
     if (!res.ok) {
       let errorBody: ApiError | null = null;
       try { errorBody = await res.json(); } catch { /* ignore parse errors */ }
-      throw new ApiClientError(res.status, errorBody?.error || `Request failed with status ${res.status}`);
+      throw new ApiClientError(res.status, errorBody?.error || `Request failed with status ${res.status}`, res.headers.get("x-request-id") ?? undefined);
     }
 
     // 204 No Content — return undefined (callers must handle)

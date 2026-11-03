@@ -45,7 +45,7 @@ DATABASE_URL="postgresql://ghe_user:ghe_password@localhost:5432/ghe_compliance?s
 OIDC_AUTHORITY="https://login.microsoftonline.com/<tenant-id>/v2.0"
 OIDC_ALLOWED_CLIENT_IDS="<spa-application-client-id>"
 OIDC_REQUIRED_SCOPE="access_as_user"
-OIDC_AUDIENCE="api://<api-application-client-id>"
+OIDC_AUDIENCE="<api-application-client-id>"
 OIDC_ISSUER="https://login.microsoftonline.com/<tenant-id>/v2.0"
 PORT=3001
 ```

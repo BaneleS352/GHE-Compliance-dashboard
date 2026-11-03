@@ -11,7 +11,10 @@ normalized `AuthRequest.user`; no route parses tokens or provider claims.
 - Tenant/issuer: `OIDC_AUTHORITY` (JWKS at `<authority>/discovery/v2.0/keys`);
   `OIDC_ISSUER` defaults to the authority. Non-standard issuers override it
   explicitly — no silent fallback.
-- Audience: `OIDC_AUDIENCE`. Tokens for any other audience are rejected.
+- Audience: `OIDC_AUDIENCE` must exactly match the access token's `aud` claim.
+  This API expects Entra v2 tokens, whose audience is the API registration's
+  Application (client) ID; it is not the full `api://.../scope` string the SPA
+  requests.
 - Client: `azp` must match one of `OIDC_ALLOWED_CLIENT_IDS`.
 - Delegated permission: `scp` must contain `OIDC_REQUIRED_SCOPE`.
 - Subject: the Entra object ID (`oid` claim). Email and display name are read
@@ -97,3 +100,20 @@ leave the harness, and no test issues production credentials.
 | `VITE_ENTRA_REDIRECT_URI` | frontend | no (defaults to origin) | Registered SPA redirect |
 | `GHE_PYTHON_BIN` | backend | no | Python interpreter for doc-encryption sidecars |
 | `TEST_JWKS_PORT` | test only | no (default 55439) | Throwaway provider port |
+
+## Configuration verification
+
+After filling the local backend `.env` and frontend `.env.local` from the
+Entra app registrations, run `npm run auth:verify-config` from
+`NodejsBackend`. The command checks required settings, SPA/API client and
+scope consistency, tenant discovery metadata, issuer equality, and JWKS
+reachability using normal TLS certificate validation. It does not print
+configured values or prove that the client registration has consent or that
+a user is provisioned. Complete verification by signing in through the SPA
+and confirming `GET /api/auth/me` succeeds for a linked user.
+
+## Authentication diagnostics
+
+Browser diagnostics use fixed operation names such as `msal_initialize_or_redirect` and `api_auth_me`. They include only the error class, MSAL error code(s), MSAL correlation ID, API status, and API request ID when available. They do not include error messages, stacks, claims, request headers, bearer tokens, authorization codes, or configured secret values.
+
+The API returns an `X-Request-Id` response header and logs that ID with a fixed authentication stage and reason (for example `delegated_scope / required_scope_missing` or `local_identity_lookup / identity_not_provisioned`). Its request log omits the URL and query string. Use the request ID to correlate an API response with server logs; MSAL correlation IDs apply to provider-side sign-in failures that happen before the API is called.

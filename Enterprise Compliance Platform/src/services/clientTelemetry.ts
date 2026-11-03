@@ -2,15 +2,43 @@ export interface ClientErrorContext {
   feature: string;
   operation: string;
   status?: number;
+  requestId?: string;
 }
 
 interface SafeClientError {
   name: string;
+  code?: string;
+  providerCodes?: number[];
+  correlationId?: string;
+  subError?: string;
+  identityStage?: string;
 }
 
 function normalizeClientError(error: unknown): SafeClientError {
   if (error instanceof Error) {
-    return { name: error.name };
+    const candidate = error as Error & {
+      errorCode?: unknown;
+      errorCodes?: unknown;
+      correlationId?: unknown;
+      subError?: unknown;
+      identityStage?: unknown;
+    };
+    const safeString = (value: unknown, max = 80): string | undefined =>
+      typeof value === "string" && /^[a-zA-Z0-9_.-]+$/.test(value) ? value.slice(0, max) : undefined;
+    const providerCodes = Array.isArray(candidate.errorCodes)
+      ? candidate.errorCodes.filter((value): value is number => typeof value === "number" && Number.isInteger(value) && value > 0 && value < 1000000).slice(0, 5)
+      : undefined;
+    const correlationId = typeof candidate.correlationId === "string" && /^[0-9a-f-]{36}$/i.test(candidate.correlationId)
+      ? candidate.correlationId
+      : undefined;
+    return {
+      name: safeString(error.name, 64) ?? "Error",
+      ...(safeString(candidate.errorCode) ? { code: safeString(candidate.errorCode) } : {}),
+      ...(providerCodes?.length ? { providerCodes } : {}),
+      ...(correlationId ? { correlationId } : {}),
+      ...(safeString(candidate.subError) ? { subError: safeString(candidate.subError) } : {}),
+      ...(safeString(candidate.identityStage) ? { identityStage: safeString(candidate.identityStage) } : {}),
+    };
   }
 
   return { name: "UnknownError" };

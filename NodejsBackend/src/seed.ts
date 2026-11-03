@@ -8,7 +8,7 @@ import { assertNonProductionSeed } from "./config/productionGuards";
 try {
   assertNonProductionSeed();
 } catch (err) {
-  console.error(err instanceof Error ? err.message : err);
+  console.error(JSON.stringify({ event: "seed_blocked", errorName: err instanceof Error ? err.name : "UnknownError" }));
   process.exit(1);
 }
 
@@ -472,7 +472,7 @@ async function main() {
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error(JSON.stringify({ event: "seed_failed", errorName: e instanceof Error ? e.name : "UnknownError" }));
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());
