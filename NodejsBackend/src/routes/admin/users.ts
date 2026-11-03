@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma";
+import { config } from "../../config/env";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { parseIdParam, toDbId, toJsonId } from "../../services/ids";
@@ -179,6 +180,56 @@ const updateUserSchema = z.object({
   organizationId: z.union([z.number().int(), z.string().regex(/^\d+$/)], { error: () => "Expected a numeric identifier" }).nullable().optional(),
 });
 
+const identityLinkSchema = z.object({
+  providerSubject: z.string().uuid(),
+  // Reference to the tenant administrator's independently verified identity
+  // record (ticket/case ID); do not send identity documents to this API.
+  evidenceReference: z.string().trim().min(8).max(200),
+});
+
+// POST /api/admin/users/:id/identity-link
+// Links only a currently unlinked local account. The tenant administrator
+// must verify the subject against the Entra directory before calling this.
+router.post("/:id/identity-link", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const userPk = parseIdParam(req.params.id);
+  const parsed = identityLinkSchema.safeParse(req.body);
+  if (userPk === null || !parsed.success) {
+    res.status(400).json({ error: "Invalid identity link request" });
+    return;
+  }
+  const actorPk = toDbId(req.user!.id);
+  try {
+    const linked = await prisma.$transaction(async (tx) => {
+      const result = await tx.user.updateMany({
+        where: { id: userPk, providerSubject: null },
+        data: { providerSubject: parsed.data.providerSubject.toLowerCase(), providerIssuer: config.oidc.issuer },
+      });
+      if (result.count !== 1) return false;
+      await tx.identityLinkAudit.create({ data: {
+        targetUserId: userPk,
+        actorUserId: actorPk,
+        actorType: "admin",
+        actorLabel: null,
+        providerIssuer: config.oidc.issuer,
+        providerSubject: parsed.data.providerSubject.toLowerCase(),
+        evidenceReference: parsed.data.evidenceReference,
+      } });
+      return true;
+    });
+    if (!linked) {
+      res.status(409).json({ error: "User is missing or already has a provider identity link" });
+      return;
+    }
+    res.status(204).end();
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      res.status(409).json({ error: "Provider identity is already linked to another user" });
+      return;
+    }
+    throw error;
+  }
+}));
+
 // PUT /api/admin/users/:id
 router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const userPk = parseIdParam(req.params.id);
@@ -263,6 +314,15 @@ router.delete("/:id", authenticate, authorize("admin"), asyncHandler(async (req:
   const user = await prisma.user.findUnique({ where: { id: userPk } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const identityAudit = await prisma.identityLinkAudit.findFirst({
+    where: { OR: [{ targetUserId: userPk }, { actorUserId: userPk }] },
+    select: { id: true },
+  });
+  if (identityAudit) {
+    res.status(400).json({ error: "Cannot delete a user with identity-link audit history; disable the account instead" });
     return;
   }
 

@@ -23,6 +23,8 @@ import { join } from "node:path";
 
 export const TEST_JWKS_PORT = Number(process.env.TEST_JWKS_PORT || 55439);
 export const TEST_AUDIENCE = "ghe-test-api-audience";
+const TEST_CLIENT_ID = process.env.TEST_JWKS_CLIENT_ID || "test-spa-client-id";
+const TEST_REQUIRED_SCOPE = process.env.TEST_JWKS_SCOPE || "access_as_user";
 
 export interface TestKeyMaterial {
   kid: string;
@@ -86,8 +88,8 @@ export function signTestJwt(material: TestKeyMaterial, claims: MintClaims = {}):
     iat: now,
     exp: now + (claims.expOffsetSec ?? 3600),
     name: claims.name ?? "Test User",
-    azp: claims.azp ?? "test-spa-client-id",
-    scp: claims.scp ?? "access_as_user",
+    azp: claims.azp ?? TEST_CLIENT_ID,
+    scp: claims.scp ?? TEST_REQUIRED_SCOPE,
   };
   if (claims.noAzp) delete payload.azp;
   if (claims.noExp) delete payload.exp;

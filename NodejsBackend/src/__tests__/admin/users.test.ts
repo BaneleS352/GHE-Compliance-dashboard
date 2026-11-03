@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
-import { buildApp, getAdminToken, getTeamToken } from "../helpers";
+import { buildApp, getAdminToken, getTeamToken, testToken } from "../helpers";
 
 const app = buildApp();
 const prisma = new PrismaClient();
@@ -57,6 +57,28 @@ describe("Admin Users", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ name: "Dup", email: "admin@test.com", role: "teamMember" });
     expect(res.status).toBe(409);
+  });
+
+  it("POST /api/admin/users/:id/identity-link — links an unlinked user once and records evidence", async () => {
+    const created = await request(app).post("/api/admin/users").set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ name: "Identity Link Test", email: "identity-link-test@test.com", role: "teamMember" });
+    expect(created.status).toBe(201);
+    const subject = "10000000-0000-4000-8000-000000000001";
+    const link = await request(app).post(`/api/admin/users/${created.body.id}/identity-link`)
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ providerSubject: subject, evidenceReference: "ID-VERIFY-CASE-1234" });
+    expect(link.status).toBe(204);
+    const token = testToken({ oid: subject, email: "identity-link-test@test.com", name: "Identity Link Test" });
+    expect((await request(app).get("/api/auth/me").set("Authorization", `Bearer ${token}`)).status).toBe(200);
+    const audit = await prisma.identityLinkAudit.findFirst({ where: { targetUserId: BigInt(created.body.id) } });
+    expect(audit?.actorUserId).toBe(1n);
+    expect(audit?.evidenceReference).toBe("ID-VERIFY-CASE-1234");
+    const secondLink = await request(app).post(`/api/admin/users/${created.body.id}/identity-link`)
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ providerSubject: "10000000-0000-4000-8000-000000000002", evidenceReference: "ID-VERIFY-CASE-5678" });
+    expect(secondLink.status).toBe(409);
+    await prisma.identityLinkAudit.deleteMany({ where: { targetUserId: BigInt(created.body.id) } });
+    await request(app).delete(`/api/admin/users/${created.body.id}`).set("Authorization", `Bearer ${getAdminToken()}`);
   });
 
   it("PUT /api/admin/users/:id — updates user and resolves the department link", async () => {

@@ -8,13 +8,12 @@ This guide covers both Docker-based deployment (recommended) and manual deployme
 
 ```bash
 # Copy .env.example to .env and replace its placeholders first.
-# Set SEED_ON_BOOT=true in .env for the first start of an empty database.
+# Keep SEED_ON_BOOT=false for production; bootstrap an admin explicitly below.
 docker compose up -d --build
 ```
 
-The backend entrypoint applies migrations and seeds only an empty database
-when `SEED_ON_BOOT=true`. Avoid running raw `db:seed` against a live stack;
-it is intended for controlled development and test setup.
+The backend entrypoint applies migrations on startup. Production should keep
+`SEED_ON_BOOT=false`; the demo seed is intended for development and test use.
 
 The stack starts 3 containers:
 - **Frontend** (Nginx, port 3000) — serves the built SPA
@@ -65,6 +64,29 @@ they are public application configuration, not secrets. The redirect URI must
 be registered on the Entra SPA application. Keep client secrets out of this
 file and use your deployment platform's secret store in production.
 
+The API never links accounts from email. On a new deployment, first create or
+link the initial admin through the one-time bootstrap command after a tenant
+operator has verified the Entra object ID and the approval evidence for the
+admin role. This command can create the first local admin, refuses to promote
+an existing non-admin, links only an unlinked account, and records the
+operator label, target, subject, issuer, and evidence reference:
+
+```bash
+docker compose exec backend node dist/scripts/bootstrap-admin-identity.js \
+  "Compliance Administrator" "admin@company.example" "<entra-object-id>" \
+  "<identity-and-access-approval-record>" "<operator-id>"
+```
+
+For manual deployments, run the equivalent command from the backend directory
+after migrations, using `npm run auth:bootstrap-admin --` with the same five
+arguments. Preserve the referenced verification and access-approval record
+in the approved records system; the API stores only its reference. After
+bootstrap, admins can link other accounts with
+`POST /api/admin/users/:id/identity-link`. That endpoint accepts only
+unlinked users and rejects relinking. Existing linked subjects require a
+separately reviewed recovery procedure. Apply migrations before deployment
+to create the `isActive` control and `IdentityLinkAudit` table.
+
 ### Document protection (Phase 5)
 
 Password-protected exports (`POST /api/reports/protect-document`) encrypt
@@ -99,7 +121,7 @@ Run migrations:
 
 ```bash
 npx prisma migrate deploy
-npx tsx src/scripts/seed-if-empty.ts  # safe on first deploy and skips non-empty databases
+npm run auth:bootstrap-admin -- "Compliance Administrator" "admin@company.example" "<entra-object-id>" "<identity-and-access-approval-record>" "<operator-id>"
 # (Phase 5: db:backfill/db:verify were retired with the legacy columns.)
 ```
 
@@ -138,8 +160,9 @@ healthy. Diagnose first, then revert:
      not a config incident: their Entra object ID changed (recreated
      account) or their local row was never provisioned. Provision the row
      through the approved account-provisioning process; do not manually
-     change `providerSubject`. An explicit identity-link workflow remains a
-     tracked security gap.
+     change `providerSubject`. For a new unlinked row, use the audited
+     identity-link operation documented above after verifying the Entra
+     object ID and local authorization data.
 2. **Revert backend config** to the previous working values and restart
    the API (`docker compose up -d backend`, or `pm2 restart ghe-api`).
    For a bad release rather than bad config, redeploy the previous image
@@ -151,9 +174,9 @@ healthy. Diagnose first, then revert:
 4. **Never "fix" auth by seeding, editing `providerSubject` by hand, or
    loosening middleware checks.** `providerSubject` mismatch fails closed
    by design; hand-editing identity links creates account-takeover risk.
-   If a subject must be reset, use a separately reviewed identity recovery
-   procedure with verified evidence and an audit record; this application
-   does not yet provide that workflow.
+   The application does not support replacing a linked subject. If a subject
+   must be reset, use a separately reviewed database change with verified
+   evidence and a corresponding audit record.
 
 ### 3. Build & Start
 
@@ -284,8 +307,8 @@ pg_dump "postgresql://user:password@host:5432/ghe_db" > backup_$(date +%Y%m%d).s
 - **PostgreSQL is the only supported database** — run versioned migrations (`prisma migrate deploy`), never `db push`, against production
 - **File storage on local disk doesn't scale** — use S3 or similar object storage
 - **No application-issued tokens exist** — access-token lifetime, refresh,
-  and revocation are owned by Entra. To cut off a user immediately, disable
-  or delete their local `User` row: the middleware resolves identity from
-  the database on every request, so the next call fails closed (`403`)
-  even with a technically valid provider token. Prefer short provider
-  access-token lifetimes per your tenant policy.
+and revocation are owned by Entra. To cut off a user immediately, set their
+local `isActive` flag to false: the middleware checks it on every request,
+so the next call fails closed (`403`) even with a technically valid provider
+token. Identity-link audit history may prevent deleting a linked user.
+Prefer short provider access-token lifetimes per your tenant policy.

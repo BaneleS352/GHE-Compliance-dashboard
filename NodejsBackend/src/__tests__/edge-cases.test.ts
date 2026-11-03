@@ -1073,6 +1073,7 @@ describe("Edge-Case Tests", () => {
         .send({ name: "Role Change User", email: "rolechange@test.com", role: "teamMember", department: "IT", position: "Tester" });
       expect(createRes.status).toBe(201);
       const userId = createRes.body.id;
+      await prisma.user.update({ where: { id: BigInt(userId) }, data: { providerSubject: "test-oid-rolechange", providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439" } });
 
       // Identity (hence role) resolves from the database on every request:
       // the same token sees the role change take effect immediately.

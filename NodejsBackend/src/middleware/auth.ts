@@ -54,14 +54,9 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       res.status(401).json({ error: "Token does not include the required delegated API scope" });
       return;
     }
-    const email = String(payload.preferred_username || payload.email || "").toLowerCase();
-    if (!email) {
-      res.status(401).json({ error: "Token is missing an email identity" });
-      return;
-    }
-    const decoded = { providerSubject: payload.oid, email, name: String(payload.name || email) };
+    const decoded = { providerSubject: payload.oid.toLowerCase() };
     try {
-      const dbUser = await prisma.user.findUnique({ where: { email }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } });
+      const dbUser = await prisma.user.findUnique({ where: { providerSubject: decoded.providerSubject }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } });
       if (!dbUser) {
         res.status(403).json({ error: "Authenticated user is not provisioned in the application" });
         return;
@@ -70,23 +65,9 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
         res.status(403).json({ error: "Application account is disabled" });
         return;
       }
-      // Provider-identity binding (see docs/IDENTITY-CONTRACT.md): the first
-      // successful sign-in adopts the token subject onto the email-matched
-      // row. A later token with a DIFFERENT subject for the same email is a
-      // potential account takeover and fails closed instead of re-linking.
-      if (dbUser.providerSubject === null || dbUser.providerSubject === undefined) {
-        const claimed = await prisma.user.updateMany({
-          where: { id: dbUser.id, providerSubject: null },
-          data: { providerSubject: decoded.providerSubject, providerIssuer: config.oidc.issuer },
-        });
-        if (claimed.count !== 1) {
-          const current = await prisma.user.findUnique({ where: { id: dbUser.id }, select: { providerSubject: true, providerIssuer: true } });
-          if (current?.providerSubject !== decoded.providerSubject || current.providerIssuer !== config.oidc.issuer) {
-            res.status(403).json({ error: "Provider identity does not match the linked application user" });
-            return;
-          }
-        }
-      } else if (dbUser.providerSubject !== decoded.providerSubject || dbUser.providerIssuer !== config.oidc.issuer) {
+      // Resolve only by immutable subject, then bind that subject to the
+      // configured single issuer. Email is mutable display data only.
+      if (dbUser.providerSubject !== decoded.providerSubject || dbUser.providerIssuer !== config.oidc.issuer) {
         res.status(403).json({ error: "Provider identity does not match the linked application user" });
         return;
       }

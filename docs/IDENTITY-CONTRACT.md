@@ -14,9 +14,8 @@ normalized `AuthRequest.user`; no route parses tokens or provider claims.
 - Audience: `OIDC_AUDIENCE`. Tokens for any other audience are rejected.
 - Client: `azp` must match one of `OIDC_ALLOWED_CLIENT_IDS`.
 - Delegated permission: `scp` must contain `OIDC_REQUIRED_SCOPE`.
-- Subject: the Entra object ID (`oid` claim). Email comes from
-  `preferred_username`, falling back to `email`. Display name falls back to
-  the email address.
+- Subject: the Entra object ID (`oid` claim). Email and display name are read
+  from the local application row and are not used to resolve identity.
 - Raw provider claims never reach domain services. The middleware maps them
   to `AuthRequest.user` and drops everything else.
 
@@ -25,39 +24,49 @@ normalized `AuthRequest.user`; no route parses tokens or provider claims.
 - The Prisma `User` row is authoritative for id, name, email, role,
   organization, department, manager, and workflow permissions.
 - Provider linkage: `User.providerSubject` (globally unique) plus
-  `User.providerIssuer`. No mutable display name is ever used for correlation.
+  `User.providerIssuer`. The deployment supports one configured issuer;
+  multi-issuer identity uniqueness is not supported. No mutable email or
+  display name is used for correlation.
 
 ## Resolution algorithm (`middleware/auth.ts`)
 
 1. Validate the bearer token: RS256 signature via JWKS, exact issuer,
    exact audience, required `exp`/`iat`, allowed `azp`, and required `scp`.
    Invalid tokens return `401`; provider key/network outages return `503`.
-2. Require a string `oid` and a non-empty email → else `401`.
-3. Look up the local user **by email**. Unknown email → `403`
-   (default-deny: no auto-provisioning in this compliance system).
-4. If the row has no linked subject, the first successful login currently
-   adopts the token subject with a conditional database update. This is a
-   known residual risk: email is mutable and is not proof that the local
-   account and provider identity belong together. Until a reviewed explicit
-   linking workflow is implemented, provisioned email values and Entra
-   email assignment must be controlled by the tenant administrator.
-5. If the row has a linked subject different from the token subject,
-   reject with `403` (fail closed on account mismatch — never re-link).
-6. Populate `AuthRequest.user` (numeric id, role, display fields) from the
+2. Require a string `oid` → else `401`.
+3. Look up the local user by `providerSubject` and require its
+   `providerIssuer` to equal the configured issuer. Unknown subject or issuer
+   mismatch → `403` (default-deny: no auto-provisioning).
+4. Login never creates or changes an identity link based on email. The local
+   row supplies email and display fields.
+5. Populate `AuthRequest.user` (numeric id, role, display fields) from the
    row. Local role changes apply on the next request; tokens carry no role.
+
+## Explicit identity linking
+
+An admin can call `POST /api/admin/users/:id/identity-link` for an unlinked
+account. The request requires the Entra `oid` and an evidence reference to a
+tenant-admin verification record. Before calling it, the tenant administrator
+must verify that the immutable object ID belongs to the intended employee and
+that the local account's role and organization are correct. The operation is
+atomic, only succeeds for a row whose subject is still null, cannot replace a
+link, and writes actor, target, issuer, subject, and evidence reference to
+`IdentityLinkAudit`. A duplicate subject or already-linked account returns
+`409`. Evidence documents must remain in the organization's approved record
+system; the API stores only the reference. Recovery from a changed subject
+requires a separate reviewed process; do not edit the link directly.
 
 ## Disablement and token revocation
 
 The API validates signed access tokens locally against the configured issuer,
 audience, claims, and cached/discovered signing keys. It does not call Entra
-for each request, and the local `User` model currently has no suspension flag.
+for each request.
 Consequently, revoking a provider session or disabling a provider account
 does not provide immediate invalidation of an already-issued access token;
-access is bounded by the token's `exp` unless the local account is removed or
-another application-side authorization control is added. Tenant operators
-must set an appropriately short access-token lifetime and use the existing
-local account/role controls for urgent response. A local suspension control
-is a follow-up item, not an implemented feature.
+access is bounded by the token's `exp` unless the local account is disabled.
+The local `isActive` flag is checked on every authenticated
+request and can be changed through the admin user update endpoint. Tenant
+operators must also set an appropriately short access-token lifetime.
 
 ## Role ownership
 

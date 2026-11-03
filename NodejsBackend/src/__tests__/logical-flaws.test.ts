@@ -500,6 +500,7 @@ describe("User deletion integrity", () => {
       });
     expect(empRes.status).toBe(201);
     const empId = empRes.body.id;
+    await prisma.user.update({ where: { id: BigInt(empId) }, data: { providerSubject: "test-oid-empact", providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439" } });
 
     const empToken = testToken({ oid: "test-oid-empact", email: "empact@test.com", name: "Emp for Active" });
 
@@ -535,6 +536,7 @@ describe("User deletion integrity", () => {
       });
     expect(userRes.status).toBe(201);
     const userId = userRes.body.id;
+    await prisma.user.update({ where: { id: BigInt(userId) }, data: { providerSubject: "test-oid-doneappr", providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439" } });
 
     const teamRes = await request(app)
       .post("/api/admin/users")
@@ -546,6 +548,7 @@ describe("User deletion integrity", () => {
       });
     expect(teamRes.status).toBe(201);
     const teamId = teamRes.body.id;
+    await prisma.user.update({ where: { id: BigInt(teamId) }, data: { providerSubject: "test-oid-teamdone", providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439" } });
 
     const declRes = await request(app)
       .post("/api/declarations")

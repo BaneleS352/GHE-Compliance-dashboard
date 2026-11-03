@@ -5,7 +5,7 @@ import {
   updateDeclaration, updateDeclarationStatus, submitDeclaration,
   fetchDashboardStats, fetchUsers, fetchUserById,
   createUser, updateUser, deleteUser,
-  fetchConfig, saveConfig,
+  fetchConfig, fetchPublicConfig, saveConfig,
   fetchDropdownOptions, updateDropdownOptions,
   fetchAdminDashboard,
   fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule,
@@ -209,6 +209,15 @@ describe("fetchConfig", () => {
     mockFetch(200, { highValueThreshold: 1000 });
     const result = await fetchConfig();
     expect(result.highValueThreshold).toBe(1000);
+  });
+});
+
+describe("fetchPublicConfig", () => {
+  it("requests only the read-only config route used by non-admin screens", async () => {
+    const spy = mockFetch(200, { highValueThreshold: 1000, mediumValueThreshold: 500, slaEscalationDays: 3, maximumValue: 1000000 });
+    const result = await fetchPublicConfig();
+    expect(spy).toHaveBeenCalledWith("/api/admin/config/public", expect.objectContaining({ method: "GET" }));
+    expect(result).toEqual({ highValueThreshold: 1000, mediumValueThreshold: 500, slaEscalationDays: 3, maximumValue: 1000000 });
   });
 });
 

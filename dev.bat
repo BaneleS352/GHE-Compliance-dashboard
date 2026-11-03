@@ -57,6 +57,13 @@ if errorlevel 1 (
 
 echo.
 echo [3/6] Checking PostgreSQL and preparing the database...
+set "NODE_ENV=development"
+set "GHE_TEST_IDENTITY_SEED=true"
+set "OIDC_AUTHORITY=http://127.0.0.1:55439"
+set "OIDC_ISSUER=http://127.0.0.1:55439"
+set "OIDC_AUDIENCE=ghe-test-api-audience"
+set "OIDC_ALLOWED_CLIENT_IDS=test-spa-client-id"
+set "OIDC_REQUIRED_SCOPE=access_as_user"
 call npm run db:pg:up
 if errorlevel 1 (
     echo.
@@ -94,12 +101,6 @@ echo.
 echo [5/6] Starting servers...
 
 start "Test OIDC Provider" cmd /k "cd /d "%~dp0NodejsBackend" && npx tsx src/scripts/test-provider.ts"
-
-set "OIDC_AUTHORITY=http://127.0.0.1:55439"
-set "OIDC_ISSUER=http://127.0.0.1:55439"
-set "OIDC_AUDIENCE=ghe-test-api-audience"
-set "OIDC_ALLOWED_CLIENT_IDS=test-spa-client-id"
-set "OIDC_REQUIRED_SCOPE=access_as_user"
 
 start "Backend" cmd /k "cd /d "%~dp0NodejsBackend" && npx tsx src/index.ts"
 

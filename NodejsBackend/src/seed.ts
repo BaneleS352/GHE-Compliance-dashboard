@@ -187,6 +187,38 @@ async function main() {
       await prisma.user.update({ where: { id: u.id }, data: { managerId: u.managerId } });
     }
   }
+  if (process.env.GHE_TEST_IDENTITY_SEED === "true") {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Refusing to seed test provider identities in production");
+    }
+    const issuer = process.env.OIDC_ISSUER?.trim();
+    if (!issuer) throw new Error("GHE_TEST_IDENTITY_SEED requires OIDC_ISSUER");
+    const bootstrapAdmin = await prisma.user.findUnique({ where: { email: "admin@hb.co.za" }, select: { id: true } });
+    if (!bootstrapAdmin) throw new Error("Local test identity seed requires the seeded admin account");
+    for (const email of ["admin@hb.co.za", "nomvula@hb.co.za", "sipho@hb.co.za", "lindiwe@hb.co.za"]) {
+      const subject = `test-oid-e2e-${email}`;
+      const target = await prisma.user.findUnique({ where: { email }, select: { id: true, providerSubject: true, providerIssuer: true } });
+      if (!target) throw new Error(`Local test identity account not found: ${email}`);
+      if (target.providerSubject !== null && (target.providerSubject !== subject || target.providerIssuer !== issuer)) {
+        throw new Error(`Refusing to replace an existing provider link for ${email}`);
+      }
+      if (target.providerSubject === null) {
+        await prisma.$transaction(async (tx) => {
+          const linked = await tx.user.updateMany({ where: { id: target.id, providerSubject: null }, data: { providerSubject: subject, providerIssuer: issuer } });
+          if (linked.count !== 1) throw new Error(`Concurrent provider-link change for ${email}`);
+          await tx.identityLinkAudit.create({ data: {
+            targetUserId: target.id,
+            actorUserId: bootstrapAdmin.id,
+            actorType: "admin",
+            providerIssuer: issuer,
+            providerSubject: subject,
+            evidenceReference: "local-test-seed",
+          } });
+        });
+      }
+    }
+    console.log("Linked local test accounts to the throwaway provider with audit records");
+  }
   console.log(`Seeded ${users.length} users`);
 
   // Counterparties: one row per (organizationId, name) from declaration data.

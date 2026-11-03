@@ -36,6 +36,10 @@ function tokenFor(id: number, email: string): string {
   return testToken({ oid: `test-oid-${email}`, email, name: "PL User" });
 }
 
+function testIdentity(email: string) {
+  return { providerSubject: `test-oid-${email}`, providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439" };
+}
+
 describe("Phase 1 — profile-owned declaration identity", () => {
   beforeAll(async () => {
     const org = await prisma.organization.upsert({
@@ -48,20 +52,20 @@ describe("Phase 1 — profile-owned declaration identity", () => {
 
     const lm = await prisma.user.upsert({
       where: { email: "pl-manager@test.com" },
-      update: { name: "PL Manager", departmentId: deptId, organizationId: org.id },
+      update: { name: "PL Manager", departmentId: deptId, organizationId: org.id, ...testIdentity("pl-manager@test.com") },
       create: {
         name: "PL Manager", email: "pl-manager@test.com",
         role: "approver", teamMemberNumber: "PL-LM-001", position: "Line Manager",
-        departmentId: deptId, organizationId: org.id,
+        departmentId: deptId, organizationId: org.id, ...testIdentity("pl-manager@test.com"),
       },
     });
     const tm = await prisma.user.upsert({
       where: { email: "pl-managed@test.com" },
-      update: { name: "PL Managed", departmentId: deptId, managerId: lm.id, lineManager: lm.name, organizationId: org.id },
+      update: { name: "PL Managed", departmentId: deptId, managerId: lm.id, lineManager: lm.name, organizationId: org.id, ...testIdentity("pl-managed@test.com") },
       create: {
         name: "PL Managed", email: "pl-managed@test.com",
         role: "teamMember", teamMemberNumber: "PL-TM-001", position: "Tester",
-        departmentId: deptId, managerId: lm.id, lineManager: lm.name, organizationId: org.id,
+        departmentId: deptId, managerId: lm.id, lineManager: lm.name, organizationId: org.id, ...testIdentity("pl-managed@test.com"),
       },
     });
     managed.id = Number(tm.id);
@@ -69,11 +73,11 @@ describe("Phase 1 — profile-owned declaration identity", () => {
 
     const bare = await prisma.user.upsert({
       where: { email: "pl-bare@test.com" },
-      update: { departmentId: null, managerId: null, lineManager: null },
+      update: { departmentId: null, managerId: null, lineManager: null, ...testIdentity("pl-bare@test.com") },
       create: {
         name: "PL Bare", email: "pl-bare@test.com",
         role: "teamMember", teamMemberNumber: "PL-TM-002", position: "Tester",
-        departmentId: null, managerId: null, lineManager: null,
+        departmentId: null, managerId: null, lineManager: null, ...testIdentity("pl-bare@test.com"),
       },
     });
     unmanaged.id = Number(bare.id);

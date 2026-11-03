@@ -16,7 +16,14 @@ async function globalSetup() {
       "E2E requires a PostgreSQL database: set E2E_PG_DATABASE_URL (or DATABASE_URL) to a postgres(ql) URL, e.g. via `docker compose up -d db`."
     );
   }
-  const env = { ...process.env, DATABASE_URL: pgUrl };
+  const testIssuer = process.env.E2E_JWKS_URL || "http://127.0.0.1:55439";
+  const env = {
+    ...process.env,
+    DATABASE_URL: pgUrl,
+    NODE_ENV: "test",
+    OIDC_ISSUER: testIssuer,
+    GHE_TEST_IDENTITY_SEED: "true",
+  };
   process.env.DATABASE_URL = pgUrl;
 
   execSync("npx prisma migrate deploy", { cwd: backendDir, stdio: "pipe", env });

@@ -51,6 +51,7 @@ model User {
   // the `passwordHash` column was removed and local roles stay authoritative.
   providerSubject  String?  @unique
   providerIssuer   String?
+  isActive         Boolean  @default(true)
   role             String
   teamMemberNumber String
   // departmentId -> Department is the sole department source of truth.
@@ -80,6 +81,8 @@ model User {
   approvalsAssigned Declaration[] @relation("DeclarationApprover")
   stepsAssigned WorkflowInstanceStep[] @relation("StepAssignee")
   stepsDecided  WorkflowInstanceStep[] @relation("StepDecider")
+  identityLinksCreated IdentityLinkAudit[] @relation("IdentityLinkActor")
+  identityLinkEvents IdentityLinkAudit[] @relation("IdentityLinkTarget")
 
   @@index([role])
   @@index([lineManager])
@@ -90,6 +93,24 @@ model User {
   // Matches the "User_providerIssuer_idx" created by 0010_auth_cutover —
   // declared here so schema-vs-database diffs stay clean.
   @@index([providerIssuer])
+}
+
+model IdentityLinkAudit {
+  id               BigInt   @id @default(autoincrement())
+  targetUserId     BigInt
+  actorUserId      BigInt?
+  actorType        String   @default("admin")
+  actorLabel       String?
+  providerIssuer   String
+  providerSubject  String
+  evidenceReference String
+  createdAt        DateTime @default(now())
+
+  targetUser User @relation("IdentityLinkTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+  actorUser  User? @relation("IdentityLinkActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([targetUserId, createdAt])
+  @@index([actorUserId, createdAt])
 }
 
 model Department {

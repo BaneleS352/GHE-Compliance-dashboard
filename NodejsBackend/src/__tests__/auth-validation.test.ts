@@ -132,17 +132,18 @@ describe("Provider-identity binding (docs/IDENTITY-CONTRACT.md)", () => {
     await prisma.$disconnect();
   });
 
-  it("first sign-in adopts the token subject onto the email-matched row", async () => {
+  it("an unlinked provisioned account is denied; email cannot create an identity link", async () => {
     const token = testToken({ oid: "test-oid-adopt-me", email: "authbind-a@test.com", name: "Auth Bind A" });
     const res = await request(app)
       .get("/api/auth/me")
       .set("Authorization", `Bearer ${token}`);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
     const row = await prisma.user.findUnique({ where: { email: "authbind-a@test.com" }, select: { providerSubject: true } });
-    expect(row?.providerSubject).toBe("test-oid-adopt-me");
+    expect(row?.providerSubject).toBeNull();
   });
 
   it("a different subject for a linked email fails closed with 403", async () => {
+    await prisma.user.update({ where: { email: "authbind-b@test.com" }, data: { providerSubject: "test-oid-original-owner", providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439" } });
     const first = testToken({ oid: "test-oid-original-owner", email: "authbind-b@test.com", name: "Auth Bind B" });
     expect((await request(app).get("/api/auth/me").set("Authorization", `Bearer ${first}`)).status).toBe(200);
     const impostor = testToken({ oid: "test-oid-impostor", email: "authbind-b@test.com", name: "Auth Bind B" });
@@ -152,7 +153,16 @@ describe("Provider-identity binding (docs/IDENTITY-CONTRACT.md)", () => {
     expect(res.status).toBe(403);
   });
 
+  it("resolves a linked account by subject even if the provider email changes", async () => {
+    await prisma.user.update({ where: { email: "authbind-b@test.com" }, data: { providerSubject: "test-oid-original-owner", providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439" } });
+    const token = testToken({ oid: "test-oid-original-owner", email: "renamed-at-provider@test.com", name: "Changed Provider Name" });
+    const res = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.email).toBe("authbind-b@test.com");
+  });
+
   it("disabled provisioned users are denied even with a matching provider link", async () => {
+    await prisma.user.update({ where: { email: "authbind-b@test.com" }, data: { providerSubject: "test-oid-original-owner", providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439" } });
     await prisma.user.update({ where: { email: "authbind-b@test.com" }, data: { isActive: false } });
     try {
       const token = testToken({ oid: "test-oid-original-owner", email: "authbind-b@test.com", name: "Auth Bind B" });
