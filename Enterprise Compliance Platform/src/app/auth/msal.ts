@@ -65,11 +65,14 @@ class IdentityFlowError extends Error {
   readonly correlationId?: string;
   readonly subError?: string;
   readonly interactionRequired: boolean;
+  readonly configFingerprint?: string;
+  readonly requestedResourceMatch?: "matches_config" | "differs_from_config";
 
-  constructor(stage: string, original: unknown) {
+  constructor(stage: string, original: unknown, configFingerprint?: string, configuredResource?: string) {
     super("Identity provider operation failed");
     this.name = "IdentityFlowError";
     this.identityStage = stage;
+    this.configFingerprint = configFingerprint;
     this.interactionRequired = original instanceof InteractionRequiredAuthError;
     if (original && typeof original === "object") {
       const source = original as { errorCode?: unknown; errorCodes?: unknown; correlationId?: unknown; subError?: unknown };
@@ -78,6 +81,35 @@ class IdentityFlowError extends Error {
       if (typeof source.correlationId === "string") this.correlationId = source.correlationId;
       if (typeof source.subError === "string") this.subError = source.subError;
     }
+    const providerMessage = original instanceof Error ? original.message : "";
+    const aadstsCode = providerMessage.match(/\bAADSTS(\d{5,})\b/i)?.[1];
+    if (aadstsCode) {
+      const codes = this.errorCodes ?? [];
+      this.errorCodes = [...new Set([...codes, Number(aadstsCode)])].slice(0, 5);
+    }
+    const failedResource = providerMessage.match(/resource principal named\s+['"]?([^\s'"]+)/i)?.[1]?.replace(/[.,;:]$/, "");
+    if (failedResource && configuredResource) {
+      this.requestedResourceMatch = failedResource.replace(/\/$/, "").toLowerCase() === configuredResource.replace(/\/$/, "").toLowerCase()
+        ? "matches_config"
+        : "differs_from_config";
+    }
+  }
+}
+
+async function runtimeConfigFingerprint(): Promise<string | undefined> {
+  const config = readConfig();
+  if (!config || !globalThis.crypto?.subtle) return undefined;
+  try {
+    const canonical = [
+      new URL(config.authority).toString(),
+      config.clientId.trim().toLowerCase(),
+      config.apiScope.trim(),
+      new URL(config.redirectUri).toString(),
+    ].join("\n");
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+    return Array.from(new Uint8Array(digest)).slice(0, 8).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return undefined;
   }
 }
 
@@ -85,7 +117,9 @@ async function runIdentityStage<T>(stage: string, action: () => Promise<T>): Pro
   try {
     return await action();
   } catch (error) {
-    throw new IdentityFlowError(stage, error);
+    const config = readConfig();
+    const configuredResource = config?.apiScope.slice(0, config.apiScope.lastIndexOf("/"));
+    throw new IdentityFlowError(stage, error, await runtimeConfigFingerprint(), configuredResource);
   }
 }
 

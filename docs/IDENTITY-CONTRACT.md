@@ -106,14 +106,24 @@ leave the harness, and no test issues production credentials.
 After filling the local backend `.env` and frontend `.env.local` from the
 Entra app registrations, run `npm run auth:verify-config` from
 `NodejsBackend`. The command checks required settings, SPA/API client and
-scope consistency, tenant discovery metadata, issuer equality, and JWKS
-reachability using normal TLS certificate validation. It does not print
-configured values or prove that the client registration has consent or that
-a user is provisioned. Complete verification by signing in through the SPA
-and confirming `GET /api/auth/me` succeeds for a linked user.
+scope consistency, tenant discovery metadata, issuer equality, JWKS
+reachability, and a noninteractive SPA authorization request using the
+configured redirect and API scope. The preflight uses `prompt=none`, does not
+follow redirects, and never redeems an authorization code. It can identify
+tenant/resource/redirect errors such as `AADSTS500011` without printing the
+provider response. An expected `login_required` response confirms only that
+Entra returned the configured noninteractive request to its callback; it does
+not prove that an authenticated user can obtain an API token or that consent
+is granted. Complete verification by signing in through the SPA and confirming
+`GET /api/auth/me` succeeds for a linked user.
+For local checks, it mirrors the backend and Vite env-file roots and inherited
+process environment; it does not assume the repository-root `.env` is loaded
+by either service.
 
 ## Authentication diagnostics
 
 Browser diagnostics use fixed operation names such as `msal_initialize_or_redirect` and `api_auth_me`. They include only the error class, MSAL error code(s), MSAL correlation ID, API status, and API request ID when available. They do not include error messages, stacks, claims, request headers, bearer tokens, authorization codes, or configured secret values.
+
+The verifier prints a short SHA-256 fingerprint of the tenant authority, SPA client ID, API scope, and redirect URI used by its authorization preflight. The SPA includes the same fingerprint with MSAL failures, allowing a developer to spot stale or different Vite runtime configuration without printing those values.
 
 The API returns an `X-Request-Id` response header and logs that ID with a fixed authentication stage and reason (for example `delegated_scope / required_scope_missing` or `local_identity_lookup / identity_not_provisioned`). Its request log omits the URL and query string. Use the request ID to correlate an API response with server logs; MSAL correlation IDs apply to provider-side sign-in failures that happen before the API is called.

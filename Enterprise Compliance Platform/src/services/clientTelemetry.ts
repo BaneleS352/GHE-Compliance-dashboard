@@ -12,6 +12,8 @@ interface SafeClientError {
   correlationId?: string;
   subError?: string;
   identityStage?: string;
+  configFingerprint?: string;
+  requestedResourceMatch?: "matches_config" | "differs_from_config";
 }
 
 function normalizeClientError(error: unknown): SafeClientError {
@@ -22,6 +24,8 @@ function normalizeClientError(error: unknown): SafeClientError {
       correlationId?: unknown;
       subError?: unknown;
       identityStage?: unknown;
+      configFingerprint?: unknown;
+      requestedResourceMatch?: unknown;
     };
     const safeString = (value: unknown, max = 80): string | undefined =>
       typeof value === "string" && /^[a-zA-Z0-9_.-]+$/.test(value) ? value.slice(0, max) : undefined;
@@ -38,6 +42,8 @@ function normalizeClientError(error: unknown): SafeClientError {
       ...(correlationId ? { correlationId } : {}),
       ...(safeString(candidate.subError) ? { subError: safeString(candidate.subError) } : {}),
       ...(safeString(candidate.identityStage) ? { identityStage: safeString(candidate.identityStage) } : {}),
+      ...(typeof candidate.configFingerprint === "string" && /^[0-9a-f]{16}$/i.test(candidate.configFingerprint) ? { configFingerprint: candidate.configFingerprint } : {}),
+      ...(candidate.requestedResourceMatch === "matches_config" || candidate.requestedResourceMatch === "differs_from_config" ? { requestedResourceMatch: candidate.requestedResourceMatch } : {}),
     };
   }
 

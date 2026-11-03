@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { parse } from "dotenv";
 
 type Env = Record<string, string | undefined>;
@@ -28,9 +29,11 @@ function mergeFiles(files: string[]): Env {
   return merged;
 }
 
-const rootEnv = readEnvFile(path.join(repoDir, ".env"));
 const backendFileEnv = readEnvFile(path.join(backendDir, ".env"));
-const backendEnv: Env = { ...rootEnv, ...backendFileEnv, ...process.env };
+// Match the actual service processes: backend dotenv loads NodejsBackend/.env;
+// Vite loads files rooted in the frontend directory. Root .env is not implicitly
+// loaded by either process, so do not let it make this verifier pass falsely.
+const backendEnv: Env = { ...backendFileEnv, ...process.env };
 const frontendEnvFiles = [
   `.env.${mode}.local`,
   ".env.local",
@@ -38,7 +41,6 @@ const frontendEnvFiles = [
   ".env",
 ].map((file) => path.join(frontendDir, file));
 const frontendEnv: Env = {
-  ...rootEnv,
   ...mergeFiles(frontendEnvFiles),
   ...process.env,
 };
@@ -76,6 +78,95 @@ function parseUrl(label: string, value: string | undefined, allowLocalHttp: bool
   } catch {
     check(label, false, "not a valid URL");
     return null;
+  }
+}
+
+function errorFromAuthorizationResponse(url: URL | null, body: string): { error?: string; aadsts?: string } {
+  const query = url?.searchParams;
+  const error = query?.get("error") || body.match(/["']?error["']?\s*[:=]\s*["']?([a-zA-Z0-9_.-]+)/i)?.[1];
+  const description = query?.get("error_description") || body;
+  const aadsts = description.match(/\bAADSTS\d{5,}\b/i)?.[0]?.toUpperCase();
+  return { ...(error ? { error: error.slice(0, 64).toLowerCase() } : {}), ...(aadsts ? { aadsts } : {}) };
+}
+
+function authorizationFailure(error: string | undefined, aadsts: string | undefined): string | null {
+  if (aadsts === "AADSTS500011" || error === "invalid_resource") {
+    return `Entra could not resolve the requested API resource in this tenant${aadsts ? ` (${aadsts})` : ""}; verify the API Application ID URI and tenant`;
+  }
+  if (aadsts === "AADSTS50011" || aadsts === "AADSTS500113") {
+    return `the SPA redirect URI was rejected${aadsts ? ` (${aadsts})` : ""}; compare it with the SPA platform registration`;
+  }
+  if (aadsts === "AADSTS700016") {
+    return `the SPA application was not found in this tenant (${aadsts}); verify VITE_ENTRA_CLIENT_ID and tenant`;
+  }
+  // prompt=none is expected to report a missing browser session from this
+  // Node process. It does not prove token issuance or per-user consent.
+  if (["login_required", "user_authentication_required"].includes(error || "") || aadsts === "AADSTS50058") return null;
+  if (error === "consent_required" || error === "interaction_required") {
+    return `Entra recognized the authorization request but requires user interaction or consent${aadsts ? ` (${aadsts})` : ""}`;
+  }
+  return error ? `Entra rejected the authorization request (${error}${aadsts ? `, ${aadsts}` : ""})` : null;
+}
+
+async function verifyAuthorizationRequest(authority: URL, clientId: string, redirectUri: string, apiScope: string): Promise<void> {
+  const endpoint = new URL(`${normalizedAuthority(authority.toString())}/oauth2/v2.0/authorize`);
+  const verifier = randomBytes(32).toString("base64url");
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  endpoint.search = new URLSearchParams({
+    client_id: clientId,
+    response_type: "code",
+    response_mode: "query",
+    redirect_uri: redirectUri,
+    scope: `openid profile email ${apiScope}`,
+    state: randomUUID(),
+    nonce: randomUUID(),
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+    prompt: "none",
+  }).toString();
+  const fingerprint = createHash("sha256")
+    .update([authority.toString(), clientId.trim().toLowerCase(), apiScope.trim(), new URL(redirectUri).toString()].join("\n"))
+    .digest("hex")
+    .slice(0, 16);
+  console.log(`[INFO] SPA auth config fingerprint: ${fingerprint} (compare with the browser client-error log)`);
+
+  try {
+    // Do not follow the redirect or redeem any code. This is a silent,
+    // noninteractive preflight to validate the SPA/resource/redirect request.
+    const response = await fetch(endpoint, { redirect: "manual", signal: AbortSignal.timeout(15000) });
+    const locationHeader = response.headers.get("location");
+    let callback: URL | null = null;
+    if (locationHeader) {
+      try { callback = new URL(locationHeader); } catch { /* response is classified below */ }
+    }
+    let body = "";
+    if (!locationHeader && response.status !== 204) body = (await response.text()).slice(0, 1024 * 1024);
+    const { error, aadsts } = errorFromAuthorizationResponse(callback, body);
+    const failure = authorizationFailure(error, aadsts);
+
+    if (failure) {
+      check("SPA authorization preflight", false, failure);
+      return;
+    }
+    if (callback) {
+      const expected = new URL(redirectUri);
+      const returnedToSpa = callback.origin === expected.origin && callback.pathname === expected.pathname;
+      const callbackHasExpectedSilentError = returnedToSpa && ["login_required", "user_authentication_required"].includes(error || "");
+      if (callbackHasExpectedSilentError) {
+        check("SPA authorization preflight", true, "Entra returned the expected no-session response for this client/scope/redirect request; consent and token issuance remain unverified");
+        return;
+      }
+      if (returnedToSpa && callback.searchParams.has("code")) {
+        check("SPA authorization preflight", true, "authorization request was accepted; returned code was not read or redeemed");
+        return;
+      }
+      check("SPA authorization preflight", false, "Entra did not return an expected noninteractive response to the configured SPA redirect; response details were suppressed");
+      return;
+    }
+    check("SPA authorization preflight", false, `unexpected authorization response (HTTP ${response.status}); response details were suppressed`);
+  } catch (error) {
+    const detail = error instanceof Error && error.name === "TimeoutError" ? "timed out" : "request failed";
+    check("SPA authorization preflight", false, `${detail}; provider error details were suppressed`);
   }
 }
 
@@ -124,9 +215,11 @@ if (apiScope && usable(backendEnv.OIDC_AUDIENCE)) {
   }
 }
 
-const redirect = frontendEnv.VITE_ENTRA_REDIRECT_URI?.trim();
-if (redirect) parseUrl("VITE_ENTRA_REDIRECT_URI", redirect, true);
-else console.log("[INFO] VITE_ENTRA_REDIRECT_URI: omitted; MSAL defaults to the frontend origin");
+const redirectSetting = frontendEnv.VITE_ENTRA_REDIRECT_URI?.trim();
+const redirectValue = redirectSetting || (mode === "development" ? "http://localhost:5173" : undefined);
+const redirect = redirectValue ? parseUrl("VITE_ENTRA_REDIRECT_URI", redirectValue, true) : null;
+if (!redirectValue) console.log("[INFO] VITE_ENTRA_REDIRECT_URI: omitted; the authorization preflight needs an explicit redirect URI outside development mode");
+else if (!redirectSetting) console.log("[INFO] VITE_ENTRA_REDIRECT_URI: using the development SPA origin http://localhost:5173");
 
 if (frontendEnv.VITE_ENTRA_CLIENT_SECRET || frontendEnv.VITE_CLIENT_SECRET) {
   check("SPA secret handling", false, "a client secret is set in frontend configuration; remove it (the SPA uses PKCE)");
@@ -158,12 +251,18 @@ if (authority && issuer && process.env.NODE_TLS_REJECT_UNAUTHORIZED !== "0") {
     const label = error instanceof Error && error.name === "TimeoutError" ? "timed out" : "request failed";
     check("OIDC discovery/JWKS", false, `${label}; provider error details were suppressed`);
   }
+  if (frontendAuthority && redirect && usable(spaClientId) && usable(apiScope)) {
+    await verifyAuthorizationRequest(frontendAuthority, spaClientId, redirect.toString(), apiScope);
+  } else {
+    console.log("[SKIP] SPA authorization preflight: requires valid tenant authority, SPA client ID, API scope, and redirect URI");
+  }
 } else {
   console.log("[SKIP] OIDC discovery/JWKS: requires a valid authority, issuer, and TLS verification");
+  console.log("[SKIP] SPA authorization preflight: requires valid authority and TLS verification");
 }
 
 console.log(`\n${errors.length ? `${errors.length} of ${checks} checks need attention.` : `All ${checks} configuration/provider checks passed.`}`);
-console.log("This check validates configuration consistency and public provider metadata; it does not prove app registration, consent, user provisioning, or an interactive SPA sign-in. Verify those by signing in through the SPA and confirming GET /api/auth/me succeeds.");
+console.log("The preflight does not sign a user in or redeem a code. It checks Entra's noninteractive response for the configured client, API scope, and redirect; an expected login_required response does not prove token issuance or consent for an authenticated user. Verify consent and local user provisioning by signing in through the SPA and confirming GET /api/auth/me succeeds.");
 if (errors.length) process.exitCode = 1;
 }
 
