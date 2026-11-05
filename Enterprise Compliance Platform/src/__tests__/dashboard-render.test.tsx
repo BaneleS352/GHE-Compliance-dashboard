@@ -15,6 +15,7 @@ vi.mock("../services/api", () => ({
   fetchDeclarations: vi.fn(() => Promise.resolve([])),
   fetchWorkflowQueue: vi.fn(() => Promise.resolve({ items: [], total: 0 })),
   fetchConfig: vi.fn(() => Promise.resolve({ slaEscalationDays: 3 })),
+  fetchPublicConfig: vi.fn(() => Promise.resolve({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maximumValue: 1000000 })),
 }));
 
 beforeAll(() => {

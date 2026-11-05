@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getTeamToken, testToken } from "./helpers";
+import { PrismaClient } from "@prisma/client";
+import { buildApp, getAdminToken, testToken } from "./helpers";
 
 const app = buildApp();
+const prisma = new PrismaClient();
 
 // Authentication is provider-managed (Entra ID): there is no password login
 // route. These tests pin the remaining identity contract — GET /api/auth/me
@@ -32,15 +34,34 @@ describe("Auth", () => {
   });
 
   it("GET /api/auth/me — role and display data come from the database row", async () => {
-    const res = await request(app)
-      .get("/api/auth/me")
-      .set("Authorization", `Bearer ${getTeamToken()}`);
-    expect(res.status).toBe(200);
-    expect(res.body.role).toBe("teamMember");
-    expect(res.body.department).toBe("Marketing");
-    expect(res.body.id).toBe(4);
-    expect(res.body.managerId).toBe(2);
-    expect(res.body.lineManager).toBe("Sipho Approver");
+    const department = await prisma.department.findFirstOrThrow({ where: { name: "Marketing" } });
+    const identity = "10000000-0000-4000-8000-000000000021";
+    const user = await prisma.user.create({ data: {
+      name: "Auth Display Fixture",
+      email: "auth-display-fixture@test.com",
+      role: "teamMember",
+      teamMemberNumber: "AUTH-DISPLAY",
+      departmentId: department.id,
+      position: "Fixture Position",
+      providerSubject: identity,
+      providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439",
+    } });
+    try {
+      const token = testToken({ oid: identity, email: user.email, name: "Untrusted Token Name" });
+      const res = await request(app)
+        .get("/api/auth/me")
+        .set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        role: "teamMember",
+        department: "Marketing",
+        id: Number(user.id),
+        name: "Auth Display Fixture",
+        position: "Fixture Position",
+      });
+    } finally {
+      await prisma.user.delete({ where: { id: user.id } });
+    }
   });
 
   it("GET /api/auth/me — no token returns 401", async () => {

@@ -68,7 +68,8 @@ export async function setup() {
   process.env.OIDC_AUTHORITY = jwks.baseUrl;
   process.env.OIDC_ISSUER = jwks.baseUrl;
   process.env.OIDC_AUDIENCE = TEST_AUDIENCE;
-  process.env.OIDC_CLIENT_ID = "test-client-id";
+  process.env.OIDC_ALLOWED_CLIENT_IDS = "test-spa-client-id";
+  process.env.OIDC_REQUIRED_SCOPE = "access_as_user";
 
   // Invoke the LOCAL Prisma CLI directly via node instead of `npx`: on hosts
   // where npx resolves a different Prisma version, setup fails before any
@@ -104,7 +105,7 @@ export async function setup() {
   const prisma = new PrismaClient();
 
   // Fixture users carry no credentials: authentication is Entra-shaped
-  // RS256 in tests (see testAuth.ts), resolved to these rows by email.
+  // RS256 in tests (see testAuth.ts), resolved by issuer and subject.
 
   // Numeric fixture ids (shared with helpers.ts tokens).
   // Fixture organization exists only to host Department master rows:
@@ -125,10 +126,10 @@ export async function setup() {
   }
   await prisma.user.createMany({
     data: [
-      { id: 1n, name: "Admin User", email: "admin@test.com", role: "admin", teamMemberNumber: "ADM-001", departmentId: deptByName.get("IT"), position: "System Admin" },
-      { id: 2n, name: "Sipho Approver", email: "sipho@test.com", role: "approver", teamMemberNumber: "APR-001", departmentId: deptByName.get("Marketing"), position: "Line Manager" },
-      { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver", teamMemberNumber: "APR-002", departmentId: deptByName.get("HR"), position: "Head of HR" },
-      { id: 4n, name: "Nomvula Team", email: "nomvula@test.com", role: "teamMember", teamMemberNumber: "TM-001", departmentId: deptByName.get("Marketing"), position: "Brand Manager" },
+      { id: 1n, name: "Admin User", email: "admin@test.com", role: "admin", teamMemberNumber: "ADM-001", departmentId: deptByName.get("IT"), position: "System Admin", lineManager: null, providerSubject: "test-oid-admin", providerIssuer: process.env.OIDC_ISSUER || `http://127.0.0.1:${process.env.TEST_JWKS_PORT || "55439"}` },
+      { id: 2n, name: "Sipho Approver", email: "sipho@test.com", role: "approver", teamMemberNumber: "APR-001", departmentId: deptByName.get("Marketing"), position: "Line Manager", lineManager: null, providerSubject: "test-oid-sipho", providerIssuer: process.env.OIDC_ISSUER || `http://127.0.0.1:${process.env.TEST_JWKS_PORT || "55439"}` },
+      { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver", teamMemberNumber: "APR-002", departmentId: deptByName.get("HR"), position: "Head of HR", lineManager: null, providerSubject: "test-oid-lindiwe", providerIssuer: process.env.OIDC_ISSUER || `http://127.0.0.1:${process.env.TEST_JWKS_PORT || "55439"}` },
+      { id: 4n, name: "Nomvula Team", email: "nomvula@test.com", role: "teamMember", teamMemberNumber: "TM-001", departmentId: deptByName.get("Marketing"), position: "Brand Manager", lineManager: "Sipho Approver", providerSubject: "test-oid-nomvula", providerIssuer: process.env.OIDC_ISSUER || `http://127.0.0.1:${process.env.TEST_JWKS_PORT || "55439"}` },
     ],
   });
   // Normalized user links (manager FK).

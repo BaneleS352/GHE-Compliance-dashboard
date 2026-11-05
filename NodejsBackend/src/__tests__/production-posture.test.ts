@@ -13,7 +13,8 @@ describe("production posture", () => {
   it("trims whitespace from OIDC URL environment values", async () => {
     vi.stubEnv("OIDC_AUTHORITY", " http://127.0.0.1:55439 ");
     vi.stubEnv("OIDC_ISSUER", " http://127.0.0.1:55439 ");
-    vi.stubEnv("OIDC_CLIENT_ID", " local-test-client ");
+    vi.stubEnv("OIDC_ALLOWED_CLIENT_IDS", " local-spa-client ");
+    vi.stubEnv("OIDC_REQUIRED_SCOPE", " access_as_user ");
     vi.stubEnv("OIDC_AUDIENCE", " ghe-test-api-audience ");
     vi.resetModules();
     const { config } = await import("../config/env");

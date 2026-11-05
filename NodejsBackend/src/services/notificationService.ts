@@ -35,19 +35,26 @@ export async function sendNotification(event: NotificationEvent, declarationId: 
     const payload = { to: recipient.email, subject: render(template.subject, data), body: render(template.body, data), event, declarationId };
     const webhook = process.env.EMAIL_WEBHOOK_URL;
     if (!webhook) {
-      console.info(`[email:dev] ${event} -> ${recipient.email} (${declarationId})`);
+      console.info(JSON.stringify({ event: "notification_skipped", stage: "webhook_delivery", reason: "webhook_not_configured", notificationType: event }));
       return;
     }
-    let lastError = "";
+    let lastFailure = "delivery_failed";
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const response = await fetch(webhook, { method: "POST", headers: { "content-type": "application/json", ...(process.env.EMAIL_WEBHOOK_TOKEN ? { authorization: `Bearer ${process.env.EMAIL_WEBHOOK_TOKEN}` } : {}) }, body: JSON.stringify(payload), signal: AbortSignal.timeout(10000) });
         if (response.ok) return;
-        lastError = `HTTP ${response.status}`;
-      } catch (error: any) { lastError = error?.message || "Delivery failed"; }
+        lastFailure = `http_${response.status}`;
+      } catch { lastFailure = "network_error"; }
     }
-    console.error(`[email] delivery failed for ${declarationId}: ${lastError}`);
+    console.error(JSON.stringify({ event: "notification_delivery_failed", stage: "webhook_delivery", reason: lastFailure }));
   } catch (error) {
-    console.error(`[email] notification failed for ${declarationId}`, error);
+    console.error(JSON.stringify({ event: "notification_failed", stage: "prepare_or_send", errorName: safeErrorName(error) }));
   }
+}
+
+function safeErrorName(value: unknown): string {
+  if (value && typeof value === "object" && "name" in value && typeof value.name === "string") {
+    return value.name.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 64) || "Error";
+  }
+  return "UnknownError";
 }

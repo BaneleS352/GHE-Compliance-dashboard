@@ -30,7 +30,9 @@ export function TopBar({
             </span>
           </div>
           <div className="header-carousel-mask flex min-w-0 flex-1 xl:hidden">
-            <div className="header-carousel-track">
+            <span className="sr-only">{headerText}</span>
+            <span className="header-mobile-title text-[11px] font-black uppercase tracking-wide text-white sm:text-xs">GHE Compliance Dashboard</span>
+            <div aria-hidden="true" className="header-carousel-track">
               <span className="header-carousel-copy text-[11px] font-black uppercase tracking-wide text-white sm:text-xs lg:text-sm lg:tracking-widest">
                 {headerText}
               </span>

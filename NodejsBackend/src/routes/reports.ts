@@ -118,10 +118,21 @@ router.get("/high-value", authenticate, authorize("admin", "approver"), asyncHan
 router.get("/list", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildReportWhere(req);
   const search = req.query.search as string | undefined;
+  if (search?.trim()) {
+    const q = search.trim().slice(0, 100);
+    where.OR = [
+      { id: { contains: q, mode: "insensitive" } },
+      { snapshot: { is: { declarerName: { contains: q, mode: "insensitive" } } } },
+    ];
+  }
+  const take = Math.min(Math.max(Number.parseInt(String(req.query.limit ?? "100"), 10) || 100, 1), 500);
+  const skip = Math.max(Number.parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
 
   const declarations = await prisma.declaration.findMany({
     where,
     orderBy: { submittedAt: "desc" },
+    take,
+    skip,
     include: { snapshot: true, counterpartyRef: true },
   });
 
@@ -136,11 +147,6 @@ router.get("/list", authenticate, authorize("admin", "approver"), asyncHandler(a
     submitted: d.submittedAt ? new Date(d.submittedAt).toISOString().slice(0, 10) : "",
     status: d.status,
   }));
-  if (search) {
-    const q = String(search).toLowerCase();
-    result = result.filter((d) => String(d.employee || "").toLowerCase().includes(q) || String(d.id || "").toLowerCase().includes(q));
-  }
-
   res.json(result);
 }));
 
@@ -151,8 +157,13 @@ router.get("/export", authenticate, authorize("admin", "approver"), asyncHandler
   const declarations = await prisma.declaration.findMany({
     where,
     orderBy: { submittedAt: "desc" },
+    take: 5001,
     include: { snapshot: true, counterpartyRef: true },
   });
+  if (declarations.length > 5000) {
+    res.status(413).json({ error: "Export exceeds the 5,000 declaration limit. Apply filters and export smaller batches." });
+    return;
+  }
 
   const title = String(reportType || "Declaration Report");
   const sanitized = title.replace(/[^a-zA-Z0-9]/g, "_");

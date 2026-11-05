@@ -10,12 +10,15 @@
  *      $env:OIDC_AUTHORITY="http://127.0.0.1:55439"
  *      $env:OIDC_ISSUER="http://127.0.0.1:55439"
  *      $env:OIDC_AUDIENCE="ghe-test-api-audience"
- *      $env:OIDC_CLIENT_ID="manual-testing"
+ *      $env:OIDC_ALLOWED_CLIENT_IDS="test-spa-client-id"
+ *      $env:OIDC_REQUIRED_SCOPE="access_as_user"
  *      npm run dev
- *   3. Mint a token for a seeded local user (identity resolves by email):
+ *   3. In dev.bat/local test-seed mode, mint a token for a linked test user:
  *      Invoke-RestMethod -Uri "http://127.0.0.1:55439/test-token" -Method Post `
- *        -Body '{"email":"admin@hb.co.za","name":"Admin User","oid":"manual-admin"}' `
+ *        -Body '{"email":"admin@hb.co.za","name":"Admin User","oid":"test-oid-e2e-admin@hb.co.za"}' `
  *        -ContentType "application/json"
+ *      Email alone never links accounts; use the audited admin workflow for
+ *      other local users.
  *   4. Call the API with `Authorization: Bearer <token>`.
  */
 import { startTestJwksServer, TEST_JWKS_PORT } from "../test-utils/test-jwks-server";
@@ -23,7 +26,7 @@ import { startTestJwksServer, TEST_JWKS_PORT } from "../test-utils/test-jwks-ser
 async function main(): Promise<void> {
   const jwks = await startTestJwksServer();
   console.log(`Test identity provider up at ${jwks.baseUrl} (override port with TEST_JWKS_PORT, default ${TEST_JWKS_PORT}).`);
-  console.log("Mint tokens with POST /test-token {email, name, oid}. Ctrl+C to stop.");
+  console.log("Mint tokens with POST /test-token {email, name, oid}; oid must already be linked locally. Ctrl+C to stop.");
 
   const shutdown = () => {
     jwks.close().catch(() => undefined).finally(() => process.exit(0));

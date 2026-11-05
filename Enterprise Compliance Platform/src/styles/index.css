@@ -110,6 +110,14 @@ textarea,
   100% { transform: translateX(-50%); }
 }
 
+@media (max-width: 1279px) {
+  .header-carousel-track { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .header-carousel-track { animation: none; }
+}
+
 .detail-panel-shell {
   position: relative;
   overflow: hidden;

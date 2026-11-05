@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../config/prisma";
+import { config } from "../../config/env";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { parseIdParam, toDbId, toJsonId } from "../../services/ids";
@@ -10,8 +11,8 @@ import { resolveDepartmentId } from "../../services/normalization";
 
 const router = Router();
 
-/** User row with its display relations. */
-type UserWithDepartment = Prisma.UserGetPayload<{ include: { departmentRef: true; manager: { select: { name: true } } } }>;
+/** User row with its department link for display derivation. */
+type UserWithDepartment = Prisma.UserGetPayload<{ include: { departmentRef: true } }>;
 
 function userResponse(u: UserWithDepartment) {
   return {
@@ -19,13 +20,12 @@ function userResponse(u: UserWithDepartment) {
     name: u.name,
     email: u.email,
     role: u.role,
+    isActive: u.isActive,
     teamMemberNumber: u.teamMemberNumber,
     // Display only: departmentId -> Department.name is the sole source.
     department: u.departmentRef?.name ?? "",
     position: u.position,
-    // Preserve the API display shape while keeping managerId as the only
-    // persisted relationship.
-    lineManager: u.manager?.name ?? null,
+    lineManager: u.lineManager,
     organizationId: u.organizationId === null || u.organizationId === undefined ? null : toJsonId(u.organizationId),
   };
 }
@@ -33,6 +33,8 @@ function userResponse(u: UserWithDepartment) {
 // GET /api/admin/users
 router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const { search, role } = req.query;
+  const take = Math.min(Math.max(Number.parseInt(String(req.query.limit ?? "100"), 10) || 100, 1), 500);
+  const skip = Math.max(Number.parseInt(String(req.query.offset ?? "0"), 10) || 0, 0);
 
   const where: Prisma.UserWhereInput = {};
 
@@ -46,16 +48,16 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
   }
 
   if (search) {
-    const q = String(search);
+    const q = String(search).trim().slice(0, 100);
     const numeric = /^\d+$/.test(q.trim()) ? toDbId(q.trim()) : null;
     where.OR = [
-      { name: { contains: q } },
-      { email: { contains: q } },
+      { name: { contains: q, mode: "insensitive" } },
+      { email: { contains: q, mode: "insensitive" } },
       ...(numeric !== null ? [{ id: numeric }] : []),
     ];
   }
 
-  const users = await prisma.user.findMany({ where, orderBy: { name: "asc" }, include: { departmentRef: true, manager: { select: { name: true } } } });
+  const users = await prisma.user.findMany({ where, orderBy: { name: "asc" }, take, skip, include: { departmentRef: true } });
 
   res.json(users.map(userResponse));
 }));
@@ -67,7 +69,7 @@ router.get("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     res.status(404).json({ error: "User not found" });
     return;
   }
-  const user = await prisma.user.findUnique({ where: { id: userPk }, include: { departmentRef: true, manager: { select: { name: true } } } });
+  const user = await prisma.user.findUnique({ where: { id: userPk }, include: { departmentRef: true } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -84,17 +86,18 @@ const createUserSchema = z.object({
   // DTO resolver input (not stored): resolves to departmentId through the
   // organization-scoped Department master data (created when missing).
   department: z.string().optional().default(""),
-  teamMemberNumber: z.string().trim().optional().default(""),
+  teamMemberNumber: z.string().optional().default(""),
   position: z.string().optional().default(""),
   lineManager: managerInput.nullable().optional().default(null),
   organizationId: z.union([z.number().int(), z.string().regex(/^\d+$/)], { error: () => "Expected a numeric identifier" }).nullable().optional().default(null),
 });
 
 /**
- * Resolve the authoritative managerId FK from the compatibility lineManager
- * input. Accepts a numeric user id (as number or string) or a display name.
+ * Resolve the authoritative managerId FK from a lineManager input. Accepts a
+ * numeric user id (as number or string) or a display name; anything else
+ * leaves the FK unset while the display text is still stored.
  */
-async function resolveManagerId(lineManager: string | number | null | undefined, organizationId: bigint | null): Promise<bigint | null> {
+async function resolveManagerId(lineManager: string | number | null | undefined): Promise<bigint | null> {
   if (lineManager === null || lineManager === undefined) return null;
   if (typeof lineManager === "number") {
     const found = await prisma.user.findUnique({ where: { id: toDbId(lineManager) }, select: { id: true } });
@@ -106,37 +109,8 @@ async function resolveManagerId(lineManager: string | number | null | undefined,
     const found = await prisma.user.findUnique({ where: { id: toDbId(trimmed) }, select: { id: true } });
     if (found) return found.id;
   }
-  const matches = await prisma.user.findMany({
-    where: { name: trimmed, OR: [{ organizationId: null }, { organizationId }] },
-    select: { id: true },
-    take: 2,
-    orderBy: { id: "asc" },
-  });
-  return matches.length === 1 ? matches[0].id : null;
-}
-
-function hasManagerSelection(value: string | number | null | undefined): boolean {
-  return value !== null && value !== undefined && String(value).trim() !== "";
-}
-
-async function hasTeamMemberNumber(orgId: bigint | null, value: string, exceptUserId?: bigint): Promise<boolean> {
-  const normalized = value.trim();
-  if (!normalized) return false;
-  const rows = exceptUserId === undefined
-    ? await prisma.$queryRaw<Array<{ duplicate: boolean }>>`
-        SELECT EXISTS (
-          SELECT 1 FROM "User"
-          WHERE "organizationId" IS NOT DISTINCT FROM ${orgId}
-            AND lower(btrim("teamMemberNumber")) = lower(btrim(${normalized}))
-        ) AS duplicate`
-    : await prisma.$queryRaw<Array<{ duplicate: boolean }>>`
-        SELECT EXISTS (
-          SELECT 1 FROM "User"
-          WHERE "organizationId" IS NOT DISTINCT FROM ${orgId}
-            AND lower(btrim("teamMemberNumber")) = lower(btrim(${normalized}))
-            AND "id" <> ${exceptUserId}
-        ) AS duplicate`;
-  return Boolean(rows[0]?.duplicate);
+  const byName = await prisma.user.findFirst({ where: { name: trimmed }, select: { id: true } });
+  return byName ? byName.id : null;
 }
 
 // POST /api/admin/users — creates a credential-less user. Authentication is
@@ -163,16 +137,8 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
       return;
     }
   }
-  if (await hasTeamMemberNumber(orgPk, data.teamMemberNumber)) {
-    res.status(409).json({ error: "A user with this team member number already exists in the organization" });
-    return;
-  }
 
-  const managerPk = await resolveManagerId(data.lineManager, orgPk);
-  if (hasManagerSelection(data.lineManager) && managerPk === null) {
-    res.status(400).json({ error: "lineManager must identify one existing user in the same organization or a global user" });
-    return;
-  }
+  const managerPk = await resolveManagerId(data.lineManager);
   // Organization consistency: a scoped user must not reference a manager
   // from another organization (global managers are allowed).
   const violation = await managerOrgViolation(managerPk, orgPk);
@@ -192,10 +158,11 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
       teamMemberNumber: data.teamMemberNumber,
       departmentId: departmentPk,
       position: data.position,
+      lineManager: data.lineManager === null || data.lineManager === undefined ? null : String(data.lineManager),
       managerId: managerPk,
       organizationId: orgPk,
     },
-    include: { departmentRef: true, manager: { select: { name: true } } },
+    include: { departmentRef: true },
   });
 
   res.status(201).json(userResponse(user));
@@ -205,12 +172,63 @@ const updateUserSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
   role: z.enum(["teamMember", "approver", "admin"]).optional(),
+  isActive: z.boolean().optional(),
   department: z.string().optional(),
-  teamMemberNumber: z.string().trim().optional(),
+  teamMemberNumber: z.string().optional(),
   position: z.string().optional(),
   lineManager: managerInput.nullable().optional(),
   organizationId: z.union([z.number().int(), z.string().regex(/^\d+$/)], { error: () => "Expected a numeric identifier" }).nullable().optional(),
 });
+
+const identityLinkSchema = z.object({
+  providerSubject: z.string().uuid(),
+  // Reference to the tenant administrator's independently verified identity
+  // record (ticket/case ID); do not send identity documents to this API.
+  evidenceReference: z.string().trim().min(8).max(200),
+});
+
+// POST /api/admin/users/:id/identity-link
+// Links only a currently unlinked local account. The tenant administrator
+// must verify the subject against the Entra directory before calling this.
+router.post("/:id/identity-link", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  const userPk = parseIdParam(req.params.id);
+  const parsed = identityLinkSchema.safeParse(req.body);
+  if (userPk === null || !parsed.success) {
+    res.status(400).json({ error: "Invalid identity link request" });
+    return;
+  }
+  const actorPk = toDbId(req.user!.id);
+  try {
+    const linked = await prisma.$transaction(async (tx) => {
+      const result = await tx.user.updateMany({
+        where: { id: userPk, providerSubject: null },
+        data: { providerSubject: parsed.data.providerSubject.toLowerCase(), providerIssuer: config.oidc.issuer },
+      });
+      if (result.count !== 1) return false;
+      await tx.identityLinkAudit.create({ data: {
+        targetUserId: userPk,
+        actorUserId: actorPk,
+        actorType: "admin",
+        actorLabel: null,
+        providerIssuer: config.oidc.issuer,
+        providerSubject: parsed.data.providerSubject.toLowerCase(),
+        evidenceReference: parsed.data.evidenceReference,
+      } });
+      return true;
+    });
+    if (!linked) {
+      res.status(409).json({ error: "User is missing or already has a provider identity link" });
+      return;
+    }
+    res.status(204).end();
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      res.status(409).json({ error: "Provider identity is already linked to another user" });
+      return;
+    }
+    throw error;
+  }
+}));
 
 // PUT /api/admin/users/:id
 router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
@@ -246,25 +264,18 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
   // consistency check both depend on the post-update org.
   const nextOrg: bigint | null =
     data.organizationId === undefined ? existing.organizationId : data.organizationId === null ? null : toDbId(data.organizationId);
-  const nextTeamMemberNumber = data.teamMemberNumber ?? existing.teamMemberNumber;
-  if ((data.teamMemberNumber !== undefined || nextOrg !== existing.organizationId) && await hasTeamMemberNumber(nextOrg, nextTeamMemberNumber, userPk)) {
-    res.status(409).json({ error: "A user with this team member number already exists in the organization" });
-    return;
-  }
   if (data.name !== undefined) updateData.name = data.name;
   if (data.email !== undefined) updateData.email = data.email.toLowerCase();
   if (data.role !== undefined) updateData.role = data.role;
+  if (data.isActive !== undefined) updateData.isActive = data.isActive;
   // departmentId is the sole department source: the `department` DTO string
   // resolves to the organization-scoped master row (created when missing).
   if (data.department !== undefined) updateData.departmentId = await resolveDepartmentId(data.department, nextOrg);
   if (data.teamMemberNumber !== undefined) updateData.teamMemberNumber = data.teamMemberNumber;
   if (data.position !== undefined) updateData.position = data.position;
   if (data.lineManager !== undefined) {
-    resolvedManager = await resolveManagerId(data.lineManager, nextOrg);
-    if (hasManagerSelection(data.lineManager) && resolvedManager === null) {
-      res.status(400).json({ error: "lineManager must identify one existing user in the same organization or a global user" });
-      return;
-    }
+    updateData.lineManager = data.lineManager === null ? null : String(data.lineManager);
+    resolvedManager = await resolveManagerId(data.lineManager);
     updateData.managerId = resolvedManager;
   }
   if (data.organizationId !== undefined) {
@@ -288,7 +299,7 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     return;
   }
 
-  const user = await prisma.user.update({ where: { id: userPk }, data: updateData, include: { departmentRef: true, manager: { select: { name: true } } } });
+  const user = await prisma.user.update({ where: { id: userPk }, data: updateData, include: { departmentRef: true } });
 
   res.json(userResponse(user));
 }));
@@ -303,6 +314,15 @@ router.delete("/:id", authenticate, authorize("admin"), asyncHandler(async (req:
   const user = await prisma.user.findUnique({ where: { id: userPk } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  const identityAudit = await prisma.identityLinkAudit.findFirst({
+    where: { OR: [{ targetUserId: userPk }, { actorUserId: userPk }] },
+    select: { id: true },
+  });
+  if (identityAudit) {
+    res.status(400).json({ error: "Cannot delete a user with identity-link audit history; disable the account instead" });
     return;
   }
 

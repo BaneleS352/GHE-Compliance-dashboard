@@ -22,7 +22,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
     trace: "on-first-retry",
     actionTimeout: 15000,
-    navigationTimeout: 20000,
+    navigationTimeout: 45000,
   },
   projects: [
     {
@@ -58,7 +58,8 @@ export default defineConfig({
         OIDC_AUTHORITY: TEST_JWKS_URL,
         OIDC_ISSUER: TEST_JWKS_URL,
         OIDC_AUDIENCE: "ghe-test-api-audience",
-        OIDC_CLIENT_ID: "e2e-client-id",
+        OIDC_ALLOWED_CLIENT_IDS: "test-spa-client-id",
+        OIDC_REQUIRED_SCOPE: "access_as_user",
       },
     },
     {

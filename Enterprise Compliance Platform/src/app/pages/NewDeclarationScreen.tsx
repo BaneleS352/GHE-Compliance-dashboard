@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Check, AlertCircle, Send, X,
 } from "lucide-react";
@@ -13,7 +13,7 @@ import { Declaration } from "@/types/declaration";
 import { downloadFile } from "@/services/download";
 import { reportClientError } from "@/services/clientTelemetry";
 import { useUser } from "@/app/auth/UserContext";
-import { fetchConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
+import { fetchPublicConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
 import { buildDeclarationPayload as buildPayload, formatRandValue, OCCASION_OPTIONS, parseRandInput, validateDeclarationForm } from "./newDeclarationModel";
 import type { DeclarationFormState } from "./newDeclarationModel";
 
@@ -48,8 +48,8 @@ export function NewDeclarationScreen({
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchConfig({ signal: controller.signal })
-      .then(setConfig)
+    fetchPublicConfig({ signal: controller.signal })
+      .then((publicConfig) => setConfig((current) => ({ ...current, ...publicConfig })))
       .catch((error: unknown) => { if (error instanceof DOMException && error.name === "AbortError") return; setLoadWarning("System configuration could not be loaded — default thresholds apply. Ask an administrator to check the configuration before submitting high-value declarations."); });
     fetchOrganizations({ signal: controller.signal })
       .then(setOrganizations)
@@ -271,12 +271,11 @@ export function NewDeclarationScreen({
 
   const ALLOWED = [
     "application/pdf",
-    "image/png",
-    "image/jpeg",
-    "application/msword",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/png", "image/jpeg", "image/gif", "image/webp", "text/plain",
   ];
-  const MAX_SIZE = 20 * 1_048_576;
+  const MAX_SIZE = 10 * 1_048_576;
 
   const processFiles = useCallback(async (rawFiles: FileList | null) => {
     if (!rawFiles) return;
@@ -284,14 +283,14 @@ export function NewDeclarationScreen({
       if (!ALLOWED.includes(file.type)) {
         setUploadError({
           title: "Unsupported file type",
-          message: `${file.name} cannot be uploaded. Use PDF, PNG, JPG, DOC, or DOCX files.`,
+          message: `${file.name} is not an allowed file type. Use PDF, XLSX, DOCX, an image, or plain text.`,
         });
         continue;
       }
       if (file.size > MAX_SIZE) {
         setUploadError({
           title: "File is too large",
-          message: `${file.name} exceeds the 20 MB limit.`,
+          message: `${file.name} exceeds the 10 MB limit.`,
         });
         continue;
       }

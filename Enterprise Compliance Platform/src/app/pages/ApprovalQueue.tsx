@@ -1,6 +1,6 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Download, Search, AlertTriangle } from "lucide-react";
-import { fetchWorkflowQueue, fetchConfig } from "@/services/api";
+import { fetchWorkflowQueue, fetchPublicConfig } from "@/services/api";
 import { Declaration } from "@/types/declaration";
 import { PURPLE, formatRand, PRIORITY_COLORS } from "@/config/theme";
 import { Card } from "@/app/components/Card";
@@ -70,7 +70,7 @@ export function ApprovalQueue({ onReview }: { onReview: (d: Declaration) => void
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchConfig({ signal: controller.signal })
+    fetchPublicConfig({ signal: controller.signal })
       .then((c) => setSlaDays(c.slaEscalationDays ?? 3))
       // Overdue display depends on this threshold — a silent default would
       // mislead, so warn instead of failing the whole queue.

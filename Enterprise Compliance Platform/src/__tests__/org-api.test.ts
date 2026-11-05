@@ -68,6 +68,10 @@ describe("Organization API — per-org", () => {
     const spy = vi.spyOn(globalThis, "fetch").mockImplementation(mockFetch(200, []) as any);
     const controller = new AbortController();
     await fetchAdminOrganizations({ signal: controller.signal });
-    expect(spy.mock.calls[0]?.[1]).toEqual(expect.objectContaining({ signal: controller.signal }));
+    const forwardedSignal = spy.mock.calls[0]?.[1]?.signal as AbortSignal;
+    expect(forwardedSignal).toBeDefined();
+    expect(forwardedSignal).not.toBe(controller.signal);
+    controller.abort();
+    expect(forwardedSignal.aborted).toBe(true);
   });
 });

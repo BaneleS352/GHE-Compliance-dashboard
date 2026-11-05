@@ -8,13 +8,12 @@ This guide covers both Docker-based deployment (recommended) and manual deployme
 
 ```bash
 # Copy .env.example to .env and replace its placeholders first.
-# Set SEED_ON_BOOT=true in .env for the first start of an empty database.
+# Keep SEED_ON_BOOT=false for production; bootstrap an admin explicitly below.
 docker compose up -d --build
 ```
 
-The backend entrypoint applies migrations and seeds only an empty database
-when `SEED_ON_BOOT=true`. Avoid running raw `db:seed` against a live stack;
-it is intended for controlled development and test setup.
+The backend entrypoint applies migrations on startup. Production should keep
+`SEED_ON_BOOT=false`; the demo seed is intended for development and test use.
 
 The stack starts 3 containers:
 - **Frontend** (Nginx, port 3000) — serves the built SPA
@@ -28,19 +27,6 @@ keep backend and database ports loopback-only unless your network design
 requires otherwise.
 
 The Prisma schema is PostgreSQL-native (single provider, no rewrite step).
-
-If Docker builds run behind a TLS-inspecting proxy, provide its trusted root
-CA to the backend image build. Do not disable certificate checks. On
-PowerShell, encode the PEM root CA as one line before running Compose:
-
-```powershell
-$env:PIP_CA_CERT_BASE64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\certs\corporate-root-ca.pem"))
-docker compose up -d --build
-```
-
-The same build argument is applied to the backend and the stub OpenID provider.
-Leave it unset for normal public PyPI access. The CA is installed in the image's
-trust store so pip continues to verify the certificate chain.
 
 ### Local Docker stub sign-in
 
@@ -72,11 +58,34 @@ cp .env.example .env
 ```
 
 Set `DATABASE_URL` to use the same credentials as `POSTGRES_PASSWORD`.
-`OIDC_AUTHORITY`, `OIDC_CLIENT_ID`, and `OIDC_AUDIENCE` are required by the API.
+`OIDC_AUTHORITY`, `OIDC_AUDIENCE`, `OIDC_ALLOWED_CLIENT_IDS`, and `OIDC_REQUIRED_SCOPE` are required by the API. Set the allowlist to the SPA application ID and the scope to the delegated permission exposed by the API registration.
 The three `VITE_ENTRA_*` values are required to build a working sign-in page;
 they are public application configuration, not secrets. The redirect URI must
 be registered on the Entra SPA application. Keep client secrets out of this
 file and use your deployment platform's secret store in production.
+
+The API never links accounts from email. On a new deployment, first create or
+link the initial admin through the one-time bootstrap command after a tenant
+operator has verified the Entra object ID and the approval evidence for the
+admin role. This command can create the first local admin, refuses to promote
+an existing non-admin, links only an unlinked account, and records the
+operator label, target, subject, issuer, and evidence reference:
+
+```bash
+docker compose exec backend node dist/scripts/bootstrap-admin-identity.js \
+  "Compliance Administrator" "admin@company.example" "<entra-object-id>" \
+  "<identity-and-access-approval-record>" "<operator-id>"
+```
+
+For manual deployments, run the equivalent command from the backend directory
+after migrations, using `npm run auth:bootstrap-admin --` with the same five
+arguments. Preserve the referenced verification and access-approval record
+in the approved records system; the API stores only its reference. After
+bootstrap, admins can link other accounts with
+`POST /api/admin/users/:id/identity-link`. That endpoint accepts only
+unlinked users and rejects relinking. Existing linked subjects require a
+separately reviewed recovery procedure. Apply migrations before deployment
+to create the `isActive` control and `IdentityLinkAudit` table.
 
 ### Document protection (Phase 5)
 
@@ -112,7 +121,7 @@ Run migrations:
 
 ```bash
 npx prisma migrate deploy
-npx tsx src/scripts/seed-if-empty.ts  # safe on first deploy and skips non-empty databases
+npm run auth:bootstrap-admin -- "Compliance Administrator" "admin@company.example" "<entra-object-id>" "<identity-and-access-approval-record>" "<operator-id>"
 # (Phase 5: db:backfill/db:verify were retired with the legacy columns.)
 ```
 
@@ -123,8 +132,9 @@ NODE_ENV=production
 PORT=3001
 DATABASE_URL="postgresql://user:password@host:5432/ghe_db"
 OIDC_AUTHORITY="https://login.microsoftonline.com/<tenant-id>/v2.0"
-OIDC_CLIENT_ID="<api-application-client-id>"
-OIDC_AUDIENCE="api://<api-application-client-id>"
+OIDC_ALLOWED_CLIENT_IDS="<spa-application-client-id>"
+OIDC_REQUIRED_SCOPE="access_as_user"
+OIDC_AUDIENCE="<api-application-client-id>"
 OIDC_ISSUER="https://login.microsoftonline.com/<tenant-id>/v2.0"
 CORS_ORIGIN="https://your-frontend-domain.com"
 ```
@@ -149,7 +159,10 @@ healthy. Diagnose first, then revert:
    - One user 403 "unprovisioned or subject mismatch" while others work →
      not a config incident: their Entra object ID changed (recreated
      account) or their local row was never provisioned. Provision the row
-     or re-link deliberately — do not touch global config for one user.
+     through the approved account-provisioning process; do not manually
+     change `providerSubject`. For a new unlinked row, use the audited
+     identity-link operation documented above after verifying the Entra
+     object ID and local authorization data.
 2. **Revert backend config** to the previous working values and restart
    the API (`docker compose up -d backend`, or `pm2 restart ghe-api`).
    For a bad release rather than bad config, redeploy the previous image
@@ -161,9 +174,9 @@ healthy. Diagnose first, then revert:
 4. **Never "fix" auth by seeding, editing `providerSubject` by hand, or
    loosening middleware checks.** `providerSubject` mismatch fails closed
    by design; hand-editing identity links creates account-takeover risk.
-   If a subject must be reset, do it through a reviewed database change
-   with the affected user's verified new object ID, never by disabling
-   the check.
+   The application does not support replacing a linked subject. If a subject
+   must be reset, use a separately reviewed database change with verified
+   evidence and a corresponding audit record.
 
 ### 3. Build & Start
 
@@ -235,7 +248,7 @@ backend (nginx example below). Entra settings are baked in at build time:
 ```bash
 cd "Enterprise Compliance Platform"
 VITE_ENTRA_CLIENT_ID="<spa-application-client-id>" \
-VITE_ENTRA_AUTHORITY="https://login.microsoftonline.com/<tenant-id>/v2.0" \
+VITE_ENTRA_AUTHORITY="https://login.microsoftonline.com/<tenant-id>" \
 VITE_ENTRA_API_SCOPE="api://<api-application-client-id>/access_as_user" \
 npx vite build
 # Output in dist/
@@ -294,8 +307,8 @@ pg_dump "postgresql://user:password@host:5432/ghe_db" > backup_$(date +%Y%m%d).s
 - **PostgreSQL is the only supported database** — run versioned migrations (`prisma migrate deploy`), never `db push`, against production
 - **File storage on local disk doesn't scale** — use S3 or similar object storage
 - **No application-issued tokens exist** — access-token lifetime, refresh,
-  and revocation are owned by Entra. To cut off a user immediately, disable
-  or delete their local `User` row: the middleware resolves identity from
-  the database on every request, so the next call fails closed (`403`)
-  even with a technically valid provider token. Prefer short provider
-  access-token lifetimes per your tenant policy.
+and revocation are owned by Entra. To cut off a user immediately, set their
+local `isActive` flag to false: the middleware checks it on every request,
+so the next call fails closed (`403`) even with a technically valid provider
+token. Identity-link audit history may prevent deleting a linked user.
+Prefer short provider access-token lifetimes per your tenant policy.

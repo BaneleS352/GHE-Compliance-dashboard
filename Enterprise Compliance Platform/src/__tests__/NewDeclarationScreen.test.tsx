@@ -10,6 +10,7 @@ const mockConfig = {
 
 vi.mock("../services/api", () => ({
   fetchConfig: vi.fn(() => Promise.resolve(mockConfig)),
+  fetchPublicConfig: vi.fn(() => Promise.resolve({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maximumValue: 1000000 })),
   fetchUserById: vi.fn(() => Promise.resolve({ id: 3, name: "Sipho Nkosi" })),
   fetchManagers: vi.fn(() => Promise.resolve([])),
   fetchDepartments: vi.fn(() => Promise.resolve(["Marketing", "Sales", "Finance"])),

@@ -8,6 +8,14 @@ import { parseIdParam, toJsonId } from "../../services/ids";
 
 const router = Router();
 
+// Read-only business guidance for authenticated users; administrative templates stay private.
+router.get("/public", authenticate, asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
+  const config = await prisma.systemConfig.findFirst();
+  if (!config) { res.status(404).json({ error: "System config not found" }); return; }
+  res.json({ highValueThreshold: config.highValueThreshold, mediumValueThreshold: config.mediumValueThreshold,
+    slaEscalationDays: config.slaEscalationDays, maximumValue: config.maximumValue ?? 1000000 });
+}));
+
 // GET /api/admin/config
 router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const config = await prisma.systemConfig.findFirst();
@@ -16,11 +24,11 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: Auth
     return;
   }
   res.json({
-    highValueThreshold: Number(config.highValueThreshold),
-    mediumValueThreshold: Number(config.mediumValueThreshold),
+    highValueThreshold: config.highValueThreshold,
+    mediumValueThreshold: config.mediumValueThreshold,
     slaEscalationDays: config.slaEscalationDays,
     maxDeclarationsPerCounterparty: config.maxDeclarationsPerCounterparty,
-    maximumValue: Number(config.maximumValue ?? 1000000),
+    maximumValue: config.maximumValue ?? 1000000,
     emailTemplate: config.emailTemplate,
     notificationTemplates: config.notificationTemplates,
   });
@@ -36,11 +44,11 @@ const notificationTemplatesSchema = z.object({
 }).strict();
 
 const configSchema = z.object({
-  highValueThreshold: z.number().finite().nonnegative().refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, "Amount must have no more than two decimal places"),
-  mediumValueThreshold: z.number().finite().nonnegative().refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, "Amount must have no more than two decimal places"),
+  highValueThreshold: z.number().nonnegative(),
+  mediumValueThreshold: z.number().nonnegative(),
   slaEscalationDays: z.number().int().nonnegative(),
   maxDeclarationsPerCounterparty: z.number().int().nonnegative(),
-  maximumValue: z.number().finite().positive().max(10000000).refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, "Amount must have no more than two decimal places").optional().default(1000000),
+  maximumValue: z.number().positive().max(10000000).optional().default(1000000),
   emailTemplate: z.string(),
   notificationTemplates: z.string().optional().refine((value) => {
     if (value === undefined) return true;
@@ -69,11 +77,11 @@ router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
   });
 
   res.json({
-    highValueThreshold: Number(updated.highValueThreshold),
-    mediumValueThreshold: Number(updated.mediumValueThreshold),
+    highValueThreshold: updated.highValueThreshold,
+    mediumValueThreshold: updated.mediumValueThreshold,
     slaEscalationDays: updated.slaEscalationDays,
     maxDeclarationsPerCounterparty: updated.maxDeclarationsPerCounterparty,
-    maximumValue: Number(updated.maximumValue ?? 1000000),
+    maximumValue: updated.maximumValue ?? 1000000,
     emailTemplate: updated.emailTemplate,
     notificationTemplates: updated.notificationTemplates,
   });

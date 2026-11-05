@@ -20,13 +20,17 @@ versioned migration chain is:
 → 0005_phase5_retirement → 0006_numeric_keys
 → 0007_step_identity → 0008_department_id_only
 → 0009_domain_checks → 0010_auth_cutover
+→ 0011_sla_org_scope → 0012_restore_user_line_manager
+→ 0013_user_active → 0014_identity_link_audit
 ```
 
 `0010_auth_cutover` completes the OpenID cutover at the schema level: it
 drops `User.passwordHash` and adds the provider identity link
 (`providerSubject`, globally unique so account mismatch fails closed, plus
-indexed `providerIssuer`). Identity resolution by email with first-login
-subject adoption is defined in `docs/IDENTITY-CONTRACT.md`.
+indexed `providerIssuer`). Authentication resolves by issuer and immutable
+subject; the audited identity-link workflow is defined in
+`docs/IDENTITY-CONTRACT.md`. Migrations 0013/0014 add local account
+suspension and identity-link audit history.
 
 Internal primary and foreign keys use PostgreSQL `BIGINT` identity values.
 `Declaration.id` remains the public `GHE-YYYY-NNNNNN` text reference and

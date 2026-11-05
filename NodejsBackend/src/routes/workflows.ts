@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { Prisma } from "@prisma/client";
 import xss from "xss";
 import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
@@ -35,63 +36,55 @@ async function loadSteps(declarationPk: bigint): Promise<WorkflowStep[]> {
   return (await readWorkflowStepRows(declarationPk)) || [];
 }
 
-function findActionablePendingStep(steps: WorkflowStep[], userPk: number): WorkflowStep | null {
-  const pending = steps.filter((s) => s.status === "pending");
-  for (const step of pending) {
-    const order = step.order || 0;
-    const hasPriorUnapproved = steps.some((s) => (s.order || 0) < order && s.status !== "approved" && s.status !== "skipped");
-    if (!hasPriorUnapproved && step.assignee === userPk) return step;
-  }
-  return null;
-}
-
 // Authoritative approval queue: the same actionable-step and organization
 // rules back both the queue records and the total count, so the dashboard
 // badge and queue list can never disagree.
-async function fetchActionableQueue(userPk: bigint, userPkJson: number, userOrg: number | null | undefined) {
-  // Direct step query: only this user's pending steps — no full-declaration
-  // prefetch, no full instance scan, no per-instance sequential reads.
-  // Sibling steps (for actionability) and declarations are batch-fetched.
-  const mySteps = await prisma.workflowInstanceStep.findMany({
-    where: { status: "pending", assigneeId: userPk },
-    select: { declarationPk: true },
-  });
-  const pks: bigint[] = [...new Set(mySteps.map((s) => s.declarationPk))];
-  if (pks.length === 0) return [];
-  const [allRows, declarations] = await Promise.all([
-    prisma.workflowInstanceStep.findMany({
-      where: { declarationPk: { in: pks } },
-      orderBy: [{ declarationPk: "asc" }, { stepOrder: "asc" }],
-    }),
+async function fetchActionableQueue(userPk: bigint, userOrg: number | null | undefined, limit: number, offset: number) {
+  // Resolve actionable steps in SQL so large queues are filtered and paged
+  // before declaration snapshots/details are materialized in Node.
+  const orgFilter = userOrg === undefined || userOrg === null
+    ? Prisma.empty
+    : Prisma.sql`AND (d."organizationId" IS NULL OR d."organizationId" = ${toDbId(userOrg)})`;
+  const candidate = Prisma.sql`
+    FROM "WorkflowInstanceStep" s
+    JOIN "Declaration" d ON d."declarationPk" = s."declarationPk"
+    WHERE s."status" = 'pending' AND s."assigneeId" = ${userPk}
+      ${orgFilter}
+      AND NOT EXISTS (
+        SELECT 1 FROM "WorkflowInstanceStep" prior
+        WHERE prior."instanceId" = s."instanceId"
+          AND prior."stepOrder" < s."stepOrder"
+          AND prior."status" NOT IN ('approved', 'skipped')
+      )`;
+  const [countRows, page] = await Promise.all([
+    prisma.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`SELECT COUNT(*)::bigint AS total ${candidate}`),
+    prisma.$queryRaw<Array<{ id: bigint; declarationPk: bigint }>>(Prisma.sql`
+      SELECT s."id", s."declarationPk" ${candidate}
+      ORDER BY s."declarationPk" ASC, s."stepOrder" ASC
+      LIMIT ${limit} OFFSET ${offset}`),
+  ]);
+  const total = Number(countRows[0]?.total ?? 0n);
+  if (page.length === 0) return { items: [], total };
+  const ids = page.map((row) => row.id);
+  const pks = [...new Set(page.map((row) => row.declarationPk))];
+  const [steps, declarations] = await Promise.all([
+    prisma.workflowInstanceStep.findMany({ where: { id: { in: ids } } }),
     prisma.declaration.findMany({ where: { declarationPk: { in: pks } }, include: declarationIncludes }),
   ]);
-  const stepsByDecl = new Map<string, WorkflowStep[]>();
-  for (const r of allRows) {
-    const key = String(r.declarationPk);
-    const arr = stepsByDecl.get(key) || [];
-    arr.push(rowToStep(r));
-    stepsByDecl.set(key, arr);
-  }
-  const declMap = new Map(declarations.map((d) => [String(d.declarationPk), d]));
-  const pending: { declaration: ReturnType<typeof declarationResponse>; step: WorkflowStep }[] = [];
-  for (const pk of pks) {
-    const key = String(pk);
-    const steps = stepsByDecl.get(key) || [];
-    const pendingStep = findActionablePendingStep(steps, userPkJson);
-    if (!pendingStep) continue;
-    const declaration = declMap.get(key);
-    if (!declaration) continue;
-    // Org isolation: skip cross-org pending (defense-in-depth, HR mis-assignment fallback)
-    if (userOrg !== undefined && userOrg !== null && declaration.organizationId !== null && declaration.organizationId !== toDbId(userOrg)) continue;
-    pending.push({ declaration: declarationResponse(declaration), step: pendingStep });
-  }
-  return pending;
+  const stepMap = new Map(steps.map((row) => [row.id, rowToStep(row)]));
+  const declarationMap = new Map(declarations.map((row) => [row.declarationPk, declarationResponse(row)]));
+  const items = page.flatMap((row) => {
+    const step = stepMap.get(row.id);
+    const declaration = declarationMap.get(row.declarationPk);
+    return step && declaration ? [{ declaration, step }] : [];
+  });
+  return { items, total };
 }
 
-function parsePaging(req: { query: Record<string, unknown> }): { limit: number | undefined; offset: number } {
+function parsePaging(req: { query: Record<string, unknown> }): { limit: number; offset: number } {
   const limitRaw = req.query.limit as string | undefined;
   const offsetRaw = req.query.offset as string | undefined;
-  const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 100) : undefined;
+  const limit = limitRaw ? Math.min(Math.max(parseInt(limitRaw, 10) || 50, 1), 100) : 100;
   const offset = offsetRaw ? Math.max(parseInt(offsetRaw, 10) || 0, 0) : 0;
   return { limit, offset };
 }
@@ -99,25 +92,20 @@ function parsePaging(req: { query: Record<string, unknown> }): { limit: number |
 // GET /api/workflows/pending — pending approvals for current user (org-scoped, DB-filtered)
 router.get("/pending", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const userPk = toDbId(req.user!.id);
-  const userPkJson = toJsonId(userPk);
   const userOrg = req.user?.organizationId ?? undefined;
   const { limit, offset } = parsePaging(req);
-  const pending = await fetchActionableQueue(userPk, userPkJson, userOrg);
-  const paged = limit !== undefined ? pending.slice(offset, offset + limit) : pending;
-  res.json(paged);
+  const result = await fetchActionableQueue(userPk, userOrg, limit, offset);
+  res.json(result.items);
 }));
 
 // GET /api/workflows/queue — authoritative queue response: records plus the
 // total computed after organization scoping and actionable-step resolution.
 router.get("/queue", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const userPk = toDbId(req.user!.id);
-  const userPkJson = toJsonId(userPk);
   const userOrg = req.user?.organizationId ?? undefined;
   const { limit, offset } = parsePaging(req);
-  const items = await fetchActionableQueue(userPk, userPkJson, userOrg);
-  const total = items.length;
-  const paged = limit !== undefined ? items.slice(offset, offset + limit) : items;
-  res.json({ items: paged, total });
+  const result = await fetchActionableQueue(userPk, userOrg, limit, offset);
+  res.json(result);
 }));
 
 // GET /api/workflows/instances/:declarationId — workflow timeline
@@ -225,6 +213,15 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
 
       const step = steps[currentStepIndex];
       if (step.status !== "pending") throw Object.assign(new Error("Step has already been processed"), { statusCode: 403 });
+
+      // Claim the actionable row before changing the workflow snapshot. Under
+      // READ COMMITTED, concurrent approvals may both have read pending; this
+      // conditional write serializes the winner and makes the loser conflict.
+      const claimed = await tx.workflowInstanceStep.updateMany({
+        where: { id: rows[currentStepIndex].id, status: "pending", assigneeId: userPk },
+        data: { status: newStepStatus, decision, notes: sanitize(String(notes || "")), decidedAt: new Date(now), decidedById: userPk, decidedByName: req.user!.name },
+      });
+      if (claimed.count !== 1) throw Object.assign(new Error("Step has already been processed"), { statusCode: 409 });
 
       // Self-approval guard
       if (step.assignee !== null && declaration.declarerUserId !== null && toDbId(step.assignee) === declaration.declarerUserId) {
