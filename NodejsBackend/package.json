@@ -13,6 +13,8 @@
     "db:pg:up": "tsx src/scripts/pg-up.ts",
     "pg:test": "tsx src/scripts/pg-integration.ts",
     "pg:smoke": "tsx src/scripts/smoke.ts",
+    "auth:bootstrap-admin": "tsx src/scripts/bootstrap-admin-identity.ts",
+    "auth:verify-config": "tsx src/scripts/verify-oidc-config.ts",
     "test:provider": "tsx src/scripts/test-provider.ts",
     "test": "vitest run",
     "test:watch": "vitest"

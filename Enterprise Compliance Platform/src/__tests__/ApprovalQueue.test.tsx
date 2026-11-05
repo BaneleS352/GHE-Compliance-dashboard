@@ -51,7 +51,7 @@ vi.mock("../services/api", () => ({
   // ApprovalQueue lazy-loads the SLA configuration after loading the queue.
   // Keep this export in the mock so the async side effect is observable without
   // producing an unhandled Vitest mock error.
-  fetchConfig: vi.fn().mockResolvedValue({ slaEscalationDays: 5 }),
+  fetchPublicConfig: vi.fn().mockResolvedValue({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 5, maximumValue: 1000000 }),
 }));
 
 vi.mock("../utils/excel", () => ({

@@ -29,6 +29,9 @@ export async function login(page: Page, email: string) {
   // token overwrite the requested identity on a later reload. Navigate to
   // the app origin first, set the current persona explicitly, then reload so
   // MSAL's dev-only adapter and /api/auth/me both observe that same token.
+  // The app loads remote font assets that can remain pending in an isolated
+  // E2E run; auth readiness is asserted below, so wait for the document instead
+  // of unrelated external resources to finish loading.
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.evaluate((t) => sessionStorage.setItem("e2e.auth.token", t), token);
   await page.reload({ waitUntil: "domcontentloaded" });

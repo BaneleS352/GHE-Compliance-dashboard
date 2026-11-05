@@ -38,6 +38,7 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  isActive?: boolean;
   teamMemberNumber: string;
   department: string;
   position: string;

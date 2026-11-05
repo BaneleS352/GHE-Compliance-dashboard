@@ -131,9 +131,21 @@ export function AdminUsers() {
     );
   };
 
-  const statusBadge = () => (
-    <span className="rounded-full px-2 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-800">Active</span>
+  const statusBadge = (active: boolean) => (
+    <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${active ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>{active ? "Active" : "Disabled"}</span>
   );
+
+  const toggleActive = async (user: User) => {
+    try {
+      await updateUser(user.id, { isActive: user.isActive === false });
+      notifySuccess(`${user.name} ${user.isActive === false ? "enabled" : "disabled"}.`);
+      refresh();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to update account status.";
+      setError(message);
+      notifyError(message);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -180,7 +192,7 @@ export function AdminUsers() {
                   <p className="mt-1 break-all text-xs text-muted-foreground">{u.email}</p>
                 </div>
               </div>
-              {statusBadge()}
+              {statusBadge(u.isActive !== false)}
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -195,8 +207,9 @@ export function AdminUsers() {
             </div>
 
             <div className="mt-4 flex items-center justify-end gap-2">
-              <button onClick={() => setEditingUser(u)} className="rounded-xl p-2 text-muted-foreground transition-all duration-300 hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
-              <button onClick={() => setDeletingUser(u)} className="rounded-xl p-2 text-muted-foreground transition-all duration-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+              <button aria-label={`Edit ${u.name}`} title={`Edit ${u.name}`} onClick={() => setEditingUser(u)} className="min-h-11 min-w-11 rounded-xl p-2 text-muted-foreground transition-all duration-300 hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
+              <button aria-label={`${u.isActive === false ? "Enable" : "Disable"} ${u.name}`} title={`${u.isActive === false ? "Enable" : "Disable"} ${u.name}`} onClick={() => void toggleActive(u)} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-muted-foreground hover:bg-amber-50">{u.isActive === false ? "Enable" : "Disable"}</button>
+              <button aria-label={`Delete ${u.name}`} title={`Delete ${u.name}`} onClick={() => setDeletingUser(u)} className="min-h-11 min-w-11 rounded-xl p-2 text-muted-foreground transition-all duration-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
             </div>
           </div>
         ))}
@@ -216,11 +229,12 @@ export function AdminUsers() {
                 <td className="px-5 py-3.5 text-muted-foreground">{u.email}</td>
                 <td className="px-5 py-3.5">{roleBadge(u.role)}</td>
                 <td className="px-5 py-3.5 text-muted-foreground">{u.department}</td>
-                <td className="px-5 py-3.5">{statusBadge()}</td>
+                <td className="px-5 py-3.5">{statusBadge(u.isActive !== false)}</td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center gap-2">
-                    <button onClick={() => setEditingUser(u)} className="rounded-xl p-1.5 text-muted-foreground transition-all duration-300 hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
-                    <button onClick={() => setDeletingUser(u)} className="rounded-xl p-1.5 text-muted-foreground transition-all duration-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                    <button aria-label={`Edit ${u.name}`} title={`Edit ${u.name}`} onClick={() => setEditingUser(u)} className="min-h-11 min-w-11 rounded-xl p-2 text-muted-foreground transition-all duration-300 hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
+                    <button aria-label={`${u.isActive === false ? "Enable" : "Disable"} ${u.name}`} title={`${u.isActive === false ? "Enable" : "Disable"} ${u.name}`} onClick={() => void toggleActive(u)} className="min-h-11 rounded-xl px-3 text-xs font-semibold text-muted-foreground hover:bg-amber-50">{u.isActive === false ? "Enable" : "Disable"}</button>
+                    <button aria-label={`Delete ${u.name}`} title={`Delete ${u.name}`} onClick={() => setDeletingUser(u)} className="min-h-11 min-w-11 rounded-xl p-2 text-muted-foreground transition-all duration-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
                   </div>
                 </td>
               </tr>

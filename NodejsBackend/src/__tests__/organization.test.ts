@@ -14,6 +14,10 @@ function tokenFor(user: { id: number | bigint; name?: string; email: string; rol
   });
 }
 
+function testIdentity(email: string) {
+  return { providerSubject: `test-oid-${email}`, providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439" };
+}
+
 const BASE_DECL = {  teamMemberNumber: "T-001",
   position: "Tester",
   company: "Test Corp",
@@ -78,10 +82,11 @@ describe("Organization — multi-tenant flows", () => {
     const users = [hbTeam, hbLm, npnTeam, npnLm, globalHr, globalAdmin];
     for (const u of users) {
       const data = await withDeptLink(u);
+      const identity = testIdentity(u.email);
       const row = await prisma.user.upsert({
         where: { email: u.email },
-        update: { name: u.name, role: u.role, organizationId: u.organizationId ?? null, departmentId: data.departmentId } as any,
-        create: { ...data } as any,
+        update: { name: u.name, role: u.role, organizationId: u.organizationId ?? null, departmentId: data.departmentId, ...identity } as any,
+        create: { ...data, ...identity } as any,
       });
       u.id = Number(row.id);
     }
@@ -337,7 +342,7 @@ describe("Organization — multi-tenant flows", () => {
 
   it("GET /api/users/:id — global teamMember cannot enumerate other users", async () => {
     const scoped = await prisma.user.create({
-      data: { ...(await withDeptLink({ name: "Global Team", email: "global-team@test.com", role: "teamMember", teamMemberNumber: "GT-001", department: "IT", position: "Associate", organizationId: null })) } as any,
+      data: { ...(await withDeptLink({ name: "Global Team", email: "global-team@test.com", role: "teamMember", teamMemberNumber: "GT-001", department: "IT", position: "Associate", organizationId: null })), ...testIdentity("global-team@test.com") } as any,
     });
     try {
       const token = tokenFor({ id: Number(scoped.id), email: "global-team@test.com", role: "teamMember" } as any);

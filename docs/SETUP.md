@@ -4,14 +4,32 @@
 
 - Node.js 20 (Docker uses Node 20; the code generally requires Node 18+)
 - npm
-- Docker Desktop and Compose, if using containers
+- PostgreSQL 16 or compatible
 
 ## Run locally (PostgreSQL required)
+
+### Windows
+
+1. Install Node.js 20 LTS and make sure a PostgreSQL server is available.
+2. Set `DATABASE_URL` in `NodejsBackend\.env` to that PostgreSQL server.
+3. Double-click `dev.bat` in the project folder.
+
+`dev.bat` does not install or start PostgreSQL. The first-run `.env.example`
+uses `postgres:root` on `localhost:5432`; adjust `DATABASE_URL` to match the
+PostgreSQL account on your computer. The launcher installs app dependencies
+when needed, applies database migrations, and seeds only an empty database.
+Later launches reuse those dependencies and the same database. If database
+setup fails, the dashboard windows will not open; make sure PostgreSQL is
+running and the address and login details in `NodejsBackend\.env` are correct,
+then run `dev.bat` again. For a Prisma `EPERM`/file-in-use message, close other
+GHE or Node.js windows and retry.
+
+### Other platforms or manual startup
 
 ```powershell
 cd NodejsBackend
 npm install
-# Point .env DATABASE_URL at PostgreSQL, e.g. via docker compose up -d db
+# Point .env DATABASE_URL at an available PostgreSQL server
 npm run db:pg:up   # migrate deploy + seed-if-empty
 npm run dev
 ```
@@ -26,7 +44,7 @@ npm run dev
 
 The API is `http://localhost:3001`; Vite is `http://localhost:5173`. `dev.bat` starts both on Windows and also starts the local throwaway OpenID provider. The development landing page then shows a **Developer testing** account picker and **Quick login** button for seeded users. This mints a signed test token and authenticates through the normal API user lookup; it does not bypass backend authentication. The control and test-token adapter are excluded from production builds.
 
-When starting the services manually, run `npm run test:provider` in `NodejsBackend`, set `OIDC_AUTHORITY` and `OIDC_ISSUER` to `http://127.0.0.1:55439`, `OIDC_AUDIENCE` to `ghe-test-api-audience`, and `OIDC_CLIENT_ID` to a local test value before starting the backend. The Vite dev server proxies the quick-login token request to that provider.
+When starting the services manually, run `npm run test:provider` in `NodejsBackend`, set `OIDC_AUTHORITY` and `OIDC_ISSUER` to `http://127.0.0.1:55439`, `OIDC_AUDIENCE` to `ghe-test-api-audience`, and `OIDC_ALLOWED_CLIENT_IDS` to `test-spa-client-id` and `OIDC_REQUIRED_SCOPE` to `access_as_user` before starting the backend. The Vite dev server proxies the quick-login token request to that provider.
 
 ## Environment
 
@@ -36,7 +54,8 @@ Backend loads `.env` with `dotenv`:
 |---|---|---|---|
 | `DATABASE_URL` | yes for Prisma | — | PostgreSQL URL (SQLite is no longer supported) |
 | `OIDC_AUTHORITY` | yes | — | Entra tenant authority/JWKS base |
-| `OIDC_CLIENT_ID` | yes | — | API application client ID |
+| `OIDC_ALLOWED_CLIENT_IDS` | yes | — | Comma-separated SPA client IDs allowed by the API |
+| `OIDC_REQUIRED_SCOPE` | yes | — | Delegated API scope required in access tokens |
 | `OIDC_AUDIENCE` | yes | — | Accepted API token audience |
 | `OIDC_ISSUER` | no | authority | Expected token issuer |
 | `PORT` | no | `3001` | API listen port |

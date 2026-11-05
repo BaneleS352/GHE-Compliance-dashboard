@@ -66,6 +66,15 @@ describe("Reports", () => {
     res.body.forEach((d: any) => expect(d.status).toBe("Pending"));
   });
 
+  it("GET /api/reports/list — applies bounded database pagination", async () => {
+    const first = await request(app).get("/api/reports/list?limit=1&offset=0&search=Nomvula").set("Authorization", `Bearer ${getAdminToken()}`);
+    const second = await request(app).get("/api/reports/list?limit=1&offset=1&search=Nomvula").set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(first.status).toBe(200);
+    expect(first.body).toHaveLength(1);
+    expect(second.status).toBe(200);
+    expect(first.body[0].id).not.toBe(second.body[0]?.id);
+  });
+
   it("GET /api/reports/export — generates Excel file", async () => {
     const res = await request(app)
       .get("/api/reports/export")

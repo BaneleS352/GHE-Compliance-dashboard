@@ -30,7 +30,7 @@ export function SupportingDocumentsUpload({
         ref={fileInputRef}
         type="file"
         multiple
-        accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+        accept=".pdf,.xlsx,.docx,.jpg,.jpeg,.png,.gif,.webp,.txt"
         className="sr-only"
         onChange={(event) => { onFilesSelected(event.target.files); event.target.value = ""; }}
       />
@@ -58,7 +58,7 @@ export function SupportingDocumentsUpload({
           <Upload size={24} style={{ color: PURPLE }} />
         </div>
         <p className="text-sm font-semibold text-foreground mb-1.5">Drag & drop files here, or click to browse</p>
-        <p className="text-xs text-muted-foreground">PDF (preferred), PNG, JPG, DOCX — max 20 MB each</p>
+        <p className="text-xs text-muted-foreground">PDF, Excel, DOCX, images, or text — max 10 MB each</p>
       </div>
       {files.length > 0 && (
         <div className="mt-4 space-y-2">

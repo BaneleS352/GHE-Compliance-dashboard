@@ -4,7 +4,7 @@ import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { PURPLE, GRADIENT_PRIMARY } from "@/config/theme";
 import { WorkflowRule } from "@/types/declaration";
-import { fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule, fetchConfig } from "@/services/api";
+import { fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule, fetchPublicConfig } from "@/services/api";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { notifySuccess, notifyError } from "../../components/notify";
 
@@ -28,7 +28,7 @@ export function AdminWorkflows() {
   }, []);
   useEffect(() => {
     const controller = new AbortController();
-    fetchConfig({ signal: controller.signal }).then((c) => setThreshold({ highValueThreshold: c.highValueThreshold, maximumValue: c.maximumValue ?? 1000000 })).catch((error: unknown) => {
+    fetchPublicConfig({ signal: controller.signal }).then((c) => setThreshold({ highValueThreshold: c.highValueThreshold, maximumValue: c.maximumValue ?? 1000000 })).catch((error: unknown) => {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setError("Could not load system thresholds.");
     });

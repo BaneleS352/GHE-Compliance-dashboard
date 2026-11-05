@@ -1,6 +1,7 @@
 import { User } from "@/types/declaration";
-import { api } from "@/services/httpClient";
+import { api, ApiClientError } from "@/services/httpClient";
 import { activeAccount, signIn, signOut } from "./msal";
+import { reportClientError } from "@/services/clientTelemetry";
 export async function authenticate(): Promise<void> { await signIn(); }
 export function logoutFromIdentityProvider(): void { signOut(); }
 export function isIdentityAuthenticated(): boolean { return !!activeAccount(); }
@@ -11,7 +12,13 @@ export async function fetchCurrentUser(): Promise<User | null> {
   // every e2e persona to one role and break role-gated flows.
   try {
     return await api.get<User>("/api/auth/me");
-  } catch {
+  } catch (error) {
+    reportClientError(error, {
+      feature: "identity",
+      operation: "api_auth_me",
+      ...(error instanceof ApiClientError ? { status: error.status, requestId: error.requestId } : {}),
+    });
+    if (error instanceof ApiClientError && error.status >= 500) throw error;
     return null;
   }
 }

@@ -3,7 +3,7 @@
  * production credentials. Tokens are RS256 JWTs signed with the run's
  * throwaway test key (see `src/test-utils/test-jwks-server.ts`), carrying
  * Entra-shaped claims (`oid`, email, name). The backend resolves the local
- * user by email exactly like production.
+ * user by configured issuer and immutable subject, as in production.
  *
  * Helper signatures intentionally match the old HS256 helpers so call sites
  * (`Bearer ${getAdminToken()}`) keep working unchanged.

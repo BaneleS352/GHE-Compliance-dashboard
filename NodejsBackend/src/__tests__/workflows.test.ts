@@ -5,6 +5,30 @@ import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } f
 const app = buildApp();
 
 describe("Workflows", () => {
+  it("POST /api/workflows/approve — concurrent decisions have one winner", async () => {
+    const created = await request(app).post("/api/declarations").set("Authorization", `Bearer ${getTeamToken()}`).send({
+      employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
+      lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
+      type: "Gift", counterparty: "ConcurrentApprovalRegression", value: 100,
+      submitted: "2026-07-05", approver: "Sipho Approver", status: "Draft", priority: "Low",
+      description: "Concurrent decision test", relationship: "Test", receivedGiven: "Received",
+      from: "Supplier", contactPerson: "T", biddingProcess: "No", occasion: "Business Meeting",
+      date: "2026-07-05", instances: "1", publicOfficial: "No",
+    });
+    expect(created.status).toBe(201);
+    const declarationId = created.body.id as string;
+    const submitted = await request(app).patch(`/api/declarations/${declarationId}/submit`).set("Authorization", `Bearer ${getTeamToken()}`);
+    expect(submitted.status).toBe(200);
+
+    const decide = (decision: "accept" | "decline") => request(app)
+      .post("/api/workflows/approve")
+      .set("Authorization", `Bearer ${getApproverToken()}`)
+      .send({ declarationId, decision });
+    const results = await Promise.all([decide("accept"), decide("decline")]);
+    expect(results.filter((result) => result.status === 200)).toHaveLength(1);
+    expect(results.filter((result) => result.status === 403 || result.status === 409)).toHaveLength(1);
+  });
+
   it("GET /api/workflows/pending — approver sees their pending steps", async () => {
     const res = await request(app)
       .get("/api/workflows/pending")
@@ -42,6 +66,7 @@ describe("Workflows", () => {
     expect(res.body.newStatus).toBe("Pending"); // still has HR step
     expect(res.body.currentStep.status).toBe("approved");
   });
+
 
   it("POST /api/workflows/approve — decline sets Declined", async () => {
     const res = await request(app)

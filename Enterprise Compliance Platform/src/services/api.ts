@@ -101,7 +101,7 @@ function mapDeclaration(raw: DeclarationResponse): Declaration {
 }
 
 // ── Admin: Users ─────────────────────────────────────
-export type UserMutation = Pick<User, "name" | "email" | "role"> & Partial<Pick<User, "department" | "position" | "lineManager">> & {
+export type UserMutation = Pick<User, "name" | "email" | "role"> & Partial<Pick<User, "department" | "position" | "lineManager" | "isActive">> & {
   teamMemberNumber?: string;
   organizationId?: number | null;
 };
@@ -145,6 +145,10 @@ export async function deleteUser(id: number): Promise<{ success?: boolean; messa
 // ── Admin: Config ─────────────────────────────────────
 export async function fetchConfig(options?: RequestOptions): Promise<SystemConfig> {
   return api.get<SystemConfig>("/api/admin/config", options);
+}
+
+export async function fetchPublicConfig(options?: RequestOptions): Promise<Pick<SystemConfig, "highValueThreshold" | "mediumValueThreshold" | "slaEscalationDays" | "maximumValue">> {
+  return api.get("/api/admin/config/public", options);
 }
 
 export async function saveConfig(data: Partial<SystemConfig>): Promise<SystemConfig> {

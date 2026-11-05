@@ -210,7 +210,11 @@ describe("Edge-Case Tests", () => {
       expect(read.status).toBe(200);
       const del = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getApproverToken()}`);
       expect(del.status).toBe(403);
-      // Owner path still works.
+      const ownerPendingDelete = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getTeamToken()}`);
+      expect(ownerPendingDelete.status).toBe(400);
+      expect((await request(app).get(`/api/files/${fileId}`).set("Authorization", `Bearer ${getApproverToken()}`)).status).toBe(200);
+      // Owner may delete evidence again after the declaration is returned.
+      await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${getApproverToken()}`).send({ declarationId: declId, decision: "return", notes: "Need more information" });
       const ownerDel = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getTeamToken()}`);
       expect(ownerDel.status).toBe(200);
     });
@@ -1069,6 +1073,7 @@ describe("Edge-Case Tests", () => {
         .send({ name: "Role Change User", email: "rolechange@test.com", role: "teamMember", department: "IT", position: "Tester" });
       expect(createRes.status).toBe(201);
       const userId = createRes.body.id;
+      await prisma.user.update({ where: { id: BigInt(userId) }, data: { providerSubject: "test-oid-rolechange", providerIssuer: process.env.OIDC_ISSUER || "http://127.0.0.1:55439" } });
 
       // Identity (hence role) resolves from the database on every request:
       // the same token sees the role change take effect immediately.

@@ -8,7 +8,7 @@ test.beforeEach(async ({ context }) => {
 });
 
 test("Developer quick login authenticates a selected seeded user", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.getByLabel("Test account").selectOption("sipho@hb.co.za");
   await page.getByRole("button", { name: "Quick login" }).click();
   await expect(page.locator('aside nav button:has-text("Approval Queue"):visible')).toBeVisible({ timeout: 15000 });

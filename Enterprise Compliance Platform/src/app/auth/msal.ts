@@ -58,6 +58,71 @@ function readConfig(): EntraConfig | null {
 
 let client: PublicClientApplication | null = null;
 
+class IdentityFlowError extends Error {
+  readonly identityStage: string;
+  readonly errorCode?: string;
+  readonly errorCodes?: number[];
+  readonly correlationId?: string;
+  readonly subError?: string;
+  readonly interactionRequired: boolean;
+  readonly configFingerprint?: string;
+  readonly requestedResourceMatch?: "matches_config" | "differs_from_config";
+
+  constructor(stage: string, original: unknown, configFingerprint?: string, configuredResource?: string) {
+    super("Identity provider operation failed");
+    this.name = "IdentityFlowError";
+    this.identityStage = stage;
+    this.configFingerprint = configFingerprint;
+    this.interactionRequired = original instanceof InteractionRequiredAuthError;
+    if (original && typeof original === "object") {
+      const source = original as { errorCode?: unknown; errorCodes?: unknown; correlationId?: unknown; subError?: unknown };
+      if (typeof source.errorCode === "string") this.errorCode = source.errorCode;
+      if (Array.isArray(source.errorCodes)) this.errorCodes = source.errorCodes.filter((value): value is number => typeof value === "number");
+      if (typeof source.correlationId === "string") this.correlationId = source.correlationId;
+      if (typeof source.subError === "string") this.subError = source.subError;
+    }
+    const providerMessage = original instanceof Error ? original.message : "";
+    const aadstsCode = providerMessage.match(/\bAADSTS(\d{5,})\b/i)?.[1];
+    if (aadstsCode) {
+      const codes = this.errorCodes ?? [];
+      this.errorCodes = [...new Set([...codes, Number(aadstsCode)])].slice(0, 5);
+    }
+    const failedResource = providerMessage.match(/resource principal named\s+['"]?([^\s'"]+)/i)?.[1]?.replace(/[.,;:]$/, "");
+    if (failedResource && configuredResource) {
+      this.requestedResourceMatch = failedResource.replace(/\/$/, "").toLowerCase() === configuredResource.replace(/\/$/, "").toLowerCase()
+        ? "matches_config"
+        : "differs_from_config";
+    }
+  }
+}
+
+async function runtimeConfigFingerprint(): Promise<string | undefined> {
+  const config = readConfig();
+  if (!config || !globalThis.crypto?.subtle) return undefined;
+  try {
+    const canonical = [
+      new URL(config.authority).toString(),
+      config.clientId.trim().toLowerCase(),
+      config.apiScope.trim(),
+      new URL(config.redirectUri).toString(),
+    ].join("\n");
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
+    return Array.from(new Uint8Array(digest)).slice(0, 8).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return undefined;
+  }
+}
+
+async function runIdentityStage<T>(stage: string, action: () => Promise<T>): Promise<T> {
+  try {
+    return await action();
+  } catch (error) {
+    const config = readConfig();
+    const configuredResource = config?.apiScope.slice(0, config.apiScope.lastIndexOf("/"));
+    throw new IdentityFlowError(stage, error, await runtimeConfigFingerprint(), configuredResource);
+  }
+}
+
 function getClient(): PublicClientApplication {
   if (!client) {
     const config = readConfig();
@@ -97,13 +162,19 @@ function e2eStubAccount(): AccountInfo {
 
 export async function initializeIdentity(): Promise<void> {
   if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) return;
+  // The local dev quick-login is a complete authentication path when no
+  // Entra settings are supplied. Do not block the landing screen with an
+  // MSAL configuration error before the developer can choose that path.
+  if (import.meta.env.DEV && testAuthEnabled && !readConfig()) return;
   const app = getClient();
-  await app.initialize();
-  const result = await app.handleRedirectPromise();
+  await runIdentityStage("msal_initialize", () => app.initialize());
+  const result = await runIdentityStage("msal_redirect_response", () => app.handleRedirectPromise());
   if (result?.account) app.setActiveAccount(result.account);
   if (!app.getActiveAccount()) {
-    const account = app.getAllAccounts()[0];
-    if (account) app.setActiveAccount(account);
+    const accounts = app.getAllAccounts();
+    // A sole cached account is unambiguous. Multiple cached identities must
+    // go through Entra's explicit account chooser (loginRedirect below).
+    if (accounts.length === 1) app.setActiveAccount(accounts[0]);
   }
 }
 
@@ -121,7 +192,8 @@ export function activeAccount(): AccountInfo | null {
 
 export async function signIn(): Promise<AuthenticationResult | void> {
   if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) return;
-  return getClient().loginRedirect({ scopes: scopes() });
+  const app = getClient();
+  return app.loginRedirect({ scopes: scopes(), ...(app.getAllAccounts().length > 1 ? { prompt: "select_account" } : {}) });
 }
 
 export async function getApiToken(): Promise<string> {
@@ -134,14 +206,14 @@ export async function getApiToken(): Promise<string> {
   const account = app.getActiveAccount();
   if (!account) throw new Error("No authenticated Entra account");
   try {
-    return (await app.acquireTokenSilent({ scopes: scopes(), account })).accessToken;
+    return (await runIdentityStage("msal_silent_token", () => app.acquireTokenSilent({ scopes: scopes(), account }))).accessToken;
   } catch (err) {
     // Expired token, password change, or Conditional Access challenge:
     // silent acquisition cannot proceed — restart interactive sign-in via
     // redirect. The redirect unloads the page, so callers see a rejection
     // for the in-flight request and must not retry it.
-    if (err instanceof InteractionRequiredAuthError) {
-      await app.acquireTokenRedirect({ scopes: scopes(), account });
+    if (err instanceof InteractionRequiredAuthError || (err instanceof IdentityFlowError && err.interactionRequired)) {
+      await runIdentityStage("msal_token_redirect", () => app.acquireTokenRedirect({ scopes: scopes(), account }));
       throw new Error("Session refresh required — redirecting to sign-in.");
     }
     throw err;

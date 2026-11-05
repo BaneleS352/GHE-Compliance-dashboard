@@ -52,6 +52,15 @@ describe("Declarations", () => {
     expect(second.body[0].id).not.toBe(first.body[0].id);
   });
 
+  it("GET /api/declarations — database search composes with pagination", async () => {
+    const first = await request(app).get("/api/declarations?search=Nomvula&limit=1&offset=0").set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(first.status).toBe(200);
+    expect(first.body).toHaveLength(1);
+    const second = await request(app).get("/api/declarations?search=Nomvula&limit=1&offset=1").set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(second.status).toBe(200);
+    expect(second.body.every((d: any) => d.employee.toLowerCase().includes("nomvula"))).toBe(true);
+  });
+
   it("GET /api/declarations — filters by status", async () => {
     const res = await request(app)
       .get("/api/declarations?status=Pending")

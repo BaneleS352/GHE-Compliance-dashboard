@@ -11,7 +11,10 @@ ownership, `0006_numeric_keys` converts every internal primary/foreign key
 from TEXT to native BIGINT identity columns, `0007_step_identity` enforces
 workflow declaration identity, `0008_department_id_only` removes the
 duplicated user department field, and `0009_domain_checks` adds database
-domain constraints. `Declaration.id` (`GHE-YYYY-NNNNNN`) stays the
+domain constraints. `0010_auth_cutover` adds provider identity fields,
+`0011_sla_org_scope` scopes the SLA reporting view, and
+`0012_restore_user_line_manager` restores the optional user manager display
+column if local schema drift removed it. `Declaration.id` (`GHE-YYYY-NNNNNN`) stays the
 public text reference with an internal numeric `declarationPk` that all child
 tables reference. All migrations are forward-only; rollback is
 backup/restore, never DDL reversal.
