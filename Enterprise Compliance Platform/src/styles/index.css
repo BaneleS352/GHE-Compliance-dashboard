@@ -100,6 +100,13 @@ textarea,
   animation: header-carousel 16s linear infinite;
 }
 
+.header-mobile-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .header-carousel-copy {
   padding-right: 2.5rem;
   white-space: nowrap;
@@ -182,5 +189,3 @@ textarea,
 .btn-gradient {
   background: linear-gradient(135deg, var(--primary), var(--purple-600));
 }
-
-

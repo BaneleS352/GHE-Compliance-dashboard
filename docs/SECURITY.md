@@ -115,8 +115,11 @@ regression test unless noted:
   `v_workflow_step_sla` and the endpoint scopes like every other report.
 - `POST /api/workflows/approve` had no organization check: a mis-assigned
   cross-org step is now refused with 403.
-- Assigned reviewers could delete the evidence under review: file DELETE is
-  owner/admin only (reviewers keep read access).
+- Evidence could be changed during review: only owners/admins may delete; for
+  linked files, every actor (including admins) is blocked while the declaration
+  is Pending, Escalated, Approved, or Declined. Deletion is allowed in Draft or
+  Returned, and the action is recorded in the declaration audit trail. Orphaned
+  uploads remain admin-managed.
 - Org-less non-HR callers could fetch any user's record: global callers are
   now limited to self, except global approvers (HR function).
 - Custom approval-option values silently approved steps: the engine mapping

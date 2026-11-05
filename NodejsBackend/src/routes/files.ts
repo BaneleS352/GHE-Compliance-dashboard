@@ -24,7 +24,7 @@ const ALLOWED_MIMES = [
   "image/jpeg", "image/png", "image/gif", "image/webp",
   "text/plain",
 ];
-const ALLOWED_EXTS = new Set([".pdf",".xlsx",".xls",".docx",".doc",".jpg",".jpeg",".png",".gif",".webp",".txt"]);
+const ALLOWED_EXTS = new Set([".pdf", ".xlsx", ".docx", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".txt"]);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
@@ -247,7 +247,8 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
 
   // Ownership scoping — read allows owner, admin, or assigned workflow
   // reviewer; DELETE is owner/admin only (a reviewer must never destroy
-  // the evidence they are judging).
+  // the evidence they are judging). Evidence stays immutable during review
+  // for every actor, including admins; correction happens after return.
   if (req.user!.role !== "admin") {
     const decl = file.link?.declaration;
     if (!decl) {
@@ -258,14 +259,13 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
       res.status(403).json({ error: "Only the owner or admin can delete files" });
       return;
     }
-    // Evidence remains fixed during review; only editable declarations allow owner deletion.
-    if (decl.status !== "Draft" && decl.status !== "Returned") {
-      res.status(400).json({ error: "Cannot delete files unless the declaration is a draft or returned" });
-      return;
-    }
   }
 
   const owningDeclaration = file.link?.declaration;
+  if (owningDeclaration && owningDeclaration.status !== "Draft" && owningDeclaration.status !== "Returned") {
+    res.status(400).json({ error: "Evidence is locked during review; files can be deleted only while a declaration is draft or returned" });
+    return;
+  }
   await prisma.$transaction(async (tx) => {
     if (owningDeclaration) {
       await recordDeclarationAudit(tx, {

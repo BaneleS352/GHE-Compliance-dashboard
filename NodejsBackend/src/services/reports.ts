@@ -5,6 +5,8 @@ import { parseDateSafe } from "./normalization";
 import { toDbId } from "./ids";
 import { viewStatusSummary, viewSlaRows, viewCounterparty } from "./reportingViews";
 
+const REPORT_BATCH_SIZE = 500;
+
 /**
  * Canonical date filter on the `eventDate` DateTime column.
  * Unparseable bounds are ignored; rows with a null `eventDate` are excluded
@@ -109,46 +111,53 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
     }
   }
   const where = buildReportWhere(req);
-  const declarations = await prisma.declaration.findMany({ where, select: { declarationPk: true, eventDate: true } });
-  if (declarations.length === 0) return [];
-
   const roleMap: Record<string, string> = {
     lineManager: "Line Manager",
     hr: "HR",
   };
-
-  const pks = declarations.map((d) => d.declarationPk);
-  const stepRows = await prisma.workflowInstanceStep.findMany({
-    where: { declarationPk: { in: pks }, decidedAt: { not: null } },
-    select: { declarationPk: true, role: true, decidedAt: true },
-  });
-  const declMap = new Map(declarations.map((d) => [String(d.declarationPk), d]));
-
-  const byRole: Record<string, number[]> = {};
-  for (const s of stepRows) {
-    const d = declMap.get(String(s.declarationPk));
-    if (!d || !d.eventDate || !s.decidedAt) continue;
-    const decided = new Date(s.decidedAt).getTime();
-    const base = new Date(d.eventDate).getTime();
-    if (Number.isNaN(decided) || Number.isNaN(base)) continue;
-    const days = (decided - base) / (1000 * 60 * 60 * 24);
-    const label = roleMap[s.role] || s.role;
-    if (!byRole[label]) byRole[label] = [];
-    byRole[label].push(days);
+  const byRole: Record<string, { total: number; min: number; max: number; count: number }> = {};
+  let cursor: bigint | undefined;
+  while (true) {
+    const declarations = await prisma.declaration.findMany({
+      where,
+      orderBy: { declarationPk: "asc" },
+      take: REPORT_BATCH_SIZE,
+      ...(cursor === undefined ? {} : { cursor: { declarationPk: cursor }, skip: 1 }),
+      select: { declarationPk: true, eventDate: true },
+    });
+    if (declarations.length === 0) break;
+    cursor = declarations[declarations.length - 1].declarationPk;
+    const pks = declarations.map((d) => d.declarationPk);
+    const declarationByPk = new Map(declarations.map((d) => [String(d.declarationPk), d]));
+    const stepRows = await prisma.workflowInstanceStep.findMany({
+      where: { declarationPk: { in: pks }, decidedAt: { not: null } },
+      select: { declarationPk: true, role: true, decidedAt: true },
+    });
+    for (const step of stepRows) {
+      const declaration = declarationByPk.get(String(step.declarationPk));
+      if (!declaration?.eventDate || !step.decidedAt) continue;
+      const decided = new Date(step.decidedAt).getTime();
+      const base = new Date(declaration.eventDate).getTime();
+      if (Number.isNaN(decided) || Number.isNaN(base)) continue;
+      const days = (decided - base) / (1000 * 60 * 60 * 24);
+      const role = roleMap[step.role] || step.role;
+      const aggregate = byRole[role] || { total: 0, min: days, max: days, count: 0 };
+      aggregate.total += days;
+      aggregate.min = Math.min(aggregate.min, days);
+      aggregate.max = Math.max(aggregate.max, days);
+      aggregate.count += 1;
+      byRole[role] = aggregate;
+    }
+    if (declarations.length < REPORT_BATCH_SIZE) break;
   }
 
-  const slaData = Object.entries(byRole).map(([role, days]) => {
-    const total = days.reduce((s, d) => s + d, 0);
-    return {
-      role,
-      avg: Math.round((total / days.length) * 100) / 100,
-      min: Math.round(Math.min(...days) * 100) / 100,
-      max: Math.round(Math.max(...days) * 100) / 100,
-      count: days.length,
-    };
-  });
-
-  return slaData;
+  return Object.entries(byRole).map(([role, aggregate]) => ({
+    role,
+    avg: Math.round((aggregate.total / aggregate.count) * 100) / 100,
+    min: Math.round(aggregate.min * 100) / 100,
+    max: Math.round(aggregate.max * 100) / 100,
+    count: aggregate.count,
+  }));
 }
 
 export async function getCounterpartyConcentration(req: AuthRequest): Promise<any[]> {
@@ -164,17 +173,25 @@ export async function getCounterpartyConcentration(req: AuthRequest): Promise<an
     // Fall through to direct aggregation.
   }
   const where = buildReportWhere(req);
-  const declarations = await prisma.declaration.findMany({
-    where,
-    select: { value: true, counterpartyRef: { select: { name: true } } },
-  });
-
   const groups: Record<string, { count: number; totalValue: number }> = {};
-  for (const d of declarations) {
-    const key = d.counterpartyRef?.name || "Unknown";
-    if (!groups[key]) groups[key] = { count: 0, totalValue: 0 };
-    groups[key].count++;
-    groups[key].totalValue += Number(d.value);
+  let cursor: bigint | undefined;
+  while (true) {
+    const declarations = await prisma.declaration.findMany({
+      where,
+      orderBy: { declarationPk: "asc" },
+      take: REPORT_BATCH_SIZE,
+      ...(cursor === undefined ? {} : { cursor: { declarationPk: cursor }, skip: 1 }),
+      select: { declarationPk: true, value: true, counterpartyRef: { select: { name: true } } },
+    });
+    if (declarations.length === 0) break;
+    cursor = declarations[declarations.length - 1].declarationPk;
+    for (const declaration of declarations) {
+      const key = declaration.counterpartyRef?.name || "Unknown";
+      if (!groups[key]) groups[key] = { count: 0, totalValue: 0 };
+      groups[key].count++;
+      groups[key].totalValue += Number(declaration.value);
+    }
+    if (declarations.length < REPORT_BATCH_SIZE) break;
   }
 
   const result = Object.entries(groups)
@@ -205,37 +222,41 @@ export async function getHighValueDeclarations(req: AuthRequest, config: { highV
   const where = buildReportWhere(req);
   where.value = { gte: config.highValueThreshold };
 
-  const declarations = await prisma.declaration.findMany({
-    where,
-    orderBy: [{ value: "desc" }],
-    include: {
-      snapshot: true,
-      counterpartyRef: true,
-    },
-  });
-
   const groups = new Map<string, HighValueGroup>();
-  for (const d of declarations) {
-    const employee = d.snapshot?.declarerName || "Unknown";
-    const row = groups.get(employee) || {
-      employee,
-      lineManager: d.snapshot?.managerDisplayName || "",
-      declarationCount: 0,
-      totalValue: 0,
-      averageValue: 0,
-      totalGift: 0,
-      totalHospitality: 0,
-      totalEntertainment: 0,
-      suppliers: new Map<string, number>(),
-    };
-    row.declarationCount += 1;
-    row.totalValue += Number(d.value);
-    if (d.type === "Gift") row.totalGift += Number(d.value);
-    if (d.type === "Hospitality") row.totalHospitality += Number(d.value);
-    if (d.type === "Entertainment") row.totalEntertainment += Number(d.value);
-    const cp = d.counterpartyRef?.name || "Unknown";
-    row.suppliers.set(cp, (row.suppliers.get(cp) || 0) + 1);
-    groups.set(employee, row);
+  let cursor: bigint | undefined;
+  while (true) {
+    const declarations = await prisma.declaration.findMany({
+      where,
+      orderBy: { declarationPk: "asc" },
+      take: REPORT_BATCH_SIZE,
+      ...(cursor === undefined ? {} : { cursor: { declarationPk: cursor }, skip: 1 }),
+      include: { snapshot: true, counterpartyRef: true },
+    });
+    if (declarations.length === 0) break;
+    cursor = declarations[declarations.length - 1].declarationPk;
+    for (const d of declarations) {
+      const employee = d.snapshot?.declarerName || "Unknown";
+      const row = groups.get(employee) || {
+        employee,
+        lineManager: d.snapshot?.managerDisplayName || "",
+        declarationCount: 0,
+        totalValue: 0,
+        averageValue: 0,
+        totalGift: 0,
+        totalHospitality: 0,
+        totalEntertainment: 0,
+        suppliers: new Map<string, number>(),
+      };
+      row.declarationCount += 1;
+      row.totalValue += Number(d.value);
+      if (d.type === "Gift") row.totalGift += Number(d.value);
+      if (d.type === "Hospitality") row.totalHospitality += Number(d.value);
+      if (d.type === "Entertainment") row.totalEntertainment += Number(d.value);
+      const cp = d.counterpartyRef?.name || "Unknown";
+      row.suppliers.set(cp, (row.suppliers.get(cp) || 0) + 1);
+      groups.set(employee, row);
+    }
+    if (declarations.length < REPORT_BATCH_SIZE) break;
   }
 
   return [...groups.values()].map((row) => {
@@ -268,27 +289,4 @@ export async function getReportsData(req: AuthRequest, config: { highValueThresh
     counterpartyData,
     highValueData,
   };
-}
-
-export async function getReports(req: AuthRequest, config: { highValueThreshold: number }): Promise<any> {
-  const where = buildReportWhere(req);
-  const declarations = await prisma.declaration.findMany({
-    where,
-    orderBy: { submittedAt: "desc" },
-    include: {
-      snapshot: true,
-      counterpartyRef: true,
-    },
-  });
-
-  return declarations.map((d) => ({
-    id: d.id,
-    employee: d.snapshot?.declarerName || "",
-    department: d.snapshot?.department || "",
-    type: d.type,
-    counterparty: d.counterpartyRef?.name || "Unknown",
-    value: Number(d.value),
-    submitted: d.submittedAt ? new Date(d.submittedAt).toISOString().slice(0, 10) : "",
-    status: d.status,
-  }));
 }

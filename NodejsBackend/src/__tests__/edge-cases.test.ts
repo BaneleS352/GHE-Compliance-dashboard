@@ -212,11 +212,24 @@ describe("Edge-Case Tests", () => {
       expect(del.status).toBe(403);
       const ownerPendingDelete = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getTeamToken()}`);
       expect(ownerPendingDelete.status).toBe(400);
+      const adminPendingDelete = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getAdminToken()}`);
+      expect(adminPendingDelete.status).toBe(400);
       expect((await request(app).get(`/api/files/${fileId}`).set("Authorization", `Bearer ${getApproverToken()}`)).status).toBe(200);
       // Owner may delete evidence again after the declaration is returned.
       await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${getApproverToken()}`).send({ declarationId: declId, decision: "return", notes: "Need more information" });
       const ownerDel = await request(app).delete(`/api/files/${fileId}`).set("Authorization", `Bearer ${getTeamToken()}`);
       expect(ownerDel.status).toBe(200);
+    });
+
+    it.each([
+      ["legacy Word", "legacy.doc", "application/msword"],
+      ["legacy Excel", "legacy.xls", "application/vnd.ms-excel"],
+    ])("POST /api/files/upload — rejects unsupported %s format", async (_label, filename, mimeType) => {
+      const response = await request(app)
+        .post("/api/files/upload")
+        .set("Authorization", `Bearer ${getAdminToken()}`)
+        .attach("file", Buffer.from("not a supported document"), { filename, contentType: mimeType });
+      expect(response.status).toBe(400);
     });
 
     it("DELETE /api/files/:id — unauthenticated rejected", async () => {

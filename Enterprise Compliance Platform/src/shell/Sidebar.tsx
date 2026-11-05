@@ -67,7 +67,10 @@ export function Sidebar({
         )}
         <button
           onClick={onToggle}
-          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-[#c4b5fd] flex-shrink-0"
+          type="button"
+          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-expanded={!collapsed}
+          className="min-h-11 min-w-11 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors text-[#c4b5fd] flex-shrink-0"
         >
           {collapsed ? <Menu size={16} /> : <ChevronLeft size={16} />}
         </button>
