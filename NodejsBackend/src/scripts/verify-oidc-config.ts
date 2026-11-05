@@ -10,8 +10,11 @@ const repoDir = path.resolve(backendDir, "..");
 const frontendDir = path.join(repoDir, "Enterprise Compliance Platform");
 const modeArg = process.argv.find((arg) => arg.startsWith("--mode="));
 const mode = modeArg?.slice("--mode=".length) || "development";
+const appOriginArg = process.argv.find((arg) => arg.startsWith("--app-origin="));
+const appOriginSetting = appOriginArg?.slice("--app-origin=".length);
 const errors: string[] = [];
 let checks = 0;
+let skipped = 0;
 
 function readEnvFile(file: string): Env {
   try {
@@ -49,6 +52,15 @@ function check(label: string, ok: boolean, detail: string): void {
   checks += 1;
   console.log(`${ok ? "[PASS]" : "[FAIL]"} ${label}: ${detail}`);
   if (!ok) errors.push(label);
+}
+
+function skip(label: string, detail: string): void {
+  skipped += 1;
+  console.log(`[SKIP] ${label}: ${detail}`);
+}
+
+function info(label: string, detail: string): void {
+  console.log(`[INFO] ${label}: ${detail}`);
 }
 
 function usable(value: string | undefined): value is string {
@@ -170,10 +182,86 @@ async function verifyAuthorizationRequest(authority: URL, clientId: string, redi
   }
 }
 
+async function verifyExposeApiConfiguration(apiClientId: string, expectedResourceUri: string, expectedScope: string): Promise<void> {
+  // App registration API configuration is not included in public OIDC
+  // metadata. Read it from Microsoft Graph only when the caller explicitly
+  // supplies a short-lived delegated token with Application.Read.All.
+  const graphToken = process.env.ENTRA_GRAPH_ACCESS_TOKEN?.trim();
+  if (!graphToken) {
+    skip(
+      "Entra Expose an API configuration",
+      "set ENTRA_GRAPH_ACCESS_TOKEN to a short-lived Microsoft Graph token with Application.Read.All to verify the registered Application ID URI and enabled scope"
+    );
+    return;
+  }
+
+  try {
+    const filter = encodeURIComponent(`appId eq '${apiClientId.replace(/'/g, "''")}'`);
+    const graphUrl = `https://graph.microsoft.com/v1.0/applications?$filter=${filter}&$select=appId,identifierUris,api`;
+    const response = await fetch(graphUrl, {
+      headers: { Authorization: `Bearer ${graphToken}` },
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) {
+      check(
+        "Entra Expose an API inspection",
+        false,
+        response.status === 403 || response.status === 401
+          ? "Microsoft Graph denied the lookup; use a token with Application.Read.All and required admin consent"
+          : `Microsoft Graph lookup failed (HTTP ${response.status}); response details were suppressed`
+      );
+      return;
+    }
+
+    const result = await response.json() as {
+      value?: Array<{
+        appId?: string;
+        identifierUris?: string[];
+        api?: { oauth2PermissionScopes?: Array<{ value?: string; isEnabled?: boolean }> };
+      }>;
+    };
+    const application = result.value?.find((item) => item.appId?.toLowerCase() === apiClientId.toLowerCase());
+    if (!application) {
+      check("Entra API registration", false, "Microsoft Graph did not find an app registration matching OIDC_AUDIENCE");
+      return;
+    }
+
+    const identifierMatches = application.identifierUris?.some(
+      (uri) => uri.replace(/\/$/, "").toLowerCase() === expectedResourceUri.replace(/\/$/, "").toLowerCase()
+    ) ?? false;
+    check(
+      "Expose an API Application ID URI",
+      identifierMatches,
+      identifierMatches
+        ? "registered Application ID URI matches the resource requested by VITE_ENTRA_API_SCOPE"
+        : "registered Application ID URI is missing or does not match the resource portion of VITE_ENTRA_API_SCOPE"
+    );
+
+    const enabledScope = application.api?.oauth2PermissionScopes?.some(
+      (scope) => scope.value === expectedScope && scope.isEnabled === true
+    ) ?? false;
+    check(
+      "Expose an API delegated scope",
+      enabledScope,
+      enabledScope
+        ? "requested delegated scope exists and is enabled"
+        : "requested delegated scope is missing or disabled under Expose an API"
+    );
+  } catch (error) {
+    const detail = error instanceof Error && error.name === "TimeoutError" ? "timed out" : "request failed";
+    check("Entra Expose an API inspection", false, `${detail}; Graph error details were suppressed`);
+  }
+}
+
 async function main(): Promise<void> {
 console.log(`OIDC configuration verification (mode: ${mode}; configured values are not printed)`);
-if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
-  check("TLS certificate verification", false, "NODE_TLS_REJECT_UNAUTHORIZED=0 is set; remove it before verifying the provider");
+const tlsOverrideDetected = process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0";
+if (tlsOverrideDetected) {
+  check("TLS certificate verification", false, "NODE_TLS_REJECT_UNAUTHORIZED=0 is set; remove it from the app environment");
+  // Preserve the failure above, but force strict certificate validation for
+  // this verifier process so the remaining provider checks can still run.
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "1";
+  console.log("[INFO] Provider probes in this verifier force TLS certificate validation.");
 }
 
 const authority = parseUrl("OIDC_AUTHORITY", backendEnv.OIDC_AUTHORITY, true);
@@ -195,8 +283,32 @@ const apiScope = frontendEnv.VITE_ENTRA_API_SCOPE?.trim();
 check("VITE_ENTRA_CLIENT_ID", usable(spaClientId), usable(spaClientId) ? "configured" : "missing or still a placeholder");
 check("VITE_ENTRA_API_SCOPE", usable(apiScope), usable(apiScope) ? "configured" : "missing or still a placeholder");
 
+let apiResource: string | undefined;
+if (usable(apiScope)) {
+  const scopeParts = apiScope.split("/");
+  const scopeName = scopeParts.pop();
+  apiResource = scopeParts.join("/");
+  const validScopeName = Boolean(scopeName && /^[A-Za-z0-9._-]+$/.test(scopeName));
+  const validResource = /^api:\/\/[^/\s?#]+$/i.test(apiResource) || /^https:\/\/[^\s?#]+$/i.test(apiResource);
+  check(
+    "API delegated scope format",
+    validScopeName && validResource,
+    validScopeName && validResource
+      ? "fully qualified API scope has a valid resource URI and scope name"
+      : "expected a scope such as api://<API-ID>/access_as_user or https://<API-host>/<scope>"
+  );
+}
+
 if (spaClientId && allowedClientIds.length) {
   check("SPA client allowlist", allowedClientIds.includes(spaClientId), allowedClientIds.includes(spaClientId) ? "SPA client is allowed by the API" : "SPA client ID is not in OIDC_ALLOWED_CLIENT_IDS");
+}
+if (usable(spaClientId) && usable(backendEnv.OIDC_AUDIENCE)) {
+  const distinctRegistrations = spaClientId.toLowerCase() !== backendEnv.OIDC_AUDIENCE.trim().toLowerCase();
+  if (distinctRegistrations) {
+    check("SPA/API registration split", true, "SPA client ID and API audience use separate app registrations");
+  } else {
+    info("Shared SPA/API registration", "one registration can serve both roles when it has the SPA redirect and exposes the requested API URI and scope; separate registrations are recommended for least privilege");
+  }
 }
 if (authority && frontendAuthority) {
   const matches = normalizedAuthority(authority.toString()) === normalizedAuthority(frontendAuthority.toString());
@@ -206,13 +318,18 @@ if (apiScope && usable(backendEnv.OIDC_REQUIRED_SCOPE)) {
   const scopeName = apiScope.split("/").filter(Boolean).at(-1);
   check("Delegated scope", scopeName === backendEnv.OIDC_REQUIRED_SCOPE.trim(), scopeName === backendEnv.OIDC_REQUIRED_SCOPE.trim() ? "frontend requests the scope required by the API" : "frontend API scope and OIDC_REQUIRED_SCOPE differ");
 }
-if (apiScope && usable(backendEnv.OIDC_AUDIENCE)) {
-  const apiResource = apiScope.slice(0, apiScope.lastIndexOf("/"));
+if (apiScope && apiResource && usable(backendEnv.OIDC_AUDIENCE)) {
   const defaultApiUri = apiResource.match(/^api:\/\/([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i);
   if (defaultApiUri) {
     const audienceMatchesApi = backendEnv.OIDC_AUDIENCE.trim().toLowerCase() === defaultApiUri[1].toLowerCase();
     check("API audience", audienceMatchesApi, audienceMatchesApi ? "matches the API client ID for the expected v2 token" : "for Entra v2 tokens, set OIDC_AUDIENCE to the API client ID GUID, not the api:// scope URI");
+  } else if (apiResource) {
+    info("API resource URI", "scope uses a custom Application ID URI; confirm it is configured under Expose an API on the API registration and that OIDC_AUDIENCE is that registration's client ID");
   }
+}
+if (apiScope && apiResource && usable(backendEnv.OIDC_AUDIENCE)) {
+  const requiredScope = apiScope.split("/").filter(Boolean).at(-1);
+  if (requiredScope) await verifyExposeApiConfiguration(backendEnv.OIDC_AUDIENCE.trim(), apiResource, requiredScope);
 }
 
 const redirectSetting = frontendEnv.VITE_ENTRA_REDIRECT_URI?.trim();
@@ -220,12 +337,20 @@ const redirectValue = redirectSetting || (mode === "development" ? "http://local
 const redirect = redirectValue ? parseUrl("VITE_ENTRA_REDIRECT_URI", redirectValue, true) : null;
 if (!redirectValue) console.log("[INFO] VITE_ENTRA_REDIRECT_URI: omitted; the authorization preflight needs an explicit redirect URI outside development mode");
 else if (!redirectSetting) console.log("[INFO] VITE_ENTRA_REDIRECT_URI: using the development SPA origin http://localhost:5173");
+const appOriginValue = appOriginSetting || (mode === "development" ? "http://localhost:5173" : undefined);
+const appOrigin = appOriginValue ? parseUrl("SPA app origin", appOriginValue, true) : null;
+if (redirect && appOrigin) {
+  const originMatches = redirect.origin === appOrigin.origin;
+  check("SPA redirect origin", originMatches, originMatches ? "configured redirect uses the expected SPA origin" : "configured redirect origin differs from the running SPA origin; pass --app-origin with the actual browser origin or correct VITE_ENTRA_REDIRECT_URI");
+} else if (!appOriginValue) {
+  skip("SPA redirect origin", "set --app-origin to the deployed SPA origin outside development mode");
+}
 
 if (frontendEnv.VITE_ENTRA_CLIENT_SECRET || frontendEnv.VITE_CLIENT_SECRET) {
   check("SPA secret handling", false, "a client secret is set in frontend configuration; remove it (the SPA uses PKCE)");
 }
 
-if (authority && issuer && process.env.NODE_TLS_REJECT_UNAUTHORIZED !== "0") {
+if (authority && issuer) {
   const authorityBase = normalizedAuthority(authority.toString());
   const metadataUrl = `${authorityBase}/v2.0/.well-known/openid-configuration`;
   try {
@@ -254,14 +379,14 @@ if (authority && issuer && process.env.NODE_TLS_REJECT_UNAUTHORIZED !== "0") {
   if (frontendAuthority && redirect && usable(spaClientId) && usable(apiScope)) {
     await verifyAuthorizationRequest(frontendAuthority, spaClientId, redirect.toString(), apiScope);
   } else {
-    console.log("[SKIP] SPA authorization preflight: requires valid tenant authority, SPA client ID, API scope, and redirect URI");
+    skip("SPA authorization preflight", "requires valid tenant authority, SPA client ID, API scope, and redirect URI");
   }
 } else {
-  console.log("[SKIP] OIDC discovery/JWKS: requires a valid authority, issuer, and TLS verification");
-  console.log("[SKIP] SPA authorization preflight: requires valid authority and TLS verification");
+  skip("OIDC discovery/JWKS", "requires valid authority and issuer");
+  skip("SPA authorization preflight", "requires valid authority and TLS verification");
 }
 
-console.log(`\n${errors.length ? `${errors.length} of ${checks} checks need attention.` : `All ${checks} configuration/provider checks passed.`}`);
+console.log(`\n${errors.length ? `${errors.length} of ${checks} checks need attention.` : `All ${checks} configuration/provider checks passed.`}${skipped ? ` (${skipped} skipped)` : ""}`);
 console.log("The preflight does not sign a user in or redeem a code. It checks Entra's noninteractive response for the configured client, API scope, and redirect; an expected login_required response does not prove token issuance or consent for an authenticated user. Verify consent and local user provisioning by signing in through the SPA and confirming GET /api/auth/me succeeds.");
 if (errors.length) process.exitCode = 1;
 }

@@ -119,6 +119,28 @@ is granted. Complete verification by signing in through the SPA and confirming
 For local checks, it mirrors the backend and Vite env-file roots and inherited
 process environment; it does not assume the repository-root `.env` is loaded
 by either service.
+The verifier treats a shared SPA/API registration as supported and reports it
+as information; separate registrations are recommended for least privilege
+but are not required by the API token validator. It validates the fully
+qualified delegated-scope format, checks the scope name against
+`OIDC_REQUIRED_SCOPE`, and checks the default `api://<GUID>` resource against
+`OIDC_AUDIENCE`. For a custom Application ID URI it reports that the URI must
+be configured under **Expose an API** on the API registration. The live
+authorization preflight checks whether Entra recognizes the requested client,
+resource, scope, and redirect, and reports resource-not-found errors such as
+`AADSTS500011` without exposing the provider response.
+To verify the actual **Expose an API** registration fields, set
+`ENTRA_GRAPH_ACCESS_TOKEN` in the current shell to a short-lived Microsoft
+Graph access token with `Application.Read.All` and required admin consent.
+The verifier reads the API app registration by `OIDC_AUDIENCE`, compares its
+`identifierUris` with the resource URI requested by the SPA, and confirms the
+requested delegated scope exists and is enabled. The token is never printed;
+without it, this portal-backed check is reported as skipped.
+In development it compares the configured redirect origin with Vite's default
+`http://localhost:5173`; pass `--app-origin=http://localhost:<port>` if Vite is
+running on another port. If `NODE_TLS_REJECT_UNAUTHORIZED=0` is inherited, the
+verifier fails that check but forces strict TLS validation for its own provider
+probes so it can still report redirect/resource errors.
 
 ## Authentication diagnostics
 
