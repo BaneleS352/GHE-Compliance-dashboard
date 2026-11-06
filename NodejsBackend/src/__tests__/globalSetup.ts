@@ -126,10 +126,10 @@ export async function setup() {
   }
   await prisma.user.createMany({
     data: [
-      { id: 1n, name: "Admin User", email: "admin@test.com", role: "admin", teamMemberNumber: "ADM-001", departmentId: deptByName.get("IT"), position: "System Admin", lineManager: null, providerSubject: "test-oid-admin", providerIssuer: process.env.OIDC_ISSUER || `http://127.0.0.1:${process.env.TEST_JWKS_PORT || "55439"}` },
-      { id: 2n, name: "Sipho Approver", email: "sipho@test.com", role: "approver", teamMemberNumber: "APR-001", departmentId: deptByName.get("Marketing"), position: "Line Manager", lineManager: null, providerSubject: "test-oid-sipho", providerIssuer: process.env.OIDC_ISSUER || `http://127.0.0.1:${process.env.TEST_JWKS_PORT || "55439"}` },
-      { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver", teamMemberNumber: "APR-002", departmentId: deptByName.get("HR"), position: "Head of HR", lineManager: null, providerSubject: "test-oid-lindiwe", providerIssuer: process.env.OIDC_ISSUER || `http://127.0.0.1:${process.env.TEST_JWKS_PORT || "55439"}` },
-      { id: 4n, name: "Nomvula Team", email: "nomvula@test.com", role: "teamMember", teamMemberNumber: "TM-001", departmentId: deptByName.get("Marketing"), position: "Brand Manager", lineManager: "Sipho Approver", providerSubject: "test-oid-nomvula", providerIssuer: process.env.OIDC_ISSUER || `http://127.0.0.1:${process.env.TEST_JWKS_PORT || "55439"}` },
+      { id: 1n, name: "Admin User", email: "admin@test.com", role: "admin", teamMemberNumber: "ADM-001", departmentId: deptByName.get("IT"), position: "System Admin", providerSubject: "test-oid-admin", providerIssuer: process.env.OIDC_ISSUER || `http://127.0.0.1:${process.env.TEST_JWKS_PORT || "55439"}` },
+      { id: 2n, name: "Sipho Approver", email: "sipho@test.com", role: "approver", teamMemberNumber: "APR-001", departmentId: deptByName.get("Marketing"), position: "Line Manager", providerSubject: "test-oid-sipho", providerIssuer: process.env.OIDC_ISSUER || `http://127.0.0.1:${process.env.TEST_JWKS_PORT || "55439"}` },
+      { id: 3n, name: "Lindiwe HR", email: "lindiwe@test.com", role: "approver", teamMemberNumber: "APR-002", departmentId: deptByName.get("HR"), position: "Head of HR", providerSubject: "test-oid-lindiwe", providerIssuer: process.env.OIDC_ISSUER || `http://127.0.0.1:${process.env.TEST_JWKS_PORT || "55439"}` },
+      { id: 4n, name: "Nomvula Team", email: "nomvula@test.com", role: "teamMember", teamMemberNumber: "TM-001", departmentId: deptByName.get("Marketing"), position: "Brand Manager", providerSubject: "test-oid-nomvula", providerIssuer: process.env.OIDC_ISSUER || `http://127.0.0.1:${process.env.TEST_JWKS_PORT || "55439"}` },
     ],
   });
   // Normalized user links (manager FK).

@@ -20,8 +20,10 @@ versioned migration chain is:
 → 0005_phase5_retirement → 0006_numeric_keys
 → 0007_step_identity → 0008_department_id_only
 → 0009_domain_checks → 0010_auth_cutover
-→ 0011_sla_org_scope → 0012_restore_user_line_manager
-→ 0013_user_active → 0014_identity_link_audit
+→ 0011_sla_org_scope → 0012_financial_precision_integrity
+→ 0012_restore_user_line_manager → 0013_user_active
+→ 0013_user_manager_fk_only → 0014_identity_link_audit
+→ 0014_user_email_normalized_unique
 ```
 
 `0010_auth_cutover` completes the OpenID cutover at the schema level: it
@@ -31,6 +33,11 @@ indexed `providerIssuer`). Authentication resolves by issuer and immutable
 subject; the audited identity-link workflow is defined in
 `docs/IDENTITY-CONTRACT.md`. Migrations 0013/0014 add local account
 suspension and identity-link audit history.
+
+`0014_user_email_normalized_unique` adds a fail-fast preflight and a unique
+index on `lower(btrim(User.email))`, so direct database and import writes
+follow the same global case/space-insensitive email uniqueness policy as API
+writes.
 
 Internal primary and foreign keys use PostgreSQL `BIGINT` identity values.
 `Declaration.id` remains the public `GHE-YYYY-NNNNNN` text reference and

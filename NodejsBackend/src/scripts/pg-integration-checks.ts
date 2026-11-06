@@ -108,6 +108,20 @@ async function main() {
   }
   await p.user.update({ where: { id: users.tmA.id }, data: { managerId: users.lmA.id } });
   await p.user.update({ where: { id: users.tmB.id }, data: { managerId: users.lmB.id } });
+  let normalizedEmailDuplicateRejected = false;
+  try {
+    await p.user.create({ data: { name: "Email Duplicate Probe", email: " PG-TM-A@x.test ", role: "teamMember", teamMemberNumber: "PG-EMAIL-PROBE", position: "Tester", organizationId: orgB.id } });
+  } catch {
+    normalizedEmailDuplicateRejected = true;
+  }
+  check("normalized email unique index blocks case/space duplicates across organizations", normalizedEmailDuplicateRejected);
+  let scopedTeamMemberDuplicateRejected = false;
+  try {
+    await p.user.create({ data: { name: "Team Member Duplicate Probe", email: "pg-team-duplicate@x.test", role: "teamMember", teamMemberNumber: " pg-3 ", position: "Tester", organizationId: orgA.id } });
+  } catch {
+    scopedTeamMemberDuplicateRejected = true;
+  }
+  check("team member number unique index normalizes within an organization", scopedTeamMemberDuplicateRejected);
   await p.systemConfig.create({
     data: { id: "default", highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "t", notificationTemplates: "{}" },
   });
@@ -216,6 +230,54 @@ async function main() {
   for (const [t, c] of [["User", "organizationId"], ["User", "managerId"], ["User", "departmentId"], ["User", "teamId"], ["Department", "organizationId"], ["Team", "departmentId"], ["Counterparty", "organizationId"], ["CounterpartyContact", "counterpartyId"], ["Declaration", "organizationId"], ["Declaration", "declarerUserId"], ["Declaration", "currentApproverUserId"], ["Declaration", "counterpartyId"], ["DeclarationSnapshot", "declarationPk"], ["DeclarationDetail", "declarationPk"], ["DeclarationFile", "declarationPk"], ["DeclarationFile", "fileId"], ["WorkflowRule", "organizationId"], ["WorkflowRuleStep", "ruleId"], ["WorkflowInstance", "declarationPk"], ["WorkflowInstance", "ruleId"], ["WorkflowInstanceStep", "instanceId"], ["WorkflowInstanceStep", "declarationPk"], ["WorkflowInstanceStep", "assigneeId"], ["WorkflowInstanceStep", "decidedById"]] as [string, string][]) {
     check(`FK ${t}.${c} is bigint`, idType(t, c) === "bigint", `${t}.${c}=${idType(t, c)}`);
   }
+  // PostgreSQL does not automatically index the referencing side of an FK.
+  // Assert every FK join column has a valid B-tree index with that column as
+  // its leading key, so common equality joins and parent deletes stay bounded.
+  interface IndexedColumnRow { t: string; c: string }
+  const indexedColumnRows = await p.$queryRawUnsafe(
+    `SELECT DISTINCT table_class.relname AS t, column_attr.attname AS c
+     FROM pg_index index_info
+     JOIN pg_class table_class ON table_class.oid = index_info.indrelid
+     JOIN pg_namespace table_ns ON table_ns.oid = table_class.relnamespace
+     CROSS JOIN LATERAL unnest(index_info.indkey) WITH ORDINALITY AS key(attnum, ordinal)
+     JOIN pg_attribute column_attr ON column_attr.attrelid = table_class.oid AND column_attr.attnum = key.attnum
+     WHERE table_ns.nspname = 'public' AND index_info.indisvalid
+       AND key.ordinal = 1 AND key.ordinal <= index_info.indnkeyatts`,
+  ) as IndexedColumnRow[];
+  const indexedLeadingColumns = new Set(indexedColumnRows.map((row) => `${row.t}.${row.c}`));
+  const foreignKeyJoinColumns = [
+    ["User", "organizationId"], ["User", "managerId"], ["User", "departmentId"], ["User", "teamId"],
+    ["IdentityLinkAudit", "targetUserId"], ["IdentityLinkAudit", "actorUserId"],
+    ["Department", "organizationId"], ["Team", "departmentId"], ["Counterparty", "organizationId"],
+    ["CounterpartyContact", "counterpartyId"], ["Declaration", "organizationId"], ["Declaration", "declarerUserId"],
+    ["Declaration", "currentApproverUserId"], ["Declaration", "counterpartyId"], ["DeclarationSnapshot", "declarationPk"],
+    ["DeclarationDetail", "declarationPk"], ["DeclarationFile", "declarationPk"], ["DeclarationFile", "fileId"],
+    ["WorkflowRule", "organizationId"], ["WorkflowRuleStep", "ruleId"], ["WorkflowInstance", "declarationPk"],
+    ["WorkflowInstance", "ruleId"], ["WorkflowInstanceStep", "instanceId"], ["WorkflowInstanceStep", "declarationPk"],
+    ["WorkflowInstanceStep", "assigneeId"], ["WorkflowInstanceStep", "decidedById"],
+  ];
+  for (const [tableName, columnName] of foreignKeyJoinColumns) {
+    check(`FK join index ${tableName}.${columnName}`, indexedLeadingColumns.has(`${tableName}.${columnName}`));
+  }
+  interface UniqueIndexRow { name: string; t: string }
+  const uniqueIndexRows = await p.$queryRawUnsafe(
+    `SELECT index_class.relname AS name, table_class.relname AS t
+     FROM pg_index index_info
+     JOIN pg_class index_class ON index_class.oid = index_info.indexrelid
+     JOIN pg_class table_class ON table_class.oid = index_info.indrelid
+     JOIN pg_namespace table_ns ON table_ns.oid = table_class.relnamespace
+     WHERE table_ns.nspname = 'public' AND index_info.indisunique AND index_info.indisvalid`,
+  ) as UniqueIndexRow[];
+  const uniqueIndexes = new Set(uniqueIndexRows.map((row) => row.name));
+  for (const name of [
+    "Organization_shortCode_key", "User_email_key", "Department_organizationId_name_key", "Team_departmentId_name_key",
+    "DeclarationDetail_declarationPk_key", "DeclarationSnapshot_declarationPk_key", "WorkflowInstance_declarationPk_key",
+    "WorkflowRuleStep_ruleId_order_key", "WorkflowInstanceStep_instanceId_stepOrder_key", "User_org_teamMemberNumber_unique",
+    "User_global_teamMemberNumber_unique", "Department_org_code_unique",
+  ]) {
+    check(`Unique constraint/index ${name}`, uniqueIndexes.has(name));
+  }
+  check("Unique constraint/index User_email_normalized_key", uniqueIndexes.has("User_email_normalized_key"));
   // Only the documented text identifiers may remain: Declaration.id is the
   // public GHE-YYYY-NNNNNN reference, SystemConfig ("default") and
   // ApprovalOption ("opt-*"/"ao-*") are singleton/code-list rows outside the
@@ -336,6 +398,22 @@ async function main() {
   }
   await p.declaration.deleteMany({ where: { id: "PG-BAD-1" } }).catch(() => undefined);
   check("domain check blocks invalid declaration status", badStatusBlocked);
+  let badTypeBlocked = false;
+  try {
+    await p.declaration.create({ data: { id: "PG-BAD-TYPE", type: "gift", value: 1, status: "Draft", priority: "Low" } });
+  } catch {
+    badTypeBlocked = true;
+  }
+  await p.declaration.deleteMany({ where: { id: "PG-BAD-TYPE" } }).catch(() => undefined);
+  check("domain check blocks casing-variant declaration type", badTypeBlocked);
+  let badPriorityBlocked = false;
+  try {
+    await p.declaration.create({ data: { id: "PG-BAD-PRIORITY", type: "Gift", value: 1, status: "Draft", priority: "low" } });
+  } catch {
+    badPriorityBlocked = true;
+  }
+  await p.declaration.deleteMany({ where: { id: "PG-BAD-PRIORITY" } }).catch(() => undefined);
+  check("domain check blocks casing-variant declaration priority", badPriorityBlocked);
   let badRoleBlocked = false;
   try {
     const inst = await p.workflowInstance.findUnique({ where: { declarationPk: pkById.get("PG-2026-0001") }, select: { id: true } });
@@ -376,6 +454,29 @@ async function main() {
   check("user delete SET NULLs declarer link", orphanDecl?.declarerUserId === null);
   const orphanSnap = await p.declarationSnapshot.findFirst({ where: { declarerName: "PG TM B" } });
   check("snapshot history survives user delete", !!orphanSnap && orphanSnap.declarerName === "PG TM B");
+
+  // Declaration deletion cascades operational child records, while the
+  // append-only audit event is intentionally retained without a declaration FK.
+  const deleteProbe = await p.declaration.create({
+    data: {
+      id: "PG-DELETE-CASCADE", type: "Gift", value: 12.34, status: "Draft", priority: "Low",
+      organizationId: orgA.id, declarerUserId: users.tmA.id, counterpartyId: cpAcme.id,
+      snapshot: { create: { declarerName: "Delete Probe", employeeNumber: "DEL-1", positionTitle: "Tester", department: "Sales" } },
+      detail: { create: { description: "delete probe", occasion: "test", relationship: "supplier", receivedGiven: "Received", fromField: "Supplier", contactPerson: "Test", biddingProcess: "No", instances: "1", publicOfficial: "No" } },
+    },
+  });
+  const deleteProbeInstance = await p.workflowInstance.create({ data: { declarationPk: deleteProbe.declarationPk } });
+  await p.workflowInstanceStep.create({ data: { instanceId: deleteProbeInstance.id, declarationPk: deleteProbe.declarationPk, stepOrder: 1, role: "lineManager", label: "Manager", assigneeName: "Probe" } });
+  const deleteProbeFile = await p.uploadedFile.create({ data: { originalName: "probe.txt", mimeType: "text/plain", size: 4, path: "probe.txt" } });
+  await p.declarationFile.create({ data: { declarationPk: deleteProbe.declarationPk, fileId: deleteProbeFile.id } });
+  await p.declarationAuditEvent.create({ data: { declarationPk: deleteProbe.declarationPk, declarationId: deleteProbe.id, organizationId: orgA.id, action: "created", changedFields: ["type"], actorName: "Probe", newValues: { type: "Gift" } } });
+  await p.declaration.delete({ where: { declarationPk: deleteProbe.declarationPk } });
+  const retainedAudit = await p.declarationAuditEvent.findMany({ where: { declarationId: deleteProbe.id } });
+  check("declaration delete cascades snapshot/detail/workflow/file-link rows", !(await p.declarationSnapshot.findUnique({ where: { declarationPk: deleteProbe.declarationPk } })) && !(await p.declarationDetail.findUnique({ where: { declarationPk: deleteProbe.declarationPk } })) && !(await p.workflowInstance.findUnique({ where: { declarationPk: deleteProbe.declarationPk } })) && (await p.declarationFile.count({ where: { declarationPk: deleteProbe.declarationPk } })) === 0);
+  check("declaration audit history survives deletion", retainedAudit.length === 1 && retainedAudit[0].action === "created");
+  // A raw parent-row delete cannot unlink an on-disk file; the application
+  // delete route removes upload metadata explicitly after deleting the join.
+  await p.uploadedFile.delete({ where: { id: deleteProbeFile.id } });
 
   // File lifecycle policy: every uploaded file requires its join row.
   const orphanFiles: { n: bigint }[] = await p.$queryRawUnsafe(

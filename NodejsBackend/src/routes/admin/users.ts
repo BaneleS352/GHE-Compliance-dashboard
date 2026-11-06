@@ -12,7 +12,7 @@ import { resolveDepartmentId } from "../../services/normalization";
 const router = Router();
 
 /** User row with its department link for display derivation. */
-type UserWithDepartment = Prisma.UserGetPayload<{ include: { departmentRef: true } }>;
+type UserWithDepartment = Prisma.UserGetPayload<{ include: { departmentRef: true; manager: true } }>;
 
 function userResponse(u: UserWithDepartment) {
   return {
@@ -25,7 +25,8 @@ function userResponse(u: UserWithDepartment) {
     // Display only: departmentId -> Department.name is the sole source.
     department: u.departmentRef?.name ?? "",
     position: u.position,
-    lineManager: u.lineManager,
+    // Display only: managerId -> User.name is the sole persisted source.
+    lineManager: u.manager?.name ?? "",
     organizationId: u.organizationId === null || u.organizationId === undefined ? null : toJsonId(u.organizationId),
   };
 }
@@ -57,7 +58,7 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
     ];
   }
 
-  const users = await prisma.user.findMany({ where, orderBy: { name: "asc" }, take, skip, include: { departmentRef: true } });
+  const users = await prisma.user.findMany({ where, orderBy: { name: "asc" }, take, skip, include: { departmentRef: true, manager: true } });
 
   res.json(users.map(userResponse));
 }));
@@ -69,7 +70,7 @@ router.get("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     res.status(404).json({ error: "User not found" });
     return;
   }
-  const user = await prisma.user.findUnique({ where: { id: userPk }, include: { departmentRef: true } });
+  const user = await prisma.user.findUnique({ where: { id: userPk }, include: { departmentRef: true, manager: true } });
   if (!user) {
     res.status(404).json({ error: "User not found" });
     return;
@@ -93,9 +94,8 @@ const createUserSchema = z.object({
 });
 
 /**
- * Resolve the authoritative managerId FK from a lineManager input. Accepts a
- * numeric user id (as number or string) or a display name; anything else
- * leaves the FK unset while the display text is still stored.
+ * Resolve the authoritative managerId FK from a lineManager DTO input.
+ * Accepts a numeric user id (as number or string) or display name.
  */
 async function resolveManagerId(lineManager: string | number | null | undefined): Promise<bigint | null> {
   if (lineManager === null || lineManager === undefined) return null;
@@ -158,11 +158,10 @@ router.post("/", authenticate, authorize("admin"), asyncHandler(async (req: Auth
       teamMemberNumber: data.teamMemberNumber,
       departmentId: departmentPk,
       position: data.position,
-      lineManager: data.lineManager === null || data.lineManager === undefined ? null : String(data.lineManager),
       managerId: managerPk,
       organizationId: orgPk,
     },
-    include: { departmentRef: true },
+    include: { departmentRef: true, manager: true },
   });
 
   res.status(201).json(userResponse(user));
@@ -274,7 +273,6 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
   if (data.teamMemberNumber !== undefined) updateData.teamMemberNumber = data.teamMemberNumber;
   if (data.position !== undefined) updateData.position = data.position;
   if (data.lineManager !== undefined) {
-    updateData.lineManager = data.lineManager === null ? null : String(data.lineManager);
     resolvedManager = await resolveManagerId(data.lineManager);
     updateData.managerId = resolvedManager;
   }
@@ -299,7 +297,7 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     return;
   }
 
-  const user = await prisma.user.update({ where: { id: userPk }, data: updateData, include: { departmentRef: true } });
+  const user = await prisma.user.update({ where: { id: userPk }, data: updateData, include: { departmentRef: true, manager: true } });
 
   res.json(userResponse(user));
 }));

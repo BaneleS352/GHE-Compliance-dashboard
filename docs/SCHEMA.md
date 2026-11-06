@@ -28,7 +28,7 @@ SystemConfig (1 record) configures thresholds
 |-------|------|-------|
 | id | BigInt @id | Numeric user key (JWT `id`, API ids) |
 | name | String | |
-| email | String @unique | Used for login |
+| email | String @unique | Global identity/login email; a migration-managed unique index also enforces `lower(trim(email))` |
 | providerSubject | String? @unique | Entra object ID bound on first successful login |
 | providerIssuer | String? | Issuer associated with the provider subject |
 | role | String | "admin", "approver", "teamMember" (authoritative authorization source) |
@@ -138,8 +138,9 @@ with a foreign-key violation (proven by `pg:test`).
 - Declaration amounts and monetary thresholds use PostgreSQL `numeric(19,2)` / Prisma `Decimal`; the migration refuses values with more than two fractional digits rather than silently rounding them.
 - Declaration priority is constrained to `Low`, `Medium`, or `High`. Type and lifecycle status checks already exist in `0009_domain_checks`.
 - Non-empty team-member numbers are case/space normalized and unique within an organization (or globally for users without an organization). Non-empty department codes are unique within an organization. Migration preflight fails on existing duplicates for manual reconciliation.
-- `Organization.shortCode`, `User.email`, team name per department, and one-to-one declaration/workflow child keys were already unique; foreign-key join indexes are declared in the schema.
-- `User.managerId` is the only persisted manager relationship. Migration `0013_user_manager_fk_only` removes the duplicate text column; the `lineManager` API display is derived from the relation, and declaration snapshots preserve historical manager names. `position` remains free text because there is no approved title vocabulary or position-based reporting requirement. `UploadedFile.size` remains `Int` under the existing upload-size cap. Notification templates remain validated JSON text because the API contract stores the template object as a serialized string.
+- `Organization.shortCode`, `User.email`, team name per department, and one-to-one declaration/workflow child keys are unique. Migration `0014_user_email_normalized_unique` additionally makes user email uniqueness case/space insensitive for direct database writers. The PostgreSQL integration gate verifies every FK join column has a leading-key index and checks the required uniqueness indexes.
+- `User.managerId` is the only persisted manager relationship. Migration `0013_user_manager_fk_only` removes the duplicate text column; the `lineManager` API display is derived from the relation, and declaration snapshots preserve historical manager names. `position` remains free text until an approved title vocabulary or position-based reporting requirement exists. `UploadedFile.size` remains `Int` under the existing upload-size cap. Notification templates remain validated JSON text because the API contract stores the template object as a serialized string.
+- Declaration change history is available through the role-, owner-, department-, and organization-scoped `GET /api/declarations/:id/audit` endpoint and the declaration detail history panel. Writes are recorded transactionally; audit rows intentionally survive declaration deletion.
 
 Phase 5 retirements (see `NodejsBackend/prisma/RETIREMENT.md`): the
 `Dropdowns` JSON table (now Department master data + fixed domain lists),

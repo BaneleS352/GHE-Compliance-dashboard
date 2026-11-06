@@ -1,5 +1,5 @@
-import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile, User, SystemConfig, DropdownOptions, WorkflowRule, WorkflowStep, StatusType } from"@/types/declaration" 
-import { api } from "@/services/httpClient" 
+import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile, User, SystemConfig, DropdownOptions, WorkflowRule, WorkflowStep, StatusType } from "@/types/declaration"
+import { api } from "@/services/httpClient"
 import type { RequestOptions } from "@/services/httpClient";
 
 /** The declaration response contract returned by the backend. Keep mapping at this boundary. */
@@ -19,6 +19,21 @@ export async function fetchDeclarations(status?: string, search?: string, option
 export async function fetchDeclarationById(id: string, options?: RequestOptions): Promise<Declaration> {
   const raw = await api.get<DeclarationResponse>(`/api/declarations/${id}`, options);
   return { ...mapDeclaration(raw), workflowSteps: raw.workflowSteps ?? [] };
+}
+
+export interface DeclarationAuditEvent {
+  id: number;
+  action: string;
+  changedFields: string[];
+  oldValues: Record<string, unknown> | null;
+  newValues: Record<string, unknown> | null;
+  actorUserId: number | null;
+  actorName: string | null;
+  createdAt: string;
+}
+
+export async function fetchDeclarationAudit(id: string, options?: RequestOptions): Promise<DeclarationAuditEvent[]> {
+  return api.get<DeclarationAuditEvent[]>(`/api/declarations/${encodeURIComponent(id)}/audit`, options);
 }
 
 export async function createDeclaration(declaration: Partial<Declaration>): Promise<Declaration> {
@@ -375,6 +390,3 @@ function toApiDeclaration(declaration: Partial<Declaration>) {
     ...(declaration.organizationId !== undefined && { organizationId: declaration.organizationId }),
   };
 }
-
-
-

@@ -175,6 +175,31 @@ describe("Organization — multi-tenant flows", () => {
     expect(hbLmList.body.some((d: any) => d.organizationId === npnOrg.id)).toBe(false);
   });
 
+  it("GET /api/declarations/:id/audit — history is scoped to owner and organization", async () => {
+    const created = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${tokenFor(hbTeam as any)}`)
+      .send({ ...BASE_DECL, employee: hbTeam.name, employeeId: hbTeam.id, teamMemberNumber: hbTeam.teamMemberNumber, lineManager: hbLm.name, department: hbTeam.department, counterparty: "AuditOrgIsolation", value: 200 });
+    expect(created.status).toBe(201);
+
+    const ownerHistory = await request(app)
+      .get(`/api/declarations/${created.body.id}/audit`)
+      .set("Authorization", `Bearer ${tokenFor(hbTeam as any)}`);
+    expect(ownerHistory.status).toBe(200);
+    expect(ownerHistory.body.some((event: any) => event.action === "created" && event.actorName === hbTeam.name)).toBe(true);
+
+    const otherOrgHistory = await request(app)
+      .get(`/api/declarations/${created.body.id}/audit`)
+      .set("Authorization", `Bearer ${tokenFor(npnTeam as any)}`);
+    expect(otherOrgHistory.status).toBe(403);
+
+    // Platform admins intentionally have cross-organization visibility.
+    const adminHistory = await request(app)
+      .get(`/api/declarations/${created.body.id}/audit`)
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(adminHistory.status).toBe(200);
+  });
+
   it("counterparty names are isolated per organization (no cross-org attachment)", async () => {
     const vendor = `SharedVendor-${Date.now()}`;
     const hbToken = tokenFor(hbTeam as any);

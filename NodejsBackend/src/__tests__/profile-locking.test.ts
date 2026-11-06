@@ -61,11 +61,11 @@ describe("Phase 1 — profile-owned declaration identity", () => {
     });
     const tm = await prisma.user.upsert({
       where: { email: "pl-managed@test.com" },
-      update: { name: "PL Managed", departmentId: deptId, managerId: lm.id, lineManager: lm.name, organizationId: org.id, ...testIdentity("pl-managed@test.com") },
+      update: { name: "PL Managed", departmentId: deptId, managerId: lm.id, organizationId: org.id, ...testIdentity("pl-managed@test.com") },
       create: {
         name: "PL Managed", email: "pl-managed@test.com",
         role: "teamMember", teamMemberNumber: "PL-TM-001", position: "Tester",
-        departmentId: deptId, managerId: lm.id, lineManager: lm.name, organizationId: org.id, ...testIdentity("pl-managed@test.com"),
+        departmentId: deptId, managerId: lm.id, organizationId: org.id, ...testIdentity("pl-managed@test.com"),
       },
     });
     managed.id = Number(tm.id);
@@ -73,11 +73,11 @@ describe("Phase 1 — profile-owned declaration identity", () => {
 
     const bare = await prisma.user.upsert({
       where: { email: "pl-bare@test.com" },
-      update: { departmentId: null, managerId: null, lineManager: null, ...testIdentity("pl-bare@test.com") },
+      update: { departmentId: null, managerId: null, ...testIdentity("pl-bare@test.com") },
       create: {
         name: "PL Bare", email: "pl-bare@test.com",
         role: "teamMember", teamMemberNumber: "PL-TM-002", position: "Tester",
-        departmentId: null, managerId: null, lineManager: null, ...testIdentity("pl-bare@test.com"),
+        departmentId: null, managerId: null, ...testIdentity("pl-bare@test.com"),
       },
     });
     unmanaged.id = Number(bare.id);
