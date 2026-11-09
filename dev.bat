@@ -58,6 +58,8 @@ if errorlevel 1 (
 echo.
 echo [3/6] Checking PostgreSQL and preparing the database...
 set "NODE_ENV=development"
+:: This launcher uses the local test issuer, so do not offer Entra sign-in.
+set "VITE_DEV_TEST_PROVIDER=true"
 set "GHE_TEST_IDENTITY_SEED=true"
 set "OIDC_AUTHORITY=http://127.0.0.1:55439"
 set "OIDC_ISSUER=http://127.0.0.1:55439"

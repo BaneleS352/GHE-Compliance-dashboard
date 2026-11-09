@@ -6,7 +6,15 @@ import { toJsonId } from "../services/ids";
 import { logAuthDiagnostic } from "./authDiagnostics";
 
 const tenantAuthority = config.oidc.authority.replace(/\/v2\.0$/, "");
-const jwks = createRemoteJWKSet(new URL(`${tenantAuthority}/discovery/v2.0/keys`));
+const authorityUrl = new URL(tenantAuthority);
+const isLoopbackTestIssuer = ["localhost", "127.0.0.1", "[::1]"].includes(authorityUrl.hostname);
+const jwks = createRemoteJWKSet(
+  new URL(`${tenantAuthority}/discovery/v2.0/keys`),
+  // The local test issuer creates a fresh signing key each time it starts.
+  // Refresh immediately on an unknown kid there; retain jose's default
+  // cooldown for Entra/other providers to limit unnecessary JWKS requests.
+  isLoopbackTestIssuer ? { cooldownDuration: 0 } : undefined,
+);
 
 export interface AuthRequest extends Request {
   user?: {
@@ -95,8 +103,15 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     logAuthDiagnostic(res, "authentication", "success");
     next();
   } catch (error) {
-    if (error instanceof joseErrors.JWKSNoMatchingKey || error instanceof joseErrors.JWKSTimeout || error instanceof joseErrors.JWKSInvalid) {
-      logAuthDiagnostic(res, "jwks_verification", "failure", "provider_keys_unavailable_or_unmatched");
+    if (error instanceof joseErrors.JWKSNoMatchingKey) {
+      // The JWKS endpoint was reachable, but it does not publish the key that
+      // signed this token. This is an invalid/stale token, not an outage.
+      logAuthDiagnostic(res, "jwks_verification", "failure", "signing_key_not_found");
+      res.status(401).json({ error: "Token signing key is not recognized; sign in again" });
+      return;
+    }
+    if (error instanceof joseErrors.JWKSTimeout || error instanceof joseErrors.JWKSInvalid) {
+      logAuthDiagnostic(res, "jwks_verification", "failure", error instanceof joseErrors.JWKSTimeout ? "provider_keys_timeout" : "provider_keys_invalid");
       res.status(503).json({ error: "Identity provider keys are temporarily unavailable" });
       return;
     }
