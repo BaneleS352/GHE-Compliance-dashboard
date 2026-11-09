@@ -34,8 +34,8 @@ function jwtValidationFailureReason(error: unknown): string {
   if (error instanceof joseErrors.JWSSignatureVerificationFailed) return "signature_invalid";
   if (error instanceof joseErrors.JWTExpired) return "token_expired";
   if (error instanceof joseErrors.JWTClaimValidationFailed) {
-    if (error.claim === "iss") return error.reason === "mismatch" ? "issuer_mismatch" : "issuer_invalid";
-    if (error.claim === "aud") return error.reason === "mismatch" ? "audience_mismatch" : "audience_invalid";
+    if (error.claim === "iss") return error.reason === "mismatch" || error.reason === "check_failed" ? "issuer_mismatch" : "issuer_invalid";
+    if (error.claim === "aud") return error.reason === "mismatch" || error.reason === "check_failed" ? "audience_mismatch" : "audience_invalid";
     if (error.claim === "exp") return "expiration_claim_invalid";
     if (error.claim === "iat") return "issued_at_claim_invalid";
     return "required_claim_validation_failed";

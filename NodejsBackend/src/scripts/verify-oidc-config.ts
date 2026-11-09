@@ -217,7 +217,10 @@ async function verifyExposeApiConfiguration(apiClientId: string, expectedResourc
       value?: Array<{
         appId?: string;
         identifierUris?: string[];
-        api?: { oauth2PermissionScopes?: Array<{ value?: string; isEnabled?: boolean }> };
+        api?: {
+          oauth2PermissionScopes?: Array<{ value?: string; isEnabled?: boolean }>;
+          requestedAccessTokenVersion?: number | null;
+        };
       }>;
     };
     const application = result.value?.find((item) => item.appId?.toLowerCase() === apiClientId.toLowerCase());
@@ -225,6 +228,15 @@ async function verifyExposeApiConfiguration(apiClientId: string, expectedResourc
       check("Entra API registration", false, "Microsoft Graph did not find an app registration matching OIDC_AUDIENCE");
       return;
     }
+
+    const requestsV2Tokens = application.api?.requestedAccessTokenVersion === 2;
+    check(
+      "API access token version",
+      requestsV2Tokens,
+      requestsV2Tokens
+        ? "API registration requests v2.0 access tokens"
+        : "set the API registration access token version to 2; null or 1 issues v1.0 tokens whose issuer and audience do not match this API's v2 configuration"
+    );
 
     const identifierMatches = application.identifierUris?.some(
       (uri) => uri.replace(/\/$/, "").toLowerCase() === expectedResourceUri.replace(/\/$/, "").toLowerCase()
