@@ -166,6 +166,11 @@ describe("Declarations", () => {
       .delete(`/api/declarations/${id}`)
       .set("Authorization", `Bearer ${getTeamToken()}`);
     expect(res.status).toBe(200);
+    const history = await request(app)
+      .get(`/api/declarations/${id}/audit`)
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(history.status).toBe(200);
+    expect(history.body.map((event: any) => event.action)).toEqual(expect.arrayContaining(["created", "deleted"]));
   });
 
   it("PATCH /api/declarations/:id/submit — submits draft and creates workflow", async () => {

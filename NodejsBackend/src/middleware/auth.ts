@@ -6,7 +6,15 @@ import { toJsonId } from "../services/ids";
 import { logAuthDiagnostic } from "./authDiagnostics";
 
 const tenantAuthority = config.oidc.authority.replace(/\/v2\.0$/, "");
-const jwks = createRemoteJWKSet(new URL(`${tenantAuthority}/discovery/v2.0/keys`));
+const authorityUrl = new URL(tenantAuthority);
+const isLoopbackTestIssuer = ["localhost", "127.0.0.1", "[::1]"].includes(authorityUrl.hostname);
+const jwks = createRemoteJWKSet(
+  new URL(`${tenantAuthority}/discovery/v2.0/keys`),
+  // The local test issuer creates a fresh signing key each time it starts.
+  // Refresh immediately on an unknown kid there; retain jose's default
+  // cooldown for Entra/other providers to limit unnecessary JWKS requests.
+  isLoopbackTestIssuer ? { cooldownDuration: 0 } : undefined,
+);
 
 export interface AuthRequest extends Request {
   user?: {
@@ -21,6 +29,20 @@ export interface AuthRequest extends Request {
 }
 
 type EntraClaims = JWTPayload & { oid?: string; preferred_username?: string; email?: string; name?: string; roles?: string[]; azp?: string; scp?: string };
+
+function jwtValidationFailureReason(error: unknown): string {
+  if (error instanceof joseErrors.JWSSignatureVerificationFailed) return "signature_invalid";
+  if (error instanceof joseErrors.JWTExpired) return "token_expired";
+  if (error instanceof joseErrors.JWTClaimValidationFailed) {
+    if (error.claim === "iss") return error.reason === "mismatch" || error.reason === "check_failed" ? "issuer_mismatch" : "issuer_invalid";
+    if (error.claim === "aud") return error.reason === "mismatch" || error.reason === "check_failed" ? "audience_mismatch" : "audience_invalid";
+    if (error.claim === "exp") return "expiration_claim_invalid";
+    if (error.claim === "iat") return "issued_at_claim_invalid";
+    return "required_claim_validation_failed";
+  }
+  if (error instanceof joseErrors.JWTInvalid) return "token_format_invalid";
+  return "jwt_validation_failed";
+}
 
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
@@ -95,8 +117,15 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     logAuthDiagnostic(res, "authentication", "success");
     next();
   } catch (error) {
-    if (error instanceof joseErrors.JWKSNoMatchingKey || error instanceof joseErrors.JWKSTimeout || error instanceof joseErrors.JWKSInvalid) {
-      logAuthDiagnostic(res, "jwks_verification", "failure", "provider_keys_unavailable_or_unmatched");
+    if (error instanceof joseErrors.JWKSNoMatchingKey) {
+      // The JWKS endpoint was reachable, but it does not publish the key that
+      // signed this token. This is an invalid/stale token, not an outage.
+      logAuthDiagnostic(res, "jwks_verification", "failure", "signing_key_not_found");
+      res.status(401).json({ error: "Token signing key is not recognized; sign in again" });
+      return;
+    }
+    if (error instanceof joseErrors.JWKSTimeout || error instanceof joseErrors.JWKSInvalid) {
+      logAuthDiagnostic(res, "jwks_verification", "failure", error instanceof joseErrors.JWKSTimeout ? "provider_keys_timeout" : "provider_keys_invalid");
       res.status(503).json({ error: "Identity provider keys are temporarily unavailable" });
       return;
     }
@@ -105,7 +134,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       res.status(503).json({ error: "Identity provider is temporarily unavailable" });
       return;
     }
-    logAuthDiagnostic(res, "jwt_validation", "failure", "signature_issuer_audience_or_lifetime_invalid");
+    logAuthDiagnostic(res, "jwt_validation", "failure", jwtValidationFailureReason(error));
     res.status(401).json({ error: "Invalid or expired token" });
   }
 }

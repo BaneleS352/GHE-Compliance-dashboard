@@ -3,6 +3,10 @@ setlocal
 
 cd /d "%~dp0"
 
+:: Use this checkout's env files instead of stale app values inherited
+:: from the shell that launched the batch file. `set "NAME="` removes a var.
+for %%V in (DATABASE_URL OIDC_AUTHORITY OIDC_ISSUER OIDC_AUDIENCE OIDC_ALLOWED_CLIENT_IDS OIDC_REQUIRED_SCOPE CORS_ORIGIN PORT GHE_TEST_IDENTITY_SEED VITE_DEV_TEST_PROVIDER VITE_ENABLE_TEST_LOGIN VITE_ENTRA_AUTHORITY VITE_ENTRA_CLIENT_ID VITE_ENTRA_API_SCOPE VITE_ENTRA_REDIRECT_URI E2E_API_URL E2E_JWKS_URL NODE_TLS_REJECT_UNAUTHORIZED) do set "%%V="
+
 :: ── Prerequisite checks ───────────────────────────────────────────
 echo Checking requirements...
 where node >nul 2>nul
@@ -58,12 +62,6 @@ if errorlevel 1 (
 echo.
 echo [3/6] Checking PostgreSQL and preparing the database...
 set "NODE_ENV=development"
-set "GHE_TEST_IDENTITY_SEED=true"
-set "OIDC_AUTHORITY=http://127.0.0.1:55439"
-set "OIDC_ISSUER=http://127.0.0.1:55439"
-set "OIDC_AUDIENCE=ghe-test-api-audience"
-set "OIDC_ALLOWED_CLIENT_IDS=test-spa-client-id"
-set "OIDC_REQUIRED_SCOPE=access_as_user"
 call npm run db:pg:up
 if errorlevel 1 (
     echo.
@@ -100,8 +98,6 @@ cd /d "%~dp0"
 echo.
 echo [5/6] Starting servers...
 
-start "Test OIDC Provider" cmd /k "cd /d "%~dp0NodejsBackend" && npx tsx src/scripts/test-provider.ts"
-
 start "Backend" cmd /k "cd /d "%~dp0NodejsBackend" && npx tsx src/index.ts"
 
 start "Frontend" cmd /k "cd /d "%~dp0Enterprise Compliance Platform" && npx vite"
@@ -110,7 +106,7 @@ echo.
 echo ==========================================================
 echo   Backend : http://localhost:3001
 echo   Frontend: http://localhost:5173
-echo   Test login: use the Developer testing quick-login control
+echo   Sign-in: Microsoft Entra ID from NodejsBackend\.env and Enterprise Compliance Platform\.env.local
 echo ==========================================================
 echo.
 echo Close the Backend and Frontend windows to stop the servers.

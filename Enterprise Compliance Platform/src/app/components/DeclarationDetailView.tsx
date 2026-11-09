@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Download, Eye, FileText } from "lucide-react";
+import { Download, Eye, FileText, History, LoaderCircle } from "lucide-react";
 import { Card } from "@/app/components/ui/card";
 import { formatRand, DEFAULT_HIGH_VALUE_THRESHOLD, DEFAULT_MEDIUM_VALUE_THRESHOLD } from "@/config/theme";
 import { Declaration, UploadedFile } from "@/types/declaration";
-import { fetchPublicConfig } from "@/services/api";
+import { fetchDeclarationAudit, fetchPublicConfig } from "@/services/api";
+import type { DeclarationAuditEvent } from "@/services/api";
 import { downloadFile as downloadSharedFile, previewFile as previewSharedFile } from "@/services/download";
 import { notifyError } from "@/app/components/notify";
 import { motion } from "framer-motion";
@@ -24,6 +25,8 @@ export function DeclarationDetailView({
   const record = !d ? (data as Record<string, string>) : null;
   const [config, setConfig] = useState({ highValueThreshold: DEFAULT_HIGH_VALUE_THRESHOLD, mediumValueThreshold: DEFAULT_MEDIUM_VALUE_THRESHOLD, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
   const [configWarning, setConfigWarning] = useState<string | null>(null);
+  const [auditEvents, setAuditEvents] = useState<DeclarationAuditEvent[]>([]);
+  const [auditState, setAuditState] = useState<"loading" | "loaded" | "error" | "unavailable">("unavailable");
 
   useEffect(() => {
     fetchPublicConfig()
@@ -32,6 +35,25 @@ export function DeclarationDetailView({
       // falling back to built-in defaults.
       .catch(() => setConfigWarning("System thresholds could not be loaded — default values are shown."));
   }, []);
+
+  useEffect(() => {
+    if (!d?.id) {
+      setAuditState("unavailable");
+      return;
+    }
+    let active = true;
+    setAuditState("loading");
+    fetchDeclarationAudit(d.id)
+      .then((events) => {
+        if (!active) return;
+        setAuditEvents(events);
+        setAuditState("loaded");
+      })
+      .catch(() => {
+        if (active) setAuditState("error");
+      });
+    return () => { active = false; };
+  }, [d?.id]);
 
   const safe = (v: unknown) => (v != null ? String(v) : "—");
 
@@ -136,9 +158,76 @@ export function DeclarationDetailView({
     </Card>
     </div>
 
+    {d?.id && <DeclarationHistory events={auditEvents} state={auditState} />}
     {!hideDocuments && <SupportingDocuments data={data} />}
     </div>
   );
+}
+
+function DeclarationHistory({ events, state }: { events: DeclarationAuditEvent[]; state: "loading" | "loaded" | "error" | "unavailable" }) {
+  return (
+    <div className="detail-panel-shell">
+      <Card className="detail-panel-card p-6 rounded-2xl bg-white border border-white/40">
+        <div className="relative z-10">
+          <h3 className="mb-5 inline-flex items-center gap-2 rounded-full border border-purple-200/70 bg-purple-50 px-4 py-1.5 text-sm font-extrabold uppercase tracking-[0.2em] text-purple-900 shadow-sm">
+            <History size={15} aria-hidden="true" /> Change History
+          </h3>
+          {state === "loading" ? (
+            <p role="status" className="flex items-center gap-2 text-sm text-slate-600"><LoaderCircle size={16} className="animate-spin" aria-hidden="true" />Loading declaration history…</p>
+          ) : state === "error" ? (
+            <p role="status" className="text-sm text-amber-800">Change history could not be loaded. Refresh the declaration to try again.</p>
+          ) : events.length === 0 ? (
+            <p className="text-sm text-slate-500">No recorded changes are available for this declaration.</p>
+          ) : (
+            <ol className="space-y-3">
+              {events.map((event) => (
+                <li key={event.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                    <p className="text-sm font-semibold text-slate-800">{auditActionLabel(event.action)}</p>
+                    <time className="text-xs text-slate-500" dateTime={event.createdAt}>{formatAuditDate(event.createdAt)}</time>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-600">By {event.actorName || "System"}</p>
+                  {event.changedFields.length > 0 && <p className="mt-2 text-xs text-slate-600">Changed: {event.changedFields.join(", ")}</p>}
+                  {(event.oldValues || event.newValues) && (
+                    <details className="mt-2 text-xs text-slate-600">
+                      <summary className="cursor-pointer font-semibold text-purple-800">View recorded values</summary>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {event.oldValues && <ValueSnapshot label="Previous values" value={event.oldValues} />}
+                        {event.newValues && <ValueSnapshot label="Updated values" value={event.newValues} />}
+                      </div>
+                    </details>
+                  )}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function ValueSnapshot({ label, value }: { label: string; value: Record<string, unknown> }) {
+  return <div><p className="font-semibold">{label}</p><pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-2">{JSON.stringify(value, null, 2)}</pre></div>;
+}
+
+function auditActionLabel(action: string): string {
+  const labels: Record<string, string> = {
+    created: "Declaration created",
+    updated: "Declaration updated",
+    submitted: "Declaration submitted",
+    workflow_decision: "Workflow decision recorded",
+    status_overridden: "Status changed by an administrator",
+    deleted: "Declaration deleted",
+    file_uploaded: "Evidence uploaded",
+    file_deleted: "Evidence deleted",
+  };
+  return labels[action] || "Declaration activity recorded";
+}
+
+function formatAuditDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
 async function downloadFile(file: UploadedFile) {
@@ -238,5 +327,3 @@ export function SupportingDocuments({ data }: { data: Record<string, string> | D
     </div>
   );
 }
-
-
