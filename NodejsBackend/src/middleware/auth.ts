@@ -30,6 +30,20 @@ export interface AuthRequest extends Request {
 
 type EntraClaims = JWTPayload & { oid?: string; preferred_username?: string; email?: string; name?: string; roles?: string[]; azp?: string; scp?: string };
 
+function jwtValidationFailureReason(error: unknown): string {
+  if (error instanceof joseErrors.JWSSignatureVerificationFailed) return "signature_invalid";
+  if (error instanceof joseErrors.JWTExpired) return "token_expired";
+  if (error instanceof joseErrors.JWTClaimValidationFailed) {
+    if (error.claim === "iss") return error.reason === "mismatch" ? "issuer_mismatch" : "issuer_invalid";
+    if (error.claim === "aud") return error.reason === "mismatch" ? "audience_mismatch" : "audience_invalid";
+    if (error.claim === "exp") return "expiration_claim_invalid";
+    if (error.claim === "iat") return "issued_at_claim_invalid";
+    return "required_claim_validation_failed";
+  }
+  if (error instanceof joseErrors.JWTInvalid) return "token_format_invalid";
+  return "jwt_validation_failed";
+}
+
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -120,7 +134,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       res.status(503).json({ error: "Identity provider is temporarily unavailable" });
       return;
     }
-    logAuthDiagnostic(res, "jwt_validation", "failure", "signature_issuer_audience_or_lifetime_invalid");
+    logAuthDiagnostic(res, "jwt_validation", "failure", jwtValidationFailureReason(error));
     res.status(401).json({ error: "Invalid or expired token" });
   }
 }

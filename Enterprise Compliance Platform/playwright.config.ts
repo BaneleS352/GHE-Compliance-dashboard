@@ -68,7 +68,7 @@ export default defineConfig({
       port: Number(WEB_PORT),
       timeout: 30000,
       reuseExistingServer: false,
-      env: { E2E_API_URL: API_URL, E2E_JWKS_URL: TEST_JWKS_URL },
+      env: { E2E_API_URL: API_URL, E2E_JWKS_URL: TEST_JWKS_URL, VITE_DEV_TEST_PROVIDER: "true" },
     },
   ],
 });

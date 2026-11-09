@@ -3,7 +3,7 @@ import { PublicClientApplication, InteractionRequiredAuthError, type AccountInfo
 /** Enabled only for Vite dev or an explicit local Docker stub build. */
 export const dockerStubAuthEnabled = import.meta.env.VITE_ENABLE_TEST_LOGIN === "true";
 export const testAuthEnabled = import.meta.env.DEV || dockerStubAuthEnabled;
-/** dev.bat selects the local issuer, so its login UI must not send users to Entra. */
+/** Explicitly selects the local issuer for E2E or local test-provider runs. */
 export const localTestProviderEnabled = import.meta.env.VITE_DEV_TEST_PROVIDER === "true";
 
 /**
