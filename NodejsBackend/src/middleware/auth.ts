@@ -36,14 +36,24 @@ type EntraClaims = JWTPayload & {
   preferred_username?: string;
   email?: string;
   name?: string;
+  given_name?: string;
+  family_name?: string;
   roles?: string[];
   azp?: string;
   scp?: string;
   upn?: string;
   department?: string;
+  dept?: string;
   position?: string;
   jobTitle?: string;
+  job_title?: string;
   organization?: string;
+  organizationName?: string;
+  organization_name?: string;
+  companyName?: string;
+  company?: string;
+  orgName?: string;
+  org_name?: string;
   manager?: string;
   managerName?: string;
   manager_name?: string;
@@ -80,8 +90,11 @@ function jwtValidationFailureReason(error: unknown): string {
 
 async function autoProvisionUser(providerSubject: string, payload: EntraClaims) {
   // Determine profile fields from signed claims (display data only).
+  const given = typeof payload.given_name === "string" ? payload.given_name.trim() : "";
+  const family = typeof payload.family_name === "string" ? payload.family_name.trim() : "";
   const name =
     (typeof payload.name === "string" && payload.name.trim()) ||
+    (given && family ? `${given} ${family}` : given || family) ||
     (typeof payload.preferred_username === "string" && payload.preferred_username.trim()) ||
     providerSubject;
 
@@ -95,7 +108,7 @@ async function autoProvisionUser(providerSubject: string, payload: EntraClaims) 
   // Organization from trusted claims (numeric id or name/shortCode). Never
   // from email. Unavailable -> null (pending admin completion).
   let orgPk: bigint | null = null;
-  for (const key of ["organizationId", "orgId"]) {
+  for (const key of ["organizationId", "orgId", "companyId", "company_id", "organization_id"]) {
     const v = (payload as Record<string, unknown>)[key];
     if (v === undefined || v === null) continue;
     const n = typeof v === "number" ? v : (typeof v === "string" && /^\d+$/.test(v) ? Number(v) : NaN);
@@ -105,7 +118,15 @@ async function autoProvisionUser(providerSubject: string, payload: EntraClaims) 
     }
   }
   if (orgPk === null) {
-    const orgNameRaw = (payload as Record<string, unknown>).organization ?? (payload as Record<string, unknown>).org;
+    const orgNameRaw =
+      (payload as Record<string, unknown>).organization ??
+      (payload as Record<string, unknown>).organizationName ??
+      (payload as Record<string, unknown>).organization_name ??
+      (payload as Record<string, unknown>).companyName ??
+      (payload as Record<string, unknown>).company ??
+      (payload as Record<string, unknown>).orgName ??
+      (payload as Record<string, unknown>).org_name ??
+      (payload as Record<string, unknown>).org;
     const orgName = typeof orgNameRaw === "string" ? orgNameRaw.trim() : "";
     if (orgName) {
       const org = await prisma.organization.findFirst({ where: { OR: [{ name: orgName }, { shortCode: orgName }] } });
@@ -116,10 +137,12 @@ async function autoProvisionUser(providerSubject: string, payload: EntraClaims) 
   const position =
     (typeof payload.position === "string" && payload.position.trim()) ||
     (typeof payload.jobTitle === "string" && payload.jobTitle.trim()) ||
+    (typeof payload.job_title === "string" && payload.job_title.trim()) ||
     "";
 
   const deptName =
-    typeof payload.department === "string" ? payload.department.trim() : "";
+    typeof payload.department === "string" ? payload.department.trim() :
+    typeof payload.dept === "string" ? payload.dept.trim() : "";
 
   // Employee/team-member number from trusted claims only.
   let teamMemberNumber = "";
@@ -173,6 +196,7 @@ async function refreshProfileFromClaims(userId: bigint, orgId: bigint | null, pa
   const position =
     (typeof payload.position === "string" && payload.position.trim()) ||
     (typeof payload.jobTitle === "string" && payload.jobTitle.trim()) ||
+    (typeof payload.job_title === "string" && payload.job_title.trim()) ||
     "";
   if (position) update.position = position;
 
@@ -185,7 +209,7 @@ async function refreshProfileFromClaims(userId: bigint, orgId: bigint | null, pa
 
   // Organization from trusted claims.
   let nextOrg: bigint | null = orgId;
-  for (const key of ["organizationId", "orgId"]) {
+  for (const key of ["organizationId", "orgId", "companyId", "company_id", "organization_id"]) {
     const v = (payload as Record<string, unknown>)[key];
     if (v === undefined || v === null) continue;
     const n = typeof v === "number" ? v : (typeof v === "string" && /^\d+$/.test(v) ? Number(v) : NaN);
@@ -195,7 +219,15 @@ async function refreshProfileFromClaims(userId: bigint, orgId: bigint | null, pa
     }
   }
   if (nextOrg === orgId) {
-    const orgNameRaw = (payload as Record<string, unknown>).organization ?? (payload as Record<string, unknown>).org;
+    const orgNameRaw =
+      (payload as Record<string, unknown>).organization ??
+      (payload as Record<string, unknown>).organizationName ??
+      (payload as Record<string, unknown>).organization_name ??
+      (payload as Record<string, unknown>).companyName ??
+      (payload as Record<string, unknown>).company ??
+      (payload as Record<string, unknown>).orgName ??
+      (payload as Record<string, unknown>).org_name ??
+      (payload as Record<string, unknown>).org;
     const orgName = typeof orgNameRaw === "string" ? orgNameRaw.trim() : "";
     if (orgName) {
       const org = await prisma.organization.findFirst({ where: { OR: [{ name: orgName }, { shortCode: orgName }] } });
@@ -222,6 +254,8 @@ async function refreshProfileFromClaims(userId: bigint, orgId: bigint | null, pa
     (payload as Record<string, unknown>).manager ??
     (payload as Record<string, unknown>).managerName ??
     (payload as Record<string, unknown>).manager_name ??
+    (payload as Record<string, unknown>).managerDisplayName ??
+    (payload as Record<string, unknown>).manager_display_name ??
     (payload as Record<string, unknown>).lineManager ??
     (payload as Record<string, unknown>).line_manager;
   if (managerClaimRaw !== undefined && managerClaimRaw !== null && String(managerClaimRaw).trim() !== "") {

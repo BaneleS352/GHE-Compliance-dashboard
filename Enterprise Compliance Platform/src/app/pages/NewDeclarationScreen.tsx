@@ -97,6 +97,18 @@ export function NewDeclarationScreen({
     }
   }, [organizations, user?.organizationId]);
 
+  // Hydrate profile-owned identity fields from the signed-in user whenever
+  // they arrive, so late-loading profile data still populates the form.
+  useEffect(() => {
+    setFormState((f) => ({
+      ...f,
+      employeeName: f.employeeName || user?.name || "",
+      employeeCode: f.employeeCode || user?.teamMemberNumber || "",
+      department: f.department || user?.department || "",
+      position: f.position || user?.position || "",
+    }));
+  }, [user?.name, user?.teamMemberNumber, user?.department, user?.position]);
+
   useEffect(() => {
     if (lineManagerName) {
       setFormState((f) => f.lineManager ? f : { ...f, lineManager: lineManagerName });
