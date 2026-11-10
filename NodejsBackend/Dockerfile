@@ -6,7 +6,7 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY src/ ./src/
 RUN npm run build
-
+ 
 FROM node:20-alpine
 WORKDIR /app
 ARG PIP_CA_CERT_BASE64=""
