@@ -37,9 +37,11 @@ normalized `AuthRequest.user`; no route parses tokens or provider claims.
    exact audience, required `exp`/`iat`, allowed `azp`, and required `scp`.
    Invalid tokens return `401`; provider key/network outages return `503`.
 2. Require a string `oid` → else `401`.
-3. Look up the local user by `providerSubject` and require its
-   `providerIssuer` to equal the configured issuer. Unknown subject or issuer
-   mismatch → `403` (default-deny: no auto-provisioning).
+3. Look up the local user by `providerSubject`. If none exists, auto-provision
+   a least-privilege local account keyed only by the immutable subject (role
+   `teamMember`; profile/org/employee number from trusted claims when present,
+   otherwise left for an admin). Provider issuer mismatch or an unprovisionable
+   identity (e.g. email collision) -> `403`.
 4. Login never creates or changes an identity link based on email. The local
    row supplies email and display fields.
 5. Populate `AuthRequest.user` (numeric id, role, display fields) from the
