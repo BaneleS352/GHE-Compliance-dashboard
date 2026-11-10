@@ -4,6 +4,7 @@ import { config } from "../config/env";
 import { prisma } from "../config/prisma";
 import { toDbId, toJsonId } from "../services/ids";
 import { resolveDepartmentId } from "../services/normalization";
+import { managerOrgViolation } from "../services/orgConsistency";
 import { logAuthDiagnostic } from "./authDiagnostics";
 import { Prisma } from "@prisma/client";
 
@@ -43,6 +44,15 @@ type EntraClaims = JWTPayload & {
   position?: string;
   jobTitle?: string;
   organization?: string;
+  manager?: string;
+  managerName?: string;
+  manager_name?: string;
+  lineManager?: string;
+  line_manager?: string;
+  managerOid?: string;
+  manager_oid?: string;
+  managerId?: number | string;
+  manager_id?: number | string;
   org?: string;
   organizationId?: number | string;
   orgId?: number | string;
@@ -153,6 +163,99 @@ async function autoProvisionUser(providerSubject: string, payload: EntraClaims) 
   }
 }
 
+async function refreshProfileFromClaims(userId: bigint, orgId: bigint | null, payload: EntraClaims): Promise<void> {
+  // Refresh mutable profile data from trusted claims without changing role or
+  // manager unless a trusted manager claim resolves. Name/email stay
+  // DB-authoritative (see identity contract); only fill/refresh the fields
+  // below when a claim is present.
+  const update: Record<string, unknown> = {};
+
+  const position =
+    (typeof payload.position === "string" && payload.position.trim()) ||
+    (typeof payload.jobTitle === "string" && payload.jobTitle.trim()) ||
+    "";
+  if (position) update.position = position;
+
+  const deptName = typeof payload.department === "string" ? payload.department.trim() : "";
+  let departmentPk: bigint | null = null;
+  if (deptName && orgId !== null) {
+    departmentPk = await resolveDepartmentId(deptName, orgId);
+    if (departmentPk !== null) update.departmentId = departmentPk;
+  }
+
+  // Organization from trusted claims.
+  let nextOrg: bigint | null = orgId;
+  for (const key of ["organizationId", "orgId"]) {
+    const v = (payload as Record<string, unknown>)[key];
+    if (v === undefined || v === null) continue;
+    const n = typeof v === "number" ? v : (typeof v === "string" && /^\d+$/.test(v) ? Number(v) : NaN);
+    if (Number.isFinite(n)) {
+      const org = await prisma.organization.findUnique({ where: { id: toDbId(n) } });
+      if (org) { nextOrg = org.id; break; }
+    }
+  }
+  if (nextOrg === orgId) {
+    const orgNameRaw = (payload as Record<string, unknown>).organization ?? (payload as Record<string, unknown>).org;
+    const orgName = typeof orgNameRaw === "string" ? orgNameRaw.trim() : "";
+    if (orgName) {
+      const org = await prisma.organization.findFirst({ where: { OR: [{ name: orgName }, { shortCode: orgName }] } });
+      if (org) nextOrg = org.id;
+    }
+  }
+  if (nextOrg !== null && nextOrg !== orgId) update.organizationId = nextOrg;
+  const effectiveOrg = nextOrg ?? orgId;
+
+  let teamMemberNumber = "";
+  for (const key of ["teamMemberNumber", "employeeNumber", "employee_number", "employeeId", "employee_id"]) {
+    const v = (payload as Record<string, unknown>)[key];
+    if (typeof v === "string" && v.trim()) { teamMemberNumber = v.trim(); break; }
+    if (typeof v === "number" && Number.isFinite(v)) { teamMemberNumber = String(v); break; }
+  }
+  if (teamMemberNumber) update.teamMemberNumber = teamMemberNumber;
+
+  // Manager resolution from trusted claims (by id, oid, name, or email).
+  const managerClaimRaw =
+    (payload as Record<string, unknown>).managerOid ??
+    (payload as Record<string, unknown>).manager_oid ??
+    (payload as Record<string, unknown>).managerId ??
+    (payload as Record<string, unknown>).manager_id ??
+    (payload as Record<string, unknown>).manager ??
+    (payload as Record<string, unknown>).managerName ??
+    (payload as Record<string, unknown>).manager_name ??
+    (payload as Record<string, unknown>).lineManager ??
+    (payload as Record<string, unknown>).line_manager;
+  if (managerClaimRaw !== undefined && managerClaimRaw !== null && String(managerClaimRaw).trim() !== "") {
+    let managerPk: bigint | null = null;
+    const raw = managerClaimRaw;
+    if (typeof raw === "number") {
+      const found = await prisma.user.findUnique({ where: { id: toDbId(raw) }, select: { id: true } });
+      managerPk = found ? found.id : null;
+    } else {
+      const s = String(raw).trim();
+      if (/^\d+$/.test(s)) {
+        const found = await prisma.user.findUnique({ where: { id: toDbId(s) }, select: { id: true } });
+        if (found) managerPk = found.id;
+      }
+      if (managerPk === null && /^[0-9a-f-]{36}$/i.test(s)) {
+        const found = await prisma.user.findUnique({ where: { providerSubject: s.toLowerCase() }, select: { id: true } });
+        if (found) managerPk = found.id;
+      }
+      if (managerPk === null) {
+        const found = await prisma.user.findFirst({ where: { OR: [{ name: s }, { email: s.toLowerCase() }] }, select: { id: true } });
+        if (found) managerPk = found.id;
+      }
+    }
+    if (managerPk !== null) {
+      // Only set manager if org-consistent (global managers allowed).
+      const violation = await managerOrgViolation(managerPk, effectiveOrg);
+      if (!violation) update.managerId = managerPk;
+    }
+  }
+
+  if (Object.keys(update).length === 0) return;
+  await prisma.user.update({ where: { id: userId }, data: update });
+}
+
 export async function authenticate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -206,6 +309,12 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
           res.status(403).json({ error: "Authenticated user is not provisioned in the application" });
           return;
         }
+        await refreshProfileFromClaims(dbUser.id, dbUser.organizationId, payload);
+        dbUser = await prisma.user.findUnique({ where: { providerSubject: decoded.providerSubject }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } }) ?? dbUser;
+      } else {
+        // Refresh mutable profile fields from trusted claims for existing users.
+        await refreshProfileFromClaims(dbUser.id, dbUser.organizationId, payload);
+        dbUser = await prisma.user.findUnique({ where: { providerSubject: decoded.providerSubject }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } }) ?? dbUser;
       }
       if (!dbUser.isActive) {
         logAuthDiagnostic(res, "local_identity_lookup", "failure", "account_disabled");

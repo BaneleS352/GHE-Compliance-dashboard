@@ -42,8 +42,10 @@ normalized `AuthRequest.user`; no route parses tokens or provider claims.
    `teamMember`; profile/org/employee number from trusted claims when present,
    otherwise left for an admin). Provider issuer mismatch or an unprovisionable
    identity (e.g. email collision) -> `403`.
-4. Login never creates or changes an identity link based on email. The local
-   row supplies email and display fields.
+4. Login may refresh mutable profile fields (position, department, organization,
+   employee code, manager) from trusted claims for existing accounts, but never
+   role, name, email, or provider link. Email is mutable display data only and
+   is never used to resolve identity.
 5. Populate `AuthRequest.user` (numeric id, role, display fields) from the
    row. Local role changes apply on the next request; tokens carry no role.
 
