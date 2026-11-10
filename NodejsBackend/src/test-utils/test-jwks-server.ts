@@ -61,6 +61,20 @@ export interface MintClaims {
   oid?: string;
   email?: string;
   name?: string;
+  preferred_username?: string;
+  department?: string;
+  position?: string;
+  jobTitle?: string;
+  organization?: string;
+  org?: string;
+  organizationId?: number | string;
+  orgId?: number | string;
+  employeeNumber?: string | number;
+  employee_number?: string | number;
+  employeeId?: string | number;
+  employee_id?: string | number;
+  teamMemberNumber?: string | number;
+  upn?: string;
   /** Override issuer (default: test issuer). */
   iss?: string;
   /** Override audience (default: test audience). */
@@ -91,6 +105,21 @@ export function signTestJwt(material: TestKeyMaterial, claims: MintClaims = {}):
     azp: claims.azp ?? TEST_CLIENT_ID,
     scp: claims.scp ?? TEST_REQUIRED_SCOPE,
   };
+  if (claims.email !== undefined) payload.email = claims.email;
+  if (claims.preferred_username !== undefined) payload.preferred_username = claims.preferred_username;
+  if (claims.upn !== undefined) payload.upn = claims.upn;
+  if (claims.department !== undefined) payload.department = claims.department;
+  if (claims.position !== undefined) payload.position = claims.position;
+  if (claims.jobTitle !== undefined) payload.jobTitle = claims.jobTitle;
+  if (claims.organization !== undefined) payload.organization = claims.organization;
+  if (claims.org !== undefined) payload.org = claims.org;
+  if (claims.organizationId !== undefined) payload.organizationId = claims.organizationId;
+  if (claims.orgId !== undefined) payload.orgId = claims.orgId;
+  if (claims.employeeNumber !== undefined) payload.employeeNumber = claims.employeeNumber;
+  if (claims.employee_number !== undefined) payload.employee_number = claims.employee_number;
+  if (claims.employeeId !== undefined) payload.employeeId = claims.employeeId;
+  if (claims.employee_id !== undefined) payload.employee_id = claims.employee_id;
+  if (claims.teamMemberNumber !== undefined) payload.teamMemberNumber = claims.teamMemberNumber;
   if (claims.noAzp) delete payload.azp;
   if (claims.noExp) delete payload.exp;
   if (claims.noIat) delete payload.iat;
@@ -147,6 +176,15 @@ export async function startTestJwksServer(port = TEST_JWKS_PORT): Promise<{
         oid: typeof body.oid === "string" ? body.oid : undefined,
         email: typeof body.email === "string" ? body.email : undefined,
         name: typeof body.name === "string" ? body.name : undefined,
+        preferred_username: typeof body.preferred_username === "string" ? body.preferred_username : undefined,
+        department: typeof body.department === "string" ? body.department : undefined,
+        position: typeof body.position === "string" ? body.position : undefined,
+        jobTitle: typeof body.jobTitle === "string" ? body.jobTitle : undefined,
+        organization: typeof body.organization === "string" ? body.organization : undefined,
+        organizationId: typeof body.organizationId === "number" || typeof body.organizationId === "string" ? body.organizationId : undefined,
+        employeeNumber: typeof body.employeeNumber === "string" || typeof body.employeeNumber === "number" ? body.employeeNumber : undefined,
+        teamMemberNumber: typeof body.teamMemberNumber === "string" || typeof body.teamMemberNumber === "number" ? body.teamMemberNumber : undefined,
+        upn: typeof body.upn === "string" ? body.upn : undefined,
         iss: typeof body.iss === "string" ? body.iss : undefined,
         aud: typeof body.aud === "string" ? body.aud : undefined,
         azp: typeof body.azp === "string" ? body.azp : undefined,
