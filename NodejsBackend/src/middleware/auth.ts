@@ -2,11 +2,9 @@ import { Request, Response, NextFunction } from "express";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload, errors as joseErrors } from "jose";
 import { config } from "../config/env";
 import { prisma } from "../config/prisma";
-import { toDbId, toJsonId } from "../services/ids";
-import { resolveDepartmentId } from "../services/normalization";
-import { managerOrgViolation } from "../services/orgConsistency";
+import { toJsonId } from "../services/ids";
 import { logAuthDiagnostic } from "./authDiagnostics";
-import { Prisma } from "@prisma/client";
+import { StaffProfileSyncError, syncStaffProfile } from "../services/staffProfileSync";
 
 const tenantAuthority = config.oidc.authority.replace(/\/v2\.0$/, "");
 const authorityUrl = new URL(tenantAuthority);
@@ -31,7 +29,7 @@ export interface AuthRequest extends Request {
   };
 }
 
-type EntraClaims = JWTPayload & {
+export type EntraClaims = JWTPayload & {
   oid?: string;
   preferred_username?: string;
   email?: string;
@@ -88,209 +86,7 @@ function jwtValidationFailureReason(error: unknown): string {
   return "jwt_validation_failed";
 }
 
-async function autoProvisionUser(providerSubject: string, payload: EntraClaims) {
-  // Determine profile fields from signed claims (display data only).
-  const given = typeof payload.given_name === "string" ? payload.given_name.trim() : "";
-  const family = typeof payload.family_name === "string" ? payload.family_name.trim() : "";
-  const name =
-    (typeof payload.name === "string" && payload.name.trim()) ||
-    (given && family ? `${given} ${family}` : given || family) ||
-    (typeof payload.preferred_username === "string" && payload.preferred_username.trim()) ||
-    providerSubject;
-
-  let email = "";
-  if (typeof payload.email === "string" && payload.email.includes("@")) email = payload.email;
-  else if (typeof payload.preferred_username === "string" && payload.preferred_username.includes("@")) email = payload.preferred_username;
-  else if (typeof payload.upn === "string" && payload.upn.includes("@")) email = payload.upn;
-  if (!email) email = `${providerSubject}@unprovisioned.local`;
-  email = email.toLowerCase();
-
-  // Organization from trusted claims (numeric id or name/shortCode). Never
-  // from email. Unavailable -> null (pending admin completion).
-  let orgPk: bigint | null = null;
-  for (const key of ["organizationId", "orgId", "companyId", "company_id", "organization_id"]) {
-    const v = (payload as Record<string, unknown>)[key];
-    if (v === undefined || v === null) continue;
-    const n = typeof v === "number" ? v : (typeof v === "string" && /^\d+$/.test(v) ? Number(v) : NaN);
-    if (Number.isFinite(n)) {
-      const org = await prisma.organization.findUnique({ where: { id: toDbId(n) } });
-      if (org) { orgPk = org.id; break; }
-    }
-  }
-  if (orgPk === null) {
-    const orgNameRaw =
-      (payload as Record<string, unknown>).organization ??
-      (payload as Record<string, unknown>).organizationName ??
-      (payload as Record<string, unknown>).organization_name ??
-      (payload as Record<string, unknown>).companyName ??
-      (payload as Record<string, unknown>).company ??
-      (payload as Record<string, unknown>).orgName ??
-      (payload as Record<string, unknown>).org_name ??
-      (payload as Record<string, unknown>).org;
-    const orgName = typeof orgNameRaw === "string" ? orgNameRaw.trim() : "";
-    if (orgName) {
-      const org = await prisma.organization.findFirst({ where: { OR: [{ name: orgName }, { shortCode: orgName }] } });
-      if (org) orgPk = org.id;
-    }
-  }
-
-  const position =
-    (typeof payload.position === "string" && payload.position.trim()) ||
-    (typeof payload.jobTitle === "string" && payload.jobTitle.trim()) ||
-    (typeof payload.job_title === "string" && payload.job_title.trim()) ||
-    "";
-
-  const deptName =
-    typeof payload.department === "string" ? payload.department.trim() :
-    typeof payload.dept === "string" ? payload.dept.trim() : "";
-
-  // Employee/team-member number from trusted claims only.
-  let teamMemberNumber = "";
-  for (const key of ["teamMemberNumber", "employeeNumber", "employee_number", "employeeId", "employee_id"]) {
-    const v = (payload as Record<string, unknown>)[key];
-    if (typeof v === "string" && v.trim()) { teamMemberNumber = v.trim(); break; }
-    if (typeof v === "number" && Number.isFinite(v)) { teamMemberNumber = String(v); break; }
-  }
-
-  let departmentPk: bigint | null = null;
-  if (deptName && orgPk !== null) {
-    departmentPk = await resolveDepartmentId(deptName, orgPk);
-  }
-
-  try {
-    const created = await prisma.user.create({
-      data: {
-        name,
-        email,
-        role: "teamMember",
-        teamMemberNumber,
-        departmentId: departmentPk,
-        position,
-        managerId: null,
-        organizationId: orgPk,
-        providerSubject,
-        providerIssuer: config.oidc.issuer,
-        isActive: true,
-      },
-      select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } },
-    });
-    return created;
-  } catch (e) {
-    // Unique constraint collision (subject or email already exists): do not
-    // link or overwrite; re-read by subject in case of a race.
-    if ((e as { code?: string })?.code === "P2002") {
-      const existing = await prisma.user.findUnique({ where: { providerSubject }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } });
-      return existing ?? null;
-    }
-    throw e;
-  }
-}
-
-async function refreshProfileFromClaims(userId: bigint, orgId: bigint | null, payload: EntraClaims): Promise<void> {
-  // Refresh mutable profile data from trusted claims without changing role or
-  // manager unless a trusted manager claim resolves. Name/email stay
-  // DB-authoritative (see identity contract); only fill/refresh the fields
-  // below when a claim is present.
-  const update: Record<string, unknown> = {};
-
-  const position =
-    (typeof payload.position === "string" && payload.position.trim()) ||
-    (typeof payload.jobTitle === "string" && payload.jobTitle.trim()) ||
-    (typeof payload.job_title === "string" && payload.job_title.trim()) ||
-    "";
-  if (position) update.position = position;
-
-  const deptName = typeof payload.department === "string" ? payload.department.trim() : "";
-  let departmentPk: bigint | null = null;
-  if (deptName && orgId !== null) {
-    departmentPk = await resolveDepartmentId(deptName, orgId);
-    if (departmentPk !== null) update.departmentId = departmentPk;
-  }
-
-  // Organization from trusted claims.
-  let nextOrg: bigint | null = orgId;
-  for (const key of ["organizationId", "orgId", "companyId", "company_id", "organization_id"]) {
-    const v = (payload as Record<string, unknown>)[key];
-    if (v === undefined || v === null) continue;
-    const n = typeof v === "number" ? v : (typeof v === "string" && /^\d+$/.test(v) ? Number(v) : NaN);
-    if (Number.isFinite(n)) {
-      const org = await prisma.organization.findUnique({ where: { id: toDbId(n) } });
-      if (org) { nextOrg = org.id; break; }
-    }
-  }
-  if (nextOrg === orgId) {
-    const orgNameRaw =
-      (payload as Record<string, unknown>).organization ??
-      (payload as Record<string, unknown>).organizationName ??
-      (payload as Record<string, unknown>).organization_name ??
-      (payload as Record<string, unknown>).companyName ??
-      (payload as Record<string, unknown>).company ??
-      (payload as Record<string, unknown>).orgName ??
-      (payload as Record<string, unknown>).org_name ??
-      (payload as Record<string, unknown>).org;
-    const orgName = typeof orgNameRaw === "string" ? orgNameRaw.trim() : "";
-    if (orgName) {
-      const org = await prisma.organization.findFirst({ where: { OR: [{ name: orgName }, { shortCode: orgName }] } });
-      if (org) nextOrg = org.id;
-    }
-  }
-  if (nextOrg !== null && nextOrg !== orgId) update.organizationId = nextOrg;
-  const effectiveOrg = nextOrg ?? orgId;
-
-  let teamMemberNumber = "";
-  for (const key of ["teamMemberNumber", "employeeNumber", "employee_number", "employeeId", "employee_id"]) {
-    const v = (payload as Record<string, unknown>)[key];
-    if (typeof v === "string" && v.trim()) { teamMemberNumber = v.trim(); break; }
-    if (typeof v === "number" && Number.isFinite(v)) { teamMemberNumber = String(v); break; }
-  }
-  if (teamMemberNumber) update.teamMemberNumber = teamMemberNumber;
-
-  // Manager resolution from trusted claims (by id, oid, name, or email).
-  const managerClaimRaw =
-    (payload as Record<string, unknown>).managerOid ??
-    (payload as Record<string, unknown>).manager_oid ??
-    (payload as Record<string, unknown>).managerId ??
-    (payload as Record<string, unknown>).manager_id ??
-    (payload as Record<string, unknown>).manager ??
-    (payload as Record<string, unknown>).managerName ??
-    (payload as Record<string, unknown>).manager_name ??
-    (payload as Record<string, unknown>).managerDisplayName ??
-    (payload as Record<string, unknown>).manager_display_name ??
-    (payload as Record<string, unknown>).lineManager ??
-    (payload as Record<string, unknown>).line_manager;
-  if (managerClaimRaw !== undefined && managerClaimRaw !== null && String(managerClaimRaw).trim() !== "") {
-    let managerPk: bigint | null = null;
-    const raw = managerClaimRaw;
-    if (typeof raw === "number") {
-      const found = await prisma.user.findUnique({ where: { id: toDbId(raw) }, select: { id: true } });
-      managerPk = found ? found.id : null;
-    } else {
-      const s = String(raw).trim();
-      if (/^\d+$/.test(s)) {
-        const found = await prisma.user.findUnique({ where: { id: toDbId(s) }, select: { id: true } });
-        if (found) managerPk = found.id;
-      }
-      if (managerPk === null && /^[0-9a-f-]{36}$/i.test(s)) {
-        const found = await prisma.user.findUnique({ where: { providerSubject: s.toLowerCase() }, select: { id: true } });
-        if (found) managerPk = found.id;
-      }
-      if (managerPk === null) {
-        const found = await prisma.user.findFirst({ where: { OR: [{ name: s }, { email: s.toLowerCase() }] }, select: { id: true } });
-        if (found) managerPk = found.id;
-      }
-    }
-    if (managerPk !== null) {
-      // Only set manager if org-consistent (global managers allowed).
-      const violation = await managerOrgViolation(managerPk, effectiveOrg);
-      if (!violation) update.managerId = managerPk;
-    }
-  }
-
-  if (Object.keys(update).length === 0) return;
-  await prisma.user.update({ where: { id: userId }, data: update });
-}
-
-export async function authenticate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function authenticate(req: AuthRequest, res: Response, next: NextFunction, syncStaffOnLogin = false): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     logAuthDiagnostic(res, "bearer_header", "failure", "missing_or_malformed");
@@ -332,23 +128,36 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     try {
       let dbUser = await prisma.user.findUnique({ where: { providerSubject: decoded.providerSubject }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } });
       if (!dbUser) {
-        // Safe first-login provisioning: create a least-privilege local account
-        // keyed only by the immutable Entra object ID. Profile fields may be
-        // populated from signed claims; organization/employee number come from
-        // trusted claims when present and are otherwise left for an admin.
-        // Admin/approver roles are never granted from claims.
-        dbUser = await autoProvisionUser(decoded.providerSubject, payload);
-        if (!dbUser) {
+        if (!syncStaffOnLogin || !config.staffProfile.enabled || isLoopbackTestIssuer) {
           logAuthDiagnostic(res, "local_identity_lookup", "failure", "identity_not_provisioned");
           res.status(403).json({ error: "Authenticated user is not provisioned in the application" });
           return;
         }
-        await refreshProfileFromClaims(dbUser.id, dbUser.organizationId, payload);
-        dbUser = await prisma.user.findUnique({ where: { providerSubject: decoded.providerSubject }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } }) ?? dbUser;
-      } else {
-        // Refresh mutable profile fields from trusted claims for existing users.
-        await refreshProfileFromClaims(dbUser.id, dbUser.organizationId, payload);
-        dbUser = await prisma.user.findUnique({ where: { providerSubject: decoded.providerSubject }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } }) ?? dbUser;
+      }
+      if (syncStaffOnLogin && config.staffProfile.enabled && !isLoopbackTestIssuer) {
+        try {
+          await syncStaffProfile({ providerSubject: decoded.providerSubject, claims: payload });
+        } catch (error) {
+          if (error instanceof StaffProfileSyncError) {
+            logAuthDiagnostic(res, "staff_profile_sync", "failure", error.reason);
+            const temporary = ["disabled", "configuration", "unavailable"].includes(error.reason);
+            res.status(temporary ? 503 : 403).json({
+              error: temporary
+                ? "Staff profile synchronization is temporarily unavailable"
+                : "Your staff profile could not be matched in HIS; contact your application administrator",
+              code: `staff_profile_${error.reason}`,
+            });
+            return;
+          }
+          throw error;
+        }
+        dbUser = await prisma.user.findUnique({ where: { providerSubject: decoded.providerSubject }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } });
+        if (!dbUser) throw new Error("staff profile was not persisted");
+      }
+      if (!dbUser) {
+        logAuthDiagnostic(res, "local_identity_lookup", "failure", "identity_not_provisioned");
+        res.status(403).json({ error: "Authenticated user is not provisioned in the application" });
+        return;
       }
       if (!dbUser.isActive) {
         logAuthDiagnostic(res, "local_identity_lookup", "failure", "account_disabled");
@@ -397,6 +206,11 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     logAuthDiagnostic(res, "jwt_validation", "failure", jwtValidationFailureReason(error));
     res.status(401).json({ error: "Invalid or expired token" });
   }
+}
+
+/** `/api/auth/me` is the login boundary: synchronize HIS data once per app load. */
+export function authenticateAndSyncStaff(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  return authenticate(req, res, next, true);
 }
 
 export function authorize(...roles: string[]) {

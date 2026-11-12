@@ -1,12 +1,12 @@
 import { Router, Response } from "express";
 import { prisma } from "../config/prisma";
-import { authenticate, AuthRequest } from "../middleware/auth";
+import { authenticateAndSyncStaff, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { toDbId, toJsonId } from "../services/ids";
 
 const router = Router();
 
-router.get("/me", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/me", authenticateAndSyncStaff, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const user = await prisma.user.findUnique({
     where: { id: toDbId(req.user!.id) },
     include: { departmentRef: true, manager: { select: { name: true } } },
@@ -28,6 +28,11 @@ router.get("/me", authenticate, asyncHandler(async (req: AuthRequest, res: Respo
     lineManager: user.manager?.name ?? null,
     managerId: user.managerId === null ? null : toJsonId(user.managerId),
     organizationId: user.organizationId === null ? null : toJsonId(user.organizationId),
+    staffBranchCode: user.staffBranchCode,
+    employmentStatus: user.staffEmploymentStatus,
+    employmentType: user.staffEmploymentType,
+    staffProfileSyncedAt: user.staffProfileSyncedAt,
+    staffTerminationDate: user.staffTerminationDate,
   });
 }));
 

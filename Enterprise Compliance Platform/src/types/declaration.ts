@@ -45,6 +45,11 @@ export interface User {
   lineManager: string | null;
   managerId?: number | null;
   organizationId?: number | null;
+  staffBranchCode?: string | null;
+  employmentStatus?: string | null;
+  employmentType?: string | null;
+  staffProfileSyncedAt?: string | null;
+  staffTerminationDate?: string | null;
 }
 
 export interface Declaration {

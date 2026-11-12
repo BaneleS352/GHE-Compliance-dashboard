@@ -61,6 +61,14 @@ model User {
   // column was removed in 0008_department_id_only.
   position         String
   organizationId   BigInt?
+  // HIS-owned employment attributes. These are deliberately separate from
+  // local application enablement/role so HR synchronization cannot grant or
+  // revoke application permissions.
+  staffBranchCode       String?
+  staffEmploymentStatus String?
+  staffEmploymentType   String?
+  staffProfileSyncedAt   DateTime?
+  staffTerminationDate   DateTime?
 
   managerId    BigInt?
   manager      User?  @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)

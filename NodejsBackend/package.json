@@ -15,6 +15,7 @@
     "pg:smoke": "tsx src/scripts/smoke.ts",
     "auth:bootstrap-admin": "tsx src/scripts/bootstrap-admin-identity.ts",
     "auth:verify-config": "tsx src/scripts/verify-oidc-config.ts",
+    "staff:inspect": "node src/scripts/inspect-staff-api.mjs",
     "test:provider": "tsx src/scripts/test-provider.ts",
     "test": "vitest run",
     "test:watch": "vitest"

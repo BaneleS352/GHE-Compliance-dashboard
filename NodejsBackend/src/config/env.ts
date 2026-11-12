@@ -20,6 +20,28 @@ export const config = {
     requiredScope: requireEnv("OIDC_REQUIRED_SCOPE"),
   },
   corsOrigin: process.env.CORS_ORIGIN || "http://localhost:5173",
+  staffProfile: {
+    enabled: process.env.STAFF_PROFILE_SYNC_ENABLED === "true",
+    endpoint: process.env.STAFF_API_ENDPOINT?.trim() || "",
+    allowedHosts: (process.env.STAFF_API_ALLOWED_HOSTS?.trim() || "his-api-uat.betsolutions.net").split(",").map((host) => host.trim().toLowerCase()).filter(Boolean),
+    token: process.env.AUTH_TOKEN?.trim() || "",
+    tokenHeader: process.env.AUTH_TOKEN_HEADER?.trim() || "Authorization",
+    tokenScheme: process.env.AUTH_TOKEN_SCHEME?.trim() ?? "Bearer",
+    employeeIdClaim: process.env.STAFF_ENTRA_EMPLOYEE_ID_CLAIM?.trim() || "employeeid",
+    // Explicit HIS branch code -> local Organization.shortCode mapping.
+    // Do not infer that similarly named identifiers represent the same org.
+    branchOrganizationMap: (() => {
+      const raw = process.env.STAFF_BRANCH_ORG_MAP?.trim();
+      if (!raw) return {} as Record<string, string>;
+      try {
+        const parsed: unknown = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+        return Object.fromEntries(Object.entries(parsed).map(([key, value]) => [key.trim().toUpperCase(), String(value).trim()]));
+      } catch {
+        throw new Error("STAFF_BRANCH_ORG_MAP must be a JSON object mapping HIS branch codes to organization short codes");
+      }
+    })(),
+  },
 };
 
 // Re-exported here so production-posture checks have one import site; the
