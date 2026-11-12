@@ -140,15 +140,36 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
             providerSubject: decoded.providerSubject,
             claims: payload,
             graphAccessToken: req.get("X-Microsoft-Graph-Token"),
+            onProfileSyncSkipped: (reason, upstreamStatus) => logAuthDiagnostic(
+              res,
+              "staff_profile_sync",
+              "failure",
+              upstreamStatus ? `${reason}_${upstreamStatus}` : reason,
+            ),
           });
         } catch (error) {
           if (error instanceof StaffProfileSyncError) {
             logAuthDiagnostic(res, "staff_profile_sync", "failure", error.reason);
-            const temporary = ["disabled", "configuration", "unavailable", "graph_profile_unavailable"].includes(error.reason);
+            const temporary = [
+              "disabled", "configuration", "unavailable", "graph_profile_unavailable",
+              "his_auth_rejected", "his_rate_limited", "his_server_error", "his_http_error",
+              "his_network_error", "his_timeout", "his_tls_error",
+            ].includes(error.reason);
+            const errorMessage = error.reason === "his_auth_rejected"
+              ? "HIS rejected the configured service credentials; check AUTH_TOKEN and its header/scheme settings"
+              : error.reason === "his_rate_limited"
+              ? "HIS is rate limiting profile lookups; retry later"
+              : error.reason === "his_tls_error"
+              ? "The backend could not verify the HIS TLS certificate"
+              : error.reason === "his_timeout"
+              ? "HIS did not respond before the profile lookup timed out"
+              : error.reason.startsWith("his_")
+              ? "HIS profile lookup failed; check backend connectivity and the HIS service"
+              : temporary
+              ? "Staff profile synchronization is temporarily unavailable"
+              : "Your staff profile could not be matched in HIS; contact your application administrator";
             res.status(temporary ? 503 : 403).json({
-              error: temporary
-                ? "Staff profile synchronization is temporarily unavailable"
-                : "Your staff profile could not be matched in HIS; contact your application administrator",
+              error: errorMessage,
               code: `staff_profile_${error.reason}`,
             });
             return;

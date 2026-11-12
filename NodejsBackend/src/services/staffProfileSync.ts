@@ -23,10 +23,19 @@ type StaffRecord = {
 type StaffEnvelope = { success?: unknown; data?: unknown };
 
 export class StaffProfileSyncError extends Error {
-  constructor(readonly reason: "disabled" | "configuration" | "unavailable" | "not_found" | "ambiguous" | "identity_mismatch" | "employee_identifier_missing" | "graph_token_missing" | "graph_permission_denied" | "graph_profile_unavailable" | "branch_unmapped" | "invalid_response") {
+  constructor(readonly reason: "disabled" | "configuration" | "unavailable" | "his_auth_rejected" | "his_rate_limited" | "his_server_error" | "his_http_error" | "his_network_error" | "his_timeout" | "his_tls_error" | "not_found" | "ambiguous" | "his_identity_mismatch" | "identity_mismatch" | "employee_identifier_missing" | "graph_token_missing" | "graph_permission_denied" | "graph_profile_unavailable" | "branch_unmapped" | "invalid_response", readonly upstreamStatus?: number) {
     super(reason);
     this.name = "StaffProfileSyncError";
   }
+}
+
+function hisTransportFailure(error: unknown): "his_network_error" | "his_timeout" | "his_tls_error" {
+  const outer = error && typeof error === "object" ? error as { name?: unknown; cause?: unknown; code?: unknown } : {};
+  const cause = outer.cause && typeof outer.cause === "object" ? outer.cause as { name?: unknown; code?: unknown } : {};
+  if (outer.name === "TimeoutError" || outer.name === "AbortError" || cause.name === "TimeoutError") return "his_timeout";
+  const code = String(cause.code ?? outer.code ?? "");
+  if (/^(CERT|ERR_TLS|UNABLE_TO_VERIFY|DEPTH_ZERO|SELF_SIGNED)/i.test(code)) return "his_tls_error";
+  return "his_network_error";
 }
 
 function text(value: unknown): string {
@@ -102,11 +111,15 @@ async function fetchStaffBy(employeeId: string, queryParameter: "employeeCode" |
   let response: Response;
   try {
     response = await fetch(endpoint, { headers, redirect: "error", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-  } catch {
-    throw new StaffProfileSyncError("unavailable");
+  } catch (error) {
+    throw new StaffProfileSyncError(hisTransportFailure(error));
   }
   if (response.status === 404) return null;
-  if (!response.ok) throw new StaffProfileSyncError("unavailable");
+  if (response.status === 401 || response.status === 403) throw new StaffProfileSyncError("his_auth_rejected");
+  if (response.status === 429) throw new StaffProfileSyncError("his_rate_limited");
+  if (response.status >= 500) throw new StaffProfileSyncError("his_server_error");
+  if (response.status === 400 || response.status === 422) return null;
+  if (!response.ok) throw new StaffProfileSyncError("his_http_error", response.status);
   let body: StaffEnvelope;
   try { body = await response.json() as StaffEnvelope; } catch { throw new StaffProfileSyncError("invalid_response"); }
   if (body.success !== true) return null;
@@ -162,6 +175,7 @@ export async function syncStaffProfile(input: {
   providerSubject: string;
   claims: EntraClaims;
   graphAccessToken?: string;
+  onProfileSyncSkipped?: (reason: string, upstreamStatus?: number) => void;
 }) {
   const email = getEntraEmail(input.claims);
   const existing = await prisma.user.findUnique({
@@ -177,33 +191,16 @@ export async function syncStaffProfile(input: {
   try {
     record = await fetchStaff(queryByCode);
   } catch (error) {
-    if (!(error instanceof StaffProfileSyncError) || error.reason !== "not_found") throw error;
+    if (!(error instanceof StaffProfileSyncError) || !isOptionalProfileFailure(error.reason)) throw error;
 
-    // HIS UAT/dev may not contain every Entra user. Allow authentication with
-    // a minimal local account; a later /me call will retry HIS and fill the
-    // profile when a matching record becomes available. Never replace an
-    // existing account's local role, enablement, or profile data here.
+    // Profile lookup/enrichment is optional for authentication. Preserve an
+    // existing account or create a minimal account; later /me requests retry.
+    input.onProfileSyncSkipped?.(error.reason, error.upstreamStatus);
     if (existing) return prisma.user.findUniqueOrThrow({ where: { id: existing.id } });
-    try {
-      return await prisma.user.create({
-        data: {
-          name: text(input.claims.name) || email.split("@")[0],
-          email: normalizeEmail(email),
-          role: "teamMember",
-          isActive: true,
-          teamMemberNumber: "",
-          position: "",
-          providerSubject: input.providerSubject,
-          providerIssuer: config.oidc.issuer,
-        },
-      });
-    } catch (createError) {
-      if ((createError as { code?: string })?.code === "P2002") throw new StaffProfileSyncError("identity_mismatch");
-      throw createError;
-    }
+    return ensureBasicStaffProfile(input);
   }
   const employeeCode = staffField(record, "employeeCode");
-  if (!employeeCode || employeeCode !== queryByCode) throw new StaffProfileSyncError("identity_mismatch");
+  if (!employeeCode || employeeCode !== queryByCode) throw new StaffProfileSyncError("his_identity_mismatch");
 
   const name = staffField(record, "fullName", "fUllName");
   const departmentName = staffField(record, "departmentName");
@@ -253,6 +250,33 @@ export async function syncStaffProfile(input: {
         email: normalizeEmail(email),
         role: "teamMember",
         isActive: true,
+        providerSubject: input.providerSubject,
+        providerIssuer: config.oidc.issuer,
+      },
+    });
+  } catch (error) {
+    if ((error as { code?: string })?.code === "P2002") throw new StaffProfileSyncError("identity_mismatch");
+    throw error;
+  }
+}
+
+function isOptionalProfileFailure(reason: StaffProfileSyncError["reason"]): boolean {
+  return reason !== "identity_mismatch" && reason !== "disabled";
+}
+
+export async function ensureBasicStaffProfile(input: { providerSubject: string; claims: EntraClaims }) {
+  const existing = await prisma.user.findUnique({ where: { providerSubject: input.providerSubject } });
+  if (existing) return existing;
+  const email = normalizeEmail(getEntraEmail(input.claims));
+  try {
+    return await prisma.user.create({
+      data: {
+        name: text(input.claims.name) || email.split("@")[0],
+        email,
+        role: "teamMember",
+        isActive: true,
+        teamMemberNumber: "",
+        position: "",
         providerSubject: input.providerSubject,
         providerIssuer: config.oidc.issuer,
       },
