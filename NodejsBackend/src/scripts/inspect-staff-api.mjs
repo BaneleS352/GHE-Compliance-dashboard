@@ -4,7 +4,7 @@ const DEFAULT_HOST = "his-api-uat.betsolutions.net";
 const TIMEOUT_MS = 20_000;
 
 function lookupArgument() {
-  const hasAnyLookupFlag = ["--employee-id", "--email", "--name"].some((flag) =>
+  const hasAnyLookupFlag = ["--employee-code", "--employee-id", "--email", "--name"].some((flag) =>
     process.argv.includes(flag) || process.argv.some((arg) => arg.startsWith(`${flag}=`)),
   );
   if (hasAnyLookupFlag) {
@@ -14,9 +14,14 @@ function lookupArgument() {
       const inline = process.argv.find((arg) => arg.startsWith(`${flag}=`));
       return (index >= 0 ? process.argv[index + 1] : inline?.slice(flag.length + 1))?.trim();
     };
+    const employeeCode = readOption("--employee-code");
     const employeeId = readOption("--employee-id");
     const email = readOption("--email");
     const name = readOption("--name");
+    if (employeeCode !== undefined) {
+      if (!/^\d+$/.test(employeeCode)) throw new Error("--employee-code must contain digits only.");
+      lookup.set("employeeCode", employeeCode);
+    }
     if (employeeId !== undefined) {
       if (!/^\d+$/.test(employeeId)) throw new Error("--employee-id must contain digits only.");
       lookup.set("employeeId", employeeId);
@@ -31,6 +36,14 @@ function lookupArgument() {
     }
     if (lookup.size === 0) throw new Error("Provide at least one nonempty lookup parameter.");
     return lookup;
+  }
+
+  const codeIndex = process.argv.indexOf("--employee-code");
+  const codeInline = process.argv.find((arg) => arg.startsWith("--employee-code="));
+  const employeeCode = (codeIndex >= 0 ? process.argv[codeIndex + 1] : codeInline?.slice("--employee-code=".length))?.trim();
+  if (employeeCode !== undefined) {
+    if (!/^\d+$/.test(employeeCode)) throw new Error("--employee-code must contain digits only.");
+    return { key: "employeeCode", value: employeeCode };
   }
 
   const employeeIndex = process.argv.indexOf("--employee-id");

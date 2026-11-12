@@ -80,7 +80,7 @@ function parseRecord(raw: unknown): StaffRecord {
   return record;
 }
 
-async function fetchStaff(employeeId: string): Promise<StaffRecord> {
+async function fetchStaffBy(employeeId: string, queryParameter: "employeeCode" | "employeeId"): Promise<StaffRecord | null> {
   if (!config.staffProfile.enabled) throw new StaffProfileSyncError("disabled");
   if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") throw new StaffProfileSyncError("configuration");
   let endpoint: URL;
@@ -89,7 +89,7 @@ async function fetchStaff(employeeId: string): Promise<StaffRecord> {
     throw new StaffProfileSyncError("configuration");
   }
   if (!employeeId) throw new StaffProfileSyncError("employee_identifier_missing");
-  endpoint.searchParams.set("employeeId", employeeId);
+  endpoint.searchParams.set(queryParameter, employeeId);
 
   const headers: Record<string, string> = { accept: "application/json, */*" };
   if (config.staffProfile.token) {
@@ -105,14 +105,27 @@ async function fetchStaff(employeeId: string): Promise<StaffRecord> {
   } catch {
     throw new StaffProfileSyncError("unavailable");
   }
-  if (!response.ok) throw new StaffProfileSyncError(response.status === 404 ? "not_found" : "unavailable");
+  if (response.status === 404) return null;
+  if (!response.ok) throw new StaffProfileSyncError("unavailable");
   let body: StaffEnvelope;
   try { body = await response.json() as StaffEnvelope; } catch { throw new StaffProfileSyncError("invalid_response"); }
-  if (body.success !== true) throw new StaffProfileSyncError("not_found");
+  if (body.success !== true) return null;
   const records = Array.isArray(body.data) ? body.data : body.data && typeof body.data === "object" ? [body.data] : [];
-  if (records.length === 0) throw new StaffProfileSyncError("not_found");
+  if (records.length === 0) return null;
   if (records.length !== 1) throw new StaffProfileSyncError("ambiguous");
   return parseRecord(records[0]);
+}
+
+async function fetchStaff(employeeCode: string): Promise<StaffRecord> {
+  // HIS calls the returned identifier `employeeCode`; some deployments expose
+  // that as the query parameter while others use `employeeId`. Try the field
+  // name first, then the historical query name. Both use only the value
+  // returned by Graph, and the response is still checked against it below.
+  for (const parameter of ["employeeCode", "employeeId"] as const) {
+    const record = await fetchStaffBy(employeeCode, parameter);
+    if (record) return record;
+  }
+  throw new StaffProfileSyncError("not_found");
 }
 
 function staffField(record: StaffRecord, ...keys: (keyof StaffRecord)[]): string {
@@ -160,7 +173,35 @@ export async function syncStaffProfile(input: {
   // signed-in user. Match Graph's immutable object id to the already-validated
   // API token before trusting employeeId; never accept a browser-supplied code.
   const queryByCode = await getGraphEmployeeIdentifier(input.graphAccessToken, input.providerSubject);
-  const record = await fetchStaff(queryByCode);
+  let record: StaffRecord;
+  try {
+    record = await fetchStaff(queryByCode);
+  } catch (error) {
+    if (!(error instanceof StaffProfileSyncError) || error.reason !== "not_found") throw error;
+
+    // HIS UAT/dev may not contain every Entra user. Allow authentication with
+    // a minimal local account; a later /me call will retry HIS and fill the
+    // profile when a matching record becomes available. Never replace an
+    // existing account's local role, enablement, or profile data here.
+    if (existing) return prisma.user.findUniqueOrThrow({ where: { id: existing.id } });
+    try {
+      return await prisma.user.create({
+        data: {
+          name: text(input.claims.name) || email.split("@")[0],
+          email: normalizeEmail(email),
+          role: "teamMember",
+          isActive: true,
+          teamMemberNumber: "",
+          position: "",
+          providerSubject: input.providerSubject,
+          providerIssuer: config.oidc.issuer,
+        },
+      });
+    } catch (createError) {
+      if ((createError as { code?: string })?.code === "P2002") throw new StaffProfileSyncError("identity_mismatch");
+      throw createError;
+    }
+  }
   const employeeCode = staffField(record, "employeeCode");
   if (!employeeCode || employeeCode !== queryByCode) throw new StaffProfileSyncError("identity_mismatch");
 
