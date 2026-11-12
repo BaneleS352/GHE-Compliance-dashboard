@@ -8,8 +8,9 @@ Synchronization runs during `GET /api/auth/me`, which the SPA calls when it init
 
 ## Lookup and matching rules
 
-- First login requires the signed Entra access token to contain the configured employee identifier claim (`employeeid` by default), then queries `SearchEmployees?employeeId=<claim>`. HIS must return the same non-empty `employeeCode`. Missing claims, zero/multiple results, or a mismatched code do not create a profile. Email and name are never used to match the Entra identity to an HIS record.
-- Refresh queries `SearchEmployees?employeeId=<stored teamMemberNumber>`. HIS must return that same non-empty `employeeCode`. The employee code is the durable key after the initial signed-claim match.
+- The SPA acquires a separate delegated Microsoft Graph token with `User.Read` and sends it only on `GET /api/auth/me`; the normal GHE API token remains the `Authorization` bearer token. The backend calls the fixed Graph endpoint `/v1.0/me?$select=id,employeeId`, checks Graph's immutable `id` against the `oid` from the already validated GHE API token, then uses Graph's non-empty `employeeId` to query `SearchEmployees?employeeId=<employeeId>`. A missing Graph permission/consent, missing employee ID, or identity mismatch prevents the HIS lookup and does not create a profile.
+- The same Graph lookup runs on refresh so current Entra employee code drives `SearchEmployees`; HIS must return the same non-empty `employeeCode`. A changed employee code is accepted only when HIS returns that same code, and local uniqueness constraints still prevent attaching an already-owned employee number to another account.
+- Graph profile data is never trusted from a browser-supplied employee-code field. The backend sends the Graph access token only to `graph.microsoft.com`, disables redirects, and compares the returned Graph object ID with the signed API-token subject before using the code.
 - Zero, multiple, incomplete, or mismatched results do not create/update a profile. A local email/employee-code uniqueness conflict is not automatically linked; an administrator must use the existing audited identity-link process.
 - If HIS returns a manager employee code, it resolves only to one local user with that code in the same mapped organization. Names are not used to connect manager accounts. If the manager is not provisioned, the manager relation remains absent; team members will not have a manager displayed until the relationship can be safely resolved.
 
@@ -39,7 +40,6 @@ The current UAT envelope accepts `data` as either a single object or a one-eleme
 ```dotenv
 STAFF_PROFILE_SYNC_ENABLED="true"
 STAFF_API_ALLOWED_HOSTS="his-api-uat.betsolutions.net"
-STAFF_ENTRA_EMPLOYEE_ID_CLAIM="employeeid"
 STAFF_BRANCH_ORG_MAP='{"BET":"BET"}'
 ```
 
@@ -51,7 +51,7 @@ Migrations `0015_his_profile_sync` and `0016_his_termination_date` add nullable 
 
 The current UAT query parameter contract is `employeeId` for first login and refresh. The API should return HTTP 200, `success: true`, and one record with non-empty `employeeCode`, `fullName`, `departmentName`, `jobTitle`, and `branchName`. `email`, `managerEmployeeCode`, `employmentStatus`, `employmentType`, and `terminationDate` may be null when not applicable. The API may return one object or a one-item `data` array. It should return 404 for no match, 401/403 for invalid service credentials, 429 for throttling, and 5xx for service failure; it should not return an HTTP 200 response with a success-shaped error object.
 
-The sample UAT response with empty `employeeCode`, null email, empty manager code, and department ID `0` is not sufficient to provision an account. After HIS corrects the record, Entra must also issue the employee identifier claim for the API audience. Microsoft warns that `email`, `preferred_username`, and `upn` are mutable and unsuitable for authorization decisions; this integration does not use them for HR identity matching. An Entra administrator must configure the employee identifier as an access-token claim (a tenant-specific employee attribute may require a claims-mapping policy or directory extension) and set `STAFF_ENTRA_EMPLOYEE_ID_CLAIM` to its exact claim name. Microsoft documents optional and custom token claims in [Configure optional claims](https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims) and [Customize tokens](https://learn.microsoft.com/en-us/security/zero-trust/develop/zero-trust-token-customization). A missing manager employee code means the app cannot safely populate the manager relation from the manager's display name alone.
+The sample UAT response with empty `employeeCode`, null email, empty manager code, and department ID `0` is not sufficient to provision an account. The Entra user profile must have `employeeId` populated, and the SPA registration must have Microsoft Graph delegated `User.Read` permission consented so MSAL can acquire a Graph token. `Application.Read.All` is not required for this user profile lookup; `ProfilePhoto.Read.All` is also unrelated. Microsoft Graph documents `employeeId` as a user property returned when selected with `$select`; see [Get a user](https://learn.microsoft.com/en-us/graph/api/user-get?view=graph-rest-1.0) and the [user resource](https://learn.microsoft.com/en-us/graph/api/resources/user?view=graph-rest-1.0). `email`, `preferred_username`, and `upn` remain contact/display hints and are not used for HR identity matching. A missing manager employee code means the app cannot safely populate the manager relation from the manager's display name alone.
 
 ## Operational errors
 

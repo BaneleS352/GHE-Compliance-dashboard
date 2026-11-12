@@ -136,11 +136,15 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       }
       if (syncStaffOnLogin && config.staffProfile.enabled && !isLoopbackTestIssuer) {
         try {
-          await syncStaffProfile({ providerSubject: decoded.providerSubject, claims: payload });
+          await syncStaffProfile({
+            providerSubject: decoded.providerSubject,
+            claims: payload,
+            graphAccessToken: req.get("X-Microsoft-Graph-Token"),
+          });
         } catch (error) {
           if (error instanceof StaffProfileSyncError) {
             logAuthDiagnostic(res, "staff_profile_sync", "failure", error.reason);
-            const temporary = ["disabled", "configuration", "unavailable"].includes(error.reason);
+            const temporary = ["disabled", "configuration", "unavailable", "graph_profile_unavailable"].includes(error.reason);
             res.status(temporary ? 503 : 403).json({
               error: temporary
                 ? "Staff profile synchronization is temporarily unavailable"

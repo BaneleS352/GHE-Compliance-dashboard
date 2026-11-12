@@ -23,7 +23,7 @@ type StaffRecord = {
 type StaffEnvelope = { success?: unknown; data?: unknown };
 
 export class StaffProfileSyncError extends Error {
-  constructor(readonly reason: "disabled" | "configuration" | "unavailable" | "not_found" | "ambiguous" | "identity_mismatch" | "employee_identifier_missing" | "branch_unmapped" | "invalid_response") {
+  constructor(readonly reason: "disabled" | "configuration" | "unavailable" | "not_found" | "ambiguous" | "identity_mismatch" | "employee_identifier_missing" | "graph_token_missing" | "graph_permission_denied" | "graph_profile_unavailable" | "branch_unmapped" | "invalid_response") {
     super(reason);
     this.name = "StaffProfileSyncError";
   }
@@ -44,13 +44,34 @@ function getEntraEmail(claims: EntraClaims): string {
   throw new StaffProfileSyncError("identity_mismatch");
 }
 
-function getEntraEmployeeIdentifier(claims: EntraClaims): string {
-  const values = claims as Record<string, unknown>;
-  for (const key of [config.staffProfile.employeeIdClaim, "employeeid", "employeeId", "employee_number", "employeeNumber", "employee_id", "teamMemberNumber"]) {
-    const value = text(values[key]);
-    if (value) return value;
+async function getGraphEmployeeIdentifier(graphToken: string | undefined, expectedObjectId: string): Promise<string> {
+  const token = graphToken?.trim();
+  if (!token) throw new StaffProfileSyncError("graph_token_missing");
+  if (token.length > 20_000 || /[\r\n]/.test(token)) throw new StaffProfileSyncError("graph_token_missing");
+  if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") throw new StaffProfileSyncError("configuration");
+
+  let response: Response;
+  try {
+    response = await fetch("https://graph.microsoft.com/v1.0/me?$select=id,employeeId", {
+      headers: { accept: "application/json", authorization: `Bearer ${token}` },
+      redirect: "error",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch {
+    throw new StaffProfileSyncError("graph_profile_unavailable");
   }
-  throw new StaffProfileSyncError("employee_identifier_missing");
+  if (response.status === 401 || response.status === 403) throw new StaffProfileSyncError("graph_permission_denied");
+  if (!response.ok) throw new StaffProfileSyncError("graph_profile_unavailable");
+
+  let profile: { id?: unknown; employeeId?: unknown };
+  try { profile = await response.json() as { id?: unknown; employeeId?: unknown }; }
+  catch { throw new StaffProfileSyncError("invalid_response"); }
+  if (text(profile.id).toLowerCase() !== expectedObjectId.toLowerCase()) {
+    throw new StaffProfileSyncError("identity_mismatch");
+  }
+  const employeeId = text(profile.employeeId);
+  if (!employeeId) throw new StaffProfileSyncError("employee_identifier_missing");
+  return employeeId;
 }
 
 function parseRecord(raw: unknown): StaffRecord {
@@ -127,6 +148,7 @@ async function resolveManager(employeeCode: string, organizationId: bigint): Pro
 export async function syncStaffProfile(input: {
   providerSubject: string;
   claims: EntraClaims;
+  graphAccessToken?: string;
 }) {
   const email = getEntraEmail(input.claims);
   const existing = await prisma.user.findUnique({
@@ -134,10 +156,10 @@ export async function syncStaffProfile(input: {
     select: { id: true, teamMemberNumber: true, organizationId: true },
   });
 
-  // Entra's configured employee identifier is required on first login. Email
-  // is mutable contact data and is never used to associate a person with an HIS
-  // account. Once linked, the stored HIS employee code drives refreshes.
-  const queryByCode = existing?.teamMemberNumber?.trim() || getEntraEmployeeIdentifier(input.claims);
+  // The Graph token is used only to ask Graph for the profile of its own
+  // signed-in user. Match Graph's immutable object id to the already-validated
+  // API token before trusting employeeId; never accept a browser-supplied code.
+  const queryByCode = await getGraphEmployeeIdentifier(input.graphAccessToken, input.providerSubject);
   const record = await fetchStaff(queryByCode);
   const employeeCode = staffField(record, "employeeCode");
   if (!employeeCode || employeeCode !== queryByCode) throw new StaffProfileSyncError("identity_mismatch");

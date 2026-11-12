@@ -27,7 +27,6 @@ export const config = {
     token: process.env.AUTH_TOKEN?.trim() || "",
     tokenHeader: process.env.AUTH_TOKEN_HEADER?.trim() || "Authorization",
     tokenScheme: process.env.AUTH_TOKEN_SCHEME?.trim() ?? "Bearer",
-    employeeIdClaim: process.env.STAFF_ENTRA_EMPLOYEE_ID_CLAIM?.trim() || "employeeid",
     // Explicit HIS branch code -> local Organization.shortCode mapping.
     // Do not infer that similarly named identifiers represent the same org.
     branchOrganizationMap: (() => {
