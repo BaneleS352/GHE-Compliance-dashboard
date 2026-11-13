@@ -105,6 +105,8 @@ describe("NewDeclarationScreen", () => {
       const nameInput = screen.getByDisplayValue("Test User");
       expect(nameInput).toBeInTheDocument();
     });
+    expect(screen.getByPlaceholderText("e.g. HB-204478")).toHaveValue("HB-10001");
+    expect(screen.getByPlaceholderText("e.g. HB-204478")).toHaveValue("HB-10001");
   });
 
   it("explains when a minimal HIS profile is missing required declaration details", async () => {

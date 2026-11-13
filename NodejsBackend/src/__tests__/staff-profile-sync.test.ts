@@ -67,7 +67,7 @@ describe("HIS staff profile sync", () => {
     vi.unstubAllGlobals();
     if (tlsOverride === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
     else process.env.NODE_TLS_REJECT_UNAUTHORIZED = tlsOverride;
-    await prisma.user.deleteMany({ where: { email: { in: [email, objectResponseEmail, "staff-sync-manager@example.test", "staff-sync-ambiguous@example.test", "staff-sync-mismatch@example.test", "staff-sync-miss@example.test", "staff-sync-outage@example.test"] } } });
+    await prisma.user.deleteMany({ where: { email: { in: [email, objectResponseEmail, "staff-sync-manager@example.test", "staff-sync-ambiguous@example.test", "staff-sync-mismatch@example.test", "staff-sync-miss@example.test", "staff-sync-outage@example.test", "staff-sync-existing-outage@example.test"] } } });
     await prisma.department.deleteMany({ where: { organizationId, name: "Compliance" } });
     await prisma.$disconnect();
   });
@@ -133,7 +133,7 @@ describe("HIS staff profile sync", () => {
     expect(minimal).toMatchObject({
       providerSubject: ambiguousSubject,
       email: ambiguousEmail,
-      teamMemberNumber: "",
+      teamMemberNumber: "22680",
       position: "",
       organizationId: null,
       departmentId: null,
@@ -167,8 +167,36 @@ describe("HIS staff profile sync", () => {
       graphAccessToken: "graph-token",
       onProfileSyncSkipped: skipped,
     });
-    expect(user).toMatchObject({ providerSubject, email: userEmail, teamMemberNumber: "", organizationId: null });
+    expect(user).toMatchObject({ providerSubject, email: userEmail, teamMemberNumber: "22682", organizationId: null });
     expect(skipped).toHaveBeenCalledWith(reason, undefined);
+  });
+
+  it("updates an existing profile's Team Member Code from verified Graph data when HIS is unavailable", async () => {
+    const providerSubject = "f2a68171-4410-4e44-b6b8-5bfcd133c550";
+    const userEmail = "staff-sync-existing-outage@example.test";
+    const existing = await prisma.user.create({ data: {
+      name: "Existing Staff",
+      email: userEmail,
+      role: "teamMember",
+      teamMemberNumber: "",
+      position: "",
+      providerSubject,
+      providerIssuer: issuer,
+    } });
+    fetchStub.mockClear();
+    fetchStub.mockImplementation(async (input: URL | string) => {
+      const graph = new URL(String(input)).hostname === "graph.microsoft.com";
+      return new Response(JSON.stringify(graph ? { id: providerSubject, employeeId: "22683" } : { success: false }), {
+        status: graph ? 200 : 503,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    const refreshed = await syncStaffProfile({ providerSubject, claims: { email: userEmail, oid: providerSubject }, graphAccessToken: "graph-token" });
+
+    expect(refreshed.id).toBe(existing.id);
+    expect(refreshed.teamMemberNumber).toBe("22683");
+    expect(refreshed.position).toBe("");
   });
 
   it("accepts the documented single-object HIS envelope and normalizes the no-termination sentinel", async () => {

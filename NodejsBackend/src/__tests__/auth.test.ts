@@ -58,6 +58,7 @@ describe("Auth", () => {
         id: Number(user.id),
         name: "Auth Display Fixture",
         position: "Fixture Position",
+        teamMemberNumber: "AUTH-DISPLAY",
       });
     } finally {
       await prisma.user.delete({ where: { id: user.id } });

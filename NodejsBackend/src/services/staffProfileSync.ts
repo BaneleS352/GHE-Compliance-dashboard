@@ -193,11 +193,19 @@ export async function syncStaffProfile(input: {
   } catch (error) {
     if (!(error instanceof StaffProfileSyncError) || !isOptionalProfileFailure(error.reason)) throw error;
 
-    // Profile lookup/enrichment is optional for authentication. Preserve an
-    // existing account or create a minimal account; later /me requests retry.
+    // HIS profile enrichment is optional, but Graph's verified employeeId is
+    // still the source for Team Member Code. Persist it even when HIS has no
+    // matching record yet; later /me requests retry the enrichment.
     input.onProfileSyncSkipped?.(error.reason, error.upstreamStatus);
-    if (existing) return prisma.user.findUniqueOrThrow({ where: { id: existing.id } });
-    return ensureBasicStaffProfile(input);
+    if (existing) {
+      try {
+        return await prisma.user.update({ where: { id: existing.id }, data: { teamMemberNumber: queryByCode } });
+      } catch (updateError) {
+        if ((updateError as { code?: string })?.code === "P2002") throw new StaffProfileSyncError("identity_mismatch");
+        throw updateError;
+      }
+    }
+    return ensureBasicStaffProfile({ ...input, teamMemberNumber: queryByCode });
   }
   const employeeCode = staffField(record, "employeeCode");
   if (!employeeCode || employeeCode !== queryByCode) throw new StaffProfileSyncError("his_identity_mismatch");
@@ -264,7 +272,7 @@ function isOptionalProfileFailure(reason: StaffProfileSyncError["reason"]): bool
   return reason !== "identity_mismatch" && reason !== "disabled";
 }
 
-export async function ensureBasicStaffProfile(input: { providerSubject: string; claims: EntraClaims }) {
+export async function ensureBasicStaffProfile(input: { providerSubject: string; claims: EntraClaims; teamMemberNumber: string }) {
   const existing = await prisma.user.findUnique({ where: { providerSubject: input.providerSubject } });
   if (existing) return existing;
   const email = normalizeEmail(getEntraEmail(input.claims));
@@ -275,7 +283,7 @@ export async function ensureBasicStaffProfile(input: { providerSubject: string; 
         email,
         role: "teamMember",
         isActive: true,
-        teamMemberNumber: "",
+        teamMemberNumber: input.teamMemberNumber,
         position: "",
         providerSubject: input.providerSubject,
         providerIssuer: config.oidc.issuer,
