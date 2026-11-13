@@ -3,7 +3,6 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import xss from "xss";
 import crypto from "crypto";
-import path from "path";
 import fs from "fs";
 import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
@@ -30,8 +29,6 @@ import {
 } from "../services/reportingViews";
 
 const router = Router();
-const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
-
 function generateDeclarationId(): string {
   const year = new Date().getFullYear();
   const rand = crypto.randomInt(100000, 999999);
@@ -285,7 +282,11 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
     }
     orgId = bodyOrg !== null && req.user!.role === "admin" ? bodyOrg : userOrgPk;
   } else {
-    orgId = bodyOrg;
+    if (bodyOrg !== null && req.user!.role !== "admin") {
+      res.status(403).json({ error: "Cannot create declaration for another organization" });
+      return;
+    }
+    orgId = req.user!.role === "admin" ? bodyOrg : null;
   }
   if (orgId !== null) {
     const orgExists = await prisma.organization.findUnique({ where: { id: orgId } });
@@ -546,9 +547,11 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
   // Prevent org spoof on update — non-admin cannot change org
   const bodyOrgPut = data.organizationId !== undefined ? toDbId(data.organizationId) : undefined;
-  if (bodyOrgPut !== undefined && userOrgIdPut !== undefined && userOrgIdPut !== null && bodyOrgPut !== toDbId(userOrgIdPut) && req.user!.role !== "admin") {
-    res.status(403).json({ error: "Cannot move declaration to another organization" });
-    return;
+  if (bodyOrgPut !== undefined && req.user!.role !== "admin") {
+    if (userOrgIdPut === undefined || userOrgIdPut === null || bodyOrgPut !== toDbId(userOrgIdPut)) {
+      res.status(403).json({ error: "Cannot move declaration to another organization" });
+      return;
+    }
   }
   if (bodyOrgPut !== undefined) {
     const orgExists = await prisma.organization.findUnique({ where: { id: bodyOrgPut } });
@@ -787,18 +790,15 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
   }
   if (denyCrossDepartmentLM(req, res, existing.snapshot?.department)) return;
 
-  // Delete disk files via the join rows (the only file association).
+  // Capture linked file paths before the database transaction removes rows.
   const pk = existing.declarationPk;
   const links = await prisma.declarationFile.findMany({ where: { declarationPk: pk }, include: { file: true } });
-  await Promise.all(links.map(async (l) => {
-    const fp = containedUploadPath(l.file.path);
-    if (!fp) return;
-    try { await fs.promises.unlink(fp); } catch { /* file may have been deleted already */ }
-  }));
+  const filePaths = links.map((link) => containedUploadPath(link.file.path)).filter((filePath): filePath is string => filePath !== null);
   const fileIds = links.map((l) => l.fileId);
   // One transaction for all database deletes: a failure rolls everything
   // back instead of leaving orphaned child rows behind a deleted parent
-  // (disk files above are already unlinked and best-effort by nature).
+  // Disk cleanup happens after commit; a filesystem failure cannot invalidate
+  // the database transaction and a transaction failure leaves evidence intact.
   await prisma.$transaction(async (tx) => {
     await recordDeclarationAudit(tx, {
       declarationPk: pk,
@@ -826,6 +826,10 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     await tx.declarationDetail.deleteMany({ where: { declarationPk: pk } });
     await tx.declaration.delete({ where: { declarationPk: pk } });
   });
+
+  await Promise.all(filePaths.map(async (filePath) => {
+    try { await fs.promises.unlink(filePath); } catch { /* file may already be absent; database delete is authoritative */ }
+  }));
 
   res.json({ message: "Declaration deleted" });
 }));

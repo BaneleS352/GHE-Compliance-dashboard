@@ -38,10 +38,6 @@ beforeAll(() => {
 
 describe("ApproverDashboard render", () => {
   it("mounts without throwing (catches real runtime errors)", async () => {
-    const user = {
-      id: 3, name: "Sipho Nkosi", email: "sipho@hb.co.za", role: "approver" as const,
-      teamMemberNumber: "HB-10001", department: "Marketing", position: "Line Manager", lineManager: null,
-    };
     let err: unknown = null;
     try {
       render(

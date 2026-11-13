@@ -4,7 +4,7 @@
 
 | File | Description |
 |------|-------------|
-| `TESTING.md` | Full endpoint test guide: manual curl/PowerShell examples, preset users, coverage summary |
+| `TESTING.md` | Endpoint testing guide with OIDC test-provider examples and release acceptance checks |
 
 ## Key Resources
 

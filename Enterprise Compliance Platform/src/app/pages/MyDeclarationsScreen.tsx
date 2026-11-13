@@ -18,10 +18,7 @@ import { requestProtectedDocument, saveBlob } from "@/services/download";
 import { notifySuccess, notifyError } from "@/app/components/notify";
 import { PasswordDialog } from "@/app/components/PasswordDialog";
 import { useWorkflowApproval } from "@/app/hooks/useWorkflowApproval";
-import type {
-    ApprovalDecision,
-    StatusType,
-} from "@/types/declaration";
+import type { StatusType } from "@/types/declaration";
 
 export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declaration) => void }) {
   const { user } = useUser();
@@ -222,7 +219,7 @@ export function MyDeclarationsScreen({ onEditDraft }: { onEditDraft?: (d: Declar
         </div>
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
           <div className="xl:col-span-3">
-            <DeclarationDetailView data={{ ...viewDecl, status: displayStatus }} onBack={() => {}} hideBackButton hideDocuments />
+            <DeclarationDetailView data={{ ...viewDecl, status: displayStatus }} hideDocuments />
           </div>
           <div className="xl:col-span-2 space-y-5">
             {submitError && (

@@ -1,4 +1,4 @@
-import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile, User, SystemConfig, DropdownOptions, WorkflowRule, WorkflowStep, StatusType } from "@/types/declaration"
+import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile, User, SystemConfig, DropdownOptions, WorkflowRule, StatusType } from "@/types/declaration"
 import { api } from "@/services/httpClient"
 import type { RequestOptions } from "@/services/httpClient";
 

@@ -380,6 +380,40 @@ describe("Organization — multi-tenant flows", () => {
     }
   });
 
+  it("POST /api/declarations — global teamMember cannot assign a declaration to an organization", async () => {
+    const scoped = await prisma.user.create({
+      data: { ...(await withDeptLink({ name: "Global Declarer", email: "global-declarer@test.com", role: "teamMember", teamMemberNumber: "GD-001", department: "IT", position: "Associate", organizationId: null })), ...testIdentity("global-declarer@test.com"), managerId: BigInt(globalHr.id) } as any,
+    });
+    let draftId: string | undefined;
+    try {
+      const token = tokenFor(scoped as any);
+      const response = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ ...BASE_DECL, employee: scoped.name, employeeId: Number(scoped.id), lineManager: "Manager", department: "IT", organizationId: hbOrg.id });
+      expect(response.status).toBe(403);
+      expect(response.body.error).toMatch(/another organization/i);
+      expect(await prisma.declaration.count({ where: { declarerUserId: scoped.id } })).toBe(0);
+
+      const ownDraft = await request(app)
+        .post("/api/declarations")
+        .set("Authorization", `Bearer ${token}`)
+        .send({ ...BASE_DECL, employee: scoped.name, employeeId: Number(scoped.id), lineManager: globalHr.name, department: "IT" });
+      expect(ownDraft.status).toBe(201);
+      draftId = ownDraft.body.id;
+      const move = await request(app)
+        .put(`/api/declarations/${ownDraft.body.id}`)
+        .set("Authorization", `Bearer ${token}`)
+        .send({ organizationId: hbOrg.id });
+      expect(move.status).toBe(403);
+      expect(move.body.error).toMatch(/another organization/i);
+      expect(await prisma.declaration.findUnique({ where: { id: ownDraft.body.id }, select: { organizationId: true } })).toMatchObject({ organizationId: null });
+    } finally {
+      if (draftId) await request(app).delete(`/api/declarations/${draftId}`).set("Authorization", `Bearer ${tokenFor(scoped as any)}`).catch(() => undefined);
+      await prisma.user.delete({ where: { id: scoped.id } }).catch(() => undefined);
+    }
+  });
+
   describe("Organization consistency invariant (manager must match user org)", () => {
     it("POST /api/admin/users — scoped user with cross-org manager is rejected", async () => {
       const res = await request(app)

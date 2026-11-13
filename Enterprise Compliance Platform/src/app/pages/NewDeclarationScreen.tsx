@@ -13,7 +13,7 @@ import { Declaration } from "@/types/declaration";
 import { downloadFile } from "@/services/download";
 import { reportClientError } from "@/services/clientTelemetry";
 import { useUser } from "@/app/auth/UserContext";
-import { fetchPublicConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
+import { fetchPublicConfig, fetchUserById, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
 import { buildDeclarationPayload as buildPayload, formatRandValue, OCCASION_OPTIONS, parseRandInput, validateDeclarationForm } from "./newDeclarationModel";
 import type { DeclarationFormState } from "./newDeclarationModel";
 

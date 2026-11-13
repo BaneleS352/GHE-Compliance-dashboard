@@ -9,7 +9,7 @@ Base URL: `http://localhost:3001`; JSON requests use `Content-Type: application/
 | GET | `/api/health` | Liveness response |
 | GET | `/api/auth/me` | Return the provisioned local user for the authenticated OIDC token |
 
-| GET | `/api/auth/me` | authenticated; returns the current user |
+| GET | `/api/auth/me` | authenticated; returns the current user and runs the configured login-time profile sync |
 
 ## User and declaration routes
 

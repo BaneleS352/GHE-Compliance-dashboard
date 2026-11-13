@@ -4,7 +4,7 @@ import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
 import { asyncHandler } from "../../middleware/asyncHandler";
 import { syncWorkflowRuleSteps } from "../../services/normalization";
-import { parseIdParam, toDbId, toJsonId } from "../../services/ids";
+import { parseIdParam, toJsonId } from "../../services/ids";
 
 const router = Router();
 

@@ -10,7 +10,7 @@ import { AdminDropdownOptions } from "@/app/pages/admin/AdminDropdownOptions";
 import { AdminConfig } from "@/app/pages/admin/AdminConfig";
 import { AdminReports } from "@/app/pages/admin/AdminReports";
 import { AdminApprovalOptions } from "@/app/pages/admin/AdminApprovalOptions";
-import type { Declaration, Screen, User } from "@/types/declaration";
+import type { Declaration, Screen } from "@/types/declaration";
 
 interface AppScreenRendererProps {
   screen: Screen;

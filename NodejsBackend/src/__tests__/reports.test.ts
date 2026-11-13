@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken } from "./helpers";
+import { buildApp, getAdminToken, getApproverToken } from "./helpers";
 
 const app = buildApp();
 

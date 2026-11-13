@@ -44,7 +44,7 @@ export function ApprovalDetail({ declaration, onBack, readOnly }: { declaration:
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-5">
         <div className="xl:col-span-3">
-          <DeclarationDetailView data={declaration} onBack={() => {}} hideBackButton hideDocuments />
+          <DeclarationDetailView data={declaration} hideDocuments />
         </div>
 
         <div className="xl:col-span-2 space-y-5">

@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { authenticate, canAccessScreen, isIdentityAuthenticated } from "../app/auth/authService";
 import { activeAccount, signIn, getApiToken } from "../app/auth/msal";
 import {
   fetchDeclarations, createDeclaration, updateDeclaration, submitDeclaration,
   fetchWorkflowInstance, approveWorkflowStep,
-  fetchConfig, fetchDashboardStats, fetchPendingWorkflows,
+  fetchConfig, fetchDashboardStats,
 } from "../services/api";
 import type { Declaration } from "../types/declaration";
 

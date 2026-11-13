@@ -32,7 +32,7 @@ const BASE = {
   publicOfficial: "No",
 };
 
-function tokenFor(id: number, email: string): string {
+function tokenFor(_id: number, email: string): string {
   return testToken({ oid: `test-oid-${email}`, email, name: "PL User" });
 }
 

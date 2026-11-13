@@ -37,17 +37,23 @@ normalized `AuthRequest.user`; no route parses tokens or provider claims.
    exact audience, required `exp`/`iat`, allowed `azp`, and required `scp`.
    Invalid tokens return `401`; provider key/network outages return `503`.
 2. Require a string `oid` → else `401`.
-3. Look up the local user by `providerSubject`. If none exists, auto-provision
-   a least-privilege local account keyed only by the immutable subject (role
-   `teamMember`; profile/org/employee number from trusted claims when present,
-   otherwise left for an admin). Provider issuer mismatch or an unprovisionable
-   identity (e.g. email collision) -> `403`.
-4. Login may refresh mutable profile fields (position, department, organization,
-   employee code, manager) from trusted claims for existing accounts, but never
-   role, name, email, or provider link. Email is mutable display data only and
-   is never used to resolve identity.
-5. Populate `AuthRequest.user` (numeric id, role, display fields) from the
-   row. Local role changes apply on the next request; tokens carry no role.
+3. Resolve the local user by `providerSubject`. Ordinary protected API routes
+   do not provision users; an unknown subject returns `403`.
+4. `GET /api/auth/me` is the login/profile-sync boundary. For non-test
+   providers, it may create a least-privilege `teamMember` account after the
+   backend verifies the caller's Graph identity and attempts the HIS lookup.
+   A complete matching HIS record populates HIS-owned profile fields. A HIS
+   lookup miss or optional HIS service failure creates a minimal account for a
+   first login or preserves the existing profile. Graph permission failures,
+   missing employee identifiers, identity mismatches, branch/department
+   resolution failures, and local uniqueness conflicts remain errors.
+5. Existing users are refreshed from HIS only during `/api/auth/me`; other API
+   requests read the local row without triggering synchronization. Synchronization
+   never changes local role, `isActive`, or application-owned data. Email and
+   display name are not identity-link keys.
+6. Populate `AuthRequest.user` (numeric id, role, display fields) from the
+   verified local row. Local role changes apply on the next request; tokens
+   carry no application role.
 
 ## Explicit identity linking
 

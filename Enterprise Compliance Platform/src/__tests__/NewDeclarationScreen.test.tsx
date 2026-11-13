@@ -1,15 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { NewDeclarationScreen } from "../app/pages/NewDeclarationScreen";
-import { createDeclaration, submitDeclaration, updateDeclaration, uploadDeclarationFile, fetchConfig, fetchUserById } from "../services/api";
-
-const mockConfig = {
-  highValueThreshold: 1000, mediumValueThreshold: 1000,
-  slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "",
-};
+import { createDeclaration, submitDeclaration, updateDeclaration, uploadDeclarationFile } from "../services/api";
 
 vi.mock("../services/api", () => ({
-  fetchConfig: vi.fn(() => Promise.resolve(mockConfig)),
   fetchPublicConfig: vi.fn(() => Promise.resolve({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maximumValue: 1000000 })),
   fetchUserById: vi.fn(() => Promise.resolve({ id: 3, name: "Sipho Nkosi" })),
   fetchManagers: vi.fn(() => Promise.resolve([])),
@@ -23,7 +17,7 @@ vi.mock("../services/api", () => ({
 }));
 
 vi.mock("../app/components/Sel", () => ({
-  Sel: ({ value, onChange, children, placeholder }: any) => (
+  Sel: ({ value, onChange, placeholder }: any) => (
     <input
       role="combobox"
       data-placeholder={placeholder}

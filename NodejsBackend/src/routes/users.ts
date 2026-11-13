@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../config/prisma";
-import { authenticate, authorize, AuthRequest } from "../middleware/auth";
+import { authenticate, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { parseIdParam, toDbId, toJsonId } from "../services/ids";
 

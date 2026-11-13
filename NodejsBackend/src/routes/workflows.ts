@@ -2,7 +2,7 @@ import { Router, Response } from "express";
 import { Prisma } from "@prisma/client";
 import xss from "xss";
 import { prisma } from "../config/prisma";
-import { authenticate, authorize, AuthRequest } from "../middleware/auth";
+import { authenticate, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { WorkflowStep, declarationResponse, declarationIncludes, rowToStep } from "../services/workflowService";
 import { writeWorkflowStepsTx, readWorkflowStepRows, getDeclarationPk } from "../services/normalization";

@@ -1,17 +1,9 @@
 import { describe, it, expect, afterAll, beforeAll } from "vitest";
 import request from "supertest";
 import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, pkFor, testToken } from "./helpers";
-import path from "path";
-import fs from "fs";
 import { prisma } from "../config/prisma";
 
 const app = buildApp();
-const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
-const ALLOWED_MIMES = [
-  "application/pdf",
-  "image/jpeg", "image/png", "image/gif", "image/webp",
-  "text/plain",
-];
 
 const cleanupDeclIds: string[] = [];
 
@@ -1130,7 +1122,6 @@ describe("Edge-Case Tests", () => {
       // Phase 5: decidedAt is a typed DateTime column, so corrupt date strings
       // cannot exist. Unset one step's decidedAt instead and assert the SLA
       // endpoint still returns valid numbers.
-      const { prisma } = await import("../config/prisma");
       const res = await request(app)
         .get("/api/reports/sla")
         .set("Authorization", `Bearer ${getAdminToken()}`);

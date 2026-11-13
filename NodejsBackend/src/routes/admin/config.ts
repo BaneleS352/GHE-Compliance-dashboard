@@ -12,8 +12,8 @@ const router = Router();
 router.get("/public", authenticate, asyncHandler(async (_req: AuthRequest, res: Response): Promise<void> => {
   const config = await prisma.systemConfig.findFirst();
   if (!config) { res.status(404).json({ error: "System config not found" }); return; }
-  res.json({ highValueThreshold: config.highValueThreshold, mediumValueThreshold: config.mediumValueThreshold,
-    slaEscalationDays: config.slaEscalationDays, maximumValue: config.maximumValue ?? 1000000 });
+  res.json({ highValueThreshold: Number(config.highValueThreshold), mediumValueThreshold: Number(config.mediumValueThreshold),
+    slaEscalationDays: config.slaEscalationDays, maximumValue: Number(config.maximumValue ?? 1000000) });
 }));
 
 // GET /api/admin/config
@@ -24,11 +24,11 @@ router.get("/", authenticate, authorize("admin"), asyncHandler(async (_req: Auth
     return;
   }
   res.json({
-    highValueThreshold: config.highValueThreshold,
-    mediumValueThreshold: config.mediumValueThreshold,
+    highValueThreshold: Number(config.highValueThreshold),
+    mediumValueThreshold: Number(config.mediumValueThreshold),
     slaEscalationDays: config.slaEscalationDays,
     maxDeclarationsPerCounterparty: config.maxDeclarationsPerCounterparty,
-    maximumValue: config.maximumValue ?? 1000000,
+    maximumValue: Number(config.maximumValue ?? 1000000),
     emailTemplate: config.emailTemplate,
     notificationTemplates: config.notificationTemplates,
   });
@@ -77,11 +77,11 @@ router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
   });
 
   res.json({
-    highValueThreshold: updated.highValueThreshold,
-    mediumValueThreshold: updated.mediumValueThreshold,
+    highValueThreshold: Number(updated.highValueThreshold),
+    mediumValueThreshold: Number(updated.mediumValueThreshold),
     slaEscalationDays: updated.slaEscalationDays,
     maxDeclarationsPerCounterparty: updated.maxDeclarationsPerCounterparty,
-    maximumValue: updated.maximumValue ?? 1000000,
+    maximumValue: Number(updated.maximumValue ?? 1000000),
     emailTemplate: updated.emailTemplate,
     notificationTemplates: updated.notificationTemplates,
   });
