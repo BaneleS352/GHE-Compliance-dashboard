@@ -1,7 +1,5 @@
 ﻿import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Download, FileText } from "lucide-react";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { Card } from "../../components/Card";
 import { PageHeader } from "../../components/PageHeader";
 import { Table, Thead, Th, Tbody, Tr, Td, COL } from "../../components/table";
@@ -124,6 +122,16 @@ export function AdminReports() {
     const el = tableRef.current;
     if (!el) return;
     const fileName = `${reportType.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    let jsPDF: typeof import("jspdf").default;
+    let html2canvas: typeof import("html2canvas").default;
+    try {
+      const [pdfModule, canvasModule] = await Promise.all([import("jspdf"), import("html2canvas")]);
+      jsPDF = pdfModule.default;
+      html2canvas = canvasModule.default;
+    } catch {
+      notifyError("PDF export could not be loaded. Please try again.");
+      return;
+    }
     let pdfBytes: Blob;
     try {
       const canvas = await html2canvas(el, { scale: 2, useCORS: true });

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { CircleHelp } from "lucide-react";
 import { ImageWithFallback } from "@/app/components/ImageWithFallback";
-import bannerImg from "@/assets/Button.png";
+import bannerImg from "@/assets/Button.webp";
 import { F } from "@/config/theme";
 import { authenticate } from "@/app/auth/authService";
 import { dockerStubAuthEnabled, localTestProviderEnabled, testAuthEnabled } from "@/app/auth/msal";

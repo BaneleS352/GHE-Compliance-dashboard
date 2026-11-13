@@ -3,6 +3,14 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { NewDeclarationScreen } from "../app/pages/NewDeclarationScreen";
 import { createDeclaration, submitDeclaration, updateDeclaration, uploadDeclarationFile } from "../services/api";
 
+const mockUserContext = vi.hoisted(() => ({
+  user: {
+    id: 1, name: "Test User", email: "test@hb.co.za", role: "teamMember" as const,
+    teamMemberNumber: "HB-10001", department: "Marketing", position: "Brand Manager",
+    lineManager: "Sipho Nkosi" as string | null,
+  },
+}));
+
 vi.mock("../services/api", () => ({
   fetchPublicConfig: vi.fn(() => Promise.resolve({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maximumValue: 1000000 })),
   fetchUserById: vi.fn(() => Promise.resolve({ id: 3, name: "Sipho Nkosi" })),
@@ -28,15 +36,16 @@ vi.mock("../app/components/Sel", () => ({
 }));
 
 vi.mock("../app/auth/UserContext", () => ({
-  useUser: () => ({
-    user: { id: 1, name: "Test User", email: "test@hb.co.za", role: "teamMember" as const,
-            teamMemberNumber: "HB-10001", department: "Marketing", position: "Brand Manager",
-            lineManager: "Sipho Nkosi" },
-  }),
+  useUser: () => ({ user: mockUserContext.user }),
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockUserContext.user = {
+    id: 1, name: "Test User", email: "test@hb.co.za", role: "teamMember",
+    teamMemberNumber: "HB-10001", department: "Marketing", position: "Brand Manager",
+    lineManager: "Sipho Nkosi",
+  };
   class RO {
     cb: any;
     constructor(cb: any) { this.cb = cb; }
@@ -96,6 +105,18 @@ describe("NewDeclarationScreen", () => {
       const nameInput = screen.getByDisplayValue("Test User");
       expect(nameInput).toBeInTheDocument();
     });
+  });
+
+  it("explains when a minimal HIS profile is missing required declaration details", async () => {
+    mockUserContext.user = {
+      ...mockUserContext.user,
+      teamMemberNumber: "",
+      position: "",
+      lineManager: null,
+    };
+    render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={vi.fn()} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/missing employee code, position, line manager/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/contact your administrator/i);
   });
 
   // Full-form renders are heavy; under full-suite parallel load the initial

@@ -130,11 +130,11 @@ async function fetchStaffBy(employeeId: string, queryParameter: "employeeCode" |
 }
 
 async function fetchStaff(employeeCode: string): Promise<StaffRecord> {
-  // HIS calls the returned identifier `employeeCode`; some deployments expose
-  // that as the query parameter while others use `employeeId`. Try the field
-  // name first, then the historical query name. Both use only the value
-  // returned by Graph, and the response is still checked against it below.
-  for (const parameter of ["employeeCode", "employeeId"] as const) {
+  // The configured UAT contract uses `employeeId`; some deployments expose
+  // the same lookup as `employeeCode`. Try the documented parameter first,
+  // then the alternate name. Both use only Graph's verified employee ID, and
+  // the response employeeCode is checked against it below.
+  for (const parameter of ["employeeId", "employeeCode"] as const) {
     const record = await fetchStaffBy(employeeCode, parameter);
     if (record) return record;
   }

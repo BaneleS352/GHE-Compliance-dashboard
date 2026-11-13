@@ -29,8 +29,9 @@ npx vitest run
 
 ## Authentication and manual acceptance
 
-There are no preset users, passwords, local login endpoints, or SQLite manual
-testing workflows. Automated tests use the throwaway JWKS provider started by
+There is no password login or preset-users endpoint. Development seeds may
+include linked test accounts for the local test provider; they are not tenant
+accounts or production credentials. Automated tests use the throwaway JWKS provider started by
 `globalSetup.ts`; manual acceptance must use the development OIDC seam or a
 real staging Entra tenant with provisioned local users. Never copy credentials
 from historical examples into a deployment.
@@ -86,8 +87,10 @@ Invoke-RestMethod -Uri "http://localhost:3001/api/auth/me" `
   -Headers @{Authorization="Bearer $token"}
 ```
 
-Unknown emails get `403` (default-deny, no auto-provisioning); tokens
-with a wrong issuer, audience, expiry, or missing `oid` get `401`
+Unknown identities on ordinary protected routes get `403` (default-deny). The
+login boundary `/api/auth/me` can create a minimal local user when profile sync
+is enabled and the Graph identity check succeeds; a HIS miss does not create a
+link by email alone. Tokens with a wrong issuer, audience, expiry, or missing `oid` get `401`
 (pinned by `auth-validation.test.ts`).
 
 ### Declarations

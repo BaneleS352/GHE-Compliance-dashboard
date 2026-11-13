@@ -8,6 +8,7 @@ vi.mock("../app/auth/msal", () => ({
   signIn: vi.fn(),
   signOut: vi.fn(),
   getApiToken: vi.fn(() => Promise.resolve("msal-test-token")),
+  getGraphAccessToken: vi.fn(() => Promise.resolve("graph-test-token")),
   initializeIdentity: vi.fn(() => Promise.resolve()),
 }));
 

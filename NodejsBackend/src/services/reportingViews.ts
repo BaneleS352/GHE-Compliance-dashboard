@@ -163,6 +163,28 @@ export interface SlaRow {
   eventDate: string | Date | null;
 }
 
+/** Aggregated SLA statistics from PostgreSQL; row volume stays bounded by role count. */
+export async function viewSlaSummary(organizationId?: bigint | number) {
+  const scoped = organizationId !== undefined && organizationId !== null;
+  const dayDelta = `EXTRACT(EPOCH FROM ("decidedAt" - "eventDate")) / 86400.0`;
+  const rows = await queryView<RawRow>(
+    `SELECT "role" AS "role", AVG(${dayDelta}) AS "avg", MIN(${dayDelta}) AS "min",` +
+      ` MAX(${dayDelta}) AS "max", COUNT(*) AS "count" FROM "v_workflow_step_sla"` +
+      ` WHERE "eventDate" IS NOT NULL` +
+      (scoped ? ` AND "organizationId" = $1` : "") +
+      ` GROUP BY "role"`,
+    scoped ? [organizationId] : [],
+  );
+  if (!rows) return null;
+  return rows.map((row) => ({
+    role: String(row.role),
+    avg: Number(row.avg),
+    min: Number(row.min),
+    max: Number(row.max),
+    count: Number(row.count),
+  }));
+}
+
 export async function viewSlaRows(organizationId?: bigint | number): Promise<SlaRow[] | null> {
   const scoped = organizationId !== undefined && organizationId !== null;
   const rows = await queryView<RawRow>(

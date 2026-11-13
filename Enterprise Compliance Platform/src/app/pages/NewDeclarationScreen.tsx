@@ -343,6 +343,14 @@ export function NewDeclarationScreen({
   // resolvable line manager; department-less (e.g. global) profiles keep
   // going with a legacy value.
   const profileManagerMissing = profileIdentityLocked && !lineManagerName.trim();
+  const incompleteProfileFields = profileIdentityLocked
+    ? [
+        !form.employeeName.trim() ? "name" : null,
+        !form.employeeCode.trim() ? "employee code" : null,
+        !form.position.trim() ? "position" : null,
+        profileManagerMissing ? "line manager" : null,
+      ].filter((field): field is string => field !== null)
+    : [];
 
   const validate = () => {
     // Profile-owned identity is locked for team members: company, department,
@@ -450,6 +458,13 @@ export function NewDeclarationScreen({
             </p>
           </div>
         </div>
+
+        {incompleteProfileFields.length > 0 && (
+          <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <strong>Your staff profile is incomplete.</strong>{" "}
+            Missing {incompleteProfileFields.join(", ")}. Contact your administrator to complete your profile before creating a declaration.
+          </div>
+        )}
 
         <FS id="sec-team" num="1" title="Team Member Details">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-5">

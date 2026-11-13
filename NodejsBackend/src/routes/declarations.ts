@@ -136,10 +136,21 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
   }
 
   // Fallback: direct aggregation on the normalized tables.
+  const monthlyOrgFilter = orgId !== undefined && orgId !== null
+    ? Prisma.sql`AND "organizationId" = ${toDbId(orgId)}`
+    : Prisma.empty;
   const [counts, totalValueAgg, monthly, typeRows] = await Promise.all([
     prisma.declaration.groupBy({ by: ["status"], where: orgWhere, _count: { status: true } }),
     prisma.declaration.aggregate({ where: orgWhere, _sum: { value: true } }),
-    prisma.declaration.findMany({ where: { ...orgWhere, eventDate: { not: null } }, select: { eventDate: true, status: true } }),
+    prisma.$queryRaw<Array<{ month: Date; approved: bigint; declined: bigint }>>(Prisma.sql`
+      SELECT date_trunc('month', "eventDate") AS "month",
+        COUNT(*) FILTER (WHERE "status" = 'Approved') AS "approved",
+        COUNT(*) FILTER (WHERE "status" = 'Declined') AS "declined"
+      FROM "Declaration"
+      WHERE "eventDate" IS NOT NULL ${monthlyOrgFilter}
+      GROUP BY date_trunc('month', "eventDate")
+      ORDER BY "month" ASC
+    `),
     prisma.declaration.groupBy({ by: ["type"], where: orgWhere, _count: { type: true } }),
   ]);
   const countMap = new Map(counts.map((c) => [c.status, c._count.status]));
@@ -153,16 +164,11 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
     escalated: countMap.get("Escalated") || 0,
     totalValue: Number(totalValueAgg._sum.value || 0),
   };
-  const monthMap = new Map<string, { approved: number; declined: number }>();
-  for (const d of monthly) {
-    if (!d.eventDate) continue;
-    const month = new Date(d.eventDate).toISOString().slice(0, 7);
-    const e = monthMap.get(month) || { approved: 0, declined: 0 };
-    if (d.status === "Approved") e.approved++;
-    if (d.status === "Declined") e.declined++;
-    monthMap.set(month, e);
-  }
-  const complianceTrend = [...monthMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([month, v]) => ({ month, ...v }));
+  const complianceTrend = monthly.map((row) => ({
+    month: new Date(row.month).toISOString().slice(0, 7),
+    approved: Number(row.approved),
+    declined: Number(row.declined),
+  }));
   const typeBreakdown = typeRows.map((t) => ({ name: t.type, value: t._count.type }));
 
   res.json({ kpis, complianceTrend, typeBreakdown });
@@ -793,7 +799,10 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
   // Capture linked file paths before the database transaction removes rows.
   const pk = existing.declarationPk;
   const links = await prisma.declarationFile.findMany({ where: { declarationPk: pk }, include: { file: true } });
-  const filePaths = links.map((link) => containedUploadPath(link.file.path)).filter((filePath): filePath is string => filePath !== null);
+  const filePaths = links.flatMap((link) => {
+    const filePath = containedUploadPath(link.file.path);
+    return filePath === null ? [] : [{ id: link.fileId, path: filePath }];
+  });
   const fileIds = links.map((l) => l.fileId);
   // One transaction for all database deletes: a failure rolls everything
   // back instead of leaving orphaned child rows behind a deleted parent
@@ -827,8 +836,14 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     await tx.declaration.delete({ where: { declarationPk: pk } });
   });
 
-  await Promise.all(filePaths.map(async (filePath) => {
-    try { await fs.promises.unlink(filePath); } catch { /* file may already be absent; database delete is authoritative */ }
+  await Promise.all(filePaths.map(async (file) => {
+    try {
+      await fs.promises.unlink(file.path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+        console.error(JSON.stringify({ event: "declaration_evidence_cleanup", fileId: String(file.id), outcome: "failure" }));
+      }
+    }
   }));
 
   res.json({ message: "Declaration deleted" });

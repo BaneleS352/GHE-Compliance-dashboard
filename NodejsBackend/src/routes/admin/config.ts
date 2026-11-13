@@ -43,12 +43,15 @@ const notificationTemplatesSchema = z.object({
   declarationApproved: notificationTemplateSchema,
 }).strict();
 
+const configMoney = z.number().finite().nonnegative().max(10_000_000)
+  .refine((value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8, "Money values must have no more than two decimal places");
+
 const configSchema = z.object({
-  highValueThreshold: z.number().nonnegative(),
-  mediumValueThreshold: z.number().nonnegative(),
+  highValueThreshold: configMoney,
+  mediumValueThreshold: configMoney,
   slaEscalationDays: z.number().int().nonnegative(),
   maxDeclarationsPerCounterparty: z.number().int().nonnegative(),
-  maximumValue: z.number().positive().max(10000000).optional().default(1000000),
+  maximumValue: configMoney.refine((value) => value > 0, "Maximum value must be positive").optional().default(1000000),
   emailTemplate: z.string(),
   notificationTemplates: z.string().optional().refine((value) => {
     if (value === undefined) return true;

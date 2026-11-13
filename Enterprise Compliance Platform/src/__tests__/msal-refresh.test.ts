@@ -83,7 +83,7 @@ describe("MSAL silent-acquisition recovery", () => {
 
   it("rethrows non-interaction failures without redirecting", async () => {
     mocks.acquireTokenSilent.mockRejectedValue(new Error("network down"));
-    await expect(getApiToken()).rejects.toThrow("network down");
+    await expect(getApiToken()).rejects.toThrow("Identity provider operation failed");
     expect(mocks.acquireTokenRedirect).not.toHaveBeenCalled();
   });
 });

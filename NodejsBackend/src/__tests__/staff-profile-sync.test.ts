@@ -67,7 +67,7 @@ describe("HIS staff profile sync", () => {
     vi.unstubAllGlobals();
     if (tlsOverride === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
     else process.env.NODE_TLS_REJECT_UNAUTHORIZED = tlsOverride;
-    await prisma.user.deleteMany({ where: { email: { in: [email, objectResponseEmail, "staff-sync-manager@example.test"] } } });
+    await prisma.user.deleteMany({ where: { email: { in: [email, objectResponseEmail, "staff-sync-manager@example.test", "staff-sync-ambiguous@example.test", "staff-sync-mismatch@example.test", "staff-sync-miss@example.test", "staff-sync-outage@example.test"] } } });
     await prisma.department.deleteMany({ where: { organizationId, name: "Compliance" } });
     await prisma.$disconnect();
   });
@@ -125,17 +125,50 @@ describe("HIS staff profile sync", () => {
     expect(refreshed.staffProfileSyncedAt!.getTime()).toBeGreaterThanOrEqual(existing.staffProfileSyncedAt!.getTime());
   });
 
-  it("rejects ambiguous and identity-mismatched HIS results without creating a profile", async () => {
-    const otherSubject = "d2760938-d9b2-4f67-8c9d-7a8fca3b7f56";
-    mockResponses([staffRecord(), staffRecord({ employeeCode: "22681" })], { graphId: otherSubject });
-    await expect(syncStaffProfile({ providerSubject: otherSubject, claims: { email, oid: otherSubject }, graphAccessToken: "graph-token" }))
-      .rejects.toMatchObject({ reason: "ambiguous" });
-    expect(await prisma.user.findUnique({ where: { providerSubject: otherSubject } })).toBeNull();
+  it("falls back to a minimal profile for ambiguous HIS results but blocks employee-code mismatches", async () => {
+    const ambiguousSubject = "d2760938-d9b2-4f67-8c9d-7a8fca3b7f56";
+    const ambiguousEmail = "staff-sync-ambiguous@example.test";
+    mockResponses([staffRecord(), staffRecord({ employeeCode: "22681" })], { graphId: ambiguousSubject });
+    const minimal = await syncStaffProfile({ providerSubject: ambiguousSubject, claims: { email: ambiguousEmail, oid: ambiguousSubject }, graphAccessToken: "graph-token" });
+    expect(minimal).toMatchObject({
+      providerSubject: ambiguousSubject,
+      email: ambiguousEmail,
+      teamMemberNumber: "",
+      position: "",
+      organizationId: null,
+      departmentId: null,
+    });
 
-    mockResponses([staffRecord({ employeeCode: "OTHER-CODE" })], { graphId: otherSubject });
-    await expect(syncStaffProfile({ providerSubject: otherSubject, claims: { email, oid: otherSubject }, graphAccessToken: "graph-token" }))
-      .rejects.toMatchObject({ reason: "identity_mismatch" });
-    expect(await prisma.user.findUnique({ where: { providerSubject: otherSubject } })).toBeNull();
+    const mismatchSubject = "e38783a2-3b02-4c09-aacc-2ecbf69a04e8";
+    const mismatchEmail = "staff-sync-mismatch@example.test";
+    mockResponses([staffRecord({ employeeCode: "OTHER-CODE" })], { graphId: mismatchSubject });
+    await expect(syncStaffProfile({ providerSubject: mismatchSubject, claims: { email: mismatchEmail, oid: mismatchSubject }, graphAccessToken: "graph-token" }))
+      .rejects.toMatchObject({ reason: "his_identity_mismatch" });
+    expect(await prisma.user.findUnique({ where: { providerSubject: mismatchSubject } })).toBeNull();
+  });
+
+  it.each([
+    { status: 404, subject: "c3c2c2a4-8f6e-41a9-9f3e-fb470dd8ca11", email: "staff-sync-miss@example.test", reason: "not_found" },
+    { status: 503, subject: "7be768f6-d419-497a-a071-95f56efac402", email: "staff-sync-outage@example.test", reason: "his_server_error" },
+  ])("keeps login profile creation available when HIS returns $status", async ({ status, subject: providerSubject, email: userEmail, reason }) => {
+    fetchStub.mockClear();
+    fetchStub.mockImplementation(async (input: URL | string) => {
+      const url = new URL(String(input));
+      const graph = url.hostname === "graph.microsoft.com";
+      return new Response(JSON.stringify(graph ? { id: providerSubject, employeeId: "22682" } : { success: false }), {
+        status: graph ? 200 : status,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    const skipped = vi.fn();
+    const user = await syncStaffProfile({
+      providerSubject,
+      claims: { email: userEmail, oid: providerSubject },
+      graphAccessToken: "graph-token",
+      onProfileSyncSkipped: skipped,
+    });
+    expect(user).toMatchObject({ providerSubject, email: userEmail, teamMemberNumber: "", organizationId: null });
+    expect(skipped).toHaveBeenCalledWith(reason, undefined);
   });
 
   it("accepts the documented single-object HIS envelope and normalizes the no-termination sentinel", async () => {

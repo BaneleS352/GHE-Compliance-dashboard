@@ -67,7 +67,7 @@ describe("production posture", () => {
       const e = err as { stdout?: unknown; stderr?: unknown };
       output = `${String(e.stdout ?? "")}\n${String(e.stderr ?? "")}`;
     }
-    expect(output).toMatch(/Refusing to seed/);
+    expect(output).toMatch(/\{"event":"seed_blocked","errorName":"Error"\}/);
   }, 120000);
 });
 
