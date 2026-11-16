@@ -5,32 +5,63 @@ type RoutineRow = {
   schemaName: string;
   routineName: string;
   routineType: string;
+  argumentCount: number;
   arguments: string;
 };
 
-type TableRow = {
-  schemaName: string;
-  tableName: string;
-  columns: string;
+type ColumnRow = {
+  columnName: string;
+  dataType: string;
 };
 
-type ExtensionRow = { extensionName: string };
+const EXPECTED_ROUTINE = "enqueue_email_notification";
+const EXPECTED_TABLE = "EmailOutbox";
+const EXPECTED_ARGUMENTS = [
+  "IN p_event text",
+  "IN p_declaration_id text",
+  "IN p_recipient_email text",
+  "IN p_subject text",
+  "IN p_body text",
+  "IN p_dedupe_key text",
+];
+const REQUIRED_COLUMNS = [
+  "id",
+  "event",
+  "declarationId",
+  "recipientEmail",
+  "subject",
+  "body",
+  "dedupeKey",
+  "status",
+  "attemptCount",
+  "maxAttempts",
+  "nextAttemptAt",
+  "lockedAt",
+  "lockedBy",
+  "sentAt",
+  "providerMessageId",
+  "lastErrorCode",
+  "createdAt",
+  "updatedAt",
+] as const;
 
 const prisma = new PrismaClient();
 const requestedRoutine = process.argv.find((arg) => arg.startsWith("--routine="))?.slice("--routine=".length).trim();
+const routineName = requestedRoutine || EXPECTED_ROUTINE;
 
-if (requestedRoutine && !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(requestedRoutine)) {
-  console.error("--routine must be a simple procedure/function name (letters, numbers, underscores).");
+if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(routineName)) {
+  console.error("--routine must be a simple procedure name (letters, numbers, underscores).");
   process.exit(2);
 }
 
-async function main() {
+async function main(): Promise<void> {
   if (!process.env.DATABASE_URL?.trim()) {
     console.error("[FAIL] DATABASE_URL is not set. Add the PostgreSQL connection string to NodejsBackend/.env.");
     process.exitCode = 1;
     return;
   }
 
+  let failures = 0;
   try {
     const [database] = await prisma.$queryRaw<Array<{ version: string; schemaName: string }>>`
       SELECT current_setting('server_version') AS version, current_schema() AS "schemaName"
@@ -41,69 +72,56 @@ async function main() {
       SELECT n.nspname AS "schemaName",
              p.proname AS "routineName",
              CASE p.prokind WHEN 'p' THEN 'PROCEDURE' ELSE 'FUNCTION' END AS "routineType",
+             p.pronargs AS "argumentCount",
              pg_get_function_identity_arguments(p.oid) AS arguments
       FROM pg_proc p
       JOIN pg_namespace n ON n.oid = p.pronamespace
-      WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
-        AND (
-          p.proname ILIKE '%email%'
-          OR p.proname ILIKE '%mail%'
-          OR p.proname ILIKE '%notif%'
-        )
-      ORDER BY n.nspname, p.proname, p.prokind
+      WHERE n.nspname = 'public' AND p.proname = ${routineName}
+      ORDER BY p.prokind
     `;
-    const matchingRoutines = requestedRoutine
-      ? routines.filter((routine) => routine.routineName.toLowerCase() === requestedRoutine.toLowerCase())
-      : routines;
-
-    if (matchingRoutines.length === 0) {
-      console.log(requestedRoutine
-        ? `[MISSING] No email-related routine named ${requestedRoutine} was found.`
-        : "[MISSING] No email/mail/notification routine was found in the database.");
+    const procedure = routines.find((routine) => routine.routineType === "PROCEDURE");
+    if (!procedure) {
+      console.error(`[FAIL] Required public procedure ${routineName} was not found.`);
+      failures++;
+    } else if (
+      procedure.argumentCount !== EXPECTED_ARGUMENTS.length ||
+      procedure.arguments.split(",").map((argument) => argument.trim().toLowerCase()).join("|") !== EXPECTED_ARGUMENTS.map((argument) => argument.toLowerCase()).join("|")
+    ) {
+      console.error(`[FAIL] public.${routineName} has an unexpected signature: ${procedure.arguments || "()"}`);
+      console.error("       Expected six TEXT parameters in this order: event, declaration ID, recipient email, subject, body, dedupe key.");
+      failures++;
     } else {
-      console.log(`[PASS] Found ${matchingRoutines.length} matching routine(s):`);
-      for (const routine of matchingRoutines) {
-        const args = routine.arguments ? `(${routine.arguments})` : "()";
-        console.log(`  ${routine.schemaName}.${routine.routineName}${args} — ${routine.routineType}`);
+      console.log(`[PASS] Stored procedure: public.${routineName}(${procedure.arguments})`);
+    }
+
+    const columns = await prisma.$queryRaw<ColumnRow[]>`
+      SELECT column_name AS "columnName", data_type AS "dataType"
+      FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ${EXPECTED_TABLE}
+      ORDER BY ordinal_position
+    `;
+    if (columns.length === 0) {
+      console.error(`[FAIL] Required table public.${EXPECTED_TABLE} was not found.`);
+      failures++;
+    } else {
+      const actual = new Set(columns.map((column) => column.columnName));
+      const missing = REQUIRED_COLUMNS.filter((column) => !actual.has(column));
+      if (missing.length > 0) {
+        console.error(`[FAIL] public.${EXPECTED_TABLE} is missing required columns: ${missing.join(", ")}`);
+        failures++;
+      } else {
+        console.log(`[PASS] Outbox table: public.${EXPECTED_TABLE} has all ${REQUIRED_COLUMNS.length} required columns`);
+        console.log(`[INFO] Outbox columns/types: ${columns.map((column) => `${column.columnName}:${column.dataType}`).join(", ")}`);
       }
     }
 
-    const tables = await prisma.$queryRaw<TableRow[]>`
-      SELECT c.table_schema AS "schemaName",
-             c.table_name AS "tableName",
-             string_agg(c.column_name || ':' || c.data_type, ', ' ORDER BY c.ordinal_position) AS columns
-      FROM information_schema.columns c
-      WHERE c.table_schema NOT IN ('pg_catalog', 'information_schema')
-        AND (
-          c.table_name ILIKE '%email%'
-          OR c.table_name ILIKE '%mail%'
-          OR c.table_name ILIKE '%notif%'
-        )
-      GROUP BY c.table_schema, c.table_name
-      ORDER BY c.table_schema, c.table_name
-    `;
-
-    if (tables.length === 0) {
-      console.log("[INFO] No email/mail/notification queue tables were found.");
+    if (failures > 0) {
+      console.error(`[FAIL] ${failures} email database contract check(s) failed. From NodejsBackend, check migration status with "npx prisma migrate status" and apply a pending migration with "npx prisma migrate deploy" before rerunning this command.`);
+      process.exitCode = 1;
     } else {
-      console.log(`[INFO] Found ${tables.length} related table(s):`);
-      for (const table of tables) console.log(`  ${table.schemaName}.${table.tableName}: ${table.columns}`);
+      console.log("[PASS] Email outbox database contract is installed.");
     }
-
-    const extensions = await prisma.$queryRaw<ExtensionRow[]>`
-      SELECT extname AS "extensionName"
-      FROM pg_extension
-      WHERE extname ILIKE '%mail%' OR extname IN ('pg_net', 'pg_cron', 'dblink')
-      ORDER BY extname
-    `;
-    if (extensions.length === 0) {
-      console.log("[INFO] No common mail/network/scheduler extension was found.");
-    } else {
-      console.log(`[INFO] Related PostgreSQL extension(s): ${extensions.map((row) => row.extensionName).join(", ")}`);
-    }
-
-    console.log("[INFO] This is read-only discovery. It does not call a routine, enqueue a message, or send email.");
-    if (matchingRoutines.length === 0) process.exitCode = 1;
+    console.log("[INFO] Read-only verification: the procedure was not called, no row was enqueued, and no email was sent.");
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unknown";
     console.error(`[FAIL] Database inspection failed (error code: ${code}). Check DATABASE_URL and database availability.`);
