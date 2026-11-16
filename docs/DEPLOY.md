@@ -106,11 +106,11 @@ server-side with pure-Python sidecars (`pypdf` AES-256 for PDFs,
 
 ### File Storage
 
-Files are stored in a named Docker volume (`uploads`). For production, replace local disk storage with S3:
+All attachments use the private Azurite Blob container configured by `AZURITE_CONNECTION_STRING` and `AZURITE_CONTAINER`. Docker Compose persists Azurite data in the `azurite_data` volume. The API never serves a public blob URL; reads and deletes go through authenticated routes.
 
-- Modify `NodejsBackend/routes/files.ts` to use `@aws-sdk/client-s3`
-- Update `UPLOAD_DIR` to use signed URLs
-- Add S3 bucket env vars: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET`
+Azurite is an emulator. This Azurite-only deployment choice is suitable for local development and controlled testing; it does not provide the managed durability, availability, or operational support of a production storage service.
+
+Existing local-disk uploads must be migrated before users can access them with the Azurite-only backend. Start Azurite and apply the versioned migration first, then run `npm run attachments:migrate-local-to-azurite` from `NodejsBackend` with the old `uploads/` directory available. The command copies each file, updates its database reference only after upload succeeds, and leaves the local source file in place as a recovery copy. For files in the existing Docker `uploads` volume, run `docker compose --profile attachment-migration run --build --rm attachment-migration`. Only this one-off migration service mounts the legacy volume; the API container does not.
 
 ## Manual Deployment
 
@@ -193,11 +193,7 @@ pm2 startup
 
 ### 4. File Storage
 
-For production, replace local disk storage with S3-compatible storage:
-
-- Modify `routes/files.ts` to use `@aws-sdk/client-s3` instead of `multer.diskStorage`
-- Update `UPLOAD_DIR` to use signed URLs
-- Add S3 bucket env vars: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET`
+Start the Azurite service before the backend and keep the `azurite_data` Docker volume backed up with the same care as PostgreSQL. Configure the root `.env` with the Azurite connection string whose endpoint uses `http://azurite:10000/devstoreaccount1`. Migrate existing `uploads/` files with `docker compose --profile attachment-migration run --build --rm attachment-migration` before switching traffic.
 
 ### 5. Security Hardening
 
@@ -305,7 +301,7 @@ pg_dump "postgresql://user:password@host:5432/ghe_db" > backup_$(date +%Y%m%d).s
 
 - **API is stateless** — scale horizontally behind a load balancer
 - **PostgreSQL is the only supported database** — run versioned migrations (`prisma migrate deploy`), never `db push`, against production
-- **File storage on local disk doesn't scale** — use S3 or similar object storage
+- **Attachment storage is Azurite-only** — preserve the `azurite_data` volume and include it in backup and restore procedures
 - **No application-issued tokens exist** — access-token lifetime, refresh,
 and revocation are owned by Entra. To cut off a user immediately, set their
 local `isActive` flag to false: the middleware checks it on every request,

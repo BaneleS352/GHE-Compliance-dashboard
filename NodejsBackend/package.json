@@ -18,12 +18,15 @@
     "email:verify-db": "tsx src/scripts/verify-email-database.ts",
     "email:worker": "tsx src/scripts/email-worker.ts",
     "email:verify-smtp": "tsx src/scripts/verify-smtp.ts",
+    "attachments:migrate-local-to-azurite": "tsx src/scripts/migrate-local-attachments-to-azurite.ts",
+    "attachments:verify-azurite": "tsx src/scripts/verify-azurite.ts",
     "staff:inspect": "node src/scripts/inspect-staff-api.mjs",
     "test:provider": "tsx src/scripts/test-provider.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@azure/storage-blob": "^12.34.0",
     "@prisma/client": "^6.6.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",

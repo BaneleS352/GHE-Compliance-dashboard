@@ -8,8 +8,6 @@
 # one-time baseline/resolve procedure in prisma/BASELINE.md instead.
 set -e
 
-mkdir -p uploads
-
 echo "Running versioned migrations..."
 ./node_modules/.bin/prisma migrate deploy
 echo "Migrations applied."

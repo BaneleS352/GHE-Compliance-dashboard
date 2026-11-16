@@ -485,8 +485,9 @@ values, enforce maximum lengths, validate numeric/date ranges, and sanitize
 stored/displayed rich text where applicable. Profile-controlled fields must be
 ignored or rejected when they disagree with the authenticated profile.
 
-File uploads must continue to validate MIME type, extension, size, filename,
-and storage path containment. Download authorization must remain unchanged.
+File uploads must continue to validate MIME type, extension, size, and filename.
+Attachment bytes are stored only in Azurite and database references must match
+the opaque Azurite reference format. Download authorization must remain unchanged.
 
 ### Password-protected downloads
 

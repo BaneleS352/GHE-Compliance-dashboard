@@ -49,17 +49,42 @@ services:
       EMAIL_WORKER_POLL_INTERVAL_MS: ${EMAIL_WORKER_POLL_INTERVAL_MS:-5000}
       EMAIL_WORKER_BATCH_SIZE: ${EMAIL_WORKER_BATCH_SIZE:-10}
       EMAIL_WORKER_LOCK_TIMEOUT_MS: ${EMAIL_WORKER_LOCK_TIMEOUT_MS:-900000}
+      AZURITE_CONNECTION_STRING: ${AZURITE_CONNECTION_STRING:?Set the Azurite connection string in the root .env file}
+      AZURITE_CONTAINER: ${AZURITE_CONTAINER:-ghe-attachments}
     depends_on:
       db:
         condition: service_healthy
-    volumes:
-      - uploads:/app/uploads
+      azurite:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s
       timeout: 3s
       retries: 12
+
+  attachment-migration:
+    image: ghe-compliance-backend:local
+    profiles: ["attachment-migration"]
+    entrypoint: ["node", "dist/scripts/migrate-local-attachments-to-azurite.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL from a deployment secret}
+      OIDC_AUTHORITY: ${OIDC_AUTHORITY:?Set OIDC_AUTHORITY in the root .env file}
+      OIDC_ALLOWED_CLIENT_IDS: ${OIDC_ALLOWED_CLIENT_IDS:?Set comma-separated SPA client IDs in the root .env file}
+      OIDC_REQUIRED_SCOPE: ${OIDC_REQUIRED_SCOPE:?Set the delegated API scope name in the root .env file}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:?Set OIDC_AUDIENCE in the root .env file}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      AZURITE_CONNECTION_STRING: ${AZURITE_CONNECTION_STRING:?Set the Azurite connection string in the root .env file}
+      AZURITE_CONTAINER: ${AZURITE_CONTAINER:-ghe-attachments}
+    depends_on:
+      db:
+        condition: service_healthy
+      azurite:
+        condition: service_healthy
+    volumes:
+      # Only this one-off service can see the historical disk volume.
+      - uploads:/app/uploads:ro
 
   email-worker:
     image: ghe-compliance-backend:local
@@ -89,6 +114,19 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.38.0
+    command: ["azurite", "--blobHost", "0.0.0.0", "--location", "/data", "--disableTelemetry"]
+    ports:
+      - "${AZURITE_BLOB_BIND_ADDRESS:-127.0.0.1}:${AZURITE_BLOB_PORT:-10000}:10000"
+    volumes:
+      - azurite_data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "const s=require('net').connect(10000,'127.0.0.1');s.on('connect',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -106,4 +144,6 @@ services:
 
 volumes:
   pgdata:
+  # Legacy-only source volume; mounted only by the migration profile above.
   uploads:
+  azurite_data:

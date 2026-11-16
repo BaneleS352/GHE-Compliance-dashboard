@@ -444,7 +444,7 @@ model UploadedFile {
   originalName  String
   mimeType      String
   size          Int
-  path          String
+  storageReference String
   uploadedAt    DateTime @default(now())
 
   // Required by policy, optional in Prisma: back-relations cannot enforce

@@ -66,6 +66,8 @@ Backend loads `.env` with `dotenv`:
 | `SMTP_FROM` | required when enabled | — | Approved sender address |
 | `EMAIL_WORKER_POLL_INTERVAL_MS`, `EMAIL_WORKER_BATCH_SIZE`, `EMAIL_WORKER_LOCK_TIMEOUT_MS` | no | `5000`, `10`, `900000` | Worker polling, claim batch, and stale-claim recovery settings |
 
+Attachments use Azurite only. `AZURITE_CONNECTION_STRING` points to the Azurite Blob endpoint and `AZURITE_CONTAINER` defaults to `ghe-attachments`. `dev.bat` starts Azurite from `docker-compose.azurite.yml`; verify the service with `npm run attachments:verify-azurite`. Docker Compose starts its Azurite service alongside the backend. Existing local `uploads/` records return unavailable until migrated with `npm run attachments:migrate-local-to-azurite`; that command retains source files. For the old Docker `uploads` volume, run `docker compose --profile attachment-migration run --build --rm attachment-migration` after applying migrations. Only that one-off migration service mounts the volume read-only; the API container has no local upload mount. If running without Docker, start Azurite on `127.0.0.1:10000`, make the old `NodejsBackend/uploads/` directory and PostgreSQL available, then run the npm migration command from `NodejsBackend`.
+
 Apply the versioned database migration before enabling delivery. Inspect the database contract with `npm run email:verify-db`; check SMTP connectivity without sending a message with `npm run email:verify-smtp`. Run the worker separately with `npm run email:worker` (Docker Compose: `docker compose --profile email up -d email-worker`). Leave delivery disabled in development and tests unless a safe test relay is explicitly configured.
 
 The SPA sends API requests to same-origin `/api` paths. Vite proxies those
@@ -87,6 +89,8 @@ npx vitest run src/__tests__/break.test.ts
 Backend `globalSetup.ts` boots an embedded PostgreSQL (or uses
 `TEST_PG_DATABASE_URL` when set), applies the versioned migrations, and seeds
 isolated normalized fixtures — the full suite runs against PostgreSQL.
+Backend integration tests also require Azurite on port 10000; start it with
+`docker compose -f docker-compose.azurite.yml up -d --wait azurite` first.
 Frontend tests use Vitest and Testing Library. Playwright E2E tests are under
 `Enterprise Compliance Platform/e2e` (require `E2E_PG_DATABASE_URL`);
 install Chromium with `npx playwright install chromium`.

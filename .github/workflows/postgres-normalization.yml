@@ -13,6 +13,8 @@ jobs:
     # migrated PostgreSQL, using only the throwaway JWKS test provider.
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      AZURITE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
     services:
       postgres:
         image: postgres:16-alpine
@@ -27,6 +29,10 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      azurite:
+        image: mcr.microsoft.com/azure-storage/azurite:3.38.0
+        ports:
+          - 10000:10000
     steps:
       - name: Check out source
         uses: actions/checkout@v4

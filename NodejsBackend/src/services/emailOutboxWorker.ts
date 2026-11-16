@@ -24,6 +24,7 @@ export function createSmtpTransport() {
     auth: config.emailDelivery.smtpUser
       ? { user: config.emailDelivery.smtpUser, pass: config.emailDelivery.smtpPass }
       : undefined,
+    requireTLS: !config.emailDelivery.smtpSecure,
     tls: { rejectUnauthorized: true },
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
@@ -132,15 +133,15 @@ function wait(ms: number): Promise<void> {
 
 export async function runEmailOutboxWorker(): Promise<void> {
   const transport = createSmtpTransport();
-  await transport.verify();
   const workerId = randomUUID();
-  console.info(JSON.stringify({ event: "email_worker_started", workerId, pollIntervalMs: config.emailDelivery.pollIntervalMs, batchSize: config.emailDelivery.batchSize }));
 
   let stopping = false;
   const stop = () => { stopping = true; };
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
   try {
+    await transport.verify();
+    console.info(JSON.stringify({ event: "email_worker_started", workerId, pollIntervalMs: config.emailDelivery.pollIntervalMs, batchSize: config.emailDelivery.batchSize }));
     while (!stopping) {
       const batch = await claimEmailBatch(workerId);
       if (batch.length === 0) {

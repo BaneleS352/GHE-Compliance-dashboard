@@ -1,21 +1,20 @@
 import { Router, Response, NextFunction } from "express";
 import multer, { MulterError } from "multer";
 import path from "path";
-import fs from "fs";
-import crypto from "crypto";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { readWorkflowStepRows, getDeclarationPk } from "../services/normalization";
 import { parseIdParam, toDbId, toJsonId } from "../services/ids";
 import { recordDeclarationAudit } from "../services/declarationAudit";
+import {
+  deleteStoredAttachment,
+  isAzuriteAttachment,
+  readStoredAttachment,
+  storeUploadedAttachment,
+} from "../services/attachmentStorage";
 
 const router = Router();
-
-const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
 
 const ALLOWED_MIMES = [
   "application/pdf",
@@ -26,17 +25,8 @@ const ALLOWED_MIMES = [
 ];
 const ALLOWED_EXTS = new Set([".pdf", ".xlsx", ".docx", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".txt"]);
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const unique = crypto.randomBytes(16).toString("hex");
-    const ext = path.extname(file.originalname);
-    cb(null, `${unique}${ext}`);
-  },
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -48,7 +38,8 @@ const upload = multer({
   },
 });
 
-function handleMulterError(err: Error, _req: AuthRequest, res: Response, next: NextFunction): void {  if (err instanceof MulterError) {
+function handleMulterError(err: Error, _req: AuthRequest, res: Response, next: NextFunction): void {
+  if (err instanceof MulterError) {
     if (err.code === "LIMIT_FILE_SIZE") {
       res.status(413).json({ error: "File too large. Maximum size is 10MB" });
       return;
@@ -68,17 +59,6 @@ async function isWorkflowAssignee(declarationPk: bigint, userPkJson: number): Pr
   const steps = await readWorkflowStepRows(declarationPk);
   if (!steps) return false;
   return steps.some((s: any) => s.assignee === userPkJson);
-}
-
-/**
- * Resolve a stored file path strictly inside the upload directory.
- * `file.path` is database data — a tainted row must not turn serve/delete
- * into arbitrary filesystem access. Returns null when contained check fails.
- */
-export function containedUploadPath(storedPath: string): string | null {
-  const resolved = path.resolve(UPLOAD_DIR, storedPath);
-  if (resolved !== UPLOAD_DIR && resolved.startsWith(UPLOAD_DIR + path.sep)) return resolved;
-  return null;
 }
 
 /** Resolve the owning declaration key via the DeclarationFile join (the only association). */
@@ -104,12 +84,12 @@ router.post(
     }
 
     const declarationId = req.body.declarationId as string;
+    let storageReference: string | null = null;
 
     const cleanupFile = async () => {
-      if (req.file) {
-        const fp = containedUploadPath(req.file.filename);
-        if (fp) {
-          try { await fs.promises.unlink(fp); } catch {}
+      if (storageReference) {
+        try { await deleteStoredAttachment(storageReference); } catch {
+          console.error(JSON.stringify({ event: "attachment_cleanup_failed", stage: "upload_rollback" }));
         }
       }
     };
@@ -147,30 +127,37 @@ router.post(
     // Single transaction: file metadata + the DeclarationFile join row commit
     // atomically. Orphan UploadedFile rows are rejected — a file without a
     // join row is never created.
-    const file = await prisma.$transaction(async (tx) => {
-      const created = await tx.uploadedFile.create({
-        data: {
-          originalName: req.file!.originalname,
-          mimeType: req.file!.mimetype,
-          size: req.file!.size,
-          path: req.file!.filename,
-        },
+    storageReference = await storeUploadedAttachment(req.file);
+    let file;
+    try {
+      file = await prisma.$transaction(async (tx) => {
+        const created = await tx.uploadedFile.create({
+          data: {
+            originalName: req.file!.originalname,
+            mimeType: req.file!.mimetype,
+            size: req.file!.size,
+            storageReference: storageReference!,
+          },
+        });
+        await tx.declarationFile.create({
+          data: { declarationPk: pk, fileId: created.id },
+        });
+        await recordDeclarationAudit(tx, {
+          declarationPk: pk,
+          declarationId: decl.id,
+          organizationId: decl.organizationId,
+          actorUserId: req.user!.id,
+          actorName: req.user!.name,
+          action: "file_uploaded",
+          changedFields: ["files"],
+          newValues: { id: created.id, name: created.originalName, mimeType: created.mimeType, size: created.size },
+        });
+        return created;
       });
-      await tx.declarationFile.create({
-        data: { declarationPk: pk, fileId: created.id },
-      });
-      await recordDeclarationAudit(tx, {
-        declarationPk: pk,
-        declarationId: decl.id,
-        organizationId: decl.organizationId,
-        actorUserId: req.user!.id,
-        actorName: req.user!.name,
-        action: "file_uploaded",
-        changedFields: ["files"],
-        newValues: { id: created.id, name: created.originalName, mimeType: created.mimeType, size: created.size },
-      });
-      return created;
-    });
+    } catch (error) {
+      await cleanupFile();
+      throw error;
+    }
 
     res.status(201).json({
       id: toJsonId(file.id),
@@ -195,7 +182,6 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(404).json({ error: "File not found" });
     return;
   }
-
   // Ownership scoping — require admin or owner/assignee via the join row.
   // Files without a join row are orphaned and only admins can access them.
   const userPkJson = toJsonId(req.user!.id);
@@ -218,9 +204,14 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     }
   }
 
-  const filePath = containedUploadPath(file.path);
-  if (!filePath || !fs.existsSync(filePath)) {
-    res.status(404).json({ error: "File not found on disk" });
+  if (!isAzuriteAttachment(file.storageReference)) {
+    res.status(404).json({ error: "File not found in Azurite; existing local uploads must be migrated" });
+    return;
+  }
+
+  const contents = await readStoredAttachment(file.storageReference);
+  if (!contents) {
+    res.status(404).json({ error: "File not found" });
     return;
   }
 
@@ -229,7 +220,7 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   const safeName = file.originalName.replace(/["\r\n]/g, "_");
   const encoded = encodeURIComponent(safeName);
   res.setHeader("Content-Disposition", `attachment; filename="${safeName}"; filename*=UTF-8''${encoded}`);
-  res.sendFile(filePath);
+  res.send(contents);
 }));
 
 // DELETE /api/files/:id
@@ -244,7 +235,6 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     res.status(404).json({ error: "File not found" });
     return;
   }
-
   // Ownership scoping — read allows owner, admin, or assigned workflow
   // reviewer; DELETE is owner/admin only (a reviewer must never destroy
   // the evidence they are judging). Evidence stays immutable during review
@@ -266,6 +256,10 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     res.status(400).json({ error: "Evidence is locked during review; files can be deleted only while a declaration is draft or returned" });
     return;
   }
+  if (!isAzuriteAttachment(file.storageReference)) {
+    res.status(503).json({ error: "Attachment storage migration required; ask an administrator to migrate existing uploads to Azurite" });
+    return;
+  }
   await prisma.$transaction(async (tx) => {
     if (owningDeclaration) {
       await recordDeclarationAudit(tx, {
@@ -282,9 +276,10 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     await tx.declarationFile.deleteMany({ where: { fileId: filePk } });
     await tx.uploadedFile.delete({ where: { id: filePk } });
   });
-  const filePath = containedUploadPath(file.path);
-  if (filePath) {
-    try { await fs.promises.unlink(filePath); } catch { /* file may have been deleted already */ }
+  try {
+    await deleteStoredAttachment(file.storageReference);
+  } catch {
+    console.error(JSON.stringify({ event: "attachment_cleanup_failed", fileId: String(filePk), stage: "delete" }));
   }
   res.json({ message: "File deleted" });
 }));

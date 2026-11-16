@@ -5,7 +5,7 @@ cd /d "%~dp0"
 
 :: Use this checkout's env files instead of stale app values inherited
 :: from the shell that launched the batch file. `set "NAME="` removes a var.
-for %%V in (DATABASE_URL OIDC_AUTHORITY OIDC_ISSUER OIDC_AUDIENCE OIDC_ALLOWED_CLIENT_IDS OIDC_REQUIRED_SCOPE CORS_ORIGIN PORT GHE_TEST_IDENTITY_SEED VITE_DEV_TEST_PROVIDER VITE_ENABLE_TEST_LOGIN VITE_ENTRA_AUTHORITY VITE_ENTRA_CLIENT_ID VITE_ENTRA_API_SCOPE VITE_ENTRA_REDIRECT_URI E2E_API_URL E2E_JWKS_URL NODE_TLS_REJECT_UNAUTHORIZED) do set "%%V="
+for %%V in (DATABASE_URL OIDC_AUTHORITY OIDC_ISSUER OIDC_AUDIENCE OIDC_ALLOWED_CLIENT_IDS OIDC_REQUIRED_SCOPE CORS_ORIGIN PORT GHE_TEST_IDENTITY_SEED VITE_DEV_TEST_PROVIDER VITE_ENABLE_TEST_LOGIN VITE_ENTRA_AUTHORITY VITE_ENTRA_CLIENT_ID VITE_ENTRA_API_SCOPE VITE_ENTRA_REDIRECT_URI E2E_API_URL E2E_JWKS_URL NODE_TLS_REJECT_UNAUTHORIZED AZURITE_CONNECTION_STRING AZURITE_CONTAINER) do set "%%V="
 
 :: ── Prerequisite checks ───────────────────────────────────────────
 echo Checking requirements...
@@ -22,6 +22,23 @@ where npm >nul 2>nul
 if errorlevel 1 (
     echo.
     echo ERROR: npm was not found. Reinstall Node.js 20 LTS with npm enabled.
+    pause
+    exit /b 1
+)
+
+where docker >nul 2>nul
+if errorlevel 1 (
+    echo.
+    echo ERROR: Docker is required to run the Azurite attachment emulator.
+    echo Install Docker Desktop, or start Azurite on 127.0.0.1:10000 and launch the backend and frontend manually.
+    pause
+    exit /b 1
+)
+
+docker compose version >nul 2>nul
+if errorlevel 1 (
+    echo.
+    echo ERROR: Docker Compose is required to start Azurite.
     pause
     exit /b 1
 )
@@ -60,7 +77,19 @@ if errorlevel 1 (
 )
 
 echo.
-echo [3/6] Checking PostgreSQL and preparing the database...
+echo [3/6] Starting Azurite attachment storage...
+cd /d "%~dp0"
+docker compose -f docker-compose.azurite.yml up -d --wait azurite
+if errorlevel 1 (
+    echo.
+    echo ERROR: Azurite could not be started. Check Docker Desktop and port 10000.
+    pause
+    exit /b 1
+)
+
+echo.
+echo [4/6] Checking PostgreSQL and preparing the database...
+cd NodejsBackend
 set "NODE_ENV=development"
 call npm run db:pg:up
 if errorlevel 1 (
@@ -79,7 +108,7 @@ if errorlevel 1 (
 cd /d "%~dp0Enterprise Compliance Platform"
 
 echo.
-echo [4/6] Installing frontend dependencies (first run only)...
+echo [5/6] Installing frontend dependencies (first run only)...
 
 if not exist node_modules\vite\bin\vite.js (
     call npm install
@@ -96,7 +125,7 @@ if not exist node_modules\vite\bin\vite.js (
 cd /d "%~dp0"
 
 echo.
-echo [5/6] Starting servers...
+echo [6/6] Starting servers...
 
 start "Backend" cmd /k "cd /d "%~dp0NodejsBackend" && npx tsx src/index.ts"
 
@@ -110,6 +139,7 @@ echo   Sign-in: Microsoft Entra ID from NodejsBackend\.env and Enterprise Compli
 echo ==========================================================
 echo.
 echo Close the Backend and Frontend windows to stop the servers.
+echo To stop Azurite, run: docker compose -f docker-compose.azurite.yml down
 echo.
 
 endlocal

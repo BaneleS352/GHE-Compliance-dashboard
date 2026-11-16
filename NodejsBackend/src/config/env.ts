@@ -1,3 +1,5 @@
+import { attachmentStorageConfig } from "./attachmentStorage";
+
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) {
@@ -52,6 +54,7 @@ export const config = {
     batchSize: Math.min(positiveIntegerEnv("EMAIL_WORKER_BATCH_SIZE", 10), 20),
     lockTimeoutMs: positiveIntegerEnv("EMAIL_WORKER_LOCK_TIMEOUT_MS", 900000),
   },
+  attachmentStorage: attachmentStorageConfig,
   staffProfile: {
     enabled: process.env.STAFF_PROFILE_SYNC_ENABLED === "true",
     endpoint: process.env.STAFF_API_ENDPOINT?.trim() || "",

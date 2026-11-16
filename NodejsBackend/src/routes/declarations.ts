@@ -3,7 +3,6 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import xss from "xss";
 import crypto from "crypto";
-import fs from "fs";
 import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
@@ -21,7 +20,7 @@ import {
 import { toDbId, toJsonId } from "../services/ids";
 import { notificationDedupeKey, queueNotificationSafely } from "../services/notificationService";
 import { recordDeclarationAudit } from "../services/declarationAudit";
-import { containedUploadPath } from "./files";
+import { deleteStoredAttachment, isAzuriteAttachment } from "../services/attachmentStorage";
 import {
   viewStatusSummaryFull,
   viewMonthly,
@@ -799,14 +798,15 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
   // Capture linked file paths before the database transaction removes rows.
   const pk = existing.declarationPk;
   const links = await prisma.declarationFile.findMany({ where: { declarationPk: pk }, include: { file: true } });
-  const filePaths = links.flatMap((link) => {
-    const filePath = containedUploadPath(link.file.path);
-    return filePath === null ? [] : [{ id: link.fileId, path: filePath }];
-  });
+  if (links.some((link) => !isAzuriteAttachment(link.file.storageReference))) {
+    res.status(503).json({ error: "Attachment storage migration required; ask an administrator to migrate existing uploads to Azurite" });
+    return;
+  }
+  const storedFiles = links.map((link) => ({ id: link.fileId, storageReference: link.file.storageReference }));
   const fileIds = links.map((l) => l.fileId);
   // One transaction for all database deletes: a failure rolls everything
   // back instead of leaving orphaned child rows behind a deleted parent
-  // Disk cleanup happens after commit; a filesystem failure cannot invalidate
+  // Storage cleanup happens after commit; a storage failure cannot invalidate
   // the database transaction and a transaction failure leaves evidence intact.
   await prisma.$transaction(async (tx) => {
     await recordDeclarationAudit(tx, {
@@ -836,13 +836,11 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     await tx.declaration.delete({ where: { declarationPk: pk } });
   });
 
-  await Promise.all(filePaths.map(async (file) => {
+  await Promise.all(storedFiles.map(async (file) => {
     try {
-      await fs.promises.unlink(file.path);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        console.error(JSON.stringify({ event: "declaration_evidence_cleanup", fileId: String(file.id), outcome: "failure" }));
-      }
+      await deleteStoredAttachment(file.storageReference);
+    } catch {
+      console.error(JSON.stringify({ event: "declaration_evidence_cleanup", fileId: String(file.id), outcome: "failure" }));
     }
   }));
 
