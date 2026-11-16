@@ -109,7 +109,7 @@ Workflow rule selection is `value >= highValueThreshold → rule 2`, otherwise `
 
 ## Notifications
 
-Workflow submission and approval transitions call `notificationService.ts`. It resolves recipients from the user table, renders the configured event template, and POSTs `{ to, subject, body, event, declarationId }` to `EMAIL_WEBHOOK_URL`. Without that variable, development mode logs the event. Delivery failures do not roll back workflow state.
+Workflow submission and approval transitions call `notificationService.ts` inside the workflow transaction. It resolves recipients from the user table, renders the configured event template, and calls the PostgreSQL `public.enqueue_email_notification` procedure to insert an idempotent `EmailOutbox` row. A separate SMTP worker claims rows using `FOR UPDATE SKIP LOCKED`, records attempts and outcomes, and retries transient failures with bounded backoff. Delivery is disabled by default; SMTP secrets are runtime configuration and must not be committed. SMTP is at-least-once because a crash after server acceptance but before recording success can cause a duplicate.
 
 ## Reports
 

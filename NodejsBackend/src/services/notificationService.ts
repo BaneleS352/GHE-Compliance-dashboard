@@ -1,4 +1,6 @@
-import { prisma } from "../config/prisma";
+import type { Prisma } from "@prisma/client";
+import { createHash } from "node:crypto";
+import { config } from "../config/env";
 import { toDbId } from "./ids";
 
 export type NotificationEvent = "managerApproval" | "hrApproval" | "declarationReturned" | "declarationDeclined" | "declarationApproved";
@@ -15,46 +17,83 @@ function render(value: string, data: Record<string, string>): string {
   return Object.entries(PLACEHOLDERS).reduce((result, [token, key]) => result.replaceAll(token, data[key] || ""), value);
 }
 
-/** Sends through the configured email webhook. With no webhook configured, logs a safe dev-mode message. */
-export async function sendNotification(event: NotificationEvent, declarationId: string, recipientId: number | bigint, decision = ""): Promise<void> {
+export function notificationDedupeKey(event: NotificationEvent, declarationId: string, workflowStepId: bigint | number, recipientId: bigint | number): string {
+  const stableInput = `${event}:${declarationId}:${workflowStepId}:${recipientId}`;
+  return createHash("sha256").update(stableInput).digest("hex");
+}
+
+/** Prepare an event using authoritative profile/template data, then enqueue it through the PostgreSQL procedure. */
+export async function queueNotification(
+  tx: Prisma.TransactionClient,
+  event: NotificationEvent,
+  declarationId: string,
+  recipientId: number | bigint,
+  dedupeKey: string,
+  decision = "",
+): Promise<boolean> {
+  if (!config.emailDelivery.enabled) return false;
+  const [declaration, recipient, systemConfig] = await Promise.all([
+    tx.declaration.findUnique({ where: { id: declarationId }, include: { snapshot: true, declarer: { select: { name: true } } } }),
+    tx.user.findUnique({ where: { id: toDbId(recipientId) }, select: { name: true, email: true } }),
+    tx.systemConfig.findFirst(),
+  ]);
+  if (!declaration || !recipient?.email) return false;
+
+  let templates: Record<string, { subject?: unknown; body?: unknown }>;
   try {
-    const [declaration, recipient, config] = await Promise.all([
-      prisma.declaration.findUnique({ where: { id: declarationId }, include: { snapshot: true, declarer: { select: { name: true } } } }),
-      prisma.user.findUnique({ where: { id: toDbId(recipientId) }, select: { name: true, email: true } }),
-      prisma.systemConfig.findFirst(),
-    ]);
-    if (!declaration || !recipient?.email) return;
-    // Boundary label: notification templates are stored as a JSON text
-    // column (free-form operatorconfiguration), so the parse result is
-    // validated by shape here instead of a Prisma type.
-    let templates: Record<string, { subject?: unknown; body?: unknown }> = {};
-    try { templates = JSON.parse(config?.notificationTemplates || "{}"); } catch { return; }
-    const template = templates[event];
-    if (typeof template?.subject !== "string" || typeof template?.body !== "string") return;
-    const data = { declarationId, employee: declaration.snapshot?.declarerName || declaration.declarer?.name || "", recipientName: recipient.name, decision };
-    const payload = { to: recipient.email, subject: render(template.subject, data), body: render(template.body, data), event, declarationId };
-    const webhook = process.env.EMAIL_WEBHOOK_URL;
-    if (!webhook) {
-      console.info(JSON.stringify({ event: "notification_skipped", stage: "webhook_delivery", reason: "webhook_not_configured", notificationType: event }));
-      return;
-    }
-    let lastFailure = "delivery_failed";
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const response = await fetch(webhook, { method: "POST", headers: { "content-type": "application/json", ...(process.env.EMAIL_WEBHOOK_TOKEN ? { authorization: `Bearer ${process.env.EMAIL_WEBHOOK_TOKEN}` } : {}) }, body: JSON.stringify(payload), signal: AbortSignal.timeout(10000) });
-        if (response.ok) return;
-        lastFailure = `http_${response.status}`;
-      } catch { lastFailure = "network_error"; }
-    }
-    console.error(JSON.stringify({ event: "notification_delivery_failed", stage: "webhook_delivery", reason: lastFailure }));
+    templates = JSON.parse(systemConfig?.notificationTemplates || "{}");
+  } catch {
+    throw new Error("notification_templates_invalid");
+  }
+  const template = templates[event];
+  if (typeof template?.subject !== "string" || typeof template.body !== "string") return false;
+
+  const data = {
+    declarationId,
+    employee: declaration.snapshot?.declarerName || declaration.declarer?.name || "",
+    recipientName: recipient.name,
+    decision,
+  };
+  const subject = render(template.subject, data).trim();
+  const body = render(template.body, data).trim();
+
+  await tx.$executeRaw`
+    CALL public.enqueue_email_notification(
+      ${event}, ${declarationId}, ${recipient.email}, ${subject}, ${body}, ${dedupeKey}
+    )
+  `;
+  return true;
+}
+
+/** Queue in the caller's transaction without letting a mail/config problem undo a workflow decision. */
+export async function queueNotificationSafely(
+  tx: Prisma.TransactionClient,
+  event: NotificationEvent,
+  declarationId: string,
+  recipientId: number | bigint,
+  dedupeKey: string,
+  decision = "",
+): Promise<void> {
+  if (!config.emailDelivery.enabled) {
+    console.info(JSON.stringify({ event: "notification_skipped", stage: "email_outbox", reason: "email_delivery_disabled", notificationType: event }));
+    return;
+  }
+  await tx.$executeRaw`SAVEPOINT notification_enqueue`;
+  try {
+    const queued = await queueNotification(tx, event, declarationId, recipientId, dedupeKey, decision);
+    await tx.$executeRaw`RELEASE SAVEPOINT notification_enqueue`;
+    if (queued) console.info(JSON.stringify({ event: "notification_queued", stage: "email_outbox", notificationType: event }));
   } catch (error) {
-    console.error(JSON.stringify({ event: "notification_failed", stage: "prepare_or_send", errorName: safeErrorName(error) }));
+    await tx.$executeRaw`ROLLBACK TO SAVEPOINT notification_enqueue`;
+    await tx.$executeRaw`RELEASE SAVEPOINT notification_enqueue`;
+    console.error(JSON.stringify({ event: "notification_enqueue_failed", stage: "email_outbox", notificationType: event, reason: safeErrorCode(error) }));
   }
 }
 
-function safeErrorName(value: unknown): string {
-  if (value && typeof value === "object" && "name" in value && typeof value.name === "string") {
-    return value.name.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 64) || "Error";
+function safeErrorCode(value: unknown): string {
+  if (value && typeof value === "object") {
+    const candidate = "code" in value ? value.code : "name" in value ? value.name : undefined;
+    if (typeof candidate === "string") return candidate.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 64) || "Error";
   }
   return "UnknownError";
 }

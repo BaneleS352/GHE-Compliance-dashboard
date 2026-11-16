@@ -17,6 +17,7 @@ services:
     restart: unless-stopped
 
   backend:
+    image: ghe-compliance-backend:local
     build:
       context: ./NodejsBackend
       dockerfile: Dockerfile
@@ -38,12 +39,54 @@ services:
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:?Set OIDC_AUDIENCE in the root .env file}
       OIDC_ISSUER: ${OIDC_ISSUER:-}
       SEED_ON_BOOT: ${SEED_ON_BOOT:-false}
-      EMAIL_WEBHOOK_URL: ${EMAIL_WEBHOOK_URL:-}
+      EMAIL_DELIVERY_ENABLED: ${EMAIL_DELIVERY_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      EMAIL_WORKER_POLL_INTERVAL_MS: ${EMAIL_WORKER_POLL_INTERVAL_MS:-5000}
+      EMAIL_WORKER_BATCH_SIZE: ${EMAIL_WORKER_BATCH_SIZE:-10}
+      EMAIL_WORKER_LOCK_TIMEOUT_MS: ${EMAIL_WORKER_LOCK_TIMEOUT_MS:-900000}
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  email-worker:
+    image: ghe-compliance-backend:local
+    profiles: ["email"]
+    entrypoint: ["/app/entrypoint.sh"]
+    environment:
+      APP_ROLE: email-worker
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL from a deployment secret}
+      OIDC_AUTHORITY: ${OIDC_AUTHORITY:?Set OIDC_AUTHORITY in the root .env file}
+      OIDC_ALLOWED_CLIENT_IDS: ${OIDC_ALLOWED_CLIENT_IDS:?Set comma-separated SPA client IDs in the root .env file}
+      OIDC_REQUIRED_SCOPE: ${OIDC_REQUIRED_SCOPE:?Set the delegated API scope name in the root .env file}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:?Set OIDC_AUDIENCE in the root .env file}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      EMAIL_DELIVERY_ENABLED: ${EMAIL_DELIVERY_ENABLED:-false}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      EMAIL_WORKER_POLL_INTERVAL_MS: ${EMAIL_WORKER_POLL_INTERVAL_MS:-5000}
+      EMAIL_WORKER_BATCH_SIZE: ${EMAIL_WORKER_BATCH_SIZE:-10}
+      EMAIL_WORKER_LOCK_TIMEOUT_MS: ${EMAIL_WORKER_LOCK_TIMEOUT_MS:-900000}
+    depends_on:
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   db:

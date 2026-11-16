@@ -60,7 +60,13 @@ Backend loads `.env` with `dotenv`:
 | `OIDC_ISSUER` | no | authority | Expected token issuer |
 | `PORT` | no | `3001` | API listen port |
 | `CORS_ORIGIN` | no | dev localhost origins | Comma-separated allowed origins |
-| `EMAIL_WEBHOOK_URL` | no | — | Notification webhook; absent means log-only |
+| `EMAIL_DELIVERY_ENABLED` | no | `false` | Enable durable notification queueing and SMTP worker delivery |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` | required when enabled | —, `587`, `false` | SMTP relay endpoint and TLS mode |
+| `SMTP_USER`, `SMTP_PASS` | no | — | Optional paired SMTP credentials; store the password as a deployment secret |
+| `SMTP_FROM` | required when enabled | — | Approved sender address |
+| `EMAIL_WORKER_POLL_INTERVAL_MS`, `EMAIL_WORKER_BATCH_SIZE`, `EMAIL_WORKER_LOCK_TIMEOUT_MS` | no | `5000`, `10`, `900000` | Worker polling, claim batch, and stale-claim recovery settings |
+
+Apply the versioned database migration before enabling delivery. Inspect the database contract with `npm run email:verify-db`; check SMTP connectivity without sending a message with `npm run email:verify-smtp`. Run the worker separately with `npm run email:worker` (Docker Compose: `docker compose --profile email up -d email-worker`). Leave delivery disabled in development and tests unless a safe test relay is explicitly configured.
 
 The SPA sends API requests to same-origin `/api` paths. Vite proxies those
 requests to `http://localhost:3001` during development; Docker Nginx proxies

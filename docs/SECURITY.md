@@ -158,8 +158,9 @@ regression test unless noted:
 ## Notification and reporting controls
 
 - Notification templates are admin-only and validated as a complete five-event configuration.
-- Notifications resolve recipients from the database and post only to the configured `EMAIL_WEBHOOK_URL`; no external delivery occurs when it is absent.
-- Email failures are logged without changing workflow state.
+- Notifications resolve recipients from the database and enqueue through the PostgreSQL email procedure. External delivery is disabled unless `EMAIL_DELIVERY_ENABLED=true` and SMTP is configured.
+- SMTP credentials are supplied at runtime and must be stored in a deployment secret store. Logs omit recipient addresses, message content, and credentials; retry errors are reduced to provider error codes.
+- Email enqueue/delivery failures do not undo workflow decisions. Failed rows remain in the outbox for inspection; SMTP delivery is at-least-once.
 - Reports require admin or approver authorization and apply organization isolation.
 - High-value reports use `value >= highValueThreshold` and inclusive date filters.
 

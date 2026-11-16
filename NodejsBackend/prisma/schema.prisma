@@ -409,6 +409,30 @@ model SystemConfig {
   notificationTemplates   String @default("{}")
 }
 
+model EmailOutbox {
+  id                BigInt    @id @default(autoincrement())
+  event             String
+  declarationId     String
+  recipientEmail    String
+  subject           String
+  body              String
+  dedupeKey         String    @unique
+  status            String    @default("pending")
+  attemptCount      Int       @default(0)
+  maxAttempts       Int       @default(5)
+  nextAttemptAt     DateTime  @default(now()) @db.Timestamptz(3)
+  lockedAt          DateTime? @db.Timestamptz(3)
+  lockedBy          String?
+  sentAt            DateTime? @db.Timestamptz(3)
+  providerMessageId String?
+  lastErrorCode     String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([status, nextAttemptAt, createdAt])
+  @@map("EmailOutbox")
+}
+
 model ApprovalOption {
   id    String @id
   value String

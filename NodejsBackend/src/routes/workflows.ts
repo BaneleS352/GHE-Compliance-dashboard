@@ -7,7 +7,7 @@ import { asyncHandler } from "../middleware/asyncHandler";
 import { WorkflowStep, declarationResponse, declarationIncludes, rowToStep } from "../services/workflowService";
 import { writeWorkflowStepsTx, readWorkflowStepRows, getDeclarationPk } from "../services/normalization";
 import { toDbId, toJsonId } from "../services/ids";
-import { sendNotification } from "../services/notificationService";
+import { notificationDedupeKey, queueNotificationSafely, type NotificationEvent } from "../services/notificationService";
 import { recordDeclarationAudit } from "../services/declarationAudit";
 
 const router = Router();
@@ -301,6 +301,33 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
         },
       });
 
+      let notification: { event: NotificationEvent; recipientId: bigint | number } | null = null;
+      if (statusStr === "Returned" && declaration.declarerUserId !== null) {
+        notification = { event: "declarationReturned", recipientId: declaration.declarerUserId };
+      } else if (statusStr === "Declined" && declaration.declarerUserId !== null) {
+        notification = { event: "declarationDeclined", recipientId: declaration.declarerUserId };
+      } else if (statusStr === "Approved" && declaration.declarerUserId !== null) {
+        notification = { event: "declarationApproved", recipientId: declaration.declarerUserId };
+      } else {
+        const nextStep = steps.find((candidate) => candidate.status === "pending");
+        if (nextStep?.assignee !== null && nextStep?.assignee !== undefined) {
+          notification = {
+            event: nextStep.role === "hr" ? "hrApproval" : "managerApproval",
+            recipientId: nextStep.assignee,
+          };
+        }
+      }
+      if (notification) {
+        await queueNotificationSafely(
+          tx,
+          notification.event,
+          String(declarationId),
+          notification.recipientId,
+          notificationDedupeKey(notification.event, String(declarationId), rows[currentStepIndex].id, notification.recipientId),
+          decision,
+        );
+      }
+
       return { newStatus: statusStr, freshSteps: steps, stepIndex: currentStepIndex };
     });
     freshSteps = result.freshSteps;
@@ -317,15 +344,6 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
     currentStep: freshSteps[resultStepIndex],
     workflowSteps: freshSteps,
   });
-  if (declaration.declarerUserId === null) return;
-  const ownerPk = toJsonId(declaration.declarerUserId);
-  if (newStatus === "Returned") void sendNotification("declarationReturned", String(declarationId), ownerPk, decision);
-  else if (newStatus === "Declined") void sendNotification("declarationDeclined", String(declarationId), ownerPk, decision);
-  else if (newStatus === "Approved") void sendNotification("declarationApproved", String(declarationId), ownerPk, decision);
-  else {
-    const next = freshSteps.find((s) => s.status === "pending");
-    if (next && next.assignee !== null) void sendNotification(next.role === "hr" ? "hrApproval" : "managerApproval", String(declarationId), next.assignee, decision);
-  }
 }));
 
 export default router;

@@ -19,7 +19,7 @@ import {
   readWorkflowStepRows,
 } from "../services/normalization";
 import { toDbId, toJsonId } from "../services/ids";
-import { sendNotification } from "../services/notificationService";
+import { notificationDedupeKey, queueNotificationSafely } from "../services/notificationService";
 import { recordDeclarationAudit } from "../services/declarationAudit";
 import { containedUploadPath } from "./files";
 import {
@@ -972,6 +972,23 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
         workflowSteps: workflowSteps.map((step) => ({ order: step.order, role: step.role, status: step.status, assignee: step.assignee })),
       },
     });
+
+    if (nextApprover && nextApprover.assignee !== null) {
+      const event = nextApprover.role === "hr" ? "hrApproval" : "managerApproval";
+      const pendingStep = await tx.workflowInstanceStep.findFirst({
+        where: { declarationPk: pk, stepOrder: nextApprover.order, status: "pending", assigneeId: toDbId(nextApprover.assignee) },
+        select: { id: true },
+      });
+      if (pendingStep) {
+        await queueNotificationSafely(
+          tx,
+          event,
+          existing.id,
+          nextApprover.assignee,
+          notificationDedupeKey(event, existing.id, pendingStep.id, nextApprover.assignee),
+        );
+      }
+    }
   });
 
   const updated = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
@@ -980,9 +997,6 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     return;
   }
   res.json(declarationResponse(updated));
-  if (nextApprover && nextApprover.assignee !== null) {
-    void sendNotification(nextApprover.role === "hr" ? "hrApproval" : "managerApproval", existing.id, nextApprover.assignee);
-  }
 }));
 
 router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
