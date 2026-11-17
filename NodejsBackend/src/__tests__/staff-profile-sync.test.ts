@@ -7,13 +7,24 @@ const subject = "9b441a7e-722c-4ba2-905e-22b48c478e92";
 const issuer = config.oidc.issuer;
 const email = "staff-sync-fixture@example.test";
 const objectResponseEmail = "staff-sync-object@example.test";
+const employeeCodes = {
+  primary: "STAFF-SYNC-EMP-001",
+  ambiguous: "STAFF-SYNC-EMP-002",
+  mismatch: "STAFF-SYNC-EMP-003",
+  notFound: "STAFF-SYNC-EMP-004",
+  unavailable: "STAFF-SYNC-EMP-005",
+  existingUser: "STAFF-SYNC-EMP-006",
+  objectEnvelope: "STAFF-SYNC-EMP-007",
+};
+const managerEmployeeCode = "STAFF-SYNC-MANAGER-001";
 let organizationId: bigint;
 let fetchStub: ReturnType<typeof vi.fn>;
 let tlsOverride: string | undefined;
+let originalStaffProfileConfig: typeof config.staffProfile;
 
 function staffRecord(overrides: Record<string, unknown> = {}) {
   return {
-    employeeCode: "22680",
+    employeeCode: employeeCodes.primary,
     fUllName: "Ndaedzo Mukhuba",
     email,
     departmentName: "IT Software & Development",
@@ -21,7 +32,7 @@ function staffRecord(overrides: Record<string, unknown> = {}) {
     employmentStatus: "Active",
     employmentType: "Permanent",
     jobTitle: "Software Technical Lead",
-    managerEmployeeCode: "MGR-1",
+    managerEmployeeCode,
     managerFullName: "Test Manager",
     branchName: "BET",
     terminationDate: "0001-01-01T00:00:00",
@@ -34,7 +45,7 @@ function mockResponses(data: unknown[], options: { employeeId?: string; graphId?
   fetchStub.mockImplementation(async (input: URL | string) => {
     const url = new URL(String(input));
     const body = url.hostname === "graph.microsoft.com"
-      ? { id: options.graphId ?? subject, employeeId: options.employeeId ?? "22680" }
+      ? { id: options.graphId ?? subject, employeeId: options.employeeId ?? employeeCodes.primary }
       : { success: true, data };
     return new Response(JSON.stringify(body), {
       status: 200,
@@ -47,8 +58,20 @@ describe("HIS staff profile sync", () => {
   beforeAll(async () => {
     tlsOverride = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
     delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
-    config.staffProfile.enabled = true;
-    config.staffProfile.branchOrganizationMap = { BET: "BET" };
+    originalStaffProfileConfig = {
+      ...config.staffProfile,
+      allowedHosts: [...config.staffProfile.allowedHosts],
+      branchOrganizationMap: { ...config.staffProfile.branchOrganizationMap },
+    };
+    Object.assign(config.staffProfile, {
+      enabled: true,
+      endpoint: "https://his-api-uat.betsolutions.net/api/Staff/SearchEmployees",
+      allowedHosts: ["his-api-uat.betsolutions.net"],
+      token: "test-auth-token",
+      tokenHeader: "Authorization",
+      tokenScheme: "Bearer",
+      branchOrganizationMap: { BET: "BET" },
+    });
     const organization = await prisma.organization.upsert({
       where: { shortCode: "BET" },
       update: { name: "Betsoftware" },
@@ -57,7 +80,7 @@ describe("HIS staff profile sync", () => {
     organizationId = organization.id;
     await prisma.user.create({ data: {
       name: "Test Manager", email: "staff-sync-manager@example.test", role: "approver",
-      teamMemberNumber: "MGR-1", position: "Software Technical Lead", organizationId,
+      teamMemberNumber: managerEmployeeCode, position: "Software Technical Lead", organizationId,
     } });
     fetchStub = vi.fn();
     vi.stubGlobal("fetch", fetchStub);
@@ -65,6 +88,7 @@ describe("HIS staff profile sync", () => {
 
   afterAll(async () => {
     vi.unstubAllGlobals();
+    Object.assign(config.staffProfile, originalStaffProfileConfig);
     if (tlsOverride === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
     else process.env.NODE_TLS_REJECT_UNAUTHORIZED = tlsOverride;
     await prisma.user.deleteMany({ where: { email: { in: [email, objectResponseEmail, "staff-sync-manager@example.test", "staff-sync-ambiguous@example.test", "staff-sync-mismatch@example.test", "staff-sync-miss@example.test", "staff-sync-outage@example.test", "staff-sync-existing-outage@example.test"] } } });
@@ -85,14 +109,14 @@ describe("HIS staff profile sync", () => {
     expect(graphUrl.href).toBe("https://graph.microsoft.com/v1.0/me?$select=id,employeeId");
     expect(fetchStub.mock.calls[0][1].headers.authorization).toBe("Bearer graph-token");
     const requestUrl = new URL(fetchStub.mock.calls[1][0] as string);
-    expect(requestUrl.searchParams.get("employeeId")).toBe("22680");
+    expect(requestUrl.searchParams.get("employeeId")).toBe(employeeCodes.primary);
     expect(requestUrl.searchParams.has("name")).toBe(false);
     expect(created).toMatchObject({
       providerSubject: subject,
       providerIssuer: issuer,
       email,
       name: "Ndaedzo Mukhuba",
-      teamMemberNumber: "22680",
+      teamMemberNumber: employeeCodes.primary,
       position: "Software Technical Lead",
       staffBranchCode: "BET",
       staffEmploymentStatus: "Active",
@@ -112,7 +136,7 @@ describe("HIS staff profile sync", () => {
     const refreshed = await syncStaffProfile({ providerSubject: subject, claims: { email, oid: subject }, graphAccessToken: "graph-token" });
 
     const requestUrl = new URL(fetchStub.mock.calls[1][0] as string);
-    expect(requestUrl.searchParams.get("employeeId")).toBe("22680");
+    expect(requestUrl.searchParams.get("employeeId")).toBe(employeeCodes.primary);
     expect(refreshed).toMatchObject({
       role: "approver",
       isActive: false,
@@ -128,12 +152,12 @@ describe("HIS staff profile sync", () => {
   it("falls back to a minimal profile for ambiguous HIS results but blocks employee-code mismatches", async () => {
     const ambiguousSubject = "d2760938-d9b2-4f67-8c9d-7a8fca3b7f56";
     const ambiguousEmail = "staff-sync-ambiguous@example.test";
-    mockResponses([staffRecord(), staffRecord({ employeeCode: "22681" })], { graphId: ambiguousSubject });
+    mockResponses([staffRecord(), staffRecord({ employeeCode: employeeCodes.ambiguous })], { graphId: ambiguousSubject, employeeId: employeeCodes.ambiguous });
     const minimal = await syncStaffProfile({ providerSubject: ambiguousSubject, claims: { email: ambiguousEmail, oid: ambiguousSubject }, graphAccessToken: "graph-token" });
     expect(minimal).toMatchObject({
       providerSubject: ambiguousSubject,
       email: ambiguousEmail,
-      teamMemberNumber: "22680",
+      teamMemberNumber: employeeCodes.ambiguous,
       position: "",
       organizationId: null,
       departmentId: null,
@@ -141,21 +165,21 @@ describe("HIS staff profile sync", () => {
 
     const mismatchSubject = "e38783a2-3b02-4c09-aacc-2ecbf69a04e8";
     const mismatchEmail = "staff-sync-mismatch@example.test";
-    mockResponses([staffRecord({ employeeCode: "OTHER-CODE" })], { graphId: mismatchSubject });
+    mockResponses([staffRecord({ employeeCode: "OTHER-CODE" })], { graphId: mismatchSubject, employeeId: employeeCodes.mismatch });
     await expect(syncStaffProfile({ providerSubject: mismatchSubject, claims: { email: mismatchEmail, oid: mismatchSubject }, graphAccessToken: "graph-token" }))
       .rejects.toMatchObject({ reason: "his_identity_mismatch" });
     expect(await prisma.user.findUnique({ where: { providerSubject: mismatchSubject } })).toBeNull();
   });
 
   it.each([
-    { status: 404, subject: "c3c2c2a4-8f6e-41a9-9f3e-fb470dd8ca11", email: "staff-sync-miss@example.test", reason: "not_found" },
-    { status: 503, subject: "7be768f6-d419-497a-a071-95f56efac402", email: "staff-sync-outage@example.test", reason: "his_server_error" },
-  ])("keeps login profile creation available when HIS returns $status", async ({ status, subject: providerSubject, email: userEmail, reason }) => {
+    { status: 404, subject: "c3c2c2a4-8f6e-41a9-9f3e-fb470dd8ca11", email: "staff-sync-miss@example.test", employeeId: employeeCodes.notFound, reason: "not_found" },
+    { status: 503, subject: "7be768f6-d419-497a-a071-95f56efac402", email: "staff-sync-outage@example.test", employeeId: employeeCodes.unavailable, reason: "his_server_error" },
+  ])("keeps login profile creation available when HIS returns $status", async ({ status, subject: providerSubject, email: userEmail, employeeId, reason }) => {
     fetchStub.mockClear();
     fetchStub.mockImplementation(async (input: URL | string) => {
       const url = new URL(String(input));
       const graph = url.hostname === "graph.microsoft.com";
-      return new Response(JSON.stringify(graph ? { id: providerSubject, employeeId: "22682" } : { success: false }), {
+      return new Response(JSON.stringify(graph ? { id: providerSubject, employeeId } : { success: false }), {
         status: graph ? 200 : status,
         headers: { "content-type": "application/json" },
       });
@@ -167,7 +191,7 @@ describe("HIS staff profile sync", () => {
       graphAccessToken: "graph-token",
       onProfileSyncSkipped: skipped,
     });
-    expect(user).toMatchObject({ providerSubject, email: userEmail, teamMemberNumber: "22682", organizationId: null });
+    expect(user).toMatchObject({ providerSubject, email: userEmail, teamMemberNumber: employeeId, organizationId: null });
     expect(skipped).toHaveBeenCalledWith(reason, undefined);
   });
 
@@ -186,7 +210,7 @@ describe("HIS staff profile sync", () => {
     fetchStub.mockClear();
     fetchStub.mockImplementation(async (input: URL | string) => {
       const graph = new URL(String(input)).hostname === "graph.microsoft.com";
-      return new Response(JSON.stringify(graph ? { id: providerSubject, employeeId: "22683" } : { success: false }), {
+      return new Response(JSON.stringify(graph ? { id: providerSubject, employeeId: employeeCodes.existingUser } : { success: false }), {
         status: graph ? 200 : 503,
         headers: { "content-type": "application/json" },
       });
@@ -195,7 +219,7 @@ describe("HIS staff profile sync", () => {
     const refreshed = await syncStaffProfile({ providerSubject, claims: { email: userEmail, oid: providerSubject }, graphAccessToken: "graph-token" });
 
     expect(refreshed.id).toBe(existing.id);
-    expect(refreshed.teamMemberNumber).toBe("22683");
+    expect(refreshed.teamMemberNumber).toBe(employeeCodes.existingUser);
     expect(refreshed.position).toBe("");
   });
 
@@ -205,8 +229,8 @@ describe("HIS staff profile sync", () => {
     fetchStub.mockImplementation(async (input: URL | string) => {
       const url = new URL(String(input));
       const body = url.hostname === "graph.microsoft.com"
-        ? { id: objectSubject, employeeId: "22681" }
-        : { success: true, data: staffRecord({ email: objectResponseEmail, employeeCode: "22681", fullName: "Object Contract User", fUllName: undefined, managerEmployeeCode: "" }) };
+        ? { id: objectSubject, employeeId: employeeCodes.objectEnvelope }
+        : { success: true, data: staffRecord({ email: objectResponseEmail, employeeCode: employeeCodes.objectEnvelope, fullName: "Object Contract User", fUllName: undefined, managerEmployeeCode: "" }) };
       return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
     });
 
