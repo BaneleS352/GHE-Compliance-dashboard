@@ -70,6 +70,9 @@ jobs:
           OIDC_ALLOWED_CLIENT_IDS: ci-client-id
           OIDC_REQUIRED_SCOPE: access_as_user
           OIDC_AUDIENCE: api://ci-client-id
+          POSTGRES_PASSWORD: ci-postgres-password
+          DATABASE_URL: postgresql://ghe_user:ci-postgres-password@db:5432/ghe_compliance?schema=public
+          AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
 
       - name: Build application images
         run: docker compose build --pull
@@ -82,6 +85,9 @@ jobs:
           OIDC_ALLOWED_CLIENT_IDS: ci-client-id
           OIDC_REQUIRED_SCOPE: access_as_user
           OIDC_AUDIENCE: api://ci-client-id
+          POSTGRES_PASSWORD: ci-postgres-password
+          DATABASE_URL: postgresql://ghe_user:ci-postgres-password@db:5432/ghe_compliance?schema=public
+          AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
 
       - name: Validate local stub Compose configuration
         run: docker compose -p ghe-compliance-stub --env-file .env.docker-stub -f docker-compose.yml -f docker-compose.stub.yml config --quiet
