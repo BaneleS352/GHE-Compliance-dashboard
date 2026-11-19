@@ -318,6 +318,12 @@ cleanup findings in scope, or document evidence-backed blockers and decisions.
   290/290 tests across 27 files pass. Existing React `act(...)`, simulated
   ErrorBoundary, and jsdom navigation diagnostics are emitted by tests and do
   not fail the suite.
+- Removed the unused legacy string-record branch from `DeclarationDetailView`;
+  all production callers pass the typed `Declaration` API model. Supporting
+  documents now consume the declared `UploadedFile[]` contract, and workflow
+  tests use realistic file records. Typed fixture and fetch-mock cleanup now
+  leaves no actual `any` annotations or casts in either frontend or backend
+  TypeScript sources (two backend comments mention the phrase only).
 
 ## Verification status
 
@@ -327,7 +333,7 @@ cleanup findings in scope, or document evidence-backed blockers and decisions.
 | Prisma schema validation/generation | Pass | `PRISMA_SCHEMA_ENGINE_BINARY` pointed Prisma at the installed matching Windows schema engine; `npx prisma validate` and `npx prisma generate` passed for migration 0021's model. |
 | Frontend typecheck | Pass | `Enterprise Compliance Platform/npm run typecheck` |
 | Frontend quality gate | Pass | Re-run 2026-11-19: no forbidden `any`, dependency cycles, deep imports, boundary violations, or browser side channels. |
-| Frontend unit suite | Pass: 290/290 | Re-run 2026-11-19 after department loading, modal focus management, file-upload keyboard regressions, and approval-option Escape/focus restoration were added. Expected ErrorBoundary tests print simulated component errors; the suite completed successfully. |
+| Frontend unit suite | Pass: 290/290 | Re-run 2026-11-19 after department loading, modal focus management, file-upload keyboard regressions, approval-option Escape/focus restoration, typed shared layout/fetch mocks, and removal of the unused legacy declaration-detail branch. Expected ErrorBoundary tests print simulated component errors; React `act(...)` warnings and jsdom navigation diagnostics remain non-failing test output. |
 | Frontend production build | Pass | Re-run 2026-11-19 after cleanup: `npm run build` transformed 2,750 modules and completed; CSS fell from 137 KB to 81 KB. |
 | Backend source reachability | Pass, static only | TypeScript import graph over 89 backend source files with API, seed, scripts, and tests as roots found no unreachable `.ts` modules. This does not prove every runtime branch executes. |
 | Frontend source reachability | Pass, static only | Import graph from `src/main.tsx` reaches all 67 production modules; only test setup and Vite ambient declarations are outside the runtime graph. |
@@ -392,9 +398,9 @@ cleanup findings in scope, or document evidence-backed blockers and decisions.
   complete: no unreachable production modules or unreferenced direct runtime
   dependencies were found. The backend runtime and tests have no actual `any`
   annotations or casts in the TypeScript source scan (two comment mentions
-  remain). Frontend test-only `any` annotations/casts remain in API, workflow,
-  declaration, and download test fixtures; continue replacing them where they
-  obscure request/response or domain contracts without making setup brittle.
+  remain); the frontend runtime and tests also have no actual `any`
+  annotations or casts. Continue reviewing other explicit type assertions and
+  non-`any` unsafe boundaries based on actual contracts.
 - Run the full backend suite with Azurite available; run `pg:test`, `pg:smoke`,
   Playwright, Compose image validation, and dependency audits where tooling and
   services are available.

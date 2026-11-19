@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { BlobServiceClient, type ContainerClient } from "@azure/storage-blob";
+import type EmbeddedPostgres from "embedded-postgres";
 import { execFileSync } from "child_process";
 import fs from "fs";
 import os from "os";
@@ -22,25 +23,7 @@ const PG_DATA_DIR = process.env.PG_TEST_DATA_DIR || path.join(os.tmpdir(), `ghe-
 const PG_URL = process.env.TEST_PG_DATABASE_URL ||
   `postgresql://postgres:postgres@localhost:${PG_PORT}/ghe_test?schema=public`;
 
-interface EmbeddedPostgresHandle {
-  initialise(): Promise<void>;
-  start(): Promise<void>;
-  createDatabase(name: string): Promise<void>;
-  stop(): Promise<void>;
-}
-
-interface EmbeddedPostgresOptions {
-  user: string;
-  password: string;
-  port: number;
-  persistent: boolean;
-  databaseDir: string;
-  initdbFlags: string[];
-}
-
-type EmbeddedPostgresConstructor = new (options: EmbeddedPostgresOptions) => EmbeddedPostgresHandle;
-
-let embedded: EmbeddedPostgresHandle | null = null;
+let embedded: EmbeddedPostgres | null = null;
 let jwksClose: (() => Promise<void>) | null = null;
 let azuriteTestContainer: ContainerClient | null = null;
 
@@ -85,12 +68,10 @@ async function startAzurite(): Promise<void> {
 
 async function startEmbeddedPostgres(): Promise<void> {
   if (process.env.TEST_PG_DATABASE_URL) return;
-  // ESM-only package: classic moduleResolution cannot resolve its types, but
-  // vitest/tsx load it fine at runtime.
-  // @ts-ignore
-  const mod = await import("embedded-postgres") as unknown as { default: EmbeddedPostgresConstructor };
-  const EmbeddedPostgres = mod.default;
-  embedded = new EmbeddedPostgres({
+  // The package is ESM-only; load it dynamically so the CommonJS test setup
+  // does not require it through the emitted runtime import path.
+  const { default: EmbeddedPostgresConstructor } = await import("embedded-postgres");
+  embedded = new EmbeddedPostgresConstructor({
     user: "postgres",
     password: "postgres",
     port: PG_PORT,

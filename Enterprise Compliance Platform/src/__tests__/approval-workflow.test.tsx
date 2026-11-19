@@ -2,6 +2,7 @@ import { setupResponsiveLayout } from "../test-helpers/responsiveLayout";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { WorkflowTimeline, StepView } from "../app/components/WorkflowTimeline";
+import { fetchWorkflowInstance } from "../services/api";
 import { APPROVAL_OPTIONS, DECISION_LABELS } from "../config/theme";
 
 vi.mock("../services/api", () => ({
@@ -203,10 +204,10 @@ describe("ApprovalDetail handleSubmit logic", () => {
 
 describe("WorkflowTimeline built-in auto-fetch", () => {
   it("fetches workflow when declarationId is provided without steps", async () => {
-    const { fetchWorkflowInstance } = await import("../services/api");
-    (fetchWorkflowInstance as any).mockResolvedValue({
+    vi.mocked(fetchWorkflowInstance).mockResolvedValue({
+      declarationId: "GHE-001",
       steps: [
-        { role: "lineManager", label: "LM", assigneeName: "Sipho", status: "pending" },
+        { order: 1, role: "lineManager", assignee: 2, label: "LM", assigneeName: "Sipho", status: "pending", decision: null, notes: "", decidedAt: null },
       ],
     });
     render(<WorkflowTimeline declarationId="GHE-001" />);

@@ -159,7 +159,7 @@ function e2eStubAccount(): AccountInfo {
     username: "e2e@test",
     localAccountId: "e2e-local-account",
     name: "E2E Test Identity",
-  } as unknown as AccountInfo;
+  };
 }
 
 export async function initializeIdentity(): Promise<void> {

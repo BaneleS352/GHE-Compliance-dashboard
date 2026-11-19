@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { NewDeclarationScreen } from "../app/pages/NewDeclarationScreen";
 import { createDeclaration, submitDeclaration, updateDeclaration, uploadDeclarationFile } from "../services/api";
+import type { Declaration, UploadedFile } from "../types/declaration";
+import type { SelProps } from "../app/components/Sel";
 
 const mockUserContext = vi.hoisted(() => ({
   user: {
@@ -25,7 +27,7 @@ vi.mock("../services/api", () => ({
 }));
 
 vi.mock("../app/components/Sel", () => ({
-  Sel: ({ value, onChange, placeholder }: any) => (
+  Sel: ({ value, onChange, placeholder }: Pick<SelProps, "value" | "onChange" | "placeholder">) => (
     <input
       role="combobox"
       data-placeholder={placeholder}
@@ -34,6 +36,22 @@ vi.mock("../app/components/Sel", () => ({
     />
   ),
 }));
+
+function declarationResult(status: Declaration["status"]): Declaration {
+  return {
+    id: "GHE-2026-9999", employee: "Test User", employeeId: 1,
+    teamMemberNumber: "HB-10001", lineManager: "Sipho Nkosi", position: "Brand Manager",
+    department: "Marketing", type: "Gift", counterparty: "Acme Corp", value: 500,
+    submitted: "2026-07-15", approver: "Sipho Nkosi", status, priority: "Low",
+    description: "Test declaration", relationship: "Supplier", receivedGiven: "Received",
+    from: "Supplier", contactPerson: "John Doe", biddingProcess: "No",
+    occasion: "Business Meeting", date: "2026-07-15", instances: "1", publicOfficial: "No",
+  };
+}
+
+const uploadedReceipt: UploadedFile = {
+  id: 1, name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/1",
+};
 
 vi.mock("../app/auth/UserContext", () => ({
   useUser: () => ({ user: mockUserContext.user }),
@@ -144,10 +162,10 @@ describe("NewDeclarationScreen", () => {
   });
 
   it("calls createDeclaration + submitDeclaration on valid submit", async () => {
-    vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
-    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: 1, name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/1" } as any);
-    vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
-    vi.mocked(submitDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Pending", approver: "Sipho Nkosi" } as any);
+    vi.mocked(createDeclaration).mockResolvedValue(declarationResult("Draft"));
+    vi.mocked(uploadDeclarationFile).mockResolvedValue(uploadedReceipt);
+    vi.mocked(updateDeclaration).mockResolvedValue(declarationResult("Draft"));
+    vi.mocked(submitDeclaration).mockResolvedValue(declarationResult("Pending"));
 
     const onSuccess = vi.fn();
     render(<NewDeclarationScreen onSubmitSuccess={onSuccess} onDraftSaved={vi.fn()} />);
@@ -169,9 +187,9 @@ describe("NewDeclarationScreen", () => {
   });
 
   it("calls createDeclaration on Save Draft", async () => {
-    vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
-    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: 1, name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/1" } as any);
-    vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
+    vi.mocked(createDeclaration).mockResolvedValue(declarationResult("Draft"));
+    vi.mocked(uploadDeclarationFile).mockResolvedValue(uploadedReceipt);
+    vi.mocked(updateDeclaration).mockResolvedValue(declarationResult("Draft"));
 
     const onDraftSaved = vi.fn();
     render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={onDraftSaved} />);
@@ -188,9 +206,9 @@ describe("NewDeclarationScreen", () => {
   });
 
   it("saves partially filled form as draft (J2.2)", async () => {
-    vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
-    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: 1, name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/1" } as any);
-    vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
+    vi.mocked(createDeclaration).mockResolvedValue(declarationResult("Draft"));
+    vi.mocked(uploadDeclarationFile).mockResolvedValue(uploadedReceipt);
+    vi.mocked(updateDeclaration).mockResolvedValue(declarationResult("Draft"));
 
     const onDraftSaved = vi.fn();
     render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={onDraftSaved} />);
@@ -210,9 +228,9 @@ describe("NewDeclarationScreen", () => {
   });
 
   it("saves draft with file upload (J2.3)", async () => {
-    vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
-    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: 1, name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/1" } as any);
-    vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
+    vi.mocked(createDeclaration).mockResolvedValue(declarationResult("Draft"));
+    vi.mocked(uploadDeclarationFile).mockResolvedValue(uploadedReceipt);
+    vi.mocked(updateDeclaration).mockResolvedValue(declarationResult("Draft"));
 
     const onDraftSaved = vi.fn();
     const { container } = render(<NewDeclarationScreen onSubmitSuccess={vi.fn()} onDraftSaved={onDraftSaved} />);
@@ -275,10 +293,10 @@ describe("NewDeclarationScreen", () => {
   });
 
   it("submits with receivedGiven=Given and includes correct values (J1.5)", async () => {
-    vi.mocked(createDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
-    vi.mocked(uploadDeclarationFile).mockResolvedValue({ id: 1, name: "receipt.pdf", size: 5, type: "application/pdf", url: "/api/files/1" } as any);
-    vi.mocked(updateDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Draft" } as any);
-    vi.mocked(submitDeclaration).mockResolvedValue({ id: "GHE-2026-9999", status: "Pending", approver: "Sipho Nkosi" } as any);
+    vi.mocked(createDeclaration).mockResolvedValue(declarationResult("Draft"));
+    vi.mocked(uploadDeclarationFile).mockResolvedValue(uploadedReceipt);
+    vi.mocked(updateDeclaration).mockResolvedValue(declarationResult("Draft"));
+    vi.mocked(submitDeclaration).mockResolvedValue(declarationResult("Pending"));
 
     const onSuccess = vi.fn();
     render(<NewDeclarationScreen onSubmitSuccess={onSuccess} onDraftSaved={vi.fn()} />);

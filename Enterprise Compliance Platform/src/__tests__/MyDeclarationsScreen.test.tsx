@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MyDeclarationsScreen } from "../app/pages/MyDeclarationsScreen";
 import { fetchDeclarations, fetchWorkflowInstance } from "../services/api";
 import { requestProtectedDocument, saveBlob } from "../services/download";
+import type { Declaration } from "../types/declaration";
 
 const mockDeclarations = [
   {
@@ -115,7 +116,7 @@ describe("MyDeclarationsScreen", () => {
   it("my mode matches on user id, not display name (same-name isolation)", async () => {
     mockUserRole = "teamMember";
     // Same display name as the user, but a different person (other id).
-    const sameNameOther: any = { ...mockDeclarations[0], id: "GHE-2026-1999", employeeId: 99, counterparty: "CorpZ" };
+    const sameNameOther: Declaration = { ...mockDeclarations[0], id: "GHE-2026-1999", employeeId: 99, counterparty: "CorpZ" };
     vi.mocked(fetchDeclarations).mockResolvedValue([...mockDeclarations, sameNameOther]);
     render(<MyDeclarationsScreen />);
     await waitFor(() => {

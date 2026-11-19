@@ -65,7 +65,7 @@ router.post(
       res.status(400).json({ error: passwordError });
       return;
     }
-    const file = (req as unknown as { file?: Express.Multer.File }).file;
+    const file = req.file;
     if (!file || file.size === 0) {
       res.status(400).json({ error: "An export file is required." });
       return;

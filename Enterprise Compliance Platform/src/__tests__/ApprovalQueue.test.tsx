@@ -18,7 +18,7 @@ const mockQueueItems: WorkflowQueue["items"] = [
       occasion: "Business Meeting", date: "2026-07-01", instances: "1",
       publicOfficial: "No",
     },
-    step: { order: 1, role: "lineManager", assignee: 7, assigneeName: "Bob", label: "Line Manager", status: "pending" as const },
+    step: { label: "Line Manager" },
   },
   {
     declaration: {
@@ -31,7 +31,7 @@ const mockQueueItems: WorkflowQueue["items"] = [
       occasion: "Business Meeting", date: "2026-06-10", instances: "2",
       publicOfficial: "No",
     },
-    step: { order: 2, role: "hr", assignee: 7, assigneeName: "Bob", label: "HR Review", status: "pending" as const },
+    step: { label: "HR Review" },
   },
   {
     declaration: {
@@ -44,7 +44,7 @@ const mockQueueItems: WorkflowQueue["items"] = [
       occasion: "Festive Season", date: "2026-07-05", instances: "1",
       publicOfficial: "No",
     },
-    step: { order: 2, role: "hr", assignee: 7, assigneeName: "Bob", label: "HR Review", status: "pending" as const },
+    step: { label: "HR Review" },
   },
 ];
 

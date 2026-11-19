@@ -52,7 +52,7 @@ export async function createWorkflowSteps(_declarationPk: bigint | string | numb
   });
   // Boundary label: rule roles are validated to "lineManager" | "hr" on write
   // (admin zod schema) but stored as plain text until domain checks land, so
-  // the read narrows explicitly here instead of scattering `as any`.
+  // this read performs the narrowing once at the persistence boundary.
   const stepDefs: WorkflowStepDef[] = rows.map((r) => ({ order: r.order, role: r.role as WorkflowStepDef["role"], label: r.label }));
   if (!Array.isArray(stepDefs) || stepDefs.length === 0) throw new Error(`Corrupt workflow rule steps for rule ${ruleId}`);
   const employee = await prisma.user.findUnique({ where: { id: toDbId(employeeId) } });

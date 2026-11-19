@@ -187,8 +187,8 @@ async function main() {
     });
   }
   // Instances: one 2-step (LM approved, HR pending) in org A, one 1-step pending in org B.
-  // Fixture step arrays are annotated (not `as any`) so literal roles and
-  // statuses narrow to the WorkflowStep domain at the boundary.
+  // Fixture step arrays use the WorkflowStep domain so role/status literals
+  // stay checked when the integration queries are prepared.
   const stepsApprovedThenPending: WorkflowStep[] = [
     { order: 1, role: "lineManager", assignee: Number(users.lmA.id), assigneeName: "PG LM A", label: "Line Manager Review", status: "approved", decision: "accept", approvedAt: "2026-02-12T10:00:00.000Z", notes: "ok", decidedAt: "2026-02-12T10:00:00.000Z", decidedById: Number(users.lmA.id), decidedByName: "PG LM A" },
     { order: 2, role: "hr", assignee: Number(users.hrA.id), assigneeName: "PG HR A", label: "HR Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },

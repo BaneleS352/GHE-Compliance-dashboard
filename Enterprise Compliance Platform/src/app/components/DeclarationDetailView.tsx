@@ -12,12 +12,10 @@ export function DeclarationDetailView({
   data,
   hideDocuments,
 }: {
-  data: Record<string, string> | Declaration;
+  data: Declaration;
   hideDocuments?: boolean;
 }) {
-  const isRecord = typeof (data as Declaration).value === "number";
-  const d = isRecord ? (data as Declaration) : null;
-  const record = !d ? (data as Record<string, string>) : null;
+  const d = data;
   const [config, setConfig] = useState({ highValueThreshold: DEFAULT_HIGH_VALUE_THRESHOLD });
   const [configWarning, setConfigWarning] = useState<string | null>(null);
   const [auditEvents, setAuditEvents] = useState<DeclarationAuditEvent[]>([]);
@@ -32,7 +30,7 @@ export function DeclarationDetailView({
   }, []);
 
   useEffect(() => {
-    if (!d?.id) {
+    if (!d.id) {
       setAuditState("unavailable");
       return;
     }
@@ -48,12 +46,11 @@ export function DeclarationDetailView({
         if (active) setAuditState("error");
       });
     return () => { active = false; };
-  }, [d?.id]);
+  }, [d.id]);
 
   const safe = (v: unknown) => (v != null ? String(v) : "—");
 
-  const fields: [string, string][] = d
-    ? [
+  const fields: [string, string][] = [
         ["Company",                safe(d.company)],
         ["Department",             safe(d.department)],
         ["Approving Manager Name", safe(d.lineManager)],
@@ -73,29 +70,6 @@ export function DeclarationDetailView({
         ["Description",            safe(d.description)],
         ...(d.value >= config.highValueThreshold
           ? ([[`Substantiation (≥ R${config.highValueThreshold})`, safe(d.substantiation || "Required")]] as [string, string][])
-          : []),
-      ]
-    : [
-        ["Company",                safe(record?.company)],
-        ["Department",             safe(record?.department)],
-        ["Approving Manager Name", safe(record?.lineManager)],
-        ["Team Member",            safe(record?.employee)],
-        ["Team Member Code",       safe(record?.teamMemberNumber)],
-        ["Team",                   safe(record?.team)],
-        ["Team Member Role / Position", safe(record?.position)],
-        ["GHE Received/Given",     safe(record?.receivedGiven)],
-        ["Category",               safe(record?.type)],
-        ["Counter Party Type",     safe(record?.from)],
-        ["Counter Party",     safe(record?.counterparty)],
-        ["Name Of Counter Person", safe(record?.contactPerson)],
-        ["Date",                   safe(record?.date)],
-        ["Value",                  safe(record?.value)],
-        ["Reason/Occasion",        safe(record?.occasion)],
-        ["Bid In Progress",        safe(record?.biddingProcess)],
-        ["Contract In Progress",   safe(record?.contractNegotiation)],
-        ["Description",            safe(record?.description)],
-        ...(Number(record?.value) >= config.highValueThreshold
-          ? ([[`Substantiation (≥ R${config.highValueThreshold})`, safe(record?.substantiation || "Required")]] as [string, string][])
           : []),
       ];
 
@@ -151,7 +125,7 @@ export function DeclarationDetailView({
     </Card>
     </div>
 
-    {d?.id && <DeclarationHistory events={auditEvents} state={auditState} />}
+    {d.id && <DeclarationHistory events={auditEvents} state={auditState} />}
     {!hideDocuments && <SupportingDocuments data={data} />}
     </div>
   );
@@ -239,21 +213,11 @@ async function viewFile(file: UploadedFile) {
   }
 }
 
-function parseFiles(data: Record<string, string> | Declaration): UploadedFile[] {
-  const isRecord = typeof (data as Declaration).value === "number";
-  const d = isRecord ? (data as Declaration) : null;
-  const record = !d ? (data as Record<string, string>) : null;
-  const sourceFiles = d?.files ?? record?.files ?? [];
-  return Array.isArray(sourceFiles)
-    ? sourceFiles
-    : String(sourceFiles)
-        .split(",")
-        .map((file) => file.trim())
-        .filter(Boolean)
-        .map((file) => ({ id: 0, name: file, size: 0, type: "", url: file }));
+function parseFiles(data: Declaration): UploadedFile[] {
+  return data.files ?? [];
 }
 
-export function SupportingDocuments({ data }: { data: Record<string, string> | Declaration }) {
+export function SupportingDocuments({ data }: { data: Declaration }) {
   const supportingDocuments = parseFiles(data);
   return (
     <div>

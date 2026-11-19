@@ -49,7 +49,7 @@ function makeKeyMaterial(issuer: string): TestKeyMaterial {
   const kid = randomUUID();
   const privateJwk = kp.privateKey.export({ format: "jwk" });
   const publicJwk = {
-    ...(kp.publicKey.export({ format: "jwk" }) as unknown as Record<string, unknown>),
+    ...kp.publicKey.export({ format: "jwk" }),
     kid,
     alg: "RS256",
     use: "sig",
