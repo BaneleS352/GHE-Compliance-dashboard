@@ -344,8 +344,11 @@ test.describe("Edge Cases & Error Handling", () => {
 
     await app.login(USERS.nomvula.email);
     await page.getByRole("button", { name: "Sign out" }).click();
-    // Landing screen again (provider sign-in offered, app shell gone)…
-    await expect(page.getByRole("button", { name: "Sign in with Microsoft" })).toBeVisible({ timeout: 10000 });
+    // The E2E server uses the local test provider, so the landing screen
+    // offers its local sign-in controls instead of the production Microsoft button.
+    await expect(page.getByRole("heading", { name: "Welcome back!" })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Sign in with a local test account.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Quick login" })).toBeVisible();
     await expect(page.locator("aside nav, nav")).toHaveCount(0);
     // …and the injected session token is cleared, so a reload cannot
     // silently re-authenticate.

@@ -394,6 +394,7 @@ model WorkflowInstanceStep {
   @@unique([instanceId, stepOrder])
   @@index([declarationPk])
   @@index([assigneeId])
+  @@index([decidedById])
   @@index([status])
   @@index([role])
 }

@@ -44,7 +44,7 @@ Latest recorded verification is documented in docs/DATABASE-NORMALIZATION-GOAL.m
 ## Important Details
 - **PostgreSQL is the single provider**; SQLite support fully removed (no `db push` fallback, no Dockerfile `sed` provider rewrite)
 - Migrations 0006_numeric_keys through 0013_user_manager_fk_only complete the numeric-key, workflow-identity, department, domain-integrity, auth-cutover, SLA-scoping, exact-money, scoped-uniqueness, and manager-FK-only changes
-- Migrations through 0018_uploadedfile_storage_reference are present; attachment bytes are stored only in Azurite and local-disk rows are switched with `npm run attachments:migrate-local-to-azurite` without deleting the source files
+- Migrations through 0019_workflow_step_decider_index are present; attachment bytes are stored only in Azurite and local-disk rows are switched with `npm run attachments:migrate-local-to-azurite` without deleting the source files
 - Declaration.id stays public GHE-YYYY-NNNNNN text reference with internal declarationPk referenced by all child tables
 - Declaration and SystemConfig monetary fields use Decimal(19,2); numeric API boundaries deliberately convert Prisma Decimal values to JSON numbers after validation caps precision to cents
 - Migration 0012 adds scoped team-member and department-code uniqueness, priority checks, exact-money columns with a fail-fast precision preflight, and append-only declaration audit history
@@ -83,7 +83,8 @@ Latest recorded verification is documented in docs/DATABASE-NORMALIZATION-GOAL.m
 
 ## Relevant Files
 - `NodejsBackend/prisma/migrations/0013_user_manager_fk_only/migration.sql` — removes duplicate user manager text
-- `NodejsBackend/prisma/migrations/0018_uploadedfile_storage_reference/migration.sql` — latest migration (rename attachment path metadata to opaque storage reference)
+- `NodejsBackend/prisma/migrations/0018_uploadedfile_storage_reference/migration.sql` — attachment path metadata changed to an opaque storage reference
+- `NodejsBackend/prisma/migrations/0019_workflow_step_decider_index/migration.sql` — latest migration (index the workflow step decider foreign key)
 - `NodejsBackend/src/__tests__/globalSetup.ts` — embedded PG boot + migration deploy
 - `NodejsBackend/.env` — DATABASE_URL set to PostgreSQL only
 - `NodejsBackend/package.json` — build, pg:smoke scripts added
