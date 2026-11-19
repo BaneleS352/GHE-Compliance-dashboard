@@ -20,6 +20,7 @@ import {
 import { toDbId, toJsonId } from "../services/ids";
 import { notificationDedupeKey, queueNotificationSafely } from "../services/notificationService";
 import { recordDeclarationAudit } from "../services/declarationAudit";
+import { declarationPriorityForValue } from "../services/declarationPriority";
 import { deleteStoredAttachment, isAzuriteAttachment } from "../services/attachmentStorage";
 import {
   viewStatusSummaryFull,
@@ -265,6 +266,11 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
     res.status(400).json({ error: `Maximum value exceeded. Please enter an amount of R${maxVal.toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.` });
     return;
   }
+  const priority = declarationPriorityForValue(
+    data.value,
+    Number(sysCfg?.highValueThreshold ?? 1000),
+    Number(sysCfg?.mediumValueThreshold ?? 1000),
+  );
   // Collision guard for GHE ID
   let id: string = generateDeclarationId();
   for (let attempts = 0; attempts < 5; attempts++) {
@@ -360,7 +366,9 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
         type: sanitize(data.type),
         value: data.value,
         status: "Draft",
-        priority: sanitize(data.priority),
+        // Client priority is retained in the request contract for compatibility,
+        // but the persisted label is derived from the value and server config.
+        priority,
         organizationId: orgId,
         eventDate,
         submittedAt,
@@ -542,8 +550,9 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
 
   const data = parsed.data;
+  const priorityInputChanged = data.value !== undefined || data.priority !== undefined;
+  const sysCfg2 = priorityInputChanged ? await prisma.systemConfig.findFirst() : null;
   if (data.value !== undefined) {
-    const sysCfg2 = await prisma.systemConfig.findFirst();
     const maxVal2 = Number(sysCfg2?.maximumValue ?? 1000000);
     if (data.value > maxVal2) {
       res.status(400).json({ error: `Maximum value exceeded. Please enter an amount of R${maxVal2.toLocaleString("en-ZA").replace(/,/g, " ")} or less to continue.` });
@@ -575,7 +584,13 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   const updateData: Record<string, unknown> = {};
   if (data.type !== undefined) updateData.type = sanitize(data.type);
   if (data.value !== undefined) updateData.value = data.value;
-  if (data.priority !== undefined) updateData.priority = sanitize(data.priority);
+  if (priorityInputChanged) {
+    updateData.priority = declarationPriorityForValue(
+      data.value ?? Number(existing.value),
+      Number(sysCfg2?.highValueThreshold ?? 1000),
+      Number(sysCfg2?.mediumValueThreshold ?? 1000),
+    );
+  }
   if (bodyOrgPut !== undefined) updateData.organizationId = bodyOrgPut;
   if (data.date !== undefined) updateData.eventDate = parseDateSafe(data.date);
   if (data.submitted !== undefined) updateData.submittedAt = parseDateSafe(data.submitted);

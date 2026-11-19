@@ -16,7 +16,6 @@ vi.mock("../services/api", () => ({
   fetchUserById: vi.fn(() => Promise.resolve({ id: 3, name: "Sipho Nkosi" })),
   fetchManagers: vi.fn(() => Promise.resolve([])),
   fetchDepartments: vi.fn(() => Promise.resolve(["Marketing", "Sales", "Finance"])),
-  fetchDropdownOptions: vi.fn(() => Promise.resolve({ departments: [] })),
   fetchOrganizations: vi.fn(() => Promise.resolve([{ id: 1, name: "Hollywoodbets Group", shortCode: "HB" }])),
   createDeclaration: vi.fn(),
   submitDeclaration: vi.fn(),

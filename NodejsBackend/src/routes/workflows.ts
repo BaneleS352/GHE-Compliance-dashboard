@@ -125,10 +125,27 @@ router.get("/instances/:declarationId", authenticate, asyncHandler(async (req: A
   }
 
   const declaration = await prisma.declaration.findUnique({ where: { declarationPk: pk } });
-  const steps: WorkflowStep[] = await loadSteps(pk);
+  if (!declaration) {
+    res.status(404).json({ error: "Workflow instance not found" });
+    return;
+  }
+
+  const callerOrg = req.user?.organizationId ?? undefined;
+  if (
+    req.user!.role !== "admin" &&
+    callerOrg !== undefined &&
+    callerOrg !== null &&
+    declaration.organizationId !== null &&
+    declaration.organizationId !== toDbId(callerOrg)
+  ) {
+    res.status(403).json({ error: "Cannot view workflow from another organization" });
+    return;
+  }
+
   const userPkJson = toJsonId(req.user!.id);
+  const steps: WorkflowStep[] = await loadSteps(pk);
   const isAssignee = steps.some((s) => s.assignee === userPkJson);
-  const isOwner = declaration?.declarerUserId === toDbId(req.user!.id);
+  const isOwner = declaration.declarerUserId === toDbId(req.user!.id);
 
   // FIX: Declaration owners should always be able to view their own workflow timeline
   if (req.user!.role !== "admin" && !isAssignee && !isOwner) {

@@ -1,14 +1,21 @@
 # Docker deployment
 
-The root `docker-compose.yml` runs three services:
+The root `docker-compose.yml` runs the core services:
 
 | Service | Container | Host | Purpose |
 |---|---:|---:|---|
 | `frontend` | 80 | 3000 | Vite build served by Nginx; proxies API requests |
 | `backend` | 3001 | 3001 | Express API |
 | `db` | 5432 | 5432 | PostgreSQL 16 |
+| `azurite` | 10000 | 10000 | Private attachment blob storage for local development |
 
-`pgdata` and `uploads` named volumes persist database and uploaded-file data. The compose file publishes PostgreSQL and contains example credentials, so it is a deployment baseline, not a hardened internet-facing configuration.
+The `email-worker` service is opt-in through the `email` profile. The
+`attachment-migration` profile is a one-time bridge for historical local-disk
+uploads; the API itself does not mount or read the legacy `uploads` volume.
+`pgdata` and `azurite_data` persist database and attachment data. `uploads` is
+retained only for the one-time migration. The compose file publishes local
+development ports and contains example credentials, so it is not a hardened
+internet-facing deployment configuration.
 
 Published ports bind to loopback by default. For remote users, place a TLS
 reverse proxy in front of the frontend; expose the frontend port explicitly
@@ -42,13 +49,22 @@ Pre-migration databases must use the one-time baseline procedure in
 
 ## Configuration and operations
 
-Replace OIDC settings, database credentials, and `CORS_ORIGIN` before production. `BACKEND_URL` controls the Nginx upstream and defaults to `http://backend:3001`. Set `EMAIL_WEBHOOK_URL` to deliver notifications; without it, events are logged.
+Replace OIDC settings, database credentials, and `CORS_ORIGIN` before
+deployment. `BACKEND_URL` controls the Nginx upstream and defaults to
+`http://backend:3001`. Attachments use the Azurite emulator in this Compose
+setup; it does not provide production cloud-storage durability or availability
+guarantees. Notifications are queued in PostgreSQL. To deliver them, enable
+`EMAIL_DELIVERY_ENABLED`, configure the `SMTP_*` settings, and run the optional
+email worker.
 
 ```bash
 docker compose logs -f frontend backend db
 docker compose down       # keeps volumes
-docker compose down -v    # destructive: removes database and upload volumes
+docker compose down -v    # destructive: removes PostgreSQL, Azurite, and legacy upload volumes
 docker compose build --no-cache
 ```
 
-Use TLS and edge authentication, restrict CORS, back up PostgreSQL and uploads, and do not publicly expose port 5432 in production. Consider object storage for uploads when containers are replaced or scaled.
+Use TLS and edge authentication, restrict CORS, back up PostgreSQL and Azurite
+data, and do not publicly expose database or blob ports in production. Replace
+the Azurite emulator with a supported production storage service before
+relying on cloud durability or availability.

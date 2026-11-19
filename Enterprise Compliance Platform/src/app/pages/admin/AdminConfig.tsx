@@ -85,6 +85,12 @@ export function AdminConfig() {
   };
 
   const handleSave = async () => {
+    if (config.mediumValueThreshold > config.highValueThreshold) {
+      const message = "Medium priority threshold must not exceed the high-value threshold.";
+      setFetchError(message);
+      notifyError(message);
+      return;
+    }
     try {
       await saveConfig(config);
       setSaved(true);
@@ -184,9 +190,14 @@ export function AdminConfig() {
           </div>
           <div className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm font-semibold text-foreground">High Value Gift Threshold (ZAR)</label>
+              <label className="mb-1.5 block text-sm font-semibold text-foreground">High Value Declaration Threshold (ZAR)</label>
               <input type="number" value={config.highValueThreshold} onChange={(e) => setConfig({ ...config, highValueThreshold: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
-              <p className="mt-1 text-xs text-muted-foreground">Declarations above this value require HR approval. Affects new declarations’ workflow routing (LM → HR). Existing workflows are frozen.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Declarations at or above this value require HR approval. Affects new declarations’ workflow routing (LM → HR). Existing workflows are frozen.</p>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-foreground">Medium Priority Threshold (ZAR)</label>
+              <input type="number" min={0} max={config.highValueThreshold} step="0.01" value={config.mediumValueThreshold} onChange={(e) => setConfig({ ...config, mediumValueThreshold: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
+              <p className="mt-1 text-xs text-muted-foreground">Values at or above this threshold and below the high-value threshold are labeled Medium. This must not exceed the high-value threshold; if both thresholds are equal, no Medium band exists.</p>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-foreground">Maximum Value (ZAR)</label>

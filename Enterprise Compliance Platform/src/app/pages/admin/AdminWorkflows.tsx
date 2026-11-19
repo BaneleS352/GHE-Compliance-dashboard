@@ -101,7 +101,7 @@ export function AdminWorkflows() {
       {threshold && (
         <Card className="border-purple-200/50 bg-purple-50/50 p-4">
           <p className="text-sm text-purple-900">
-            <span className="font-bold">Current thresholds from System Configuration:</span> High Value = R{threshold.highValueThreshold.toLocaleString("en-ZA").replace(/,/g, " ")} (above → Line Manager + HR, below → Line Manager only) • Maximum = R{threshold.maximumValue.toLocaleString("en-ZA").replace(/,/g, " ")} (blocked above). Changing System Configuration affects new declarations (existing workflows frozen).
+            <span className="font-bold">Current thresholds from System Configuration:</span> High Value = R{threshold.highValueThreshold.toLocaleString("en-ZA").replace(/,/g, " ")} (at or above → Line Manager + HR, below → Line Manager only) • Maximum = R{threshold.maximumValue.toLocaleString("en-ZA").replace(/,/g, " ")} (blocked above). Changing System Configuration affects new declarations (existing workflows frozen).
           </p>
         </Card>
       )}

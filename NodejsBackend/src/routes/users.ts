@@ -85,11 +85,8 @@ router.get("/departments", authenticate, asyncHandler(async (req: AuthRequest, r
     }
   }
   if (effectiveRaw === undefined) {
-    const departments = await prisma.department.findMany({ select: { name: true }, orderBy: { name: "asc" } }).catch(() => []);
-    const names = departments.map((d) => d.name);
-    if (names.length > 0) { res.json(names); return; }
-    const users = await prisma.user.findMany({ select: { departmentRef: { select: { name: true } } } });
-    res.json(Array.from(new Set(users.map((u) => u.departmentRef?.name).filter((n): n is string => Boolean(n)))).sort());
+    const departments = await prisma.department.findMany({ select: { name: true }, orderBy: { name: "asc" } });
+    res.json(departments.map((department) => department.name));
     return;
   }
   const orgPk = parseIdParam(effectiveRaw);
@@ -101,13 +98,8 @@ router.get("/departments", authenticate, asyncHandler(async (req: AuthRequest, r
     where: { organizationId: orgPk },
     select: { name: true },
     orderBy: { name: "asc" },
-  }).catch(() => []);
-  let names = departments.map((d) => d.name);
-  if (names.length === 0) {
-    const users = await prisma.user.findMany({ where: { organizationId: orgPk }, select: { departmentRef: { select: { name: true } } } });
-    names = Array.from(new Set(users.map((u) => u.departmentRef?.name).filter((n): n is string => Boolean(n)))).sort();
-  }
-  res.json(names);
+  });
+  res.json(departments.map((department) => department.name));
 }));
 
 router.get("/organizations", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {

@@ -17,7 +17,7 @@ import { fetchPublicConfig, fetchUserById, fetchManagers, fetchDepartments, fetc
 import { buildDeclarationPayload as buildPayload, formatRandValue, OCCASION_OPTIONS, parseRandInput, validateDeclarationForm } from "./newDeclarationModel";
 import type { DeclarationFormState } from "./newDeclarationModel";
 
-// determineRuleId now handled server-side via workflowService.determineRuleId (2-tier: >=high → rule-2)
+// Workflow rule selection happens server-side; the client only computes the display priority label.
 
 function ErrInp({ field, errors, ...props }: { field: string; errors: Record<string, string> } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
@@ -38,7 +38,7 @@ export function NewDeclarationScreen({
   draft?: Declaration | null;
 }) {
   const { user } = useUser();
-  const [config, setConfig] = useState({ highValueThreshold: DEFAULT_HIGH_VALUE_THRESHOLD, mediumValueThreshold: DEFAULT_MEDIUM_VALUE_THRESHOLD, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, maximumValue: DEFAULT_MAXIMUM_VALUE, emailTemplate: "" });
+  const [config, setConfig] = useState({ highValueThreshold: DEFAULT_HIGH_VALUE_THRESHOLD, mediumValueThreshold: DEFAULT_MEDIUM_VALUE_THRESHOLD, maximumValue: DEFAULT_MAXIMUM_VALUE });
   const [lineManagerName, setLineManagerName] = useState("");
   const [managers, setManagers] = useState<{ id: number; name: string; email: string; position: string; department: string }[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);

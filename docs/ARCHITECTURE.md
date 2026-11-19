@@ -24,7 +24,7 @@ GHE-Compliance-Dashboard/
 │       │   ├── workflowService.ts  # step resolution logic
 │       │   ├── reports.ts          # report data computation
 │       │   ├── excelService.ts     # Excel buffer generation
-│       │   └── notificationService.ts # Template rendering and webhook delivery
+│       │   └── notificationService.ts # Template rendering and transactional outbox enqueue
 │       └── __tests__/             # Vitest test suite
 │   ├── prisma/                    # schema.prisma + migrations
 │   └── docs/                      # Backend docs
@@ -83,7 +83,7 @@ Express API (port 3001)
 | Validation | Zod schemas | Type-safe, composable, good DX |
 | File storage | Azurite Blob container behind authenticated API routes | Single attachment store; PostgreSQL keeps metadata and opaque Azurite references |
 | Workflow | Relational step/instance rows | Auditable per-declaration step history; no JSON fallback |
-| Notifications | Validated templates + email webhook | Provider-independent delivery with safe development logging |
+| Notifications | Validated templates + PostgreSQL outbox + SMTP worker | Durable queuing is separate from external delivery; SMTP is disabled until configured |
 | Theme | Centralised `theme.ts` + CSS variables | Single source of truth for colours, gradients, status/priority maps |
 | Docker | Multi-stage builds | Frontend container port 80 published on host port 3000; backend port 3001; PostgreSQL port 5432; PostgreSQL is the only provider (no provider rewriting) — versioned migrations run via `prisma migrate deploy` |
 
@@ -104,14 +104,15 @@ provide a production cloud-storage durability or availability guarantee.
 ## Workflow Resolution
 
 1. Declaration submitted → `createWorkflowSteps()` called
-2. Reads `SystemConfig` for `highValueThreshold`, `mediumValueThreshold`
-3. Calls `determineRuleId(value, high, medium)` to select rule
+2. Reads `SystemConfig` for the high-value workflow threshold
+3. Calls `determineRuleId(value, high, medium)` to select a workflow; the
+   medium threshold parameter is accepted for API compatibility but ignored
 4. Loads `WorkflowRuleStep` rows for the selected rule
 5. Resolves assignees from `User` table (managerId FK and HR)
 6. Stores resolved steps as `WorkflowInstanceStep` rows in the same transaction
 7. Steps are frozen — config/rule changes don't cascade retroactively. Returned declarations are re-evaluated on save/resubmission so value changes can add newly required approvers while preserving valid completed approvals.
 
-Workflow rule selection is `value >= highValueThreshold → rule 2`, otherwise `rule 1`. The legacy `mediumValueThreshold` remains for API compatibility but does not select a separate workflow. Line Manager assignees come from the employee's `managerId` FK; HR resolves to an approver in the employee's organisation where possible, then a global HR approver.
+Workflow rule selection is `value >= highValueThreshold → rule 2`, otherwise `rule 1`. The `mediumValueThreshold` is configured in Admin Configuration and used with the high threshold to derive the stored priority label (`Low`/`Medium`/`High`); it does not select a separate workflow. It must not exceed the high threshold. The defaults are equal, so administrators must lower the medium threshold to create a Medium band. The server derives priority from value and configuration rather than trusting the client label. Line Manager assignees come from the employee's `managerId` FK; HR resolves to an approver in the employee's organisation where possible, then a global HR approver.
 
 ## Notifications
 

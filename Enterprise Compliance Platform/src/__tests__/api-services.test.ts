@@ -6,7 +6,6 @@ import {
   fetchDashboardStats, fetchUsers, fetchUserById,
   createUser, updateUser, deleteUser,
   fetchConfig, fetchPublicConfig, saveConfig,
-  fetchDropdownOptions, updateDropdownOptions,
   fetchAdminDashboard,
   fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkflowRule,
   fetchPendingWorkflows, fetchWorkflowQueue, fetchWorkflowInstance, approveWorkflowStep,
@@ -226,20 +225,6 @@ describe("saveConfig", () => {
     mockFetch(200, { highValueThreshold: 5000 });
     const result = await saveConfig({ highValueThreshold: 5000 });
     expect(result.highValueThreshold).toBe(5000);
-  });
-});
-
-describe("fetchDropdownOptions / updateDropdownOptions", () => {
-  it("fetchDropdownOptions returns dropdown options", async () => {
-    mockFetch(200, { departments: ["IT", "HR"] });
-    const result = await fetchDropdownOptions();
-    expect(result.departments).toEqual(["IT", "HR"]);
-  });
-
-  it("updateDropdownOptions PUTs dropdown options", async () => {
-    mockFetch(200, { departments: ["IT"] });
-    const result = await updateDropdownOptions({ departments: ["IT"] });
-    expect(result.departments).toEqual(["IT"]);
   });
 });
 

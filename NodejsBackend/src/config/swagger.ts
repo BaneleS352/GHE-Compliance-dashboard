@@ -284,7 +284,7 @@ const options: swaggerJsdoc.Options = {
       "/api/reports/high-value": {
         get: {
           tags: ["Reports"],
-          summary: "Declarations above high-value threshold",
+          summary: "Declarations at or above high-value threshold",
           security: [{ bearerAuth: [] }],
           responses: { 200: { description: "High-value declarations" } },
         },
@@ -434,7 +434,7 @@ const options: swaggerJsdoc.Options = {
       "/api/admin/config/dropdowns": {
         get: {
           tags: ["Admin - Config"],
-          summary: "Get department/domain options (any authenticated user)",
+          summary: "Get department options (admin only; caller-scoped options use /api/users/departments)",
           security: [{ bearerAuth: [] }],
           responses: { 200: { description: "Dropdown options from master data", content: { "application/json": { schema: { $ref: "#/components/schemas/DropdownOptions" } } } } },
         },

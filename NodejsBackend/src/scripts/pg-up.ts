@@ -8,10 +8,11 @@
  *
  *   1. Guard: DATABASE_URL must be a postgres(ql) URL.
  *   2. Regenerate the Prisma client.
- *   3. `prisma migrate deploy` (0000_baseline -> 0006_numeric_keys).
+ *   3. `prisma migrate deploy` (the complete versioned migration chain).
  *      On failure nothing is retried; an existing pre-migration database
  *      needs the one-time BASELINE.md resolve procedure instead.
- *   4. Seed ONLY if the database is empty (0 users); never overwrites.
+ *   4. Seed ONLY if users, organizations, and declarations are all absent;
+ *      never overwrites a partially populated database.
  *
  * Afterwards run `npm run dev`. To start over with a clean database, drop
  * and recreate the PostgreSQL database, then re-run this script.

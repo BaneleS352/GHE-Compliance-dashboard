@@ -6,10 +6,15 @@ REST API for managing Gifts, Hospitality & Entertainment compliance declarations
 
 ```bash
 npm install
-docker compose up -d db   # local PostgreSQL (or point DATABASE_URL at any server)
+docker compose up -d db azurite   # local PostgreSQL + attachment emulator
 npm run db:pg:up          # migrate deploy + seed-if-empty
 npm run dev
 ```
+
+Copy `NodejsBackend/.env.example` to `NodejsBackend/.env` and set the local
+OIDC, database, and Azurite values before starting the backend. Docker Compose
+uses the separate root `.env.example`. See [`docs/SETUP.md`](../docs/SETUP.md)
+for the complete configuration contract.
 
 Server starts at `http://localhost:3001`.
 
@@ -35,6 +40,11 @@ Explore and test all endpoints interactively.
 | `npm run pg:test` | PostgreSQL integration checks (needs `TEST_PG_DATABASE_URL`) |
 | `npm run pg:smoke` | Clean-database smoke test (needs `SMOKE_PG_DATABASE_URL` + build) |
 | `npm run db:generate` | Generate Prisma client |
+| `npm run attachments:verify-azurite` | Check Azurite connectivity and container access |
+| `npm run attachments:migrate-local-to-azurite` | One-time copy of historical local uploads; preserves source files |
+| `npm run email:verify-db` | Read-only check of the email procedure and outbox schema |
+| `npm run email:verify-smtp` | Check SMTP connectivity without sending a message |
+| `npm run email:worker` | Run the separate PostgreSQL outbox delivery worker |
 
 ## Environment
 
@@ -83,30 +93,16 @@ to run against an external PostgreSQL instead of the embedded one.
 
 ### Test Coverage
 
-| File | Tests | Focus |
-|------|-------|-------|
-| `auth.test.ts` | 7 | Login, token validation, role check |
-| `declarations.test.ts` | 12 | CRUD, submit, workflow creation, status |
-| `workflows.test.ts` | 8 | Pending steps, approve, decline, return |
-| `reports.test.ts` | 8 | All report endpoints, filters, export |
-| `admin/users.test.ts` | 10 | Admin user CRUD, duplicate email, last admin |
-| `admin/config.test.ts` | 8 | Config, dropdowns, approval options |
-| `admin/workflows.test.ts` | 5 | Workflow rule CRUD |
-| `admin/dashboard.test.ts` | 2 | Dashboard KPIs, auth enforcement |
-| `break.test.ts` | 72 | **Negative/injection/stress/fuzz tests** |
-
-### Breaking Tests (`break.test.ts` — 72 tests)
-
-Covers scenarios that try to break the API:
-- **Auth bypass**: expired token, wrong signature, missing/invalid/whitespace token, no auth header, wrong role
-- **Injection**: SQLi (`' OR 1=1--`), NoSQL (`$gt`), XSS payloads in fields
-- **Oversized payloads**: 10MB body, 10k-char strings, deeply nested 500-level JSON
-- **Unicode/BOM**: UTF-8 BOM prefix in JSON body, emoji in declaration fields
-- **Protocol violations**: URL-encoded body where JSON expected, array instead of object, null required fields
-- **HTTP edge cases**: CORS preflight, method override headers (X-HTTP-Method-Override), duplicate query params
-- **Rapid fire**: 20 sequential requests to test concurrency/connection reuse
-- **CRUD integrity**: edit/delete non-owned declaration, tamper with admin-only endpoints
-- **Special paths**: `../` traversal, routes with special URL characters
+Before running the backend suite, start Azurite with
+`docker compose -f ../docker-compose.azurite.yml up -d --wait azurite` from
+this directory. Tests then use the local test container and OIDC/JWKS setup.
+The backend suite covers identity resolution,
+declaration and workflow transitions, organization-scoped authorization,
+admin configuration, report queries and exports, Azurite file lifecycle,
+notification outbox behavior, and adversarial input cases. The source of truth
+for current gates and the latest recorded counts is [`AGENTS.md`](../AGENTS.md);
+use the actual test command output rather than relying on fixed counts in this
+README.
 
 ## Project Structure
 
@@ -127,11 +123,11 @@ src/
     excelService.ts     # XLSX buffer generation
   __tests__/
     helpers.ts          # buildApp(), JWT token helpers
-    globalSetup.ts      # Test DB push + seed
+    globalSetup.ts      # PostgreSQL migrations + fixtures; requires Azurite
     *.test.ts           # Test suites
 prisma/
   schema.prisma         # PostgreSQL schema, BIGINT keys (see DATABASE-NORMALIZATION-GOAL.md)
-  migrations/           # Versioned migrations (0000_baseline → 0009_domain_checks)
+migrations/           # Versioned PostgreSQL migrations through 0020
 ```
 
 ## Frontend Integration
@@ -153,8 +149,11 @@ numbers. Key relations:
 ## Workflow Rules
 
 Rule matching is value-based:
-- **Low** (`≤ mediumThreshold`): Line manager review only
-- **Medium** (`> mediumThreshold`, `≤ highThreshold`): Line manager + HR
-- **High** (`>= highValueThreshold`): Line Manager + HR
+- **Below high-value threshold**: Line manager review only
+- **At or above `highValueThreshold`**: Line manager + HR
+
+`mediumValueThreshold` affects the `Low`/`Medium`/`High` priority label, but
+does not choose a separate workflow. The SPA previews the label; the backend
+derives the persisted priority from the value and server configuration.
 
 Approval decisions: `accept`, `org` (org pool), `foundation` (donate), `decline`, `return`.

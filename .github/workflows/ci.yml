@@ -2,6 +2,7 @@ name: GHE Compliance Dashboard CI
 
 on:
   push:
+    branches: ["**"]
   pull_request:
   workflow_dispatch:
 

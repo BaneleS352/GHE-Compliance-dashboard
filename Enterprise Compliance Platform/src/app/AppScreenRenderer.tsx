@@ -9,7 +9,6 @@ const ApprovalDetail = lazy(() => import("@/app/pages/ApprovalDetail").then((mod
 const AdminDashboard = lazy(() => import("@/app/pages/admin/AdminDashboard").then((module) => ({ default: module.AdminDashboard })));
 const AdminUsers = lazy(() => import("@/app/pages/admin/AdminUsers").then((module) => ({ default: module.AdminUsers })));
 const AdminWorkflows = lazy(() => import("@/app/pages/admin/AdminWorkflows").then((module) => ({ default: module.AdminWorkflows })));
-const AdminDropdownOptions = lazy(() => import("@/app/pages/admin/AdminDropdownOptions").then((module) => ({ default: module.AdminDropdownOptions })));
 const AdminConfig = lazy(() => import("@/app/pages/admin/AdminConfig").then((module) => ({ default: module.AdminConfig })));
 const AdminReports = lazy(() => import("@/app/pages/admin/AdminReports").then((module) => ({ default: module.AdminReports })));
 const AdminApprovalOptions = lazy(() => import("@/app/pages/admin/AdminApprovalOptions").then((module) => ({ default: module.AdminApprovalOptions })));
@@ -47,7 +46,6 @@ export function AppScreenRenderer({
     if (screen === "admin-dashboard") return <AdminDashboard onNavigate={onNavigate} />;
     if (screen === "admin-users") return <AdminUsers />;
     if (screen === "admin-workflows") return <AdminWorkflows />;
-    if (screen === "admin-dropdown-options") return <AdminDropdownOptions />;
     if (screen === "admin-config") return <AdminConfig />;
     if (screen === "admin-reports") return <AdminReports />;
     if (screen === "admin-approval-options") return <AdminApprovalOptions />;

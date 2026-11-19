@@ -1,4 +1,4 @@
-import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile, User, SystemConfig, DropdownOptions, WorkflowRule, StatusType } from "@/types/declaration"
+import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile, User, SystemConfig, WorkflowRule, StatusType } from "@/types/declaration"
 import { api } from "@/services/httpClient"
 import type { RequestOptions } from "@/services/httpClient";
 
@@ -168,17 +168,6 @@ export async function fetchPublicConfig(options?: RequestOptions): Promise<Pick<
 
 export async function saveConfig(data: Partial<SystemConfig>): Promise<SystemConfig> {
   return api.put<SystemConfig>("/api/admin/config", data);
-}
-
-// ── Admin: Dropdown Options (department master data + fixed domain lists) ──
-export type DropdownOptionsResponse = Partial<DropdownOptions> & Record<string, string[]>;
-
-export async function fetchDropdownOptions(): Promise<DropdownOptionsResponse> {
-  return api.get<DropdownOptionsResponse>("/api/admin/config/dropdowns");
-}
-
-export async function updateDropdownOptions(data: DropdownOptionsResponse): Promise<DropdownOptionsResponse> {
-  return api.put<DropdownOptionsResponse>("/api/admin/config/dropdowns", data);
 }
 
 // ── Admin: Dashboard ──────────────────────────────────

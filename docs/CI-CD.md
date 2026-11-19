@@ -2,9 +2,9 @@
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` is the repository's required integration entry
-point. It runs on pushes to `main`, `dev`, and `HS-*`, on pull requests, and
-manually. It cancels superseded runs for the same ref and calls four gates:
+`.github/workflows/ci.yml` is the repository's integration entry point. It
+runs on pushes to every branch (not tags), on pull requests, and manually. It cancels
+superseded runs for the same ref and calls four gates:
 
 | Gate | Workflow | Coverage |
 |---|---|---|
@@ -13,7 +13,8 @@ manually. It cancels superseded runs for the same ref and calls four gates:
 | Frontend | `frontend.yml` | Runs typecheck, quality gate, Vitest, and production Vite build. |
 | Browser | `postgres-normalization.yml` | Migrates and seeds a fresh PostgreSQL service, starts the throwaway JWKS provider and app servers, and runs desktop/mobile Playwright flows including developer quick login. |
 
-`docker.yml` runs when Docker inputs change and can also be started manually.
+`docker.yml` runs on pushes or pull requests to any branch when Docker inputs
+change, and can also be started manually.
 It validates and builds both the standard Entra images and the local stub
 images. It then starts the stub Compose project and checks the Nginx-to-API
 health route, the OpenID discovery/JWKS route, test-token minting, and a
@@ -22,9 +23,9 @@ removes only the isolated `ghe-compliance-stub` Compose project's containers
 and volumes.
 
 `secOps.yml` audits locked Node dependencies with `npm audit` and the pinned
-Python sidecars with `pip-audit` when dependency manifests change, on manual
-dispatch, and on a weekly schedule. It fails on high-severity npm findings
-and any pip-audit finding.
+Python sidecars with `pip-audit` when dependency manifests change on any
+branch, on manual dispatch, and on a weekly schedule. It fails on
+high-severity npm findings and any pip-audit finding.
 
 ## Continuous deployment and release limits
 

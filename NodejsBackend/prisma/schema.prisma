@@ -136,8 +136,8 @@ model Department {
   teams        Team[]
   users        User[]
 
+  // Leading-column lookups by organizationId use this unique index.
   @@unique([organizationId, name])
-  @@index([organizationId])
   // Migration-managed partial unique index enforces non-empty code uniqueness
   // within an organization (see 0012_financial_precision_integrity).
 }
@@ -153,8 +153,8 @@ model Team {
   department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
   members    User[]
 
+  // Leading-column lookups by departmentId use this unique index.
   @@unique([departmentId, name])
-  @@index([departmentId])
 }
 
 model Counterparty {
@@ -341,8 +341,8 @@ model WorkflowRuleStep {
 
   rule WorkflowRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
+  // Leading-column lookups by ruleId use this unique index.
   @@unique([ruleId, order])
-  @@index([ruleId])
 }
 
 model WorkflowInstance {

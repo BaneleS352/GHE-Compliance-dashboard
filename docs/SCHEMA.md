@@ -94,7 +94,7 @@ unique `(instanceId, stepOrder)`, numeric `assigneeId`/`decidedById`):
 | Field | Type | Default |
 |-------|------|---------|
 | highValueThreshold | Decimal(19,2) | 1000 |
-| mediumValueThreshold | Decimal(19,2) | 1000 (retained compatibility setting) |
+| mediumValueThreshold | Decimal(19,2) | 1000; used with the high threshold to derive priority labels, not workflow routing |
 | slaEscalationDays | Int | 3 |
 | maxDeclarationsPerCounterparty | Int | 5 |
 | maximumValue | Decimal(19,2) | 1,000,000; declarations above this are blocked |
@@ -108,7 +108,7 @@ unique `(instanceId, stepOrder)`, numeric `assigneeId`/`decidedById`):
 | originalName | String | |
 | mimeType | String | |
 | size | Int | |
-| path | String | File name on disk |
+| storageReference | String | Opaque Azurite blob reference; bytes are not stored on the application filesystem |
 
 File association is join-only: `DeclarationFile` links a declaration to a
 file. **File lifecycle policy (decided): unattached temporary uploads are not
@@ -151,7 +151,7 @@ lookup copies were removed.
 
 ## Notification Templates
 
-`SystemConfig.notificationTemplates` stores the administrator-editable subject/body pair for each event: manager approval, HR approval, returned, declined, and approved. The backend validates the complete object and renders supported placeholders before posting to the configured email webhook.
+`SystemConfig.notificationTemplates` stores the administrator-editable subject/body pair for each event: manager approval, HR approval, returned, declined, and approved. The backend validates the complete object, renders supported placeholders, and calls `public.enqueue_email_notification` to add an idempotent row to `EmailOutbox`. A separately run worker delivers queued mail over SMTP when delivery is enabled.
 
 ## Key Business Rules
 

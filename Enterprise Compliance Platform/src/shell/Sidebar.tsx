@@ -1,4 +1,4 @@
-import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, Activity, List, BarChart3, CheckCircle2 } from "lucide-react";
+import { Gift, FileText, Home, CheckSquare, Menu, ChevronLeft, Settings, Users, Activity, BarChart3, CheckCircle2 } from "lucide-react";
 import type { ComponentType } from "react";
 import { ImageWithFallback } from "@/app/components/ImageWithFallback";
 import logoImg from "@/assets/HB-Logo-NO-BG.png";
@@ -27,7 +27,6 @@ export function Sidebar({
           { screen: "admin-dashboard" as Screen, icon: Home,     label: "Dashboard" },
           { screen: "admin-users"     as Screen, icon: Users,    label: "Users" },
           { screen: "admin-workflows" as Screen, icon: Activity, label: "Workflows" },
-          { screen: "admin-dropdown-options" as Screen, icon: List,     label: "Dropdown Options" },
           { screen: "admin-config"    as Screen, icon: Settings, label: "Config" },
           { screen: "admin-reports"   as Screen, icon: FileText, label: "Reports" },
           { screen: "admin-approval-options" as Screen, icon: CheckCircle2, label: "Approval Options" },

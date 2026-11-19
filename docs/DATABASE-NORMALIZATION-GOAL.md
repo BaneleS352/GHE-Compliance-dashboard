@@ -373,8 +373,10 @@ The following items remain after the current audit:
   steps are relational rows and nothing parses step JSON.
 - Completed: architecture and schema documentation describe the normalized
   contract, department links, and tenant-boundary behavior.
-- Completed: active API/frontend naming uses `DropdownOptions` /
-  `fetchDropdownOptions`; the retired generic endpoint returns `410 Gone`.
+- Completed: declaration forms use the caller-scoped department endpoint; the
+  obsolete admin editor and frontend fetch/update wrappers were removed. The
+  backend keeps its admin-only read compatibility route and returns `410 Gone`
+  for writes to the retired generic endpoint.
 - Keep seed/migration legacy workflow JSON parsing explicitly separated from
   runtime fallbacks; CI excludes seed/tests/e2e boundaries by design.
 - Completed for workflow-critical domains: `0009_domain_checks` plus negative

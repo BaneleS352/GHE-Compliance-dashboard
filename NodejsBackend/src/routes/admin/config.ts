@@ -57,7 +57,10 @@ const configSchema = z.object({
     if (value === undefined) return true;
     try { notificationTemplatesSchema.parse(JSON.parse(value)); return true; } catch { return false; }
   }, "Invalid notification templates: all five event templates require a subject and body"),
-});
+}).refine(
+  (value) => value.mediumValueThreshold <= value.highValueThreshold,
+  { path: ["mediumValueThreshold"], message: "Medium priority threshold must not exceed the high-value threshold" },
+);
 
 // PUT /api/admin/config
 router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
@@ -90,10 +93,9 @@ router.put("/", authenticate, authorize("admin"), asyncHandler(async (req: AuthR
   });
 }));
 
-// GET /api/admin/config/dropdowns — any authenticated user can read (needed for New Declaration department dropdown).
-// Phase 5: served from the normalized Department master data plus the fixed
-// domain value lists. The generic Dropdowns JSON table was retired in
-// 0005_phase5_retirement; the response shape is unchanged.
+// Read-only compatibility endpoint. The SPA uses /api/users/departments for
+// caller-scoped options. Administrators may request a single organization with
+// ?organizationId=; omitting it preserves the legacy all-department response.
 const DOMAIN_DROPDOWNS = {
   categories: ["Gift", "Hospitality", "Entertainment"],
   occasions: ["Business Meeting", "Milestone", "Festive", "Relationship Maintenance", "Other"],
@@ -103,7 +105,7 @@ const DOMAIN_DROPDOWNS = {
   relationships: ["Yes", "No"],
   partyTypes: ["Supplier", "Customer", "Team Member"],
 };
-router.get("/dropdowns", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/dropdowns", authenticate, authorize("admin"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const orgRaw = req.query.organizationId as string | undefined;
   const orgPk = orgRaw !== undefined ? parseIdParam(orgRaw) : undefined;
   if (orgRaw !== undefined && orgPk === null) {
@@ -115,14 +117,8 @@ router.get("/dropdowns", authenticate, asyncHandler(async (req: AuthRequest, res
     where: deptWhere,
     select: { name: true },
     orderBy: { name: "asc" },
-  }).catch(() => []);
-  let names = departments.map((d) => d.name);
-  if (names.length === 0) {
-    // Fallback to user departments when the master table is not seeded yet.
-    const users = await prisma.user.findMany({ where: orgPk !== undefined ? { organizationId: orgPk } : {}, select: { departmentRef: { select: { name: true } } } });
-    names = Array.from(new Set(users.map((u) => u.departmentRef?.name).filter((n): n is string => Boolean(n)))).sort();
-  }
-  res.json({ departments: names, ...DOMAIN_DROPDOWNS });
+  });
+  res.json({ departments: departments.map((department) => department.name), ...DOMAIN_DROPDOWNS });
 }));
 
 // PUT /api/admin/config/dropdowns — retired with the Dropdowns table.

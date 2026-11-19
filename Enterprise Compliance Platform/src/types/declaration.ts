@@ -11,7 +11,6 @@ export type Screen =
   | "admin-users"
   | "admin-workflows"
   | "admin-config"
-  | "admin-dropdown-options"
   | "admin-reports"
   | "admin-approval-options";
 
@@ -130,17 +129,6 @@ export interface SystemConfig {
   maximumValue: number;
   emailTemplate: string;
   notificationTemplates: string;
-}
-
-export interface DropdownOptions {
-  departments: string[];
-  categories: string[];
-  occasions: string[];
-  receivedGiven: string[];
-  biddingProcess: string[];
-  publicOfficial: string[];
-  relationships: string[];
-  partyTypes: string[];
 }
 
 export interface UploadedFile {

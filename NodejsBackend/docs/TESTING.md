@@ -13,8 +13,12 @@
 # Install dependencies (if not done)
 npm install
 
+# Start Azurite from the backend directory. The suite starts its own
+# PostgreSQL/JWKS fixtures and applies the versioned migrations.
+docker compose -f ../docker-compose.azurite.yml up -d --wait azurite
+
 # Run all backend tests
-npx vitest run
+npm test
 
 # Run a specific test file
 npx vitest run src/__tests__/break.test.ts
@@ -357,9 +361,9 @@ $team = Invoke-RestMethod -Uri $provider -Method Post `
 
 ## Test Coverage Summary
 
-Counts below are the 2026-10-08 gate results (backend 445/445 across 26
-files, frontend 270/270 across 23 files). Re-run the suites for current
-totals; counts are not fixed documentation.
+The tables below are a historical test-coverage snapshot from 2026-10-08.
+Test files and counts change as the suite evolves; use the current test output
+and [AGENTS.md](../../AGENTS.md) for the latest verified gates.
 
 ### Backend coverage areas
 
@@ -390,7 +394,7 @@ totals; counts are not fixed documentation.
 | `admin/dashboard.test.ts` | 2 | Dashboard stats |
 | `queue.test.ts` | 2 | Authoritative `{ items, total }` queue contract |
 | `seed-if-empty.test.ts` | 5 | Emptiness predicate (partial-wipe cases), live counts |
-| `notifications.test.ts` | 4 | Webhook no-op paths, placeholder rendering, failure never throws |
+| `notifications.test.ts` | 4 | Outbox enqueue disabled/no-op paths, placeholder rendering, failure never throws |
 
 ### Frontend coverage areas
 
@@ -416,7 +420,6 @@ totals; counts are not fixed documentation.
 | `admin-dashboard-states.test.tsx` | 2 | API errors and recovered dashboard data |
 | `notifications.test.ts` | 2 | Success/error wrapper routing |
 | `LandingScreen.test.tsx` | 3 | Sign-in CTA, provider start, generic failure (no detail leak) |
-| `AdminDropdownOptions.test.tsx` | 3 | Reference-list render, optimistic add, failure rollback |
 | `AdminApprovalOptions.test.tsx` | 1 | Page header and options table |
 | `dashboard-render.test.tsx` | 1 | ApproverDashboard mount smoke test |
 

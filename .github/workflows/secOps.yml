@@ -2,6 +2,7 @@ name: Dependency security audit
 
 on:
   push:
+    branches: ["**"]
     paths:
       - "NodejsBackend/package-lock.json"
       - "NodejsBackend/requirements.txt"

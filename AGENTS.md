@@ -39,21 +39,21 @@ cd NodejsBackend && npm run pg:test   # PostgreSQL integration checks
 cd NodejsBackend && npm run build && npm run pg:smoke  # all smoke checks pass
 ```
 
-Latest recorded verification is documented in docs/DATABASE-NORMALIZATION-GOAL.md; run the commands above before relying on counts.
+Historical gate results are documented in the focused goal/remediation plans. The current cross-repository audit and latest verification matrix are tracked in [`docs/CODEBASE-AUDIT-CLEANUP.md`](docs/CODEBASE-AUDIT-CLEANUP.md); run the commands above before relying on historical counts.
 
 ## Important Details
 - **PostgreSQL is the single provider**; SQLite support fully removed (no `db push` fallback, no Dockerfile `sed` provider rewrite)
 - Migrations 0006_numeric_keys through 0013_user_manager_fk_only complete the numeric-key, workflow-identity, department, domain-integrity, auth-cutover, SLA-scoping, exact-money, scoped-uniqueness, and manager-FK-only changes
-- Migrations through 0019_workflow_step_decider_index are present; attachment bytes are stored only in Azurite and local-disk rows are switched with `npm run attachments:migrate-local-to-azurite` without deleting the source files
+- Migrations through 0020_remove_redundant_indexes are present; attachment bytes are stored only in Azurite and local-disk rows are switched with `npm run attachments:migrate-local-to-azurite` without deleting the source files
 - Declaration.id stays public GHE-YYYY-NNNNNN text reference with internal declarationPk referenced by all child tables
 - Declaration and SystemConfig monetary fields use Decimal(19,2); numeric API boundaries deliberately convert Prisma Decimal values to JSON numbers after validation caps precision to cents
 - Migration 0012 adds scoped team-member and department-code uniqueness, priority checks, exact-money columns with a fail-fast precision preflight, and append-only declaration audit history
 - Bearer tokens are provider-issued RS256 JWTs validated via JWKS (no app-issued JWTs); local user ids stay numeric with no legacy text-id compatibility lookup
-- `dev.bat` starts the loopback throwaway JWKS provider and configures the dev API for it; the Vite landing page has a dev-only quick-login selector for seeded accounts, excluded from production builds
+- `dev.bat` starts Azurite and uses the checked-out backend `.env` and frontend `.env.local`; it does not start or configure the throwaway JWKS provider. The isolated test provider is opt-in through the Docker stub stack or explicit manual configuration.
 - API responses carry no tokens beyond the Authorization header (MSAL sessionStorage cache in the SPA); `/api/docs` is disabled in production and `npm run db:seed` refuses `NODE_ENV=production` without `GHE_ALLOW_PROD_SEED=1`
 - `User.managerId` is the only persisted manager relationship; `lineManager` is an API display value derived from that FK, while declaration snapshots retain historical manager names
 - API response shapes unchanged apart from numeric ids exposed as JSON numbers at boundary via services/ids.ts
-- `npm run build` passes cleanly for backend (`npx tsc`) and frontend (Vite)
+- Latest audit check (2026-11-19): backend `npx tsc --noEmit` passed; frontend typecheck, quality, 290 unit tests, and production build passed; both npm audits reported zero vulnerabilities. Backend full tests, Prisma regeneration/build, PostgreSQL gates, and Docker checks remain unverified or environment-blocked; see the audit tracker.
 - `npm run pg:smoke` added as clean-database gate; CI runs backend tests + pg:test + smoke + e2e + frontend typecheck/tests/build
 - documentation updated: BASELINE, RETIREMENT, SCHEMA, DOCKER, ARCHITECTURE, DEPLOY, goal Current State, AGENTS.md
 
@@ -72,19 +72,20 @@ Latest recorded verification is documented in docs/DATABASE-NORMALIZATION-GOAL.m
 - E2E verification 2026-10-26: Playwright 21/21 passed against a fresh local PostgreSQL database with the throwaway JWKS OpenID provider, including the developer quick-login flow. `playwright.config.ts` passes `E2E_PG_DATABASE_URL` to the backend webServer so the API uses the same database that global setup migrates and seeds. See the verification update in `docs/FRONTEND-AUDIT-REMEDIATION-PLAN.md`.
 
 ### Active
-- Database normalization is implemented; frontend product-hardening remains tracked in `docs/FRONTEND-AUDIT-REMEDIATION-PLAN.md`
+- Whole-codebase audit and cleanup is active; see `docs/CODEBASE-AUDIT-CLEANUP.md` for findings, changes, verification, and remaining work.
+- Frontend product-hardening remains tracked in `docs/FRONTEND-AUDIT-REMEDIATION-PLAN.md`.
 
 ### Blocked
-- None
+- Local Docker-backed checks are blocked while Docker Desktop is unavailable. Prisma regeneration/build is blocked when the schema engine must download through the restricted proxy. These are environment limitations, not passes; rerun in CI or when the services/network are available.
 
 ## Next Move
-1. Run the current backend/frontend and PostgreSQL gates before release decisions.
-2. Follow `docs/DATABASE-NORMALIZATION-GOAL.md` and the frontend remediation plan for remaining work.
+1. Continue the cross-repository source audit, remove confirmed dead/redundant code, and keep the audit tracker current.
+2. Rerun backend tests, PostgreSQL/Azurite integration, clean-database smoke, Docker, and browser acceptance when local services are available.
 
 ## Relevant Files
 - `NodejsBackend/prisma/migrations/0013_user_manager_fk_only/migration.sql` — removes duplicate user manager text
 - `NodejsBackend/prisma/migrations/0018_uploadedfile_storage_reference/migration.sql` — attachment path metadata changed to an opaque storage reference
-- `NodejsBackend/prisma/migrations/0019_workflow_step_decider_index/migration.sql` — latest migration (index the workflow step decider foreign key)
+- `NodejsBackend/prisma/migrations/0020_remove_redundant_indexes/migration.sql` — latest migration (remove indexes covered by unique indexes)
 - `NodejsBackend/src/__tests__/globalSetup.ts` — embedded PG boot + migration deploy
 - `NodejsBackend/.env` — DATABASE_URL set to PostgreSQL only
 - `NodejsBackend/package.json` — build, pg:smoke scripts added

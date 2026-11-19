@@ -2,6 +2,7 @@ name: Docker image validation
 
 on:
   push:
+    branches: ["**"]
     paths:
       - "docker-compose.yml"
       - "docker-compose.stub.yml"
@@ -59,23 +60,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Validate Compose configuration
-        run: docker compose config --quiet
-        env:
-          VITE_ENTRA_CLIENT_ID: ci-client-id
-          VITE_ENTRA_AUTHORITY: https://login.microsoftonline.com/ci-tenant
-          VITE_ENTRA_API_SCOPE: api://ci-client-id/access_as_user
-          VITE_ENTRA_REDIRECT_URI: http://localhost:3000
-          OIDC_AUTHORITY: https://login.microsoftonline.com/ci-tenant/v2.0
-          OIDC_ALLOWED_CLIENT_IDS: ci-client-id
-          OIDC_REQUIRED_SCOPE: access_as_user
-          OIDC_AUDIENCE: api://ci-client-id
-          POSTGRES_PASSWORD: ci-postgres-password
-          DATABASE_URL: postgresql://ghe_user:ci-postgres-password@db:5432/ghe_compliance?schema=public
-          AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
-
-      - name: Build application images
-        run: docker compose build --pull
+      - name: Validate Compose configuration and build application images
+        run: |
+          docker compose config --quiet
+          docker compose build --pull
         env:
           VITE_ENTRA_CLIENT_ID: ci-client-id
           VITE_ENTRA_AUTHORITY: https://login.microsoftonline.com/ci-tenant

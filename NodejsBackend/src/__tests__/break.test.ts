@@ -722,12 +722,18 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
   });
 
   // ── NEW: Report Edge Cases ─────────────────────────
-  it("GET /api/reports/status-breakdown — invalid date range", async () => {
+  it("GET /api/reports/status-breakdown — rejects invalid date filters", async () => {
     const res = await request(app)
       .get("/api/reports/status-breakdown?startDate=9999-99-99&endDate=invalid")
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    // Should still return 200 with empty/valid data (dates are strings, no crash)
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/reports/export — rejects reversed date ranges", async () => {
+    const res = await request(app)
+      .get("/api/reports/export?startDate=2026-12-31&endDate=2026-01-01")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(res.status).toBe(400);
   });
 
   it("GET /api/reports/list — combined filters", async () => {

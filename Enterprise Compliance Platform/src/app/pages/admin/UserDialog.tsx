@@ -13,7 +13,7 @@ const ROLES = [
  * Application-styled user create/edit dialog (Phase 3). Replaces the
  * browser `prompt()` chain: validated inputs, organization select, and an
  * organization-scoped department select (Phase 6: no free-text department
- * entry — new departments are created in Dropdown Options first).
+ * entry — department names come from the normalized department master data).
  */
 export function UserDialog({
   user,

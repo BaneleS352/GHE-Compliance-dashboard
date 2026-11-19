@@ -2,6 +2,7 @@ const DEFAULT_CONNECTION_STRING =
   "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;";
 
 export interface AttachmentStorageEnvironment {
+  NODE_ENV?: string;
   AZURITE_CONNECTION_STRING?: string;
   AZURITE_CONTAINER?: string;
 }
@@ -10,7 +11,11 @@ export function resolveAttachmentStorageConfig(env: AttachmentStorageEnvironment
   connectionString: string;
   container: string;
 } {
-  const connectionString = env.AZURITE_CONNECTION_STRING?.trim() || DEFAULT_CONNECTION_STRING;
+  const configuredConnectionString = env.AZURITE_CONNECTION_STRING?.trim();
+  if (env.NODE_ENV === "production" && !configuredConnectionString) {
+    throw new Error("AZURITE_CONNECTION_STRING is required in production; the local Azurite fallback is development-only");
+  }
+  const connectionString = configuredConnectionString || DEFAULT_CONNECTION_STRING;
   const endpointText = connectionString.split(";").find((part) => part.trim().toLowerCase().startsWith("blobendpoint="))?.slice("BlobEndpoint=".length);
   if (!endpointText) {
     throw new Error("AZURITE_CONNECTION_STRING must include an Azurite BlobEndpoint");

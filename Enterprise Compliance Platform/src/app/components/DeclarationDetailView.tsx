@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Download, Eye, FileText, History, LoaderCircle } from "lucide-react";
 import { Card } from "@/app/components/ui/card";
-import { formatRand, DEFAULT_HIGH_VALUE_THRESHOLD, DEFAULT_MEDIUM_VALUE_THRESHOLD } from "@/config/theme";
+import { formatRand, DEFAULT_HIGH_VALUE_THRESHOLD } from "@/config/theme";
 import { Declaration, UploadedFile } from "@/types/declaration";
 import { fetchDeclarationAudit, fetchPublicConfig } from "@/services/api";
 import type { DeclarationAuditEvent } from "@/services/api";
@@ -18,7 +18,7 @@ export function DeclarationDetailView({
   const isRecord = typeof (data as Declaration).value === "number";
   const d = isRecord ? (data as Declaration) : null;
   const record = !d ? (data as Record<string, string>) : null;
-  const [config, setConfig] = useState({ highValueThreshold: DEFAULT_HIGH_VALUE_THRESHOLD, mediumValueThreshold: DEFAULT_MEDIUM_VALUE_THRESHOLD, slaEscalationDays: 7, maxDeclarationsPerCounterparty: 10, emailTemplate: "" });
+  const [config, setConfig] = useState({ highValueThreshold: DEFAULT_HIGH_VALUE_THRESHOLD });
   const [configWarning, setConfigWarning] = useState<string | null>(null);
   const [auditEvents, setAuditEvents] = useState<DeclarationAuditEvent[]>([]);
   const [auditState, setAuditState] = useState<"loading" | "loaded" | "error" | "unavailable">("unavailable");
@@ -73,7 +73,7 @@ export function DeclarationDetailView({
         ["Contract In Progress",   safe(d.contractNegotiation)],
         ["Description",            safe(d.description)],
         ...(d.value >= config.highValueThreshold
-          ? ([[`Substantiation (> R${config.highValueThreshold})`, safe(d.substantiation || "Required")]] as [string, string][])
+          ? ([[`Substantiation (≥ R${config.highValueThreshold})`, safe(d.substantiation || "Required")]] as [string, string][])
           : []),
       ]
     : [
@@ -97,7 +97,7 @@ export function DeclarationDetailView({
         ["Contract In Progress",   safe(record?.contractNegotiation)],
         ["Description",            safe(record?.description)],
         ...(Number(record?.value) >= config.highValueThreshold
-          ? ([[`Substantiation (> R${config.highValueThreshold})`, safe(record?.substantiation || "Required")]] as [string, string][])
+          ? ([[`Substantiation (≥ R${config.highValueThreshold})`, safe(record?.substantiation || "Required")]] as [string, string][])
           : []),
       ];
 

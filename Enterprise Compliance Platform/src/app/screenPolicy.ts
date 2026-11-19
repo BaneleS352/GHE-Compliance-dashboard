@@ -2,7 +2,7 @@ import type { Role, Screen, User } from "@/types/declaration";
 import { canAccessScreen } from "@/app/auth/authService";
 
 const ADMIN_SCREENS = new Set<Screen>([
-  "admin-dashboard", "admin-users", "admin-workflows", "admin-dropdown-options",
+  "admin-dashboard", "admin-users", "admin-workflows",
   "admin-config", "admin-reports", "admin-approval-options",
 ]);
 const APPROVER_SCREENS = new Set<Screen>(["approver-dashboard", "approval-queue", "approval-detail"]);

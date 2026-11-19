@@ -96,7 +96,7 @@ describe("Declarations", () => {
         employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
         lineManager: "Sipho Approver", position: "Brand Manager", department: "Marketing",
         type: "Gift", counterparty: "New Supplier", value: 200, submitted: "2026-07-01",
-        approver: "Sipho Approver", status: "Draft", priority: "Low",
+        approver: "Sipho Approver", status: "Draft", priority: "High",
         description: "New test declaration", relationship: "Test",
         receivedGiven: "Received", from: "Supplier", contactPerson: "Test",
         biddingProcess: "No", occasion: "Business Meeting", date: "2026-07-01",
@@ -105,6 +105,7 @@ describe("Declarations", () => {
     expect(res.status).toBe(201);
     expect(res.body.id).toMatch(/^GHE-/);
     expect(res.body.status).toBe("Draft");
+    expect(res.body.priority).toBe("Low"); // Server derives priority from value/config.
   });
 
   it("POST /api/declarations — rejects missing required fields", async () => {
@@ -134,9 +135,10 @@ describe("Declarations", () => {
     const res = await request(app)
       .put(`/api/declarations/${id}`)
       .set("Authorization", `Bearer ${getTeamToken()}`)
-      .send({ description: "Updated description" });
+      .send({ description: "Updated description", value: 3000, priority: "Low" });
     expect(res.status).toBe(200);
     expect(res.body.description).toBe("Updated description");
+    expect(res.body.priority).toBe("High"); // A mismatched client label cannot override the derived value.
   });
 
   it("PUT /api/declarations/:id — rejects update of non-draft", async () => {

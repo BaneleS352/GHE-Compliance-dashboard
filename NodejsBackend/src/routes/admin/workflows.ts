@@ -199,7 +199,8 @@ router.delete("/rules/:id", authenticate, authorize("admin"), asyncHandler(async
     return;
   }
 
-  await prisma.workflowRuleStep.deleteMany({ where: { ruleId: rulePk } }).catch(() => undefined);
+  // WorkflowRuleStep uses ON DELETE CASCADE; the rule deletion and its step
+  // cleanup are one database operation, with no swallowed intermediate error.
   await prisma.workflowRule.delete({ where: { id: rulePk } });
   res.json({ message: "Workflow rule deleted" });
 }));

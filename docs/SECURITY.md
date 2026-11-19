@@ -150,9 +150,9 @@ regression test unless noted:
   allowed origins and absence otherwise.
 - Previously untested surfaces now pinned: rate-limit 429 behavior on the
   production wiring, seed-emptiness predicate (partial-wipe cases),
-  notification webhook (no-op paths, placeholder rendering, failures never
-  throw), sign-out e2e (landing returns, session token cleared),
-  `LandingScreen`, `AdminDropdownOptions`, MSAL redirect recovery, and
+  notification outbox enqueue (disabled/no-op paths, placeholder rendering,
+  failures never throw), sign-out e2e (landing returns, session token cleared),
+  `LandingScreen`, MSAL redirect recovery, and
   org-scoped SLA assertions at the DB gate.
 
 ## Notification and reporting controls

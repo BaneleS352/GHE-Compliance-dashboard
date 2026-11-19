@@ -73,6 +73,15 @@ describe("Admin Config", () => {
     expect(outOfRange.status).toBe(400);
   });
 
+  it("PUT /api/admin/config — rejects a medium priority threshold above the high threshold", async () => {
+    const original = await request(app).get("/api/admin/config").set("Authorization", `Bearer ${getAdminToken()}`);
+    const invalid = await request(app)
+      .put("/api/admin/config")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ ...original.body, highValueThreshold: 1000, mediumValueThreshold: 1000.01 });
+    expect(invalid.status).toBe(400);
+  });
+
   it("GET /api/admin/config/dropdowns — returns dropdowns", async () => {
     const res = await request(app)
       .get("/api/admin/config/dropdowns")
@@ -80,6 +89,13 @@ describe("Admin Config", () => {
     expect(res.status).toBe(200);
     expect(res.body.departments).toContain("Marketing");
     expect(res.body.categories).toContain("Gift");
+  });
+
+  it("GET /api/admin/config/dropdowns — denies non-admin users", async () => {
+    const res = await request(app)
+      .get("/api/admin/config/dropdowns")
+      .set("Authorization", `Bearer ${getTeamToken()}`);
+    expect(res.status).toBe(403);
   });
 
   it("PUT /api/admin/config/dropdowns — retired (410), GET serves master data", async () => {

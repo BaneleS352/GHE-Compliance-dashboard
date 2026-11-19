@@ -3,6 +3,7 @@ import multer, { MulterError } from "multer";
 import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
+import { parseDateSafe } from "../services/normalization";
 import { generateExcelBuffer, ColumnDef } from "../services/excelService";
 import {
   detectKind,
@@ -12,6 +13,23 @@ import {
 import { getStatusBreakdown, getSLABreakdown, getHighValueDeclarations, getCounterpartyConcentration, buildReportWhere } from "../services/reports";
 
 const router = Router();
+
+function validateReportDateRange(req: AuthRequest, res: Response, next: NextFunction): void {
+  const rawStart = req.query.startDate;
+  const rawEnd = req.query.endDate;
+  const start = rawStart === undefined || rawStart === "" ? null : typeof rawStart === "string" ? parseDateSafe(rawStart) : null;
+  const end = rawEnd === undefined || rawEnd === "" ? null : typeof rawEnd === "string" ? parseDateSafe(rawEnd) : null;
+
+  if ((rawStart !== undefined && rawStart !== "" && !start) || (rawEnd !== undefined && rawEnd !== "" && !end)) {
+    res.status(400).json({ error: "Report dates must be valid ISO dates or timestamps." });
+    return;
+  }
+  if (start && end && start > end) {
+    res.status(400).json({ error: "Report startDate must not be later than endDate." });
+    return;
+  }
+  next();
+}
 
 // In-memory only: unprotected export bytes must never touch disk.
 const protectUpload = multer({
@@ -93,29 +111,29 @@ router.use((err: Error, _req: AuthRequest, res: Response, next: NextFunction): v
   next(err);
 });
 
-router.get("/counterparty-concentration", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/counterparty-concentration", authenticate, authorize("admin", "approver"), validateReportDateRange, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const data = await getCounterpartyConcentration(req);
   res.json(data);
 }));
 
-router.get("/status-breakdown", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/status-breakdown", authenticate, authorize("admin", "approver"), validateReportDateRange, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const data = await getStatusBreakdown(req);
   res.json(data);
 }));
 
-router.get("/sla", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/sla", authenticate, authorize("admin", "approver"), validateReportDateRange, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const data = await getSLABreakdown(req);
   res.json(data);
 }));
 
-router.get("/high-value", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/high-value", authenticate, authorize("admin", "approver"), validateReportDateRange, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const config = await prisma.systemConfig.findFirst();
   const threshold = Number(config?.highValueThreshold ?? 1000);
   const data = await getHighValueDeclarations(req, { highValueThreshold: threshold });
   res.json(data);
 }));
 
-router.get("/list", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/list", authenticate, authorize("admin", "approver"), validateReportDateRange, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildReportWhere(req);
   const search = req.query.search as string | undefined;
   if (search?.trim()) {
@@ -150,7 +168,7 @@ router.get("/list", authenticate, authorize("admin", "approver"), asyncHandler(a
   res.json(result);
 }));
 
-router.get("/export", authenticate, authorize("admin", "approver"), asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/export", authenticate, authorize("admin", "approver"), validateReportDateRange, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const where = buildReportWhere(req);
   const { reportType } = req.query;
 
