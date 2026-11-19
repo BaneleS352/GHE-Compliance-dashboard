@@ -13,7 +13,7 @@ import { Declaration } from "@/types/declaration";
 import { downloadFile } from "@/services/download";
 import { reportClientError } from "@/services/clientTelemetry";
 import { useUser } from "@/app/auth/UserContext";
-import { fetchPublicConfig, fetchUserById, updateDeclaration, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
+import { fetchPublicConfig, fetchUserById, fetchManagers, fetchDepartments, fetchOrganizations } from "@/services/api";
 import { buildDeclarationPayload as buildPayload, formatRandValue, OCCASION_OPTIONS, parseRandInput, validateDeclarationForm } from "./newDeclarationModel";
 import type { DeclarationFormState } from "./newDeclarationModel";
 
@@ -96,6 +96,18 @@ export function NewDeclarationScreen({
       });
     }
   }, [organizations, user?.organizationId]);
+
+  // Hydrate profile-owned identity fields from the signed-in user whenever
+  // they arrive, so late-loading profile data still populates the form.
+  useEffect(() => {
+    setFormState((f) => ({
+      ...f,
+      employeeName: f.employeeName || user?.name || "",
+      employeeCode: f.employeeCode || user?.teamMemberNumber || "",
+      department: f.department || user?.department || "",
+      position: f.position || user?.position || "",
+    }));
+  }, [user?.name, user?.teamMemberNumber, user?.department, user?.position]);
 
   useEffect(() => {
     if (lineManagerName) {
@@ -331,6 +343,14 @@ export function NewDeclarationScreen({
   // resolvable line manager; department-less (e.g. global) profiles keep
   // going with a legacy value.
   const profileManagerMissing = profileIdentityLocked && !lineManagerName.trim();
+  const incompleteProfileFields = profileIdentityLocked
+    ? [
+        !form.employeeName.trim() ? "name" : null,
+        !form.employeeCode.trim() ? "employee code" : null,
+        !form.position.trim() ? "position" : null,
+        profileManagerMissing ? "line manager" : null,
+      ].filter((field): field is string => field !== null)
+    : [];
 
   const validate = () => {
     // Profile-owned identity is locked for team members: company, department,
@@ -438,6 +458,13 @@ export function NewDeclarationScreen({
             </p>
           </div>
         </div>
+
+        {incompleteProfileFields.length > 0 && (
+          <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <strong>Your staff profile is incomplete.</strong>{" "}
+            Missing {incompleteProfileFields.join(", ")}. Contact your administrator to complete your profile before creating a declaration.
+          </div>
+        )}
 
         <FS id="sec-team" num="1" title="Team Member Details">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-5">

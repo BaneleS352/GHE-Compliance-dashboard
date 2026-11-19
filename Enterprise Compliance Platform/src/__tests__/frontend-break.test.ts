@@ -211,7 +211,7 @@ describe("api.ts — high-level wrappers", () => {
         type: "Gift", value: 100, status: "Draft",
       }), headers: new Headers() } as Response;
     });
-    const dec = await createDeclaration({ employee: "x" } as Declaration);
+    await createDeclaration({ employee: "x" } as Declaration);
     expect(capturedUrl).toBe("/api/declarations");
     expect(capturedMethod).toBe("POST");
   });

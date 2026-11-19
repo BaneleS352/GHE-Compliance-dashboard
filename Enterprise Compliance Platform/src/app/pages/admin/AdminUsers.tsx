@@ -56,11 +56,6 @@ export function AdminUsers() {
       );
     }
     if (roleFilter !== "All Roles") {
-      const reverseMap: Record<string, string> = {
-        "Team Member": "teamMember",
-        Approver: "approver",
-        Administrator: "admin",
-      };
       list = list.filter((u) => ROLE_MAP[u.role] === roleFilter);
     }
     return list;

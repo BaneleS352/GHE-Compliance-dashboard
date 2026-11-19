@@ -2,10 +2,9 @@ import { Request, Response, NextFunction } from "express";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload, errors as joseErrors } from "jose";
 import { config } from "../config/env";
 import { prisma } from "../config/prisma";
-import { toDbId, toJsonId } from "../services/ids";
-import { resolveDepartmentId } from "../services/normalization";
+import { toJsonId } from "../services/ids";
 import { logAuthDiagnostic } from "./authDiagnostics";
-import { Prisma } from "@prisma/client";
+import { StaffProfileSyncError, syncStaffProfile } from "../services/staffProfileSync";
 
 const tenantAuthority = config.oidc.authority.replace(/\/v2\.0$/, "");
 const authorityUrl = new URL(tenantAuthority);
@@ -30,19 +29,38 @@ export interface AuthRequest extends Request {
   };
 }
 
-type EntraClaims = JWTPayload & {
+export type EntraClaims = JWTPayload & {
   oid?: string;
   preferred_username?: string;
   email?: string;
   name?: string;
+  given_name?: string;
+  family_name?: string;
   roles?: string[];
   azp?: string;
   scp?: string;
   upn?: string;
   department?: string;
+  dept?: string;
   position?: string;
   jobTitle?: string;
+  job_title?: string;
   organization?: string;
+  organizationName?: string;
+  organization_name?: string;
+  companyName?: string;
+  company?: string;
+  orgName?: string;
+  org_name?: string;
+  manager?: string;
+  managerName?: string;
+  manager_name?: string;
+  lineManager?: string;
+  line_manager?: string;
+  managerOid?: string;
+  manager_oid?: string;
+  managerId?: number | string;
+  manager_id?: number | string;
   org?: string;
   organizationId?: number | string;
   orgId?: number | string;
@@ -68,92 +86,7 @@ function jwtValidationFailureReason(error: unknown): string {
   return "jwt_validation_failed";
 }
 
-async function autoProvisionUser(providerSubject: string, payload: EntraClaims) {
-  // Determine profile fields from signed claims (display data only).
-  const name =
-    (typeof payload.name === "string" && payload.name.trim()) ||
-    (typeof payload.preferred_username === "string" && payload.preferred_username.trim()) ||
-    providerSubject;
-
-  let email = "";
-  if (typeof payload.email === "string" && payload.email.includes("@")) email = payload.email;
-  else if (typeof payload.preferred_username === "string" && payload.preferred_username.includes("@")) email = payload.preferred_username;
-  else if (typeof payload.upn === "string" && payload.upn.includes("@")) email = payload.upn;
-  if (!email) email = `${providerSubject}@unprovisioned.local`;
-  email = email.toLowerCase();
-
-  // Organization from trusted claims (numeric id or name/shortCode). Never
-  // from email. Unavailable -> null (pending admin completion).
-  let orgPk: bigint | null = null;
-  for (const key of ["organizationId", "orgId"]) {
-    const v = (payload as Record<string, unknown>)[key];
-    if (v === undefined || v === null) continue;
-    const n = typeof v === "number" ? v : (typeof v === "string" && /^\d+$/.test(v) ? Number(v) : NaN);
-    if (Number.isFinite(n)) {
-      const org = await prisma.organization.findUnique({ where: { id: toDbId(n) } });
-      if (org) { orgPk = org.id; break; }
-    }
-  }
-  if (orgPk === null) {
-    const orgNameRaw = (payload as Record<string, unknown>).organization ?? (payload as Record<string, unknown>).org;
-    const orgName = typeof orgNameRaw === "string" ? orgNameRaw.trim() : "";
-    if (orgName) {
-      const org = await prisma.organization.findFirst({ where: { OR: [{ name: orgName }, { shortCode: orgName }] } });
-      if (org) orgPk = org.id;
-    }
-  }
-
-  const position =
-    (typeof payload.position === "string" && payload.position.trim()) ||
-    (typeof payload.jobTitle === "string" && payload.jobTitle.trim()) ||
-    "";
-
-  const deptName =
-    typeof payload.department === "string" ? payload.department.trim() : "";
-
-  // Employee/team-member number from trusted claims only.
-  let teamMemberNumber = "";
-  for (const key of ["teamMemberNumber", "employeeNumber", "employee_number", "employeeId", "employee_id"]) {
-    const v = (payload as Record<string, unknown>)[key];
-    if (typeof v === "string" && v.trim()) { teamMemberNumber = v.trim(); break; }
-    if (typeof v === "number" && Number.isFinite(v)) { teamMemberNumber = String(v); break; }
-  }
-
-  let departmentPk: bigint | null = null;
-  if (deptName && orgPk !== null) {
-    departmentPk = await resolveDepartmentId(deptName, orgPk);
-  }
-
-  try {
-    const created = await prisma.user.create({
-      data: {
-        name,
-        email,
-        role: "teamMember",
-        teamMemberNumber,
-        departmentId: departmentPk,
-        position,
-        managerId: null,
-        organizationId: orgPk,
-        providerSubject,
-        providerIssuer: config.oidc.issuer,
-        isActive: true,
-      },
-      select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } },
-    });
-    return created;
-  } catch (e) {
-    // Unique constraint collision (subject or email already exists): do not
-    // link or overwrite; re-read by subject in case of a race.
-    if ((e as { code?: string })?.code === "P2002") {
-      const existing = await prisma.user.findUnique({ where: { providerSubject }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } });
-      return existing ?? null;
-    }
-    throw e;
-  }
-}
-
-export async function authenticate(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+export async function authenticate(req: AuthRequest, res: Response, next: NextFunction, syncStaffOnLogin = false): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     logAuthDiagnostic(res, "bearer_header", "failure", "missing_or_malformed");
@@ -195,17 +128,61 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     try {
       let dbUser = await prisma.user.findUnique({ where: { providerSubject: decoded.providerSubject }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } });
       if (!dbUser) {
-        // Safe first-login provisioning: create a least-privilege local account
-        // keyed only by the immutable Entra object ID. Profile fields may be
-        // populated from signed claims; organization/employee number come from
-        // trusted claims when present and are otherwise left for an admin.
-        // Admin/approver roles are never granted from claims.
-        dbUser = await autoProvisionUser(decoded.providerSubject, payload);
-        if (!dbUser) {
+        if (!syncStaffOnLogin || !config.staffProfile.enabled || isLoopbackTestIssuer) {
           logAuthDiagnostic(res, "local_identity_lookup", "failure", "identity_not_provisioned");
           res.status(403).json({ error: "Authenticated user is not provisioned in the application" });
           return;
         }
+      }
+      if (syncStaffOnLogin && config.staffProfile.enabled && !isLoopbackTestIssuer) {
+        try {
+          await syncStaffProfile({
+            providerSubject: decoded.providerSubject,
+            claims: payload,
+            graphAccessToken: req.get("X-Microsoft-Graph-Token"),
+            onProfileSyncSkipped: (reason, upstreamStatus) => logAuthDiagnostic(
+              res,
+              "staff_profile_sync",
+              "failure",
+              upstreamStatus ? `${reason}_${upstreamStatus}` : reason,
+            ),
+          });
+        } catch (error) {
+          if (error instanceof StaffProfileSyncError) {
+            logAuthDiagnostic(res, "staff_profile_sync", "failure", error.reason);
+            const temporary = [
+              "disabled", "configuration", "unavailable", "graph_profile_unavailable",
+              "his_auth_rejected", "his_rate_limited", "his_server_error", "his_http_error",
+              "his_network_error", "his_timeout", "his_tls_error",
+            ].includes(error.reason);
+            const errorMessage = error.reason === "his_auth_rejected"
+              ? "HIS rejected the configured service credentials; check AUTH_TOKEN and its header/scheme settings"
+              : error.reason === "his_rate_limited"
+              ? "HIS is rate limiting profile lookups; retry later"
+              : error.reason === "his_tls_error"
+              ? "The backend could not verify the HIS TLS certificate"
+              : error.reason === "his_timeout"
+              ? "HIS did not respond before the profile lookup timed out"
+              : error.reason.startsWith("his_")
+              ? "HIS profile lookup failed; check backend connectivity and the HIS service"
+              : temporary
+              ? "Staff profile synchronization is temporarily unavailable"
+              : "Your staff profile could not be matched in HIS; contact your application administrator";
+            res.status(temporary ? 503 : 403).json({
+              error: errorMessage,
+              code: `staff_profile_${error.reason}`,
+            });
+            return;
+          }
+          throw error;
+        }
+        dbUser = await prisma.user.findUnique({ where: { providerSubject: decoded.providerSubject }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, providerSubject: true, providerIssuer: true, isActive: true, departmentRef: { select: { name: true } } } });
+        if (!dbUser) throw new Error("staff profile was not persisted");
+      }
+      if (!dbUser) {
+        logAuthDiagnostic(res, "local_identity_lookup", "failure", "identity_not_provisioned");
+        res.status(403).json({ error: "Authenticated user is not provisioned in the application" });
+        return;
       }
       if (!dbUser.isActive) {
         logAuthDiagnostic(res, "local_identity_lookup", "failure", "account_disabled");
@@ -254,6 +231,11 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     logAuthDiagnostic(res, "jwt_validation", "failure", jwtValidationFailureReason(error));
     res.status(401).json({ error: "Invalid or expired token" });
   }
+}
+
+/** `/api/auth/me` is the login boundary: synchronize HIS data once per app load. */
+export function authenticateAndSyncStaff(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  return authenticate(req, res, next, true);
 }
 
 export function authorize(...roles: string[]) {

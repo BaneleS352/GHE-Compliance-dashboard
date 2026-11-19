@@ -47,7 +47,7 @@ describe("Declaration change history", () => {
       createdAt: "2026-11-05T10:00:00.000Z",
     }]);
 
-    render(<DeclarationDetailView data={declaration} onBack={vi.fn()} hideDocuments />);
+    render(<DeclarationDetailView data={declaration} hideDocuments />);
 
     await waitFor(() => expect(screen.getByText("Declaration updated")).toBeInTheDocument());
     expect(fetchDeclarationAudit).toHaveBeenCalledWith(declaration.id);
@@ -60,7 +60,7 @@ describe("Declaration change history", () => {
     vi.mocked(fetchPublicConfig).mockResolvedValue({} as any);
     vi.mocked(fetchDeclarationAudit).mockRejectedValue(new Error("forbidden"));
 
-    render(<DeclarationDetailView data={declaration} onBack={vi.fn()} hideDocuments />);
+    render(<DeclarationDetailView data={declaration} hideDocuments />);
 
     expect(await screen.findByText(/Change history could not be loaded/)).toBeInTheDocument();
   });

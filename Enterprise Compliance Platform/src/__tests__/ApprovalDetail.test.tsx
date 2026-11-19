@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ApprovalDetail } from "../app/pages/ApprovalDetail";
-import { fetchWorkflowInstance, approveWorkflowStep, fetchConfig } from "../services/api";
+import { fetchWorkflowInstance, approveWorkflowStep } from "../services/api";
 
 const mockDeclaration = {
   id: "GHE-2026-1001", employee: "Alice", employeeId: 1, department: "IT",
@@ -27,12 +27,9 @@ const mockWorkflow = {
 let mockUserStep: any;
 
 vi.mock("../services/api", () => ({
+  fetchDeclarationAudit: vi.fn().mockResolvedValue([]),
   fetchWorkflowInstance: vi.fn(),
   approveWorkflowStep: vi.fn(),
-  fetchConfig: vi.fn(() => Promise.resolve({
-    highValueThreshold: 1000, mediumValueThreshold: 1000,
-    slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "",
-  })),
   fetchPublicConfig: vi.fn(() => Promise.resolve({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maximumValue: 1000000 })),
 }));
 

@@ -16,7 +16,6 @@ export interface StepView {
 
 interface WorkflowTimelineProps {
   declarationId?: string;
-  employee?: string;
   steps?: StepView[];
   decision?: ApprovalDecision;
   onDecision?: (d: ApprovalDecision) => void;
@@ -32,7 +31,7 @@ const ALL_ROLES = [
   { role: "hr",          label: "HR Review",           defaultActor: "Head of HR" },
 ];
 
-function buildStepsFromWorkflow(wf: WorkflowInstanceResponse | null | undefined, employee?: string): StepView[] {
+function buildStepsFromWorkflow(wf: WorkflowInstanceResponse | null | undefined): StepView[] {
   const hasData = wf && wf.steps && wf.steps.length > 0;
   const existing = hasData ? new Map(wf.steps.map((s: WorkflowStepResponse) => [s.role, s])) : new Map<string, WorkflowStepResponse>();
   const result: StepView[] = [];
@@ -151,7 +150,7 @@ function CompletedDetails({ step }: { step: StepView }) {
   );
 }
 
-function PendingDetails({ isActive }: { isActive?: boolean }) {
+function PendingDetails() {
   return (
     <>
       <div className="wf-detail-row flex justify-between py-1 text-sm">
@@ -170,14 +169,13 @@ function WaitingDetails({ actor }: { actor: string }) {
   return (
     <>
       <p className="text-sm text-purple-700 font-semibold mb-3">Awaiting action from <strong>{actor}</strong></p>
-      <PendingDetails isActive />
+      <PendingDetails />
     </>
   );
 }
 
 export function WorkflowTimeline({
   declarationId,
-  employee,
   steps: externalSteps,
   decision,
   onDecision,
@@ -200,7 +198,7 @@ export function WorkflowTimeline({
     return () => controller.abort();
   }, [declarationId, externalSteps]);
 
-  const steps = externalSteps || buildStepsFromWorkflow(wf, employee);
+  const steps = externalSteps || buildStepsFromWorkflow(wf);
 
   return (
     <div className="detail-panel-shell h-full">
@@ -222,9 +220,6 @@ export function WorkflowTimeline({
       <div className="flex-1">
         {steps.map((step, i) => {
           const isLast = i === steps.length - 1;
-          const isActive = step.state === "active";
-          const isSkipped = step.state === "skipped";
-
           return (
             <div key={step.label} className="flex gap-4">
               <div className="flex flex-col items-center flex-shrink-0">

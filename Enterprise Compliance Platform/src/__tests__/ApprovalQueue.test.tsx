@@ -48,6 +48,7 @@ const mockQueueItems = [
 
 vi.mock("../services/api", () => ({
   fetchWorkflowQueue: vi.fn(),
+  fetchDeclarationAudit: vi.fn().mockResolvedValue([]),
   // ApprovalQueue lazy-loads the SLA configuration after loading the queue.
   // Keep this export in the mock so the async side effect is observable without
   // producing an unhandled Vitest mock error.

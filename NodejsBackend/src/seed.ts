@@ -19,6 +19,7 @@ const prisma = new PrismaClient();
 const organizations = [
   { id: 1n, name: "Hollywoodbets Group", shortCode: "HB" },
   { id: 2n, name: "Naspers Limited", shortCode: "NPN" },
+  { id: 3n, name: "Betsoftware", shortCode: "BET" },
 ];
 
 // Numeric fixture keys (seed writes the normalized model directly; no

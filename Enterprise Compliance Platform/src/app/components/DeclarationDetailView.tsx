@@ -7,17 +7,12 @@ import { fetchDeclarationAudit, fetchPublicConfig } from "@/services/api";
 import type { DeclarationAuditEvent } from "@/services/api";
 import { downloadFile as downloadSharedFile, previewFile as previewSharedFile } from "@/services/download";
 import { notifyError } from "@/app/components/notify";
-import { motion } from "framer-motion";
 
 export function DeclarationDetailView({
   data,
-  onBack,
-  hideBackButton,
   hideDocuments,
 }: {
   data: Record<string, string> | Declaration;
-  onBack: () => void;
-  hideBackButton?: boolean;
   hideDocuments?: boolean;
 }) {
   const isRecord = typeof (data as Declaration).value === "number";

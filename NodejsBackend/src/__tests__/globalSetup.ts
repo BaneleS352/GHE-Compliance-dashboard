@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { BlobServiceClient, type ContainerClient } from "@azure/storage-blob";
 import { execFileSync } from "child_process";
 import fs from "fs";
 import os from "os";
@@ -21,6 +22,29 @@ const PG_URL = process.env.TEST_PG_DATABASE_URL ||
 
 let embedded: any = null;
 let jwksClose: (() => Promise<void>) | null = null;
+let azuriteTestContainer: ContainerClient | null = null;
+
+async function startAzurite(): Promise<void> {
+  process.env.AZURITE_CONNECTION_STRING ||= "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;";
+  process.env.AZURITE_CONTAINER = `ghe-test-${process.pid}`;
+  azuriteTestContainer = BlobServiceClient.fromConnectionString(process.env.AZURITE_CONNECTION_STRING)
+    .getContainerClient(process.env.AZURITE_CONTAINER);
+  let lastError: any;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    try {
+      await azuriteTestContainer.createIfNotExists();
+      return;
+    } catch (error: any) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+  throw new Error(
+    "Backend integration checks require Azurite Blob Storage on localhost:10000. " +
+      "Start it with `docker compose -f docker-compose.azurite.yml up -d --wait azurite`. " +
+      `Cause: ${lastError?.code || lastError?.name || "unknown"}`,
+  );
+}
 
 async function startEmbeddedPostgres(): Promise<void> {
   if (process.env.TEST_PG_DATABASE_URL) return;
@@ -55,6 +79,7 @@ async function startEmbeddedPostgres(): Promise<void> {
 }
 
 export async function setup() {
+  await startAzurite();
   await startEmbeddedPostgres();
   process.env.DATABASE_URL = PG_URL;
 
@@ -243,5 +268,9 @@ export async function teardown() {
       // Best-effort: the OS reclaims the postmaster in any case.
     }
     embedded = null;
+  }
+  if (azuriteTestContainer) {
+    try { await azuriteTestContainer.deleteIfExists(); } catch { /* leave the isolated test container for manual cleanup */ }
+    azuriteTestContainer = null;
   }
 }

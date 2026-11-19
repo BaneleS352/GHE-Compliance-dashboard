@@ -8,8 +8,6 @@ import { fetchWorkflowRules, createWorkflowRule, updateWorkflowRule, deleteWorkf
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { notifySuccess, notifyError } from "../../components/notify";
 
-const ROLE_LABELS: Record<string, string> = { lineManager: "Line Manager", hr: "Head of HR" };
-
 export function AdminWorkflows() {
   const [rules, setRules] = useState<WorkflowRule[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);

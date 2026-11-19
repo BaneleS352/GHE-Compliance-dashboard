@@ -102,7 +102,7 @@ Valid roles: `lineManager`, `hr`
 `PUT /api/admin/config`
 - Required configuration fields: `highValueThreshold`, `mediumValueThreshold`, `slaEscalationDays`, `maxDeclarationsPerCounterparty`, `emailTemplate`, and validated `notificationTemplates`.
 
-Notification events are delivered through `EMAIL_WEBHOOK_URL`; without that environment variable, local development logs the event only.
+Notification events are rendered from `SystemConfig.notificationTemplates` and enqueued with `public.enqueue_email_notification` in the same workflow transaction. The SMTP worker delivers committed outbox rows asynchronously. Delivery is disabled by default (`EMAIL_DELIVERY_ENABLED=false`); when enabled, configure `SMTP_HOST` and `SMTP_FROM` (and credentials if required), then run `npm run email:worker`. Delivery failures retry with backoff up to five attempts and then remain visible as `failed` outbox rows. SMTP delivery is at least once: a process crash after SMTP accepts a message but before the database records success can cause a duplicate.
 - Affects new submissions only
 
 ## Decision Values

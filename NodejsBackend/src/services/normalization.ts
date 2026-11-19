@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient, WorkflowInstanceStep } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../config/prisma";
 import { toDbId } from "./ids";
 import type { WorkflowStep } from "./workflowService";
@@ -265,7 +265,7 @@ export async function syncWorkflowRuleSteps(
   return defs.length;
 }
 
-function toStepRow(declarationPk: bigint, instanceId: bigint, s: WorkflowStep, validUserIds: Set<string>) {
+function toStepRow(s: WorkflowStep, validUserIds: Set<string>) {
   const assigneeKey = s.assignee === null || s.assignee === undefined ? null : String(s.assignee);
   const deciderKey = s.decidedById === null || s.decidedById === undefined ? null : String(s.decidedById);
   return {
@@ -325,7 +325,7 @@ export async function writeWorkflowStepsTx(
     });
   }
   for (const s of steps) {
-    const row = toStepRow(pk, instance.id, s, validUserIds);
+    const row = toStepRow(s, validUserIds);
     await tx.workflowInstanceStep.upsert({
       where: { instanceId_stepOrder: { instanceId: instance.id, stepOrder: s.order } },
       create: { instanceId: instance.id, declarationPk: pk, ...row },

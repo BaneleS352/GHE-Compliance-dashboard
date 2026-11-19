@@ -3,8 +3,6 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import xss from "xss";
 import crypto from "crypto";
-import path from "path";
-import fs from "fs";
 import { prisma } from "../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
@@ -20,9 +18,9 @@ import {
   readWorkflowStepRows,
 } from "../services/normalization";
 import { toDbId, toJsonId } from "../services/ids";
-import { sendNotification } from "../services/notificationService";
+import { notificationDedupeKey, queueNotificationSafely } from "../services/notificationService";
 import { recordDeclarationAudit } from "../services/declarationAudit";
-import { containedUploadPath } from "./files";
+import { deleteStoredAttachment, isAzuriteAttachment } from "../services/attachmentStorage";
 import {
   viewStatusSummaryFull,
   viewMonthly,
@@ -30,8 +28,6 @@ import {
 } from "../services/reportingViews";
 
 const router = Router();
-const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
-
 function generateDeclarationId(): string {
   const year = new Date().getFullYear();
   const rand = crypto.randomInt(100000, 999999);
@@ -139,10 +135,21 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
   }
 
   // Fallback: direct aggregation on the normalized tables.
+  const monthlyOrgFilter = orgId !== undefined && orgId !== null
+    ? Prisma.sql`AND "organizationId" = ${toDbId(orgId)}`
+    : Prisma.empty;
   const [counts, totalValueAgg, monthly, typeRows] = await Promise.all([
     prisma.declaration.groupBy({ by: ["status"], where: orgWhere, _count: { status: true } }),
     prisma.declaration.aggregate({ where: orgWhere, _sum: { value: true } }),
-    prisma.declaration.findMany({ where: { ...orgWhere, eventDate: { not: null } }, select: { eventDate: true, status: true } }),
+    prisma.$queryRaw<Array<{ month: Date; approved: bigint; declined: bigint }>>(Prisma.sql`
+      SELECT date_trunc('month', "eventDate") AS "month",
+        COUNT(*) FILTER (WHERE "status" = 'Approved') AS "approved",
+        COUNT(*) FILTER (WHERE "status" = 'Declined') AS "declined"
+      FROM "Declaration"
+      WHERE "eventDate" IS NOT NULL ${monthlyOrgFilter}
+      GROUP BY date_trunc('month', "eventDate")
+      ORDER BY "month" ASC
+    `),
     prisma.declaration.groupBy({ by: ["type"], where: orgWhere, _count: { type: true } }),
   ]);
   const countMap = new Map(counts.map((c) => [c.status, c._count.status]));
@@ -156,16 +163,11 @@ router.get("/stats", authenticate, authorize("admin", "approver"), asyncHandler(
     escalated: countMap.get("Escalated") || 0,
     totalValue: Number(totalValueAgg._sum.value || 0),
   };
-  const monthMap = new Map<string, { approved: number; declined: number }>();
-  for (const d of monthly) {
-    if (!d.eventDate) continue;
-    const month = new Date(d.eventDate).toISOString().slice(0, 7);
-    const e = monthMap.get(month) || { approved: 0, declined: 0 };
-    if (d.status === "Approved") e.approved++;
-    if (d.status === "Declined") e.declined++;
-    monthMap.set(month, e);
-  }
-  const complianceTrend = [...monthMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([month, v]) => ({ month, ...v }));
+  const complianceTrend = monthly.map((row) => ({
+    month: new Date(row.month).toISOString().slice(0, 7),
+    approved: Number(row.approved),
+    declined: Number(row.declined),
+  }));
   const typeBreakdown = typeRows.map((t) => ({ name: t.type, value: t._count.type }));
 
   res.json({ kpis, complianceTrend, typeBreakdown });
@@ -285,7 +287,11 @@ router.post("/", authenticate, asyncHandler(async (req: AuthRequest, res: Respon
     }
     orgId = bodyOrg !== null && req.user!.role === "admin" ? bodyOrg : userOrgPk;
   } else {
-    orgId = bodyOrg;
+    if (bodyOrg !== null && req.user!.role !== "admin") {
+      res.status(403).json({ error: "Cannot create declaration for another organization" });
+      return;
+    }
+    orgId = req.user!.role === "admin" ? bodyOrg : null;
   }
   if (orgId !== null) {
     const orgExists = await prisma.organization.findUnique({ where: { id: orgId } });
@@ -546,9 +552,11 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
   // Prevent org spoof on update — non-admin cannot change org
   const bodyOrgPut = data.organizationId !== undefined ? toDbId(data.organizationId) : undefined;
-  if (bodyOrgPut !== undefined && userOrgIdPut !== undefined && userOrgIdPut !== null && bodyOrgPut !== toDbId(userOrgIdPut) && req.user!.role !== "admin") {
-    res.status(403).json({ error: "Cannot move declaration to another organization" });
-    return;
+  if (bodyOrgPut !== undefined && req.user!.role !== "admin") {
+    if (userOrgIdPut === undefined || userOrgIdPut === null || bodyOrgPut !== toDbId(userOrgIdPut)) {
+      res.status(403).json({ error: "Cannot move declaration to another organization" });
+      return;
+    }
   }
   if (bodyOrgPut !== undefined) {
     const orgExists = await prisma.organization.findUnique({ where: { id: bodyOrgPut } });
@@ -787,18 +795,19 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
   }
   if (denyCrossDepartmentLM(req, res, existing.snapshot?.department)) return;
 
-  // Delete disk files via the join rows (the only file association).
+  // Capture linked file paths before the database transaction removes rows.
   const pk = existing.declarationPk;
   const links = await prisma.declarationFile.findMany({ where: { declarationPk: pk }, include: { file: true } });
-  await Promise.all(links.map(async (l) => {
-    const fp = containedUploadPath(l.file.path);
-    if (!fp) return;
-    try { await fs.promises.unlink(fp); } catch { /* file may have been deleted already */ }
-  }));
+  if (links.some((link) => !isAzuriteAttachment(link.file.storageReference))) {
+    res.status(503).json({ error: "Attachment storage migration required; ask an administrator to migrate existing uploads to Azurite" });
+    return;
+  }
+  const storedFiles = links.map((link) => ({ id: link.fileId, storageReference: link.file.storageReference }));
   const fileIds = links.map((l) => l.fileId);
   // One transaction for all database deletes: a failure rolls everything
   // back instead of leaving orphaned child rows behind a deleted parent
-  // (disk files above are already unlinked and best-effort by nature).
+  // Storage cleanup happens after commit; a storage failure cannot invalidate
+  // the database transaction and a transaction failure leaves evidence intact.
   await prisma.$transaction(async (tx) => {
     await recordDeclarationAudit(tx, {
       declarationPk: pk,
@@ -826,6 +835,14 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     await tx.declarationDetail.deleteMany({ where: { declarationPk: pk } });
     await tx.declaration.delete({ where: { declarationPk: pk } });
   });
+
+  await Promise.all(storedFiles.map(async (file) => {
+    try {
+      await deleteStoredAttachment(file.storageReference);
+    } catch {
+      console.error(JSON.stringify({ event: "declaration_evidence_cleanup", fileId: String(file.id), outcome: "failure" }));
+    }
+  }));
 
   res.json({ message: "Declaration deleted" });
 }));
@@ -953,6 +970,23 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
         workflowSteps: workflowSteps.map((step) => ({ order: step.order, role: step.role, status: step.status, assignee: step.assignee })),
       },
     });
+
+    if (nextApprover && nextApprover.assignee !== null) {
+      const event = nextApprover.role === "hr" ? "hrApproval" : "managerApproval";
+      const pendingStep = await tx.workflowInstanceStep.findFirst({
+        where: { declarationPk: pk, stepOrder: nextApprover.order, status: "pending", assigneeId: toDbId(nextApprover.assignee) },
+        select: { id: true },
+      });
+      if (pendingStep) {
+        await queueNotificationSafely(
+          tx,
+          event,
+          existing.id,
+          nextApprover.assignee,
+          notificationDedupeKey(event, existing.id, pendingStep.id, nextApprover.assignee),
+        );
+      }
+    }
   });
 
   const updated = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
@@ -961,9 +995,6 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
     return;
   }
   res.json(declarationResponse(updated));
-  if (nextApprover && nextApprover.assignee !== null) {
-    void sendNotification(nextApprover.role === "hr" ? "hrApproval" : "managerApproval", existing.id, nextApprover.assignee);
-  }
 }));
 
 router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {

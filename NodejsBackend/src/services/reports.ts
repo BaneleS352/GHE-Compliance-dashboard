@@ -3,7 +3,7 @@ import { prisma } from "../config/prisma";
 import { AuthRequest } from "../middleware/auth";
 import { parseDateSafe } from "./normalization";
 import { toDbId } from "./ids";
-import { viewStatusSummary, viewSlaRows, viewCounterparty } from "./reportingViews";
+import { viewStatusSummary, viewSlaSummary, viewCounterparty } from "./reportingViews";
 
 const REPORT_BATCH_SIZE = 500;
 
@@ -70,7 +70,7 @@ export async function getStatusBreakdown(req: AuthRequest): Promise<Record<strin
 }
 
 export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
-  // Prefer relational step rows via the SLA view (portable day math in JS).
+  // Prefer a database-aggregated summary from the SLA view.
   // Views are unfiltered read models: only use them when the request carries no
   // report filters, otherwise fall through to the filtered aggregation.
   const { startDate, endDate, department, status } = req.query as Record<string, unknown>;
@@ -80,31 +80,16 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
       // Scope like every other view-backed report: global callers (admin,
       // org-less) see all rows; org-scoped callers see only their own.
       const orgId = req.user?.organizationId ?? undefined;
-      const rows = await viewSlaRows(orgId ?? undefined);
+      const rows = await viewSlaSummary(orgId ?? undefined);
       if (rows && rows.length > 0) {
         const roleMap: Record<string, string> = { lineManager: "Line Manager", hr: "HR" };
-        const byRole: Record<string, number[]> = {};
-        for (const r of rows) {
-          if (!r.decidedAt || !r.eventDate) continue;
-          const decided = new Date(r.decidedAt).getTime();
-          const base = new Date(r.eventDate).getTime();
-          if (Number.isNaN(decided) || Number.isNaN(base)) continue;
-          const days = (decided - base) / (1000 * 60 * 60 * 24);
-          const label = roleMap[r.role] || r.role;
-          if (!byRole[label]) byRole[label] = [];
-          byRole[label].push(days);
-        }
-        const out = Object.entries(byRole).map(([role, days]) => {
-          const total = days.reduce((s, d) => s + d, 0);
-          return {
-            role,
-            avg: Math.round((total / days.length) * 100) / 100,
-            min: Math.round(Math.min(...days) * 100) / 100,
-            max: Math.round(Math.max(...days) * 100) / 100,
-            count: days.length,
-          };
-        });
-        if (out.length > 0) return out;
+        return rows.map((row) => ({
+          role: roleMap[row.role] || row.role,
+          avg: Math.round(row.avg * 100) / 100,
+          min: Math.round(row.min * 100) / 100,
+          max: Math.round(row.max * 100) / 100,
+          count: row.count,
+        }));
       }
     } catch {
       // Fall through to direct aggregation.

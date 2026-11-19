@@ -4,11 +4,11 @@
 
 ```
 GHE-Compliance-Dashboard/
-├── docker-compose.yml              # 3-container orchestration (frontend+backend+postgres)
+├── docker-compose.yml              # frontend+backend+PostgreSQL+Azurite orchestration
 ├── .dockerignore                   # Excludes node_modules, .env, dist
 ├── DOCKER.md                       # Full Docker setup guide
 ├── NodejsBackend/                  # REST API (Express + TypeScript + Prisma)
-│   ├── Dockerfile                  # Multi-stage build (TSC + PostgreSQL swap)
+│   ├── Dockerfile                  # Multi-stage TypeScript build
 │   ├── entrypoint.sh               # Runs prisma migrate deploy, starts server
 │   └── src/
 │       ├── config/                 # env, swagger, prisma client
@@ -70,7 +70,8 @@ Express API (port 3001)
     │       ├── Role authorization
     │       └── Prisma DB operations
     │
-    └── PostgreSQL (BIGINT keys; Declaration.id stays the public GHE- reference)
+    ├── PostgreSQL (BIGINT keys; Declaration.id stays the public GHE- reference)
+    └── Azurite Blob Storage (private attachment container; metadata references stay in PostgreSQL)
 ```
 
 ## Key Design Decisions
@@ -80,11 +81,16 @@ Express API (port 3001)
 | Database | PostgreSQL everywhere (dev, CI, prod) | Single provider; native BIGINT identity keys; versioned migrations only |
 | Auth | OpenID Connect / Entra bearer tokens | Provider authenticates; local User owns roles and organization scope |
 | Validation | Zod schemas | Type-safe, composable, good DX |
-| File storage | Local disk (`uploads/`) behind authenticated API routes | Simple; replace with object storage for production |
+| File storage | Azurite Blob container behind authenticated API routes | Single attachment store; PostgreSQL keeps metadata and opaque Azurite references |
 | Workflow | Relational step/instance rows | Auditable per-declaration step history; no JSON fallback |
 | Notifications | Validated templates + email webhook | Provider-independent delivery with safe development logging |
 | Theme | Centralised `theme.ts` + CSS variables | Single source of truth for colours, gradients, status/priority maps |
 | Docker | Multi-stage builds | Frontend container port 80 published on host port 3000; backend port 3001; PostgreSQL port 5432; PostgreSQL is the only provider (no provider rewriting) — versioned migrations run via `prisma migrate deploy` |
+
+Attachment storage is intentionally Azurite-only. Local-disk metadata is accepted
+only by the one-time migration command; API routes never fall back to reading or
+writing files on disk. Azurite is an emulator, so this deployment choice does not
+provide a production cloud-storage durability or availability guarantee.
 
 ## Authentication Flow
 
@@ -109,7 +115,7 @@ Workflow rule selection is `value >= highValueThreshold → rule 2`, otherwise `
 
 ## Notifications
 
-Workflow submission and approval transitions call `notificationService.ts`. It resolves recipients from the user table, renders the configured event template, and POSTs `{ to, subject, body, event, declarationId }` to `EMAIL_WEBHOOK_URL`. Without that variable, development mode logs the event. Delivery failures do not roll back workflow state.
+Workflow submission and approval transitions call `notificationService.ts` inside the workflow transaction. It resolves recipients from the user table, renders the configured event template, and calls the PostgreSQL `public.enqueue_email_notification` procedure to insert an idempotent `EmailOutbox` row. A separate SMTP worker claims rows using `FOR UPDATE SKIP LOCKED`, records attempts and outcomes, and retries transient failures with bounded backoff. Delivery is disabled by default; SMTP secrets are runtime configuration and must not be committed. SMTP is at-least-once because a crash after server acceptance but before recording success can cause a duplicate.
 
 ## Reports
 

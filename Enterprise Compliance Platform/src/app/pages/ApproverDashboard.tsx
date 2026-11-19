@@ -71,7 +71,6 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
 
   useEffect(() => { setDeptPage(0); }, [activeFilter]);
 
-  const isAdmin = user?.role === "admin";
   const isTeamMember = user?.role === "teamMember";
 
   const scopedDeclarations = useMemo(() => {
@@ -171,8 +170,6 @@ export function ApproverDashboard({ onNavigate, onReview }: { onNavigate: (s: Sc
   }
 
   const queueCount = queueTotal;
-  const monthLabel = new Date().toLocaleDateString("en-ZA", { month: "long", year: "numeric" });
-
   const kpiDefs = [
     { ...STATUS_KPI.Pending, label: "Pending Queue" },
     STATUS_KPI.Approved,

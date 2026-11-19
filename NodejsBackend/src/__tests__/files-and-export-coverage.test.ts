@@ -1,15 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
-import fs from "fs/promises";
-import path from "path";
 import XLSX from "xlsx";
 import { PrismaClient } from "@prisma/client";
 import { buildApp, getAdminToken, getTeamToken } from "./helpers";
 import { generateExcelBuffer } from "../services/excelService";
+import { copyLegacyAttachmentToAzurite, deleteStoredAttachment, isAzuriteAttachment } from "../services/attachmentStorage";
 
 const app = buildApp();
 const prisma = new PrismaClient();
-const uploadDir = path.resolve(process.cwd(), "uploads");
 let declarationId: string;
 const createdFileIds: bigint[] = [];
 
@@ -40,6 +38,8 @@ describe("File and report export contracts", () => {
 
   afterAll(async () => {
     for (const id of createdFileIds) {
+      const file = await prisma.uploadedFile.findUnique({ where: { id }, select: { storageReference: true } });
+      if (file && isAzuriteAttachment(file.storageReference)) await deleteStoredAttachment(file.storageReference).catch(() => undefined);
       await prisma.declarationFile.deleteMany({ where: { fileId: id } }).catch(() => undefined);
       await prisma.uploadedFile.deleteMany({ where: { id } });
     }
@@ -63,27 +63,26 @@ describe("File and report export contracts", () => {
   });
 
   it("denies non-admin access to orphan files", async () => {
-    const file = await prisma.uploadedFile.create({ data: { originalName: "orphan.txt", mimeType: "text/plain", size: 1, path: "missing-orphan.txt" } });
+    const file = await prisma.uploadedFile.create({ data: { originalName: "orphan.txt", mimeType: "text/plain", size: 1, storageReference: "legacy:missing-orphan" } });
     createdFileIds.push(file.id);
     const response = await request(app).get(`/api/files/${file.id}`).set("Authorization", `Bearer ${getTeamToken()}`);
     expect(response.status).toBe(403);
   });
 
-  it("returns 404 when the database record exists but the disk file is missing", async () => {
-    const file = await prisma.uploadedFile.create({ data: { originalName: "gone.txt", mimeType: "text/plain", size: 1, path: "definitely-missing.txt" } });
+  it("returns 404 when the database record references a missing Azurite blob", async () => {
+    const file = await prisma.uploadedFile.create({ data: { originalName: "gone.txt", mimeType: "text/plain", size: 1, storageReference: "azurite:ffffffffffffffffffffffffffffffff" } });
     const gonePk = (await prisma.declaration.findUnique({ where: { id: declarationId }, select: { declarationPk: true } }))!.declarationPk;
     await prisma.declarationFile.create({ data: { declarationPk: gonePk, fileId: file.id } });
     createdFileIds.push(file.id);
     const response = await request(app).get(`/api/files/${file.id}`).set("Authorization", `Bearer ${getTeamToken()}`);
     expect(response.status).toBe(404);
-    expect(response.body.error).toBe("File not found on disk");
+    expect(response.body.error).toBe("File not found");
   });
 
   it("sanitizes CRLF characters in downloaded filenames", async () => {
     const fileName = "safe\r\nInjected.txt";
-    const diskName = "header-test.txt";
-    await fs.writeFile(path.join(uploadDir, diskName), "x");
-    const file = await prisma.uploadedFile.create({ data: { originalName: fileName, mimeType: "text/plain", size: 1, path: diskName } });
+    const storedReference = await copyLegacyAttachmentToAzurite(Buffer.from("x"), "text/plain");
+    const file = await prisma.uploadedFile.create({ data: { originalName: fileName, mimeType: "text/plain", size: 1, storageReference: storedReference } });
     const crlfPk = (await prisma.declaration.findUnique({ where: { id: declarationId }, select: { declarationPk: true } }))!.declarationPk;
     await prisma.declarationFile.create({ data: { declarationPk: crlfPk, fileId: file.id } });
     createdFileIds.push(file.id);
@@ -91,7 +90,6 @@ describe("File and report export contracts", () => {
     expect(response.status).toBe(200);
     expect(response.headers["content-disposition"]).not.toContain("\r");
     expect(response.headers["content-disposition"]).not.toContain("\n");
-    await fs.unlink(path.join(uploadDir, diskName)).catch(() => undefined);
   });
 
   it("exports an XLSX workbook with the declared report columns", async () => {

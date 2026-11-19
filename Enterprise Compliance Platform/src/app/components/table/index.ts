@@ -1,5 +1,3 @@
-import { PURPLE } from "@/config/theme";
-
 export { Table } from "./Table";
 export { Thead } from "./Thead";
 export { Th } from "./Th";

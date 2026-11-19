@@ -1,6 +1,6 @@
 import { User } from "@/types/declaration";
 import { api, ApiClientError } from "@/services/httpClient";
-import { activeAccount, signIn, signOut } from "./msal";
+import { activeAccount, getGraphAccessToken, signIn, signOut } from "./msal";
 import { reportClientError } from "@/services/clientTelemetry";
 export async function authenticate(): Promise<void> { await signIn(); }
 export function logoutFromIdentityProvider(): void { signOut(); }
@@ -11,7 +11,8 @@ export async function fetchCurrentUser(): Promise<User | null> {
   // seeded local row with its real role. A hardcoded stub here would flatten
   // every e2e persona to one role and break role-gated flows.
   try {
-    return await api.get<User>("/api/auth/me");
+    const graphAccessToken = await getGraphAccessToken();
+    return await api.get<User>("/api/auth/me", { graphAccessToken });
   } catch (error) {
     reportClientError(error, {
       feature: "identity",

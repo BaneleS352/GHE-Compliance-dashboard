@@ -58,6 +58,21 @@ describe("Admin Config", () => {
     expect(res.status).toBe(400);
   });
 
+  it("PUT /api/admin/config — rejects monetary precision and range outside the database/API contract", async () => {
+    const original = await request(app).get("/api/admin/config").set("Authorization", `Bearer ${getAdminToken()}`);
+    const invalidPrecision = await request(app)
+      .put("/api/admin/config")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ ...original.body, highValueThreshold: 1000.123 });
+    expect(invalidPrecision.status).toBe(400);
+
+    const outOfRange = await request(app)
+      .put("/api/admin/config")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ ...original.body, mediumValueThreshold: 10_000_000.01 });
+    expect(outOfRange.status).toBe(400);
+  });
+
   it("GET /api/admin/config/dropdowns — returns dropdowns", async () => {
     const res = await request(app)
       .get("/api/admin/config/dropdowns")

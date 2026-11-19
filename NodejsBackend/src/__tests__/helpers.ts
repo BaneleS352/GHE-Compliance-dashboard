@@ -1,7 +1,5 @@
 import express from "express";
 import cors from "cors";
-import fs from "fs";
-import path from "path";
 import authRoutes from "../routes/auth";
 import userRoutes from "../routes/users";
 import declarationRoutes from "../routes/declarations";
@@ -12,11 +10,6 @@ import adminDashboardRoutes from "../routes/admin/dashboard";
 import adminUserRoutes from "../routes/admin/users";
 import adminConfigRoutes from "../routes/admin/config";
 import adminWorkflowRoutes from "../routes/admin/workflows";
-
-const UPLOAD_DIR = path.resolve(process.cwd(), "uploads");
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
 
 export function buildApp() {
   const app = express();

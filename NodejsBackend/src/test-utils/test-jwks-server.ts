@@ -61,6 +61,15 @@ export interface MintClaims {
   oid?: string;
   email?: string;
   name?: string;
+  given_name?: string;
+  family_name?: string;
+  dept?: string;
+  job_title?: string;
+  companyName?: string;
+  company?: string;
+  organizationName?: string;
+  managerDisplayName?: string;
+  manager_display_name?: string;
   preferred_username?: string;
   department?: string;
   position?: string;
@@ -74,6 +83,15 @@ export interface MintClaims {
   employeeId?: string | number;
   employee_id?: string | number;
   teamMemberNumber?: string | number;
+  manager?: string;
+  managerName?: string;
+  manager_name?: string;
+  managerOid?: string;
+  manager_oid?: string;
+  managerId?: number | string;
+  manager_id?: number | string;
+  lineManager?: string;
+  line_manager?: string;
   upn?: string;
   /** Override issuer (default: test issuer). */
   iss?: string;
@@ -107,6 +125,15 @@ export function signTestJwt(material: TestKeyMaterial, claims: MintClaims = {}):
   };
   if (claims.email !== undefined) payload.email = claims.email;
   if (claims.preferred_username !== undefined) payload.preferred_username = claims.preferred_username;
+  if (claims.given_name !== undefined) payload.given_name = claims.given_name;
+  if (claims.family_name !== undefined) payload.family_name = claims.family_name;
+  if (claims.dept !== undefined) payload.dept = claims.dept;
+  if (claims.job_title !== undefined) payload.job_title = claims.job_title;
+  if (claims.companyName !== undefined) payload.companyName = claims.companyName;
+  if (claims.company !== undefined) payload.company = claims.company;
+  if (claims.organizationName !== undefined) payload.organizationName = claims.organizationName;
+  if (claims.managerDisplayName !== undefined) payload.managerDisplayName = claims.managerDisplayName;
+  if (claims.manager_display_name !== undefined) payload.manager_display_name = claims.manager_display_name;
   if (claims.upn !== undefined) payload.upn = claims.upn;
   if (claims.department !== undefined) payload.department = claims.department;
   if (claims.position !== undefined) payload.position = claims.position;
@@ -120,6 +147,15 @@ export function signTestJwt(material: TestKeyMaterial, claims: MintClaims = {}):
   if (claims.employeeId !== undefined) payload.employeeId = claims.employeeId;
   if (claims.employee_id !== undefined) payload.employee_id = claims.employee_id;
   if (claims.teamMemberNumber !== undefined) payload.teamMemberNumber = claims.teamMemberNumber;
+  if (claims.manager !== undefined) payload.manager = claims.manager;
+  if (claims.managerName !== undefined) payload.managerName = claims.managerName;
+  if (claims.manager_name !== undefined) payload.manager_name = claims.manager_name;
+  if (claims.managerOid !== undefined) payload.managerOid = claims.managerOid;
+  if (claims.manager_oid !== undefined) payload.manager_oid = claims.manager_oid;
+  if (claims.managerId !== undefined) payload.managerId = claims.managerId;
+  if (claims.manager_id !== undefined) payload.manager_id = claims.manager_id;
+  if (claims.lineManager !== undefined) payload.lineManager = claims.lineManager;
+  if (claims.line_manager !== undefined) payload.line_manager = claims.line_manager;
   if (claims.noAzp) delete payload.azp;
   if (claims.noExp) delete payload.exp;
   if (claims.noIat) delete payload.iat;
@@ -177,6 +213,14 @@ export async function startTestJwksServer(port = TEST_JWKS_PORT): Promise<{
         email: typeof body.email === "string" ? body.email : undefined,
         name: typeof body.name === "string" ? body.name : undefined,
         preferred_username: typeof body.preferred_username === "string" ? body.preferred_username : undefined,
+       given_name: typeof body.given_name === "string" ? body.given_name : undefined,
+       family_name: typeof body.family_name === "string" ? body.family_name : undefined,
+       dept: typeof body.dept === "string" ? body.dept : undefined,
+       job_title: typeof body.job_title === "string" ? body.job_title : undefined,
+       companyName: typeof body.companyName === "string" ? body.companyName : undefined,
+       company: typeof body.company === "string" ? body.company : undefined,
+       organizationName: typeof body.organizationName === "string" ? body.organizationName : undefined,
+       managerDisplayName: typeof body.managerDisplayName === "string" ? body.managerDisplayName : undefined,
         department: typeof body.department === "string" ? body.department : undefined,
         position: typeof body.position === "string" ? body.position : undefined,
         jobTitle: typeof body.jobTitle === "string" ? body.jobTitle : undefined,
@@ -184,6 +228,11 @@ export async function startTestJwksServer(port = TEST_JWKS_PORT): Promise<{
         organizationId: typeof body.organizationId === "number" || typeof body.organizationId === "string" ? body.organizationId : undefined,
         employeeNumber: typeof body.employeeNumber === "string" || typeof body.employeeNumber === "number" ? body.employeeNumber : undefined,
         teamMemberNumber: typeof body.teamMemberNumber === "string" || typeof body.teamMemberNumber === "number" ? body.teamMemberNumber : undefined,
+       manager: typeof body.manager === "string" ? body.manager : undefined,
+       managerName: typeof body.managerName === "string" ? body.managerName : undefined,
+       managerOid: typeof body.managerOid === "string" ? body.managerOid : undefined,
+       managerId: typeof body.managerId === "number" || typeof body.managerId === "string" ? body.managerId : undefined,
+       lineManager: typeof body.lineManager === "string" ? body.lineManager : undefined,
         upn: typeof body.upn === "string" ? body.upn : undefined,
         iss: typeof body.iss === "string" ? body.iss : undefined,
         aud: typeof body.aud === "string" ? body.aud : undefined,

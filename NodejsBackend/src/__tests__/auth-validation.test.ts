@@ -97,12 +97,13 @@ describe("Bearer token validation contract", () => {
     expect(res.status).toBe(401);
   });
 
-  it("valid token for an unprovisioned user auto-provisions a least-privilege account", async () => {
+  it("ordinary protected routes deny an unprovisioned identity without creating an account", async () => {
     const token = testToken({ oid: "test-oid-stranger", email: "stranger@x.test", name: "Stranger" });
     const res = await request(app)
       .get("/api/declarations")
       .set("Authorization", `Bearer ${token}`);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
+    expect(await prisma.user.findUnique({ where: { providerSubject: "test-oid-stranger" } })).toBeNull();
   });
 });
 

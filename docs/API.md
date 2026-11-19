@@ -7,9 +7,7 @@ Base URL: `http://localhost:3001`; JSON requests use `Content-Type: application/
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/health` | Liveness response |
-| GET | `/api/auth/me` | Return the provisioned local user for the authenticated OIDC token |
-
-| GET | `/api/auth/me` | authenticated; returns the current user |
+| GET | `/api/auth/me` | authenticated; returns the current user and runs the configured login-time profile sync |
 
 ## User and declaration routes
 
@@ -51,4 +49,4 @@ Admin namespaces and permissions:
 
 Successful mutations return the affected resource or a confirmation; deletes may return `204`. Validation and authorization failures use 4xx responses. Unknown routes return `{ "error": "Not found" }`; unexpected failures return `{ "error": "Internal server error" }`. Do not rely on error message text as a stable API contract.
 
-`OIDC_AUTHORITY`, `OIDC_AUDIENCE`, `OIDC_ALLOWED_CLIENT_IDS`, and `OIDC_REQUIRED_SCOPE` are required; `OIDC_ISSUER` defaults to the authority. `PORT` defaults to `3001`; `CORS_ORIGIN` accepts comma-separated origins. In production, CORS is denied unless explicitly configured. JSON and URL-encoded request bodies are limited to 1 MB. `EMAIL_WEBHOOK_URL` is optional and enables outbound notification delivery.
+`OIDC_AUTHORITY`, `OIDC_AUDIENCE`, `OIDC_ALLOWED_CLIENT_IDS`, and `OIDC_REQUIRED_SCOPE` are required; `OIDC_ISSUER` defaults to the authority. `PORT` defaults to `3001`; `CORS_ORIGIN` accepts comma-separated origins. In production, CORS is denied unless explicitly configured. JSON and URL-encoded request bodies are limited to 1 MB. Email delivery is disabled by default; set `EMAIL_DELIVERY_ENABLED=true` and configure the `SMTP_*` variables to enqueue and deliver notifications through the PostgreSQL outbox worker. The API uses `public.enqueue_email_notification`; run `npm run email:worker` as a separate process.

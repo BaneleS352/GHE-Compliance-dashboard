@@ -1,18 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { authenticate, canAccessScreen, fetchCurrentUser, isIdentityAuthenticated, logoutFromIdentityProvider } from "../app/auth/authService";
-import { activeAccount, signIn, signOut, getApiToken } from "../app/auth/msal";
+import { activeAccount, signIn, signOut, getApiToken, getGraphAccessToken } from "../app/auth/msal";
 
 vi.mock("../app/auth/msal", () => ({
   activeAccount: vi.fn(() => null),
   signIn: vi.fn(),
   signOut: vi.fn(),
   getApiToken: vi.fn(),
+  getGraphAccessToken: vi.fn(),
   initializeIdentity: vi.fn(),
 }));
 
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.mocked(getApiToken).mockResolvedValue("msal-test-token");
+  vi.mocked(getGraphAccessToken).mockResolvedValue("msal-graph-test-token");
 });
 
 describe("Auth — MSAL adapter contract", () => {
@@ -42,6 +44,7 @@ describe("Auth — MSAL adapter contract", () => {
     await fetchCurrentUser();
     const [, options] = spy.mock.calls[0] as [string, { headers: Record<string, string> }];
     expect(options.headers.Authorization).toBe("Bearer msal-test-token");
+    expect(options.headers["X-Microsoft-Graph-Token"]).toBe("msal-graph-test-token");
   });
 
   it("fetchCurrentUser returns null on a 401", async () => {

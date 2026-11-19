@@ -1,4 +1,4 @@
-import { Check, Sparkles, X } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 import { PURPLE, YELLOW, F, GRADIENT_PRIMARY, INFO_BG } from "@/config/theme";
 import { Declaration } from "@/types/declaration";
 

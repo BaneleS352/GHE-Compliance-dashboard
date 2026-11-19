@@ -8,8 +8,6 @@
 # one-time baseline/resolve procedure in prisma/BASELINE.md instead.
 set -e
 
-mkdir -p uploads
-
 echo "Running versioned migrations..."
 ./node_modules/.bin/prisma migrate deploy
 echo "Migrations applied."
@@ -29,4 +27,7 @@ fi
 # directly by the application (see prisma/RETIREMENT.md); there is no legacy
 # mirror to reconcile, so startup proceeds straight to serving.
 echo "Starting server..."
-node dist/index.js
+if [ "${APP_ROLE:-api}" = "email-worker" ]; then
+  exec node dist/scripts/email-worker.js
+fi
+exec node dist/index.js

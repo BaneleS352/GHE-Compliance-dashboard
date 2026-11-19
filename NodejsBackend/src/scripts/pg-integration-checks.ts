@@ -467,7 +467,7 @@ async function main() {
   });
   const deleteProbeInstance = await p.workflowInstance.create({ data: { declarationPk: deleteProbe.declarationPk } });
   await p.workflowInstanceStep.create({ data: { instanceId: deleteProbeInstance.id, declarationPk: deleteProbe.declarationPk, stepOrder: 1, role: "lineManager", label: "Manager", assigneeName: "Probe" } });
-  const deleteProbeFile = await p.uploadedFile.create({ data: { originalName: "probe.txt", mimeType: "text/plain", size: 4, path: "probe.txt" } });
+  const deleteProbeFile = await p.uploadedFile.create({ data: { originalName: "probe.txt", mimeType: "text/plain", size: 4, storageReference: "azurite:00000000000000000000000000000000" } });
   await p.declarationFile.create({ data: { declarationPk: deleteProbe.declarationPk, fileId: deleteProbeFile.id } });
   await p.declarationAuditEvent.create({ data: { declarationPk: deleteProbe.declarationPk, declarationId: deleteProbe.id, organizationId: orgA.id, action: "created", changedFields: ["type"], actorName: "Probe", newValues: { type: "Gift" } } });
   await p.declaration.delete({ where: { declarationPk: deleteProbe.declarationPk } });

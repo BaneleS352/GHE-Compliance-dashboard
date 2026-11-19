@@ -60,7 +60,15 @@ Backend loads `.env` with `dotenv`:
 | `OIDC_ISSUER` | no | authority | Expected token issuer |
 | `PORT` | no | `3001` | API listen port |
 | `CORS_ORIGIN` | no | dev localhost origins | Comma-separated allowed origins |
-| `EMAIL_WEBHOOK_URL` | no | — | Notification webhook; absent means log-only |
+| `EMAIL_DELIVERY_ENABLED` | no | `false` | Enable durable notification queueing and SMTP worker delivery |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE` | required when enabled | —, `587`, `false` | SMTP relay endpoint and TLS mode |
+| `SMTP_USER`, `SMTP_PASS` | no | — | Optional paired SMTP credentials; store the password as a deployment secret |
+| `SMTP_FROM` | required when enabled | — | Approved sender address |
+| `EMAIL_WORKER_POLL_INTERVAL_MS`, `EMAIL_WORKER_BATCH_SIZE`, `EMAIL_WORKER_LOCK_TIMEOUT_MS` | no | `5000`, `10`, `900000` | Worker polling, claim batch, and stale-claim recovery settings |
+
+Attachments use Azurite only. `AZURITE_CONNECTION_STRING` points to the Azurite Blob endpoint and `AZURITE_CONTAINER` defaults to `ghe-attachments`. `dev.bat` starts Azurite from `docker-compose.azurite.yml`; verify the service with `npm run attachments:verify-azurite`. Docker Compose starts its Azurite service alongside the backend. Existing local `uploads/` records return unavailable until migrated with `npm run attachments:migrate-local-to-azurite`; that command retains source files. For the old Docker `uploads` volume, run `docker compose --profile attachment-migration run --build --rm attachment-migration` after applying migrations. Only that one-off migration service mounts the volume read-only; the API container has no local upload mount. If running without Docker, start Azurite on `127.0.0.1:10000`, make the old `NodejsBackend/uploads/` directory and PostgreSQL available, then run the npm migration command from `NodejsBackend`.
+
+Apply the versioned database migration before enabling delivery. Inspect the database contract with `npm run email:verify-db`; check SMTP connectivity without sending a message with `npm run email:verify-smtp`. Run the worker separately with `npm run email:worker` (Docker Compose: `docker compose --profile email up -d email-worker`). Leave delivery disabled in development and tests unless a safe test relay is explicitly configured.
 
 The SPA sends API requests to same-origin `/api` paths. Vite proxies those
 requests to `http://localhost:3001` during development; Docker Nginx proxies
@@ -81,6 +89,8 @@ npx vitest run src/__tests__/break.test.ts
 Backend `globalSetup.ts` boots an embedded PostgreSQL (or uses
 `TEST_PG_DATABASE_URL` when set), applies the versioned migrations, and seeds
 isolated normalized fixtures — the full suite runs against PostgreSQL.
+Backend integration tests also require Azurite on port 10000; start it with
+`docker compose -f docker-compose.azurite.yml up -d --wait azurite` first.
 Frontend tests use Vitest and Testing Library. Playwright E2E tests are under
 `Enterprise Compliance Platform/e2e` (require `E2E_PG_DATABASE_URL`);
 install Chromium with `npx playwright install chromium`.

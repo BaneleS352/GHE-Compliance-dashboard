@@ -7,14 +7,14 @@ vi.mock("../app/auth/authService", () => ({
   authenticate: vi.fn(),
 }));
 
-// The auth entry point every user hits: provider sign-in only (no demo or
-// password path exists to test).
+// The auth entry point defaults to Entra. Quick login appears only when the
+// local test provider or explicit Docker test-login flag is enabled.
 describe("LandingScreen", () => {
   it("renders the provider sign-in call to action", () => {
     render(<LandingScreen />);
     expect(screen.getByText("Welcome back!")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in with Microsoft" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Quick login" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Quick login" })).not.toBeInTheDocument();
   });
 
   it("starts provider sign-in on submit", async () => {

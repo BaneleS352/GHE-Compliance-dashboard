@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MyDeclarationsScreen } from "../app/pages/MyDeclarationsScreen";
-import { fetchDeclarations, fetchWorkflowInstance, fetchConfig } from "../services/api";
+import { fetchDeclarations, fetchWorkflowInstance } from "../services/api";
 import { requestProtectedDocument, saveBlob } from "../services/download";
 
 const mockDeclarations = [
@@ -46,12 +46,9 @@ const mockEmptySteps = {
 };
 
 vi.mock("../services/api", () => ({
+  fetchDeclarationAudit: vi.fn().mockResolvedValue([]),
   fetchDeclarations: vi.fn(),
   fetchWorkflowInstance: vi.fn(),
-  fetchConfig: vi.fn(() => Promise.resolve({
-    highValueThreshold: 1000, mediumValueThreshold: 1000,
-    slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "",
-  })),
   fetchPublicConfig: vi.fn(() => Promise.resolve({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maximumValue: 1000000 })),
 }));
 

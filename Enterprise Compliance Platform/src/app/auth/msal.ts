@@ -222,6 +222,26 @@ export async function getApiToken(): Promise<string> {
   }
 }
 
+/** Acquire a separate delegated Microsoft Graph token for the signed-in user's profile. */
+export async function getGraphAccessToken(): Promise<string | null> {
+  // Local quick-login tokens are issued by the development test provider and
+  // cannot be exchanged for a Microsoft Graph token.
+  if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) return null;
+  const app = getClient();
+  const account = app.getActiveAccount();
+  if (!account) throw new Error("No authenticated Entra account");
+  const graphRequest = { scopes: ["User.Read"], account };
+  try {
+    return (await runIdentityStage("msal_graph_profile_token", () => app.acquireTokenSilent(graphRequest))).accessToken;
+  } catch (error) {
+    if (error instanceof InteractionRequiredAuthError || (error instanceof IdentityFlowError && error.interactionRequired)) {
+      await runIdentityStage("msal_graph_profile_consent", () => app.acquireTokenRedirect(graphRequest));
+      throw new Error("Microsoft Graph consent is required — redirecting to sign-in.");
+    }
+    throw error;
+  }
+}
+
 export function signOut(): void {
   if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) {
     try {

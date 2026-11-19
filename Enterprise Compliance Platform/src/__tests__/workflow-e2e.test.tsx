@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ApprovalDetail } from "../app/pages/ApprovalDetail";
 import { MyDeclarationsScreen } from "../app/pages/MyDeclarationsScreen";
-import { fetchWorkflowInstance, approveWorkflowStep, fetchConfig, fetchDeclarations } from "../services/api";
+import { fetchWorkflowInstance, approveWorkflowStep, fetchDeclarations } from "../services/api";
 
 // ── Shared Test Data ──
 
@@ -63,12 +63,9 @@ vi.mock("../app/auth/UserContext", () => ({
 }));
 
 vi.mock("../services/api", () => ({
+  fetchDeclarationAudit: vi.fn().mockResolvedValue([]),
   fetchWorkflowInstance: vi.fn(),
   approveWorkflowStep: vi.fn(),
-  fetchConfig: vi.fn(() => Promise.resolve({
-    highValueThreshold: 1000, mediumValueThreshold: 1000,
-    slaEscalationDays: 3, maxDeclarationsPerCounterparty: 5, emailTemplate: "",
-  })),
   fetchPublicConfig: vi.fn(() => Promise.resolve({ highValueThreshold: 1000, mediumValueThreshold: 1000, slaEscalationDays: 3, maximumValue: 1000000 })),
   fetchDeclarations: vi.fn(),
 }));
