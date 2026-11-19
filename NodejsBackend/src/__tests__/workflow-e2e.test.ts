@@ -4,6 +4,10 @@ import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken } f
 
 const app = buildApp();
 
+interface PendingWorkflowItemResponse {
+  declaration: { id: string };
+}
+
 function createDeclarationPayload(overrides: Record<string, unknown> = {}) {
   return {
     employee: "Nomvula Team", employeeId: 4, teamMemberNumber: "TM-001",
@@ -180,7 +184,7 @@ describe("Backend E2E: Return & Resubmit Cycle (Journey 7)", () => {
     const pending = await request(app)
       .get("/api/workflows/pending")
       .set("Authorization", `Bearer ${getApproverToken()}`);
-    expect(pending.body.some((item: any) => item.declaration.id === id)).toBe(true);
+    expect((pending.body as PendingWorkflowItemResponse[]).some((item) => item.declaration.id === id)).toBe(true);
   });
 });
 
@@ -362,6 +366,6 @@ describe("Backend E2E: Decline Terminal State (Journey 8)", () => {
     const pending = await request(app)
       .get("/api/workflows/pending")
       .set("Authorization", `Bearer ${getApproverToken()}`);
-    expect(pending.body.some((item: any) => item.declaration.id === id)).toBe(false);
+    expect((pending.body as PendingWorkflowItemResponse[]).some((item) => item.declaration.id === id)).toBe(false);
   });
 });

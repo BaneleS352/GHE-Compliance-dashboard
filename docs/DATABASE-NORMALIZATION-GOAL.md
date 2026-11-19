@@ -346,10 +346,11 @@ The following items remain after the current audit:
   `as` uses live in tests/seeds/fixtures as transport code).
 - Completed: removed `User.department` in `0008_department_id_only`; API/UI
   display values derive from `User.departmentId → Department.name`.
-- Completed: global counterparty naming policy is explicit — scoped names are
-  unique per organization via partial index
-  `Counterparty_name_org_unique ... WHERE organizationId IS NOT NULL`; global
-  `NULL`-org names may repeat.
+- Completed: global counterparty naming policy is explicit — the unique
+  constraint on `(name, organizationId)` enforces scoped uniqueness while
+  PostgreSQL permits repeated global `NULL`-org names. Migration 0022 removes
+  the redundant partial index retained from the original scoped-uniqueness
+  cutover.
 - Narrowed: organization consistency has a tested admin-user manager invariant
   and route-level organization scoping. Composite cross-table tenant constraints
   remain future work; lookup-endpoint scoping is tracked in the frontend

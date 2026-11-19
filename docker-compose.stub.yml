@@ -23,6 +23,8 @@ services:
       OIDC_ALLOWED_CLIENT_IDS: docker-test-client
       OIDC_REQUIRED_SCOPE: access_as_user
       OIDC_AUDIENCE: ghe-test-api-audience
+      STAFF_PROFILE_SYNC_ENABLED: "false"
+      AUTH_TOKEN: ""
       GHE_TEST_IDENTITY_SEED: "true"
       SEED_ON_BOOT: "true"
     depends_on:

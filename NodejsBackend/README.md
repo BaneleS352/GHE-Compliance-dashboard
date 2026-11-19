@@ -40,27 +40,23 @@ Explore and test all endpoints interactively.
 | `npm run pg:test` | PostgreSQL integration checks (needs `TEST_PG_DATABASE_URL`) |
 | `npm run pg:smoke` | Clean-database smoke test (needs `SMOKE_PG_DATABASE_URL` + build) |
 | `npm run db:generate` | Generate Prisma client |
+| `npm run auth:verify-config` | Validate OIDC configuration and public provider metadata |
+| `npm run auth:bootstrap-admin` | Link an existing local account to a verified provider identity |
 | `npm run attachments:verify-azurite` | Check Azurite connectivity and container access |
 | `npm run attachments:migrate-local-to-azurite` | One-time copy of historical local uploads; preserves source files |
 | `npm run email:verify-db` | Read-only check of the email procedure and outbox schema |
 | `npm run email:verify-smtp` | Check SMTP connectivity without sending a message |
 | `npm run email:worker` | Run the separate PostgreSQL outbox delivery worker |
+| `npm run staff:inspect` | Inspect the HIS staff API response without printing credentials |
 
 ## Environment
 
-Copy `.env.example` to `.env`:
-
-```env
-DATABASE_URL="postgresql://ghe_user:ghe_password@localhost:5432/ghe_compliance?schema=public"
-OIDC_AUTHORITY="https://login.microsoftonline.com/<tenant-id>/v2.0"
-OIDC_ALLOWED_CLIENT_IDS="<spa-application-client-id>"
-OIDC_REQUIRED_SCOPE="access_as_user"
-OIDC_AUDIENCE="<api-application-client-id>"
-OIDC_ISSUER="https://login.microsoftonline.com/<tenant-id>/v2.0"
-PORT=3001
-```
-
-Run `docker compose up -d db` from the repository root for a local instance.
+Use `NodejsBackend/.env.example` as the backend configuration template. The
+root `.env.example` is a separate template for Docker Compose. The backend
+requires PostgreSQL and an explicit Azurite connection string; provider
+settings, local development identity, optional HIS sync, and SMTP outbox
+settings are documented in [`docs/SETUP.md`](../docs/SETUP.md). For a local
+stack, follow the Quick Start above so both PostgreSQL and Azurite are running.
 
 ## API Endpoints
 
@@ -75,7 +71,7 @@ All endpoints are documented in Swagger at `/api/docs`. Summary:
 | **Files** | `POST /api/files/upload` (10MB max), authenticated download/delete | Bearer |
 | **Admin Dashboard** | KPI counts | Admin |
 | **Admin Users** | User CRUD, search, filter | Admin |
-| **Admin Config** | System config, dropdowns, approval options | Admin |
+| **Admin Config** | System config, legacy read-only dropdown options, approval options | Admin |
 | **Admin Workflows** | Workflow rule CRUD | Admin |
 | **Health** | `GET /api/health` | None |
 
@@ -86,10 +82,10 @@ npm run test          # Run the current backend Vitest suite
 npm run test:watch    # Watch mode
 ```
 
-Tests boot an embedded PostgreSQL, apply the versioned migrations, and seed
-isolated fixtures (`globalSetup.ts`), so the full suite runs against
-PostgreSQL. Tests are sequential (`maxWorkers: 1`). Set `TEST_PG_DATABASE_URL`
-to run against an external PostgreSQL instead of the embedded one.
+Tests use PostgreSQL, apply the versioned migrations, and seed isolated
+fixtures (`globalSetup.ts`). Tests are sequential (`maxWorkers: 1`). Set
+`TEST_PG_DATABASE_URL` to use an external PostgreSQL instance; otherwise the
+suite provisions its configured local test database.
 
 ### Test Coverage
 
@@ -127,7 +123,7 @@ src/
     *.test.ts           # Test suites
 prisma/
   schema.prisma         # PostgreSQL schema, BIGINT keys (see DATABASE-NORMALIZATION-GOAL.md)
-migrations/           # Versioned PostgreSQL migrations through 0020
+migrations/           # Versioned PostgreSQL migrations through 0022
 ```
 
 ## Frontend Integration

@@ -40,6 +40,22 @@ function mockFetch(status: number, body: unknown) {
   } as Response);
 }
 
+function requestOptions(spy: ReturnType<typeof mockFetch>): RequestInit {
+  const options = spy.mock.calls[0]?.[1];
+  if (!options) throw new Error("Expected fetch to receive request options");
+  return options;
+}
+
+function requestBody(spy: ReturnType<typeof mockFetch>): Record<string, unknown> {
+  const body = requestOptions(spy).body;
+  if (typeof body !== "string") throw new Error("Expected a JSON request body");
+  const parsed: unknown = JSON.parse(body);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Expected a JSON object request body");
+  }
+  return parsed as Record<string, unknown>;
+}
+
 function mockDeclaration(id = "GHE-2026-1000"): Declaration {
   return {
     id, employee: "Test User", employeeId: 1, department: "IT",
@@ -121,9 +137,9 @@ describe("createDeclaration", () => {
   it("strips undefined fields from request body", async () => {
     const spy = mockFetch(201, { id: "GHE-1" });
     const decl = mockDeclaration();
-    delete (decl as any).files;
+    decl.files = undefined;
     await createDeclaration(decl);
-    const sent = JSON.parse((spy.mock.calls[0][1] as any).body as string);
+    const sent = requestBody(spy);
     expect(sent.files).toBeUndefined();
   });
 });
@@ -342,7 +358,7 @@ describe("workflow operations", () => {
   it("approveWorkflowStep sends notes when provided", async () => {
     const spy = mockFetch(200, { status: "Approved" });
     await approveWorkflowStep({ declarationId: "GHE-1", decision: "accept", notes: "Looks good" });
-    const sent = JSON.parse((spy.mock.calls[0][1] as any).body as string);
+    const sent = requestBody(spy);
     expect(sent.notes).toBe("Looks good");
   });
 });
@@ -417,7 +433,6 @@ describe("error handling", () => {
   it("includes the MSAL bearer token", async () => {
     const spy = mockFetch(200, []);
     await fetchDeclarations();
-    const headers = (spy.mock.calls[0][1] as any).headers as Record<string, string>;
-    expect(headers["Authorization"]).toBe("Bearer test-token-123");
+    expect(new Headers(requestOptions(spy).headers).get("Authorization")).toBe("Bearer test-token-123");
   });
 });

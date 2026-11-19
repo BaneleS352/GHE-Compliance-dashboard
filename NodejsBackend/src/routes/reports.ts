@@ -154,7 +154,7 @@ router.get("/list", authenticate, authorize("admin", "approver"), validateReport
     include: { snapshot: true, counterpartyRef: true },
   });
 
-  let result = declarations.map((d) => ({
+  const result = declarations.map((d) => ({
     id: d.id,
     employee: d.snapshot?.declarerName || "",
     department: d.snapshot?.department || "",

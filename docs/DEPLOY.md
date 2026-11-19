@@ -64,6 +64,17 @@ they are public application configuration, not secrets. The redirect URI must
 be registered on the Entra SPA application. Keep client secrets out of this
 file and use your deployment platform's secret store in production.
 
+Optional HIS profile enrichment is disabled by default. To enable it in a
+Compose deployment, configure `STAFF_API_ENDPOINT`,
+`STAFF_API_ALLOWED_HOSTS`, and `STAFF_BRANCH_ORG_MAP` for the approved HIS
+environment, set `STAFF_PROFILE_SYNC_ENABLED=true`, and provide `AUTH_TOKEN`
+through the deployment secret store. The branch map is a JSON object mapping
+HIS branch codes to organization short codes already present in PostgreSQL,
+for example `{"BET":"BET"}` only when that mapping is confirmed. The local
+Docker stub overlay always disables HIS sync and clears `AUTH_TOKEN` so quick
+login never calls Microsoft Graph or HIS and the HIS credential is not passed
+to the test container.
+
 The API never links accounts from email. On a new deployment, first create or
 link the initial admin through the one-time bootstrap command after a tenant
 operator has verified the Entra object ID and the approval evidence for the
@@ -107,6 +118,13 @@ server-side with pure-Python sidecars (`pypdf` AES-256 for PDFs,
 ### File Storage
 
 All attachments use the private Azurite Blob container configured by `AZURITE_CONNECTION_STRING` and `AZURITE_CONTAINER`. Docker Compose persists Azurite data in the `azurite_data` volume. The API never serves a public blob URL; reads and deletes go through authenticated routes.
+
+Evidence deletion writes an `AttachmentCleanupOutbox` row in the same
+PostgreSQL transaction that removes file metadata. Each API instance runs a
+multi-instance-safe cleanup worker that retries Azurite deletes with capped
+backoff. Keep API instances running and monitor `attachment_cleanup_retry_scheduled`
+and `attachment_cleanup_claim_failed` events; queued jobs remain in PostgreSQL
+until the blob deletion succeeds.
 
 Azurite is an emulator. This Azurite-only deployment choice is suitable for local development and controlled testing; it does not provide the managed durability, availability, or operational support of a production storage service.
 
@@ -211,11 +229,11 @@ in code and pinned by tests:
 | P0 | Mass assignment — field whitelist on PUT | Resolved: Zod `createSchema.partial()` whitelist; `employeeId` immutable (`logical-flaws.test.ts`) |
 | P0 | Restrict status to "Draft" on create | Resolved: server owns status, hardcoded `"Draft"` (`declarations.ts`) |
 | P0 | Role guard on PATCH /:id/status | Resolved: admin-only `403`, with no-divergence guards (`declarations.ts`, `workflow-regressions.test.ts`) |
-| P1 | Self-approval guard | Resolved: `403` (`edge-cases.test.ts` — "FIXED: Self-approval blocked") |
-| P1 | Enforce workflow step order | Resolved: `403` (`edge-cases.test.ts` — "FIXED: Step order enforced"; `logical-flaws.test.ts`) |
+| P1 | Self-approval guard | Resolved: `403` (`edge-cases.test.ts` — "prevents an approver from self-approving") |
+| P1 | Enforce workflow step order | Resolved: `403` (`edge-cases.test.ts` — "rejects HR approval before the Line Manager step"; `logical-flaws.test.ts`) |
 | P1 | Ownership check on GET /:id for team members | Resolved: `403` for non-owners plus org/department scoping (`declarations.ts`, `logical-flaws.test.ts`) |
 | P1 | Validate role against DB on each request | Resolved by OIDC design: role is read from the local row per request, never from the token (`IDENTITY-CONTRACT.md`, `auth.test.ts`) |
-| P2 | Cascade delete for files on declaration delete | Resolved (`logical-flaws-2.test.ts` — "file cascade-deleted") |
+| P2 | Remove evidence metadata on declaration delete | Resolved transactionally; Azurite deletion is durably queued (`edge-cases.test.ts` — "removes metadata and queues blob cleanup") |
 | P2 | ~~JSON.parse(instance.steps)~~ | Resolved: workflow steps are relational rows, nothing parses step JSON (migration `0005_phase5_retirement` dropped the columns) |
 | P2 | Validate lineManager before submit | Resolved: manager-less self-service gets a clear `400` (`profile-locking.test.ts`) |
 

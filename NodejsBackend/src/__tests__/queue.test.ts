@@ -4,6 +4,10 @@ import { buildApp, getTeamToken, getApproverToken } from "./helpers";
 
 const app = buildApp();
 
+interface ApprovalQueueItemResponse {
+  declaration: { id: string };
+}
+
 const BASE = {
   employee: "Nomvula Team",
   employeeId: 4,
@@ -50,7 +54,7 @@ describe("Phase 2 — authoritative approval queue", () => {
     expect(queue.body).toHaveProperty("total");
     expect(Array.isArray(queue.body.items)).toBe(true);
     expect(queue.body.total).toBe(queue.body.items.length);
-    expect(queue.body.items.some((item: any) => item.declaration.id === id)).toBe(true);
+    expect((queue.body.items as ApprovalQueueItemResponse[]).some((item) => item.declaration.id === id)).toBe(true);
   });
 
   it("queue total is zero for users with no actionable step", async () => {

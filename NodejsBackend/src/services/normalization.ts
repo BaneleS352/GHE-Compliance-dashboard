@@ -45,6 +45,18 @@ export async function getDeclarationPk(id: string, db: DbClient = prisma): Promi
   return row ? row.declarationPk : null;
 }
 
+/** Serialize lifecycle-sensitive child mutations against declaration submit/delete. */
+export async function lockDeclarationRow(tx: Prisma.TransactionClient, declarationPk: bigint | number): Promise<boolean> {
+  const pk = toDbId(declarationPk);
+  const rows = await tx.$queryRaw<Array<{ declarationPk: bigint }>>`
+    SELECT "declarationPk"
+    FROM "Declaration"
+    WHERE "declarationPk" = ${pk}
+    FOR UPDATE
+  `;
+  return rows.length === 1;
+}
+
 /**
  * Resolve a department display name to its organization-scoped Department
  * row, creating the master-data row when the organization is known.
@@ -112,8 +124,8 @@ export async function ensureCounterparty(
     // P2002: unique constraint on (organizationId, name) — another request
     // created it first; fall through to the re-read below. The Prisma error
     // shape is untyped here, hence the narrow boundary cast.
-    // Identity policy (see docs/SCHEMA.md): scoped names are unique per
-    // organization (partial unique index); global NULL-org names may repeat.
+    // Identity policy (see docs/SCHEMA.md): the unique constraint enforces
+    // scoped names; global NULL-org names may repeat under PostgreSQL semantics.
     if ((e as { code?: string }).code !== "P2002") throw e;
     return await db.counterparty.findFirst({
       where: { name: clean, organizationId: org },
@@ -361,9 +373,9 @@ export async function persistWorkflowInstanceSteps(
 }
 
 /** Read workflow step rows from the authoritative WorkflowInstanceStep table (rows only — no JSON fallback). */
-export async function readWorkflowStepRows(declarationPk: bigint | number): Promise<WorkflowStep[] | null> {
+export async function readWorkflowStepRows(declarationPk: bigint | number, db: DbClient = prisma): Promise<WorkflowStep[] | null> {
   const { rowToStep } = await import("./workflowService");
-  const rows = await prisma.workflowInstanceStep.findMany({
+  const rows = await db.workflowInstanceStep.findMany({
     where: { declarationPk: toDbId(declarationPk) },
     orderBy: { stepOrder: "asc" },
   });

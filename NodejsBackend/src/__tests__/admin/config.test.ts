@@ -4,6 +4,12 @@ import { buildApp, getAdminToken, getTeamToken } from "../helpers";
 
 const app = buildApp();
 
+interface ApprovalOptionResponse {
+  id: string;
+  value: string;
+  label: string;
+}
+
 describe("Admin Config", () => {
   it("GET /api/admin/config/public exposes only user guidance to non-admins", async () => {
     const res = await request(app).get("/api/admin/config/public").set("Authorization", `Bearer ${getTeamToken()}`);
@@ -121,7 +127,7 @@ describe("Admin Config", () => {
     expect(res.status).toBe(200);
     // Parallel files may add temporary options; assert the seeded core set
     // is present rather than an absolute count.
-    const values = res.body.map((o: any) => o.value);
+    const values = (res.body as ApprovalOptionResponse[]).map((option) => option.value);
     for (const v of ["return", "accept", "org", "foundation", "decline"]) {
       expect(values).toContain(v);
     }
@@ -197,7 +203,7 @@ describe("Admin Config", () => {
       .get("/api/admin/config/approval-options")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(getRes.body).toHaveLength(before.body.length - 1);
-    expect(getRes.body.some((o: any) => o.id === "test-opt")).toBe(false);
+    expect((getRes.body as ApprovalOptionResponse[]).some((option) => option.id === "test-opt")).toBe(false);
   });
 
   it("DELETE /api/admin/config/approval-options/:id — 404 for non-existent", async () => {

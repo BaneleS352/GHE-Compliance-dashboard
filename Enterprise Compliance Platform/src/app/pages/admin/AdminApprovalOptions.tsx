@@ -7,6 +7,7 @@ import { PURPLE, GRADIENT_PRIMARY } from "@/config/theme";
 import { fetchApprovalOptions, createApprovalOption, updateApprovalOption, deleteApprovalOption } from "@/services/api";
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { notifySuccess, notifyError } from "../../components/notify";
+import { useDialogFocus } from "@/app/hooks/useDialogFocus";
 
 interface Option {
   value: string;
@@ -24,6 +25,10 @@ export function AdminApprovalOptions() {
   const [newLabel, setNewLabel] = useState("");
   const [deletingIdx, setDeletingIdx] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const addDialogRef = useDialogFocus<HTMLDivElement>({
+    enabled: showAddDialog,
+    onEscape: () => setShowAddDialog(false),
+  });
 
   useEffect(() => { fetchApprovalOptions().then(setOptions).catch((err: Error) => setError(err.message)); }, []);
 
@@ -171,7 +176,7 @@ export function AdminApprovalOptions() {
           ))}
         </div>
       </Card>
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
       {showAddDialog && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -180,6 +185,7 @@ export function AdminApprovalOptions() {
           role="presentation"
         >
           <div
+            ref={addDialogRef}
             role="dialog"
             aria-modal="true"
             aria-label="Add approval option"

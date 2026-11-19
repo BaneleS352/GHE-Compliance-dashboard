@@ -14,6 +14,17 @@ export interface ClaimedEmail {
   maxAttempts: number;
 }
 
+export interface EmailDeliveryTransport {
+  sendMail(message: {
+    from: string;
+    to: string;
+    subject: string;
+    text: string;
+    disableFileAccess: true;
+    disableUrlAccess: true;
+  }): Promise<{ messageId?: string }>;
+}
+
 export function createSmtpTransport() {
   if (!config.emailDelivery.enabled) throw new Error("EMAIL_DELIVERY_ENABLED must be true before the email worker can start");
   if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") throw new Error("Refusing SMTP delivery while TLS certificate verification is disabled");
@@ -96,7 +107,11 @@ function transportErrorCode(error: unknown): string {
   return typeof candidate === "string" || typeof candidate === "number" ? String(candidate) : "delivery_failed";
 }
 
-export async function deliverClaimedEmail(email: ClaimedEmail, workerId: string, transport = createSmtpTransport()): Promise<void> {
+export async function deliverClaimedEmail(
+  email: ClaimedEmail,
+  workerId: string,
+  transport: EmailDeliveryTransport = createSmtpTransport(),
+): Promise<void> {
   try {
     const info = await transport.sendMail({
       from: config.emailDelivery.smtpFrom,

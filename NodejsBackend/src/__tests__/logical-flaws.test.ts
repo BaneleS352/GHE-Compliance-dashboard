@@ -5,6 +5,12 @@ import { buildApp, getAdminToken, getApproverToken, getTeamToken, getHrToken, te
 
 const app = buildApp();
 
+interface ApprovalOptionResponse {
+  id: string;
+  value: string;
+  label: string;
+}
+
 const BASE = {
   employee: "Nomvula Team",
   employeeId: 4,
@@ -647,7 +653,7 @@ describe("File access control", () => {
 
 // ── ADMIN STATUS BYPASS ──
 describe("Admin status bypass", () => {
-  it("PATCH /api/declarations/:id/status — admin sets Approved to Pending creating desync with workflow steps", async () => {
+  it("PATCH /api/declarations/:id/status — refuses Pending when workflow steps are already approved", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -673,12 +679,13 @@ describe("Admin status bypass", () => {
       .patch(`/api/declarations/${id}/status`)
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ status: "Pending" });
-    expect(adminReset.status).toBe(200);
+    expect(adminReset.status).toBe(400);
+    expect(adminReset.body.error).toMatch(/outstanding workflow approval step/i);
 
-    const declDesynced = await request(app)
+    const declAfterRejectedOverride = await request(app)
       .get(`/api/declarations/${id}`)
       .set("Authorization", `Bearer ${getTeamToken()}`);
-    expect(declDesynced.body.status).toBe("Pending");
+    expect(declAfterRejectedOverride.body.status).toBe("Approved");
 
     const inst = await request(app)
       .get(`/api/workflows/instances/${id}`)
@@ -702,6 +709,42 @@ describe("Admin status bypass", () => {
       .send({ status: "Approved" });
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/pending approval step/i);
+
+    const returned = await request(app)
+      .patch(`/api/declarations/${id}/status`)
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ status: "Returned" });
+    expect(returned.status).toBe(400);
+    expect(returned.body.error).toMatch(/workflow return decision/i);
+
+    const draft = await request(app)
+      .patch(`/api/declarations/${id}/status`)
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ status: "Draft" });
+    expect(draft.status).toBe(400);
+    expect(draft.body.error).toMatch(/workflow history/i);
+  });
+
+  it("PATCH /api/declarations/:id/status — does not reopen a workflow blocked by a return decision", async () => {
+    const create = await request(app)
+      .post("/api/declarations")
+      .set("Authorization", `Bearer ${getTeamToken()}`)
+      .send({ ...BASE, counterparty: "ReturnedWorkflowStatusTest", value: 1500 });
+    expect(create.status).toBe(201);
+    const id = create.body.id;
+    await request(app).patch(`/api/declarations/${id}/submit`).set("Authorization", `Bearer ${getTeamToken()}`);
+    const returned = await request(app)
+      .post("/api/workflows/approve")
+      .set("Authorization", `Bearer ${getApproverToken()}`)
+      .send({ declarationId: id, decision: "return" });
+    expect(returned.status).toBe(200);
+
+    const reopen = await request(app)
+      .patch(`/api/declarations/${id}/status`)
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ status: "Pending" });
+    expect(reopen.status).toBe(400);
+    expect(reopen.body.error).toMatch(/outstanding workflow approval step/i);
   });
 
   it("PATCH /api/declarations/:id/status — admin cannot set Approved when no workflow instance exists", async () => {
@@ -806,8 +849,8 @@ describe("Approval option CRUD integrity", () => {
       .get("/api/admin/config/approval-options")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(opts.status).toBe(200);
-    const orgOpt = opts.body.find((o: any) => o.value === "org");
-    expect(orgOpt).toBeDefined();
+    const orgOpt = (opts.body as ApprovalOptionResponse[]).find((option) => option.value === "org");
+    if (!orgOpt) throw new Error("The seeded organization approval option is missing");
 
     const delRes = await request(app)
       .delete(`/api/admin/config/approval-options/${orgOpt.id}`)
@@ -817,7 +860,7 @@ describe("Approval option CRUD integrity", () => {
     const checkOpts = await request(app)
       .get("/api/admin/config/approval-options")
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(checkOpts.body.some((o: any) => o.value === "org")).toBe(false);
+    expect((checkOpts.body as ApprovalOptionResponse[]).some((option) => option.value === "org")).toBe(false);
 
     const create = await request(app)
       .post("/api/declarations")
@@ -851,7 +894,7 @@ describe("Approval option CRUD integrity", () => {
       const opts = await request(app)
         .get("/api/admin/config/approval-options")
         .set("Authorization", `Bearer ${getAdminToken()}`);
-      expect(opts.body.some((o: any) => o.value === "quick-approve")).toBe(true);
+      expect((opts.body as ApprovalOptionResponse[]).some((option) => option.value === "quick-approve")).toBe(true);
 
       const create = await request(app)
         .post("/api/declarations")

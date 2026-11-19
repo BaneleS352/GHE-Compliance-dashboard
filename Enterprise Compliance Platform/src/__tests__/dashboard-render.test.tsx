@@ -1,3 +1,4 @@
+import { setupResponsiveLayout } from "../test-helpers/responsiveLayout";
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { ApproverDashboard } from "../app/pages/ApproverDashboard";
@@ -19,16 +20,7 @@ vi.mock("../services/api", () => ({
 }));
 
 beforeAll(() => {
-  class RO {
-    cb: any;
-    constructor(cb: any) { this.cb = cb; }
-    observe() { this.cb([{ contentRect: { width: 800, height: 300 } }]); }
-    unobserve() {}
-    disconnect() {}
-  }
-  (globalThis as any).ResizeObserver = RO;
-  Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, value: 800 });
-  Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 300 });
+  setupResponsiveLayout(800, 300);
   vi.spyOn(globalThis, "fetch").mockResolvedValue({
     ok: true, status: 200,
     json: () => Promise.resolve({ kpis: {}, complianceTrend: [], typeBreakdown: [] }),

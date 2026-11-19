@@ -1,7 +1,9 @@
+import { setupResponsiveLayout } from "../test-helpers/responsiveLayout";
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, waitFor } from "@testing-library/react"
 import { WorkflowTimeline, StepView } from "../app/components/WorkflowTimeline"
 import { fetchWorkflowInstance } from "../services/api"
+import type { WorkflowInstanceResponse } from "../services/api"
 
 vi.mock("../services/api", () => ({
   fetchWorkflowInstance: vi.fn(),
@@ -11,16 +13,7 @@ vi.mock("../services/api", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  class RO {
-    cb: any;
-    constructor(cb: any) { this.cb = cb; }
-    observe() { this.cb([{ contentRect: { width: 400, height: 600 } }]); }
-    unobserve() {}
-    disconnect() {}
-  }
-  (globalThis as any).ResizeObserver = RO;
-  Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, value: 400 });
-  Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 600 });
+  setupResponsiveLayout(400, 600);
 });
 
 const mockSteps = (overrides?: Partial<StepView>[]): StepView[] => [
@@ -41,17 +34,19 @@ const mockSteps = (overrides?: Partial<StepView>[]): StepView[] => [
   },
 ];
 
-const mockWfWithSteps = (steps: any[]): any => {
+const mockWfWithSteps = (steps: StepView[]): WorkflowInstanceResponse => {
   return {
     declarationId: "GHE-2026-1003",
-    steps: steps.map((s, i) => ({
-      role: ["lineManager", "hr"][i],
-      label: s.label,
-      assigneeName: s.actor,
-      status: i === 0 ? "approved" : "pending",
-      decision: i === 0 ? "accept" : null,
-      decidedAt: i === 0 ? "2026-07-10T08:30:00.000Z" : null,
-      notes: i === 0 ? "Looks good" : "",
+    steps: steps.map((step, index) => ({
+      order: index + 1,
+      role: index === 0 ? "lineManager" : "hr",
+      assignee: index + 1,
+      label: step.label,
+      assigneeName: step.actor,
+      status: index === 0 ? "approved" : "pending",
+      decision: index === 0 ? "accept" : null,
+      decidedAt: index === 0 ? "2026-07-10T08:30:00.000Z" : null,
+      notes: index === 0 ? "Looks good" : "",
     })),
   };
 };

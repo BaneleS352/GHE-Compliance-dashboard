@@ -7,6 +7,33 @@ import { viewStatusSummary, viewSlaSummary, viewCounterparty } from "./reporting
 
 const REPORT_BATCH_SIZE = 500;
 
+export interface SlaBreakdownItem {
+  role: string;
+  avg: number;
+  min: number;
+  max: number;
+  count: number;
+}
+
+export interface CounterpartyConcentrationItem {
+  counterparty: string;
+  count: number;
+  totalValue: number;
+  avgValue: number;
+}
+
+export interface HighValueDeclarationItem {
+  employee: string;
+  lineManager: string;
+  declarationCount: number;
+  totalValue: number;
+  averageValue: number;
+  totalGift: number;
+  totalHospitality: number;
+  totalEntertainment: number;
+  mostFrequentSupplier: string;
+}
+
 /**
  * Canonical date filter on the `eventDate` DateTime column.
  * Unparseable bounds are ignored; rows with a null `eventDate` are excluded
@@ -69,7 +96,7 @@ export async function getStatusBreakdown(req: AuthRequest): Promise<Record<strin
   return counts;
 }
 
-export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
+export async function getSLABreakdown(req: AuthRequest): Promise<SlaBreakdownItem[]> {
   // Prefer a database-aggregated summary from the SLA view.
   // Views are unfiltered read models: only use them when the request carries no
   // report filters, otherwise fall through to the filtered aggregation.
@@ -145,7 +172,7 @@ export async function getSLABreakdown(req: AuthRequest): Promise<any[]> {
   }));
 }
 
-export async function getCounterpartyConcentration(req: AuthRequest): Promise<any[]> {
+export async function getCounterpartyConcentration(req: AuthRequest): Promise<CounterpartyConcentrationItem[]> {
   // Prefer the reporting view for unfiltered org queries.
   try {
     const { startDate, endDate, department, status } = req.query;
@@ -196,14 +223,13 @@ interface HighValueGroup {
   lineManager: string;
   declarationCount: number;
   totalValue: number;
-  averageValue: number;
   totalGift: number;
   totalHospitality: number;
   totalEntertainment: number;
   suppliers: Map<string, number>;
 }
 
-export async function getHighValueDeclarations(req: AuthRequest, config: { highValueThreshold: number }): Promise<any[]> {
+export async function getHighValueDeclarations(req: AuthRequest, config: { highValueThreshold: number }): Promise<HighValueDeclarationItem[]> {
   const where = buildReportWhere(req);
   where.value = { gte: config.highValueThreshold };
 
@@ -226,7 +252,6 @@ export async function getHighValueDeclarations(req: AuthRequest, config: { highV
         lineManager: d.snapshot?.managerDisplayName || "",
         declarationCount: 0,
         totalValue: 0,
-        averageValue: 0,
         totalGift: 0,
         totalHospitality: 0,
         totalEntertainment: 0,
@@ -258,20 +283,4 @@ export async function getHighValueDeclarations(req: AuthRequest, config: { highV
       mostFrequentSupplier,
     };
   }).sort((a, b) => b.totalValue - a.totalValue);
-}
-
-export async function getReportsData(req: AuthRequest, config: { highValueThreshold: number }): Promise<any> {
-  const [statusBreakdown, slaData, counterpartyData, highValueData] = await Promise.all([
-    getStatusBreakdown(req),
-    getSLABreakdown(req),
-    getCounterpartyConcentration(req),
-    getHighValueDeclarations(req, config),
-  ]);
-
-  return {
-    statusBreakdown,
-    slaData,
-    counterpartyData,
-    highValueData,
-  };
 }

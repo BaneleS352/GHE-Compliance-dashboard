@@ -5,6 +5,19 @@ import { prisma } from "../config/prisma";
 
 const app = buildApp();
 
+interface WorkflowStepResponse {
+  role: string;
+  status: string;
+}
+
+interface WorkflowInstanceResponse {
+  steps: WorkflowStepResponse[];
+}
+
+interface PendingWorkflowResponse {
+  declaration: { id: string };
+}
+
 describe("Workflow regressions", () => {
   it("supports the real Kabelo → James return and value increase flow", async () => {
     // No hardcoded ids: explicit numeric fixtures above the identity sequence
@@ -30,8 +43,9 @@ describe("Workflow regressions", () => {
     const save = await request(app).put(`/api/declarations/${id}`).set("Authorization", `Bearer ${kabeloToken}`).send({ value: 1200 });
     expect(save.status).toBe(200);
     const workflow = await request(app).get(`/api/workflows/instances/${id}`).set("Authorization", `Bearer ${kabeloToken}`);
-    expect(workflow.body.steps.map((step: any) => step.role)).toEqual(["lineManager", "hr"]);
-    expect(workflow.body.steps[1].status).toBe("pending");
+    const workflowBody = workflow.body as WorkflowInstanceResponse;
+    expect(workflowBody.steps.map((step) => step.role)).toEqual(["lineManager", "hr"]);
+    expect(workflowBody.steps[1].status).toBe("pending");
     const resubmit = await request(app).patch(`/api/declarations/${id}/submit`).set("Authorization", `Bearer ${kabeloToken}`);
     expect(resubmit.status).toBe(200);
   });
@@ -47,13 +61,15 @@ describe("Workflow regressions", () => {
     await request(app).post("/api/workflows/approve").set("Authorization", `Bearer ${getApproverToken()}`).send({ declarationId: id, decision: "return" });
     await request(app).put(`/api/declarations/${id}`).set("Authorization", `Bearer ${getTeamToken()}`).send({ value: 1500 });
     const afterSave = await request(app).get(`/api/workflows/instances/${id}`).set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(afterSave.body.steps.map((step: any) => step.role)).toEqual(["lineManager", "hr"]);
+    const afterSaveBody = afterSave.body as WorkflowInstanceResponse;
+    expect(afterSaveBody.steps.map((step) => step.role)).toEqual(["lineManager", "hr"]);
     const resubmit = await request(app).patch(`/api/declarations/${id}/submit`).set("Authorization", `Bearer ${getTeamToken()}`);
 
     expect(resubmit.status).toBe(200);
     const workflow = await request(app).get(`/api/workflows/instances/${id}`).set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(workflow.body.steps.map((step: any) => step.role)).toEqual(["lineManager", "hr"]);
-    expect(workflow.body.steps[1].status).toBe("pending");
+    const workflowBody = workflow.body as WorkflowInstanceResponse;
+    expect(workflowBody.steps.map((step) => step.role)).toEqual(["lineManager", "hr"]);
+    expect(workflowBody.steps[1].status).toBe("pending");
   });
 
   it("shows downstream approvers only when their step is actionable", async () => {
@@ -80,7 +96,7 @@ describe("Workflow regressions", () => {
       .get("/api/workflows/pending")
       .set("Authorization", `Bearer ${getHrToken()}`);
     expect(hrBeforeLm.status).toBe(200);
-    expect(hrBeforeLm.body.some((item: any) => item.declaration.id === id)).toBe(false);
+    expect((hrBeforeLm.body as PendingWorkflowResponse[]).some((item) => item.declaration.id === id)).toBe(false);
 
     await request(app)
       .post("/api/workflows/approve")
@@ -91,7 +107,7 @@ describe("Workflow regressions", () => {
       .get("/api/workflows/pending")
       .set("Authorization", `Bearer ${getHrToken()}`);
     expect(hrAfterLm.status).toBe(200);
-    expect(hrAfterLm.body.some((item: any) => item.declaration.id === id)).toBe(true);
+    expect((hrAfterLm.body as PendingWorkflowResponse[]).some((item) => item.declaration.id === id)).toBe(true);
   });
 
   it("preserves completed approvals when a returned declaration is resubmitted", async () => {

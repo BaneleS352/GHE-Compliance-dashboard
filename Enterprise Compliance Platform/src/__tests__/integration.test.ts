@@ -9,12 +9,26 @@ import {
 import type { Declaration } from "../types/declaration";
 
 function mockFetch(status: number, body: unknown) {
-  return vi.spyOn(globalThis, "fetch").mockResolvedValue({
-    ok: status >= 200 && status < 300,
+  return vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(body), {
     status,
-    headers: new Headers({ "content-type": "application/json" }),
-    json: () => Promise.resolve(body),
-  } as Response);
+    headers: { "content-type": "application/json" },
+  }));
+}
+
+function requestOptions(spy: ReturnType<typeof mockFetch>): RequestInit {
+  const options = spy.mock.calls[0]?.[1];
+  if (!options) throw new Error("Expected fetch to receive request options");
+  return options;
+}
+
+function requestBody(spy: ReturnType<typeof mockFetch>): Record<string, unknown> {
+  const body = requestOptions(spy).body;
+  if (typeof body !== "string") throw new Error("Expected a JSON request body");
+  const parsed: unknown = JSON.parse(body);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Expected a JSON object request body");
+  }
+  return parsed as Record<string, unknown>;
 }
 
 const sampleDeclaration: Declaration = {
@@ -117,8 +131,8 @@ describe("Integration — Journey 1+4: Create & Submit (J1.1 / J4.1)", () => {
   it("createDeclaration includes the MSAL bearer token", async () => {
     const spy = mockFetch(201, { id: "GHE-INT-2", status: "Draft" });
     await createDeclaration(sampleDeclaration);
-    const headers = (spy.mock.calls[0][1] as any).headers as Record<string, string>;
-    expect(headers["Authorization"]).toBe("Bearer msal-int-token");
+    const headers = new Headers(requestOptions(spy).headers);
+    expect(headers.get("Authorization")).toBe("Bearer msal-int-token");
   });
 });
 
@@ -127,7 +141,7 @@ describe("Integration — Journey 2: Save Draft (J2.1)", () => {
     const spy = mockFetch(201, { id: "GHE-INT-D1", status: "Draft" });
     const draft = await createDeclaration({ ...sampleDeclaration, status: "Draft" });
     expect(draft.status).toBe("Draft");
-    const sent = JSON.parse((spy.mock.calls[0][1] as any).body as string);
+    const sent = requestBody(spy);
     expect(sent.status).toBe("Draft");
   });
 
@@ -135,7 +149,7 @@ describe("Integration — Journey 2: Save Draft (J2.1)", () => {
     const spy = mockFetch(200, { id: "GHE-INT-D1", description: "Updated gift", status: "Draft" });
     const updated = await updateDeclaration("GHE-INT-D1", { description: "Updated gift" });
     expect(updated.description).toBe("Updated gift");
-    const body = JSON.parse((spy.mock.calls[0][1] as any).body as string);
+    const body = requestBody(spy);
     expect(body.description).toBe("Updated gift");
   });
 });
@@ -185,7 +199,7 @@ describe("Integration — Journey 6: Approve (J6.1 / J6.2 / J6.6 / J6.9)", () =>
     const spy = mockFetch(200, { status: "Pending" });
     const res = await approveWorkflowStep({ declarationId: "GHE-INT-1", decision: "accept" });
     expect(res.status).toBe("Pending");
-    const body = JSON.parse((spy.mock.calls[0][1] as any).body as string);
+    const body = requestBody(spy);
     expect(body.decision).toBe("accept");
     expect(body.declarationId).toBe("GHE-INT-1");
   });
@@ -193,14 +207,14 @@ describe("Integration — Journey 6: Approve (J6.1 / J6.2 / J6.6 / J6.9)", () =>
   it("approves with 'org' decision (J6.2)", async () => {
     const spy = mockFetch(200, { status: "Pending" });
     await approveWorkflowStep({ declarationId: "GHE-INT-1", decision: "org" });
-    const body = JSON.parse((spy.mock.calls[0][1] as any).body as string);
+    const body = requestBody(spy);
     expect(body.decision).toBe("org");
   });
 
   it("approves with notes (J6.9)", async () => {
     const spy = mockFetch(200, { status: "Pending" });
     await approveWorkflowStep({ declarationId: "GHE-INT-1", decision: "accept", notes: "Approved after compliance check" });
-    const body = JSON.parse((spy.mock.calls[0][1] as any).body as string);
+    const body = requestBody(spy);
     expect(body.notes).toBe("Approved after compliance check");
   });
 
@@ -220,7 +234,7 @@ describe("Integration — Journey 7: Return (J7.1 / J7.2)", () => {
     const spy = mockFetch(200, { status: "Returned" });
     const res = await approveWorkflowStep({ declarationId: "GHE-INT-1", decision: "return", notes: "Missing receipt" });
     expect(res.status).toBe("Returned");
-    const body = JSON.parse((spy.mock.calls[0][1] as any).body as string);
+    const body = requestBody(spy);
     expect(body.decision).toBe("return");
     expect(body.notes).toBe("Missing receipt");
   });
@@ -228,7 +242,7 @@ describe("Integration — Journey 7: Return (J7.1 / J7.2)", () => {
   it("returns declaration without notes (J7.2)", async () => {
     const spy = mockFetch(200, { status: "Returned" });
     await approveWorkflowStep({ declarationId: "GHE-INT-1", decision: "return" });
-    const body = JSON.parse((spy.mock.calls[0][1] as any).body as string);
+    const body = requestBody(spy);
     expect(body.decision).toBe("return");
     expect(body.notes).toBeUndefined();
   });
@@ -239,7 +253,7 @@ describe("Integration — Journey 8: Decline (J8.1 / J8.5 / J8.7)", () => {
     const spy = mockFetch(200, { status: "Declined" });
     const res = await approveWorkflowStep({ declarationId: "GHE-INT-1", decision: "decline" });
     expect(res.status).toBe("Declined");
-    const body = JSON.parse((spy.mock.calls[0][1] as any).body as string);
+    const body = requestBody(spy);
     expect(body.decision).toBe("decline");
   });
 
@@ -276,7 +290,7 @@ describe("Integration — Journey 9: Complete workflow (J9.8 / J9.6)", () => {
     });
     const wf = await fetchWorkflowInstance("GHE-INT-1");
     expect(wf.steps).toHaveLength(2);
-    wf.steps.forEach((s: any) => expect(s.status).toBe("approved"));
+    wf.steps.forEach((step) => expect(step.status).toBe("approved"));
     expect(wf.steps[0].decision).toBe("accept");
     expect(wf.steps[1].decision).toBe("org");
   });

@@ -202,11 +202,16 @@ const options: swaggerJsdoc.Options = {
       "/api/declarations/{id}/status": {
         patch: {
           tags: ["Declarations"],
-          summary: "Directly update declaration status",
+          summary: "Admin-only declaration status override",
           security: [{ bearerAuth: [] }],
           parameters: [{ in: "path", name: "id", required: true, schema: { type: "string" } }],
           requestBody: { content: { "application/json": { schema: { type: "object", properties: { status: { type: "string" } }, required: ["status"] } } } },
-          responses: { 200: { description: "Status updated" } },
+          responses: {
+            200: { description: "Status updated after workflow-state validation" },
+            400: { description: "Requested status conflicts with workflow state" },
+            403: { description: "Only administrators may override status" },
+            404: { description: "Declaration not found" },
+          },
         },
       },
 

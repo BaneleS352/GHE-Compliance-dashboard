@@ -5,7 +5,7 @@ import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { WorkflowStep, declarationResponse, declarationIncludes, rowToStep } from "../services/workflowService";
-import { writeWorkflowStepsTx, readWorkflowStepRows, getDeclarationPk } from "../services/normalization";
+import { writeWorkflowStepsTx, readWorkflowStepRows, getDeclarationPk, lockDeclarationRow } from "../services/normalization";
 import { toDbId, toJsonId } from "../services/ids";
 import { notificationDedupeKey, queueNotificationSafely, type NotificationEvent } from "../services/notificationService";
 import { recordDeclarationAudit } from "../services/declarationAudit";
@@ -178,31 +178,6 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
     res.status(404).json({ error: "Declaration not found" });
     return;
   }
-  const declaration = await prisma.declaration.findUnique({ where: { declarationPk: pk } });
-  if (!declaration) {
-    res.status(404).json({ error: "Declaration not found" });
-    return;
-  }
-  // Organization backstop: step assignment is user-scoped, but a mis-assigned
-  // cross-org step (e.g. via global fallback routing) must never become a
-  // cross-org decision. Mirrors the submit/PUT/delete checks.
-  const callerOrg = req.user?.organizationId ?? undefined;
-  if (req.user!.role !== "admin" && callerOrg !== undefined && callerOrg !== null && declaration.organizationId !== null && declaration.organizationId !== toDbId(callerOrg)) {
-    res.status(403).json({ error: "Cannot approve declaration from another organization" });
-    return;
-  }
-
-  const instance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
-  if (!instance) {
-    res.status(404).json({ error: "Workflow instance not found" });
-    return;
-  }
-
-  if (!["approver", "admin"].includes(req.user!.role)) {
-    res.status(403).json({ error: "Only approvers and admins can approve workflow steps" });
-    return;
-  }
-
   // Atomic step update — read, check, and write within a single transaction.
   // Relational step rows are the only workflow state.
   const now = new Date().toISOString();
@@ -219,6 +194,27 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
   let resultStepIndex: number;
   try {
     const result = await prisma.$transaction(async (tx) => {
+      // Serialize authorization and decision state against declaration edits,
+      // organization reassignment, deletion, and other lifecycle mutations.
+      if (!await lockDeclarationRow(tx, pk)) {
+        throw Object.assign(new Error("Declaration not found"), { statusCode: 404 });
+      }
+      const declaration = await tx.declaration.findUnique({ where: { declarationPk: pk } });
+      if (!declaration) {
+        throw Object.assign(new Error("Declaration not found"), { statusCode: 404 });
+      }
+      const callerOrg = req.user?.organizationId ?? undefined;
+      if (req.user!.role !== "admin" && callerOrg !== undefined && callerOrg !== null && declaration.organizationId !== null && declaration.organizationId !== toDbId(callerOrg)) {
+        throw Object.assign(new Error("Cannot approve declaration from another organization"), { statusCode: 403 });
+      }
+      const instance = await tx.workflowInstance.findUnique({ where: { declarationPk: pk } });
+      if (!instance) {
+        throw Object.assign(new Error("Workflow instance not found"), { statusCode: 404 });
+      }
+      if (!["approver", "admin"].includes(req.user!.role)) {
+        throw Object.assign(new Error("Only approvers and admins can approve workflow steps"), { statusCode: 403 });
+      }
+
       const rows = await tx.workflowInstanceStep.findMany({
         where: { instanceId: instance.id },
         orderBy: { stepOrder: "asc" },
@@ -350,8 +346,14 @@ router.post("/approve", authenticate, asyncHandler(async (req: AuthRequest, res:
     freshSteps = result.freshSteps;
     newStatus = result.newStatus;
     resultStepIndex = result.stepIndex;
-  } catch (err: any) {
-    res.status(err.statusCode || 500).json({ error: err.statusCode ? err.message : "Internal server error" });
+  } catch (err: unknown) {
+    const statusCode =
+      typeof err === "object" && err !== null && "statusCode" in err &&
+      typeof err.statusCode === "number" && err.statusCode >= 400 && err.statusCode <= 599
+        ? err.statusCode
+        : 500;
+    const message = statusCode !== 500 && err instanceof Error ? err.message : "Internal server error";
+    res.status(statusCode).json({ error: message });
     return;
   }
 

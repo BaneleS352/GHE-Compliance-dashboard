@@ -1,3 +1,4 @@
+import { setupResponsiveLayout } from "../test-helpers/responsiveLayout";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ApprovalDetail } from "../app/pages/ApprovalDetail";
@@ -91,17 +92,8 @@ function setCustomUser(user: Record<string, unknown>) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockSession.current = null;
-  class RO {
-    cb: any;
-    constructor(cb: any) { this.cb = cb; }
-    observe() { this.cb([{ contentRect: { width: 1200, height: 900 } }]); }
-    unobserve() {}
-    disconnect() {}
-  }
-  (globalThis as any).ResizeObserver = RO;
+  setupResponsiveLayout(1200, 900);
   Element.prototype.scrollIntoView = vi.fn();
-  Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, value: 1200 });
-  Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 900 });
 });
 
 // ──── Journeys 5-6: Review & Approve ────

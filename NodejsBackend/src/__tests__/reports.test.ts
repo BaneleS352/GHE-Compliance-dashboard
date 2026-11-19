@@ -4,6 +4,10 @@ import { buildApp, getAdminToken, getApproverToken } from "./helpers";
 
 const app = buildApp();
 
+interface ReportDeclarationResponse {
+  status: string;
+}
+
 describe("Reports", () => {
   it("GET /api/reports/status-breakdown — returns counts by status", async () => {
     const res = await request(app)
@@ -63,7 +67,7 @@ describe("Reports", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
     expect(res.body.length).toBeGreaterThanOrEqual(1);
-    res.body.forEach((d: any) => expect(d.status).toBe("Pending"));
+    (res.body as ReportDeclarationResponse[]).forEach((declaration) => expect(declaration.status).toBe("Pending"));
   });
 
   it("GET /api/reports/list — applies bounded database pagination", async () => {

@@ -1,3 +1,4 @@
+import { setupResponsiveLayout } from "../test-helpers/responsiveLayout";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { WorkflowTimeline, StepView } from "../app/components/WorkflowTimeline";
@@ -11,16 +12,7 @@ vi.mock("../services/api", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  class RO {
-    cb: any;
-    constructor(cb: any) { this.cb = cb; }
-    observe() { this.cb([{ contentRect: { width: 400, height: 600 } }]); }
-    unobserve() {}
-    disconnect() {}
-  }
-  (globalThis as any).ResizeObserver = RO;
-  Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, value: 400 });
-  Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 600 });
+  setupResponsiveLayout(400, 600);
 });
 
 const mockSteps = (overrides?: Partial<StepView>[]): StepView[] => [

@@ -1,3 +1,4 @@
+import { setupResponsiveLayout } from "../test-helpers/responsiveLayout";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { NewDeclarationScreen } from "../app/pages/NewDeclarationScreen";
@@ -45,17 +46,8 @@ beforeEach(() => {
     teamMemberNumber: "HB-10001", department: "Marketing", position: "Brand Manager",
     lineManager: "Sipho Nkosi",
   };
-  class RO {
-    cb: any;
-    constructor(cb: any) { this.cb = cb; }
-    observe() { this.cb([{ contentRect: { width: 400, height: 600 } }]); }
-    unobserve() {}
-    disconnect() {}
-  }
-  (globalThis as any).ResizeObserver = RO;
+  setupResponsiveLayout(400, 600);
   Element.prototype.scrollIntoView = vi.fn();
-  Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, value: 400 });
-  Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 600 });
 });
 
 function setSelectValue(select: HTMLElement, value: string) {

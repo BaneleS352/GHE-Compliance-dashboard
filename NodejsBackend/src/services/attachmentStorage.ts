@@ -1,6 +1,7 @@
 import { BlobServiceClient, type ContainerClient } from "@azure/storage-blob";
 import crypto from "node:crypto";
 import { attachmentStorageConfig } from "../config/attachmentStorage";
+import { enqueueAttachmentCleanupAfterFailure } from "./attachmentCleanupQueue";
 
 const AZURITE_PATH_PREFIX = "azurite:";
 
@@ -54,7 +55,11 @@ async function uploadBufferToAzurite(contents: Buffer, mimeType: string): Promis
     });
     return `${AZURITE_PATH_PREFIX}${blobName}`;
   } catch (error) {
-    try { await container.getBlobClient(blobName).deleteIfExists(); } catch { /* retain the original upload error */ }
+    try {
+      await container.getBlobClient(blobName).deleteIfExists();
+    } catch {
+      await enqueueAttachmentCleanupAfterFailure(`${AZURITE_PATH_PREFIX}${blobName}`, "upload_rollback");
+    }
     throw error;
   }
 }

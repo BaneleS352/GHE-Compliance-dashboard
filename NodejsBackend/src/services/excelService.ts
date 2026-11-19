@@ -17,7 +17,7 @@ export interface ExcelOptions {
 
 export function generateExcelBuffer(opts: ExcelOptions): Buffer {
   const wb = XLSX.utils.book_new();
-  const wsData: any[][] = [];
+  const wsData: unknown[][] = [];
 
   if (opts.title) {
     wsData.push([opts.title]);

@@ -16,12 +16,16 @@ import {
   syncDeclarationDetail,
   writeWorkflowStepsTx,
   readWorkflowStepRows,
+  lockDeclarationRow,
+  getDeclarationPk,
 } from "../services/normalization";
 import { toDbId, toJsonId } from "../services/ids";
 import { notificationDedupeKey, queueNotificationSafely } from "../services/notificationService";
 import { recordDeclarationAudit } from "../services/declarationAudit";
 import { declarationPriorityForValue } from "../services/declarationPriority";
-import { deleteStoredAttachment, isAzuriteAttachment } from "../services/attachmentStorage";
+import { isAzuriteAttachment } from "../services/attachmentStorage";
+import { isCrossDepartmentLineManager } from "../services/declarationAccess";
+import { enqueueAttachmentCleanup } from "../services/attachmentCleanupQueue";
 import {
   viewStatusSummaryFull,
   viewMonthly,
@@ -51,18 +55,14 @@ const numericId = z.union([z.number().int(), z.string().regex(/^\d+$/)], { error
  * access is denied (response already sent). Department comes from the
  * immutable snapshot (submission-time context).
  */
+function isCrossDepartmentLMDenied(req: AuthRequest, snapshotDepartment: string | null | undefined): boolean {
+  return isCrossDepartmentLineManager(req.user!, snapshotDepartment);
+}
+
 function denyCrossDepartmentLM(req: AuthRequest, res: Response, snapshotDepartment: string | null | undefined): boolean {
-  if (
-    req.user!.role !== "admin" &&
-    req.user!.role === "approver" &&
-    req.user!.department &&
-    req.user!.position === "Line Manager" &&
-    snapshotDepartment !== req.user!.department
-  ) {
-    res.status(403).json({ error: "Access denied: declaration is outside your department" });
-    return true;
-  }
-  return false;
+  if (!isCrossDepartmentLMDenied(req, snapshotDepartment)) return false;
+  res.status(403).json({ error: "Access denied: declaration is outside your department" });
+  return true;
 }
 
 function auditEventResponse(event: Awaited<ReturnType<typeof prisma.declarationAuditEvent.findMany>>[number]) {
@@ -241,7 +241,6 @@ const createSchema = z.object({
   instances: z.string(),
   publicOfficial: z.string(),
   substantiation: z.string().optional(),
-  files: z.any().optional(),
   organizationId: numericId.optional(),
 });
 
@@ -581,7 +580,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   // action. lineManager snapshot updates are admin-only, including
   // Draft/Returned edits; self-service payloads cannot alter snapshot
   // identity and are ignored.
-  const updateData: Record<string, unknown> = {};
+  const updateData: Prisma.DeclarationUncheckedUpdateInput = {};
   if (data.type !== undefined) updateData.type = sanitize(data.type);
   if (data.value !== undefined) updateData.value = data.value;
   if (priorityInputChanged) {
@@ -603,25 +602,11 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   }
   if (data.from !== undefined) detailPatch.from = sanitize(data.from);
 
-  // Resolve relational links before the transaction (pure reads).
-  // When approverId is reassigned the approver display name moves with it —
-  // otherwise the detail view shows the previous manager's name with the new id.
+  // Resolve relational links after the declaration lock so a stale write does
+  // not leave an orphaned counterparty and an approver cannot be deleted
+  // between lookup and update. Reassignment keeps the display name aligned.
   let putCounterpartyId: bigint | null | undefined;
-  if (data.counterparty !== undefined) {
-    if (data.counterparty) {
-      const contactText = data.contactPerson ?? existing.detail?.contactPerson ?? null;
-      const cp = await ensureCounterparty(sanitize(data.counterparty), bodyOrgPut ?? existing.organizationId, contactText ? sanitize(contactText) : null);
-      putCounterpartyId = cp?.id || null;
-    } else {
-      putCounterpartyId = null;
-    }
-  }
   let putApproverUser: bigint | null | undefined;
-  if (data.approverId !== undefined) {
-    const approverPk = toDbId(data.approverId);
-    const putAu = await prisma.user.findUnique({ where: { id: approverPk }, select: { id: true } });
-    putApproverUser = putAu ? putAu.id : null;
-  }
 
   // Single transaction: lean row, links, pre-submit snapshot manager, detail.
   // Status/approver ownership: `status` and `currentApproverUserId` are
@@ -633,11 +618,69 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   const pk = existing.declarationPk;
   const willRebuildSteps =
     existing.status === "Returned" && data.value !== undefined && data.value !== Number(existing.value);
-  await prisma.$transaction(async (tx) => {
-    // Boundary label: updateData is assembled from individually validated
-    // zod fields above; the spread into the update input is the one place
-    // the validated pieces rejoin a Prisma input type.
-    const txData: any = { ...updateData };
+  let rebuiltWorkflowSteps: WorkflowStep[] | null = null;
+  if (willRebuildSteps) {
+    const instance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
+    if (instance) {
+      if (existing.declarerUserId === null) {
+        res.status(400).json({ error: "Declaration has no linked owner and its workflow cannot be rebuilt" });
+        return;
+      }
+      const savedSteps = (await readWorkflowStepRows(pk)) || [];
+      const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId, data.value!);
+      const approvedMap = new Map(savedSteps.filter((step) => step.status === "approved").map((step) => [step.role, step]));
+      rebuiltWorkflowSteps = freshSteps.map((step) => {
+        const approved = approvedMap.get(step.role);
+        return approved
+          ? { ...step, status: "approved" as const, decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt }
+          : step;
+      });
+    }
+  }
+  const updateResult = await prisma.$transaction(async (tx) => {
+    if (!await lockDeclarationRow(tx, pk)) return { kind: "not_found" as const };
+    const currentDeclaration = await tx.declaration.findUnique({
+      where: { declarationPk: pk },
+      include: { snapshot: true },
+    });
+    if (!currentDeclaration) return { kind: "not_found" as const };
+    if (currentDeclaration.status !== "Draft" && currentDeclaration.status !== "Returned") {
+      return { kind: "not_editable" as const };
+    }
+    const callerOrgId = req.user?.organizationId ?? undefined;
+    if (currentDeclaration.organizationId !== null && callerOrgId !== undefined && callerOrgId !== null && currentDeclaration.organizationId !== toDbId(callerOrgId) && req.user!.role !== "admin") {
+      return { kind: "wrong_organization" as const };
+    }
+    if (currentDeclaration.declarerUserId !== toDbId(req.user!.id) && req.user!.role !== "admin") {
+      return { kind: "not_owner" as const };
+    }
+    if (isCrossDepartmentLMDenied(req, currentDeclaration.snapshot?.department)) {
+      return { kind: "wrong_department" as const };
+    }
+    if (currentDeclaration.updatedAt.getTime() !== existing.updatedAt.getTime()) {
+      return { kind: "stale" as const };
+    }
+    if (data.counterparty !== undefined) {
+      if (data.counterparty) {
+        const contactText = data.contactPerson ?? existing.detail?.contactPerson ?? null;
+        const cp = await ensureCounterparty(
+          sanitize(data.counterparty),
+          bodyOrgPut ?? existing.organizationId,
+          contactText ? sanitize(contactText) : null,
+          tx,
+        );
+        putCounterpartyId = cp?.id ?? null;
+      } else {
+        putCounterpartyId = null;
+      }
+    }
+    if (data.approverId !== undefined) {
+      const approverPk = toDbId(data.approverId);
+      const putAu = await tx.user.findUnique({ where: { id: approverPk }, select: { id: true } });
+      putApproverUser = putAu?.id ?? null;
+    }
+
+    const txData: Prisma.DeclarationUncheckedUpdateInput = { ...updateData };
     if (putCounterpartyId !== undefined) txData.counterpartyId = putCounterpartyId;
     // Skip the approver preference when steps are rebuilt below — the
     // rebuilt rows own the approver (derived from first pending step).
@@ -725,7 +768,40 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
         },
       });
     }
+    if (rebuiltWorkflowSteps) {
+      const next = rebuiltWorkflowSteps.find((step) => step.status === "pending");
+      await writeWorkflowStepsTx(tx, pk, rebuiltWorkflowSteps);
+      await tx.declaration.update({
+        where: { declarationPk: pk },
+        data: { currentApproverUserId: next?.assignee === null || next?.assignee === undefined ? null : toDbId(next.assignee) },
+      });
+      await recordDeclarationAudit(tx, {
+        declarationPk: pk,
+        declarationId: existing.id,
+        organizationId: bodyOrgPut !== undefined ? bodyOrgPut : existing.organizationId,
+        actorUserId: req.user!.id,
+        actorName: req.user!.name,
+        action: "updated",
+        changedFields: ["workflowSteps", "currentApproverUserId"],
+        oldValues: { currentApproverUserId: existing.currentApproverUserId },
+        newValues: {
+          currentApproverUserId: next?.assignee ?? null,
+          workflowSteps: rebuiltWorkflowSteps.map((step) => ({ order: step.order, role: step.role, status: step.status, assignee: step.assignee })),
+        },
+      });
+    }
+    return { kind: "updated" as const };
   });
+
+  if (updateResult.kind !== "updated") {
+    if (updateResult.kind === "not_editable") res.status(400).json({ error: "Only drafts or returned declarations can be edited" });
+    else if (updateResult.kind === "wrong_organization") res.status(403).json({ error: "Cannot edit declaration from another organization" });
+    else if (updateResult.kind === "not_owner") res.status(403).json({ error: "Cannot edit another user's declaration" });
+    else if (updateResult.kind === "wrong_department") res.status(403).json({ error: "Access denied: declaration is outside your department" });
+    else if (updateResult.kind === "stale") res.status(409).json({ error: "Declaration changed while you were editing; reload and retry" });
+    else res.status(404).json({ error: "Declaration not found" });
+    return;
+  }
 
   const updated = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
   if (!updated) {
@@ -733,59 +809,7 @@ router.put("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     return;
   }
 
-  // Refresh the workflow immediately when a returned declaration's value
-  // changes, so the detail view reflects newly required approvers before submit.
-  // The approver link is re-derived from the rebuilt first pending step in
-  // the same transaction (step rows own the approver, not the PUT payload).
-  let response = updated;
-  if (willRebuildSteps) {
-    const instance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
-    if (instance) {
-      if (existing.declarerUserId === null) {
-        res.status(400).json({ error: "Declaration has no linked owner and its workflow cannot be rebuilt" });
-        return;
-      }
-      const savedSteps = (await readWorkflowStepRows(pk)) || [];
-      const freshSteps = await createWorkflowSteps(pk, existing.declarerUserId!, Number(updated.value));
-      const approvedMap = new Map(savedSteps.filter((s) => s.status === "approved").map((s) => [s.role, s]));
-      const workflowSteps: WorkflowStep[] = freshSteps.map((step) => {
-        const approved = approvedMap.get(step.role);
-        return approved
-          ? { ...step, status: "approved" as const, decision: approved.decision, notes: approved.notes, decidedAt: approved.decidedAt, decidedById: approved.decidedById, decidedByName: approved.decidedByName, approvedAt: approved.approvedAt }
-          : step;
-      });
-      const next = workflowSteps.find((s) => s.status === "pending");
-      await prisma.$transaction(async (tx) => {
-        await writeWorkflowStepsTx(tx, pk, workflowSteps);
-        await tx.declaration.update({
-          where: { declarationPk: pk },
-          data: { currentApproverUserId: next?.assignee === null || next?.assignee === undefined ? null : toDbId(next.assignee) },
-        });
-        await recordDeclarationAudit(tx, {
-          declarationPk: pk,
-          declarationId: existing.id,
-          organizationId: existing.organizationId,
-          actorUserId: req.user!.id,
-          actorName: req.user!.name,
-          action: "updated",
-          changedFields: ["workflowSteps", "currentApproverUserId"],
-          oldValues: { currentApproverUserId: existing.currentApproverUserId },
-          newValues: {
-            currentApproverUserId: next?.assignee ?? null,
-            workflowSteps: workflowSteps.map((step) => ({ order: step.order, role: step.role, status: step.status, assignee: step.assignee })),
-          },
-        });
-      });
-      const reread = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
-      if (!reread) {
-        res.status(500).json({ error: "Failed to read back the updated declaration" });
-        return;
-      }
-      response = reread;
-    }
-  }
-
-  res.json(declarationResponse(response));
+  res.json(declarationResponse(updated));
 }));
 
 router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
@@ -810,36 +834,54 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
   }
   if (denyCrossDepartmentLM(req, res, existing.snapshot?.department)) return;
 
-  // Capture linked file paths before the database transaction removes rows.
   const pk = existing.declarationPk;
-  const links = await prisma.declarationFile.findMany({ where: { declarationPk: pk }, include: { file: true } });
-  if (links.some((link) => !isAzuriteAttachment(link.file.storageReference))) {
-    res.status(503).json({ error: "Attachment storage migration required; ask an administrator to migrate existing uploads to Azurite" });
-    return;
-  }
-  const storedFiles = links.map((link) => ({ id: link.fileId, storageReference: link.file.storageReference }));
-  const fileIds = links.map((l) => l.fileId);
   // One transaction for all database deletes: a failure rolls everything
   // back instead of leaving orphaned child rows behind a deleted parent
-  // Storage cleanup happens after commit; a storage failure cannot invalidate
-  // the database transaction and a transaction failure leaves evidence intact.
-  await prisma.$transaction(async (tx) => {
+  // Hold the declaration lock through validation and delete so submission and
+  // evidence mutations serialize with this operation. Storage cleanup happens
+  // after commit; a storage failure cannot invalidate the DB transaction.
+  const deletion = await prisma.$transaction(async (tx) => {
+    if (!await lockDeclarationRow(tx, pk)) return { kind: "not_found" as const };
+    const current = await tx.declaration.findUnique({
+      where: { declarationPk: pk },
+      include: { snapshot: true, detail: true, fileLinks: { include: { file: true } } },
+    });
+    if (!current) return { kind: "not_found" as const };
+    if (current.status !== "Draft") return { kind: "not_draft" as const };
+    const callerOrgId = req.user?.organizationId ?? undefined;
+    if (current.organizationId !== null && callerOrgId !== undefined && callerOrgId !== null && current.organizationId !== toDbId(callerOrgId) && req.user!.role !== "admin") {
+      return { kind: "wrong_organization" as const };
+    }
+    if (current.declarerUserId !== toDbId(req.user!.id) && req.user!.role !== "admin") {
+      return { kind: "not_owner" as const };
+    }
+    if (isCrossDepartmentLMDenied(req, current.snapshot?.department)) {
+      return { kind: "wrong_department" as const };
+    }
+    if (current.fileLinks.some((link) => !isAzuriteAttachment(link.file.storageReference))) {
+      return { kind: "migration" as const };
+    }
+
+    const fileIds = current.fileLinks.map((link) => link.fileId);
+    for (const link of current.fileLinks) {
+      await enqueueAttachmentCleanup(tx, link.file.storageReference);
+    }
     await recordDeclarationAudit(tx, {
       declarationPk: pk,
-      declarationId: existing.id,
-      organizationId: existing.organizationId,
+      declarationId: current.id,
+      organizationId: current.organizationId,
       actorUserId: req.user!.id,
       actorName: req.user!.name,
       action: "deleted",
       changedFields: ["declaration"],
       oldValues: {
-        type: existing.type,
-        value: Number(existing.value),
-        status: existing.status,
-        priority: existing.priority,
-        snapshot: existing.snapshot,
-        detail: existing.detail,
-        files: existing.fileLinks.map((link) => ({ name: link.file.originalName, size: link.file.size, mimeType: link.file.mimeType })),
+        type: current.type,
+        value: Number(current.value),
+        status: current.status,
+        priority: current.priority,
+        snapshot: current.snapshot,
+        detail: current.detail,
+        files: current.fileLinks.map((link) => ({ name: link.file.originalName, size: link.file.size, mimeType: link.file.mimeType })),
       },
     });
     await tx.declarationFile.deleteMany({ where: { declarationPk: pk } });
@@ -849,15 +891,18 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     await tx.declarationSnapshot.deleteMany({ where: { declarationPk: pk } });
     await tx.declarationDetail.deleteMany({ where: { declarationPk: pk } });
     await tx.declaration.delete({ where: { declarationPk: pk } });
+    return { kind: "deleted" as const };
   });
 
-  await Promise.all(storedFiles.map(async (file) => {
-    try {
-      await deleteStoredAttachment(file.storageReference);
-    } catch {
-      console.error(JSON.stringify({ event: "declaration_evidence_cleanup", fileId: String(file.id), outcome: "failure" }));
-    }
-  }));
+  if (deletion.kind !== "deleted") {
+    if (deletion.kind === "not_draft") res.status(400).json({ error: "Only draft declarations can be deleted" });
+    else if (deletion.kind === "wrong_organization") res.status(403).json({ error: "Cannot delete declaration from another organization" });
+    else if (deletion.kind === "not_owner") res.status(403).json({ error: "Cannot delete another user's declaration" });
+    else if (deletion.kind === "wrong_department") res.status(403).json({ error: "Access denied: declaration is outside your department" });
+    else if (deletion.kind === "migration") res.status(503).json({ error: "Attachment storage migration required; ask an administrator to migrate existing uploads to Azurite" });
+    else res.status(404).json({ error: "Declaration not found" });
+    return;
+  }
 
   res.json({ message: "Declaration deleted" });
 }));
@@ -933,7 +978,34 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
   // Single transaction: declaration status, canonical approver link, the
   // authoritative step rows, the producing rule, and the frozen snapshot/detail.
   const ruleId = await resolveRuleId(Number(existing.value));
-  await prisma.$transaction(async (tx) => {
+  const submitResult = await prisma.$transaction(async (tx) => {
+    if (!await lockDeclarationRow(tx, pk)) return { kind: "not_found" as const };
+    const currentDeclaration = await tx.declaration.findUnique({
+      where: { declarationPk: pk },
+      include: { snapshot: true },
+    });
+    if (!currentDeclaration) return { kind: "not_found" as const };
+    if (currentDeclaration.status !== "Draft" && currentDeclaration.status !== "Returned") {
+      return { kind: "not_submittable" as const };
+    }
+    const callerOrgId = req.user?.organizationId ?? undefined;
+    if (currentDeclaration.organizationId !== null && callerOrgId !== undefined && callerOrgId !== null && currentDeclaration.organizationId !== toDbId(callerOrgId) && req.user!.role !== "admin") {
+      return { kind: "wrong_organization" as const };
+    }
+    if (currentDeclaration.declarerUserId !== toDbId(req.user!.id) && req.user!.role !== "admin") {
+      return { kind: "not_owner" as const };
+    }
+    if (currentDeclaration.declarerUserId === null) return { kind: "ownerless" as const };
+    if (isCrossDepartmentLMDenied(req, currentDeclaration.snapshot?.department)) {
+      return { kind: "wrong_department" as const };
+    }
+    // Workflow steps were built from the initial read. Reject if another write
+    // changed the declaration while that work was prepared; never submit stale
+    // value, identity, or snapshot data over a concurrent edit.
+    if (currentDeclaration.updatedAt.getTime() !== existing.updatedAt.getTime()) {
+      return { kind: "stale" as const };
+    }
+
     await tx.declaration.update({
       where: { declarationPk: pk },
       data: {
@@ -1002,7 +1074,19 @@ router.patch("/:id/submit", authenticate, asyncHandler(async (req: AuthRequest, 
         );
       }
     }
+    return { kind: "submitted" as const };
   });
+
+  if (submitResult.kind !== "submitted") {
+    if (submitResult.kind === "not_submittable") res.status(400).json({ error: "Only drafts or returned declarations can be submitted" });
+    else if (submitResult.kind === "wrong_organization") res.status(403).json({ error: "Cannot submit declaration from another organization" });
+    else if (submitResult.kind === "not_owner") res.status(403).json({ error: "Cannot submit another user's declaration" });
+    else if (submitResult.kind === "ownerless") res.status(400).json({ error: "Declaration has no linked owner and cannot be submitted" });
+    else if (submitResult.kind === "wrong_department") res.status(403).json({ error: "Access denied: declaration is outside your department" });
+    else if (submitResult.kind === "stale") res.status(409).json({ error: "Declaration changed while it was being submitted; reload and retry" });
+    else res.status(404).json({ error: "Declaration not found" });
+    return;
+  }
 
   const updated = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
   if (!updated) {
@@ -1026,35 +1110,43 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
     return;
   }
 
-  const existing = await prisma.declaration.findUnique({ where: { id } });
-  if (!existing) {
+  const pk = await getDeclarationPk(id);
+  if (!pk) {
     res.status(404).json({ error: "Declaration not found" });
     return;
   }
-  const pk = existing.declarationPk;
 
-  if (status === "Approved" || status === "Declined") {
-    const instance = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
-    if (!instance) {
-      res.status(400).json({ error: "Cannot approve/decline a declaration with no workflow instance" });
-      return;
-    }
-    const steps: WorkflowStep[] = (await readWorkflowStepRows(pk)) || [];
-    const pendingStep = steps.find((s) => s.status === "pending");
-    if (pendingStep) {
-      res.status(400).json({ error: "Cannot approve/decline — pending approval step still exists" });
-      return;
-    }
-    // A terminal override needs decided workflow evidence: all-skipped (or
-    // empty) steps would desync the declaration from its step rows.
-    const decided = steps.some((s) => s.status !== "pending" && s.status !== "skipped");
-    if (!decided) {
-      res.status(400).json({ error: "Cannot approve/decline — no decided workflow step exists" });
-      return;
-    }
-  }
+  const result = await prisma.$transaction(async (tx) => {
+    if (!await lockDeclarationRow(tx, pk)) return { kind: "not_found" as const };
+    const existing = await tx.declaration.findUnique({ where: { declarationPk: pk } });
+    if (!existing) return { kind: "not_found" as const };
 
-  await prisma.$transaction(async (tx) => {
+    const instance = await tx.workflowInstance.findUnique({ where: { declarationPk: pk } });
+    const steps: WorkflowStep[] = instance ? (await readWorkflowStepRows(pk, tx)) || [] : [];
+    const hasPendingStep = steps.some((step) => step.status === "pending");
+    const hasActionablePendingStep = steps.some((step) =>
+      step.status === "pending" && !steps.some((prior) =>
+        prior.order < step.order && prior.status !== "approved" && prior.status !== "skipped",
+      ),
+    );
+    if (status === "Draft" && instance) {
+      return { kind: "draft_with_workflow" as const };
+    }
+    if (status === "Pending" && (!instance || !hasActionablePendingStep)) {
+      return { kind: "pending_without_step" as const };
+    }
+    if (status === "Returned" && hasActionablePendingStep) {
+      return { kind: "returned_with_pending_step" as const };
+    }
+    if (status === "Approved" || status === "Declined") {
+      if (!instance) return { kind: "terminal_without_workflow" as const };
+      if (hasPendingStep) return { kind: "terminal_with_pending_step" as const };
+      // A terminal override needs decided workflow evidence: all-skipped (or
+      // empty) steps would desync the declaration from its step rows.
+      const decided = steps.some((step) => step.status !== "pending" && step.status !== "skipped");
+      if (!decided) return { kind: "terminal_without_decision" as const };
+    }
+
     await tx.declaration.update({ where: { declarationPk: pk }, data: { status } });
     await recordDeclarationAudit(tx, {
       declarationPk: pk,
@@ -1067,7 +1159,37 @@ router.patch("/:id/status", authenticate, asyncHandler(async (req: AuthRequest, 
       oldValues: { status: existing.status },
       newValues: { status },
     });
+    return { kind: "updated" as const };
   });
+
+  if (result.kind === "not_found") {
+    res.status(404).json({ error: "Declaration not found" });
+    return;
+  }
+  if (result.kind === "pending_without_step") {
+    res.status(400).json({ error: "Cannot set Pending without an outstanding workflow approval step" });
+    return;
+  }
+  if (result.kind === "draft_with_workflow") {
+    res.status(400).json({ error: "Cannot reset a declaration with workflow history to Draft; use the workflow return action" });
+    return;
+  }
+  if (result.kind === "returned_with_pending_step") {
+    res.status(400).json({ error: "Cannot return a declaration while an approval step is pending; use the workflow return decision" });
+    return;
+  }
+  if (result.kind === "terminal_without_workflow") {
+    res.status(400).json({ error: "Cannot approve/decline a declaration with no workflow instance" });
+    return;
+  }
+  if (result.kind === "terminal_with_pending_step") {
+    res.status(400).json({ error: "Cannot approve/decline — pending approval step still exists" });
+    return;
+  }
+  if (result.kind === "terminal_without_decision") {
+    res.status(400).json({ error: "Cannot approve/decline — no decided workflow step exists" });
+    return;
+  }
 
   const enriched = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: declarationIncludes });
   if (!enriched) {

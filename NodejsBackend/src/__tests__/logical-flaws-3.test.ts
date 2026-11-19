@@ -7,6 +7,20 @@ const prisma = new PrismaClient();
 
 const app = buildApp();
 
+interface WorkflowRuleResponse {
+  id: number;
+  steps: unknown[];
+}
+
+interface WorkflowStepResponse {
+  status: string;
+  notes?: string;
+}
+
+interface DeclarationStatusResponse {
+  status: string;
+}
+
 // Earlier integrity tests intentionally delete users. Re-establish the users
 // needed by this file so the suite is order-independent when run as a whole.
 // departmentId is the sole department source: preserve the existing link when
@@ -202,10 +216,10 @@ describe("Admin workflow rules correspond to submission steps", () => {
       .get("/api/admin/workflows/rules")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
-    const rule1 = res.body.find((r: any) => r.id === 1);
-    const rule2 = res.body.find((r: any) => r.id === 2);
-    expect(rule1).toBeDefined();
-    expect(rule2).toBeDefined();
+    const rules = res.body as WorkflowRuleResponse[];
+    const rule1 = rules.find((rule) => rule.id === 1);
+    const rule2 = rules.find((rule) => rule.id === 2);
+    if (!rule1 || !rule2) throw new Error("Seed workflow rules 1 and 2 are required");
     expect(rule1.steps).toHaveLength(1);
     expect(rule2.steps).toHaveLength(2);
   });
@@ -275,7 +289,8 @@ describe("Approval notes persistence", () => {
     const inst = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    const step = inst.body.steps.find((s: any) => s.status === "returned");
+    const step = (inst.body.steps as WorkflowStepResponse[]).find((workflowStep) => workflowStep.status === "returned");
+    if (!step) throw new Error("Returned workflow step is missing");
     expect(step.notes).toBe("Please provide more details on the gift recipient");
   });
 
@@ -634,8 +649,8 @@ describe("Declaration list status filter", () => {
       .get("/api/declarations?status=Pending")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
-    res.body.forEach((d: any) => {
-      expect(d.status).toBe("Pending");
+    (res.body as DeclarationStatusResponse[]).forEach((declaration) => {
+      expect(declaration.status).toBe("Pending");
     });
   });
 
@@ -644,28 +659,25 @@ describe("Declaration list status filter", () => {
       .get("/api/declarations?status=Approved")
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(res.status).toBe(200);
-    res.body.forEach((d: any) => {
-      expect(d.status).toBe("Approved");
+    (res.body as DeclarationStatusResponse[]).forEach((declaration) => {
+      expect(declaration.status).toBe("Approved");
     });
   });
 });
 
 // ── ADMIN STATUS PATCH ──
 describe("Admin status patch", () => {
-  it("PATCH /api/declarations/:id/status — admin can set status to any valid value", async () => {
+  it("PATCH /api/declarations/:id/status — rejects Pending when no workflow step remains", async () => {
     const res = await request(app)
       .patch("/api/declarations/GHE-TEST-003/status")
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ status: "Pending" });
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe("Pending");
-
-    const restore = await request(app)
-      .patch("/api/declarations/GHE-TEST-003/status")
-      .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send({ status: "Approved" });
-    expect(restore.status).toBe(200);
-    expect(restore.body.status).toBe("Approved");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/outstanding workflow approval step/i);
+    const declaration = await request(app)
+      .get("/api/declarations/GHE-TEST-003")
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(declaration.body.status).toBe("Approved");
   });
 
   it("PATCH /api/declarations/:id/status — admin can set to Declined", async () => {

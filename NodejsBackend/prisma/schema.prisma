@@ -173,13 +173,10 @@ model Counterparty {
 
   @@index([organizationId])
   @@unique([name, organizationId])
-  // NOTE (migration-managed, Prisma cannot model partial indexes): the
-  // database additionally enforces "Counterparty_name_org_unique"
-  // UNIQUE ("name", "organizationId") WHERE "organizationId" IS NOT NULL
-  // (see 0006_numeric_keys). That partial index is the source of truth for
-  // the scoped-naming policy (global NULL-org rows exempt); do not drop it
-  // in schema-driven diffs. pg:test asserts the behavior ("scoped duplicate
-  // counterparty rejected", "global same-name counterparties allowed").
+  // PostgreSQL UNIQUE treats NULL organization IDs as distinct, so this one
+  // constraint both scopes named counterparties and permits repeated global
+  // rows. Migration 0022 removes the redundant partial index that duplicated
+  // this unique constraint for non-null organizations.
 }
 
 model CounterpartyContact {
@@ -434,6 +431,22 @@ model EmailOutbox {
   @@map("EmailOutbox")
 }
 
+model AttachmentCleanupOutbox {
+  id               BigInt   @id @default(autoincrement())
+  storageReference String   @unique
+  status           String   @default("pending")
+  attemptCount     Int      @default(0)
+  nextAttemptAt    DateTime @default(now()) @db.Timestamptz(3)
+  lockedAt         DateTime? @db.Timestamptz(3)
+  lockedBy         String?
+  lastErrorCode    String?
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([status, nextAttemptAt, createdAt])
+  @@map("AttachmentCleanupOutbox")
+}
+
 model ApprovalOption {
   id    String @id
   value String
@@ -441,12 +454,12 @@ model ApprovalOption {
 }
 
 model UploadedFile {
-  id            BigInt   @id @default(autoincrement())
-  originalName  String
-  mimeType      String
-  size          Int
+  id               BigInt   @id @default(autoincrement())
+  originalName     String
+  mimeType         String
+  size             Int
   storageReference String
-  uploadedAt    DateTime @default(now())
+  uploadedAt       DateTime @default(now())
 
   // Required by policy, optional in Prisma: back-relations cannot enforce
   // presence at the database level. Unattached temporary uploads are not

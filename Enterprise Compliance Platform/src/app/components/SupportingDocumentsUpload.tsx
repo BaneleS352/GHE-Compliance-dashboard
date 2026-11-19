@@ -30,6 +30,8 @@ export function SupportingDocumentsUpload({
         ref={fileInputRef}
         type="file"
         multiple
+        tabIndex={-1}
+        aria-hidden="true"
         accept=".pdf,.xlsx,.docx,.jpg,.jpeg,.png,.gif,.webp,.txt"
         className="sr-only"
         onChange={(event) => { onFilesSelected(event.target.files); event.target.value = ""; }}

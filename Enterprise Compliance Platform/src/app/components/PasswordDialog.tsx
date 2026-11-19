@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Lock } from "lucide-react";
 import { F } from "@/config/theme";
+import { useDialogFocus } from "@/app/hooks/useDialogFocus";
 
 export const EXPORT_PASSWORD_MIN_LENGTH = 8;
 
@@ -27,15 +28,7 @@ export function PasswordDialog({
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onCancel]);
+  const dialogRef = useDialogFocus<HTMLDivElement>({ onEscape: onCancel, initialFocusRef: inputRef });
 
   const submit = () => {
     if (password.length < EXPORT_PASSWORD_MIN_LENGTH) {
@@ -60,6 +53,7 @@ export function PasswordDialog({
       role="presentation"
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
@@ -103,7 +97,7 @@ export function PasswordDialog({
             />
           </label>
         </div>
-        {error && <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {error && <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"

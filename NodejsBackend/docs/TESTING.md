@@ -20,6 +20,12 @@ docker compose -f ../docker-compose.azurite.yml up -d --wait azurite
 # Run all backend tests
 npm test
 
+# Optional: run only a database-only targeted test without a local Azurite
+# service. Do not use this for the full suite or attachment tests.
+$env:TEST_SKIP_AZURITE = "1"
+npx vitest run src/__tests__/organization.test.ts -t "cross-org step assignment is refused"
+Remove-Item Env:TEST_SKIP_AZURITE
+
 # Run a specific test file
 npx vitest run src/__tests__/break.test.ts
 

@@ -19,6 +19,7 @@ import adminConfigRoutes from "./routes/admin/config";
 import adminWorkflowRoutes from "./routes/admin/workflows";
 import { prisma } from "./config/prisma";
 import { requestContext, requestIdFor } from "./middleware/requestContext";
+import { startAttachmentCleanupWorker } from "./services/attachmentCleanupWorker";
 
 /**
  * Production application factory. Exported (rather than only building at
@@ -98,14 +99,20 @@ const app = createApp();
 // The module is imported by tests (NODE_ENV=test) for wiring assertions —
 // only bind a port when actually serving.
 if (process.env.NODE_ENV !== "test") {
+  const attachmentCleanupWorker = startAttachmentCleanupWorker();
   const server = app.listen(config.port, () => {
     console.log(`GHE Backend running on http://localhost:${config.port}`);
   });
 
+  let shuttingDown = false;
   const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     console.log("Shutting down gracefully...");
     server.close(() => {
-      prisma.$disconnect().catch(() => {}).finally(() => process.exit(0));
+      void attachmentCleanupWorker.stop().catch(() => {}).finally(() => {
+        prisma.$disconnect().catch(() => {}).finally(() => process.exit(0));
+      });
     });
   };
   process.on("SIGINT", shutdown);

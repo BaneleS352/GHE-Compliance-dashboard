@@ -63,6 +63,7 @@ jobs:
       - name: Validate Compose configuration and build application images
         run: |
           docker compose config --quiet
+          docker compose config --format json | jq -e '.services.backend.environment.STAFF_PROFILE_SYNC_ENABLED == "true"'
           docker compose build --pull
         env:
           VITE_ENTRA_CLIENT_ID: ci-client-id
@@ -73,12 +74,18 @@ jobs:
           OIDC_ALLOWED_CLIENT_IDS: ci-client-id
           OIDC_REQUIRED_SCOPE: access_as_user
           OIDC_AUDIENCE: api://ci-client-id
+          STAFF_PROFILE_SYNC_ENABLED: "true"
           POSTGRES_PASSWORD: ci-postgres-password
           DATABASE_URL: postgresql://ghe_user:ci-postgres-password@db:5432/ghe_compliance?schema=public
           AZURITE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
 
       - name: Validate local stub Compose configuration
-        run: docker compose -p ghe-compliance-stub --env-file .env.docker-stub -f docker-compose.yml -f docker-compose.stub.yml config --quiet
+        run: |
+          docker compose -p ghe-compliance-stub --env-file .env.docker-stub -f docker-compose.yml -f docker-compose.stub.yml config --quiet
+          docker compose -p ghe-compliance-stub --env-file .env.docker-stub -f docker-compose.yml -f docker-compose.stub.yml config --format json | jq -e '.services.backend.environment.STAFF_PROFILE_SYNC_ENABLED == "false" and .services.backend.environment.AUTH_TOKEN == ""'
+        env:
+          STAFF_PROFILE_SYNC_ENABLED: "true"
+          AUTH_TOKEN: ci-stub-must-not-forward-his-token
 
       - name: Build local stub images
         run: docker compose -p ghe-compliance-stub --env-file .env.docker-stub -f docker-compose.yml -f docker-compose.stub.yml build --pull

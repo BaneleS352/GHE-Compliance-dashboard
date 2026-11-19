@@ -16,25 +16,62 @@ import {
 // PostgreSQL, locally and in CI.
 const PG_PORT = Number(process.env.PG_TEST_PORT || 55433);
 // The embedded cluster lives outside the repo so test runs never dirty it.
-const PG_DATA_DIR = process.env.PG_TEST_DATA_DIR || path.join(os.tmpdir(), "ghe-pg-test");
+// Process-scoped temp storage avoids a failed/interrupted test run leaving a
+// non-empty cluster that prevents the next run's initdb from starting.
+const PG_DATA_DIR = process.env.PG_TEST_DATA_DIR || path.join(os.tmpdir(), `ghe-pg-test-${process.pid}`);
 const PG_URL = process.env.TEST_PG_DATABASE_URL ||
   `postgresql://postgres:postgres@localhost:${PG_PORT}/ghe_test?schema=public`;
 
-let embedded: any = null;
+interface EmbeddedPostgresHandle {
+  initialise(): Promise<void>;
+  start(): Promise<void>;
+  createDatabase(name: string): Promise<void>;
+  stop(): Promise<void>;
+}
+
+interface EmbeddedPostgresOptions {
+  user: string;
+  password: string;
+  port: number;
+  persistent: boolean;
+  databaseDir: string;
+  initdbFlags: string[];
+}
+
+type EmbeddedPostgresConstructor = new (options: EmbeddedPostgresOptions) => EmbeddedPostgresHandle;
+
+let embedded: EmbeddedPostgresHandle | null = null;
 let jwksClose: (() => Promise<void>) | null = null;
 let azuriteTestContainer: ContainerClient | null = null;
+
+function errorLabel(error: unknown): string {
+  if (error instanceof Error) {
+    const code = "code" in error ? String(error.code) : "";
+    return code || error.name;
+  }
+  return typeof error === "string" ? error : "unknown";
+}
+
+function migrationFailureDetail(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const withOutput = error as Error & { stdout?: string | Uint8Array; stderr?: string | Uint8Array };
+  const output = [withOutput.stdout?.toString(), withOutput.stderr?.toString()]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join("\n");
+  return output || error.message;
+}
 
 async function startAzurite(): Promise<void> {
   process.env.AZURITE_CONNECTION_STRING ||= "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;";
   process.env.AZURITE_CONTAINER = `ghe-test-${process.pid}`;
   azuriteTestContainer = BlobServiceClient.fromConnectionString(process.env.AZURITE_CONNECTION_STRING)
     .getContainerClient(process.env.AZURITE_CONTAINER);
-  let lastError: any;
+  let lastError: unknown;
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
       await azuriteTestContainer.createIfNotExists();
       return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
@@ -42,7 +79,7 @@ async function startAzurite(): Promise<void> {
   throw new Error(
     "Backend integration checks require Azurite Blob Storage on localhost:10000. " +
       "Start it with `docker compose -f docker-compose.azurite.yml up -d --wait azurite`. " +
-      `Cause: ${lastError?.code || lastError?.name || "unknown"}`,
+      `Cause: ${errorLabel(lastError)}`,
   );
 }
 
@@ -51,8 +88,8 @@ async function startEmbeddedPostgres(): Promise<void> {
   // ESM-only package: classic moduleResolution cannot resolve its types, but
   // vitest/tsx load it fine at runtime.
   // @ts-ignore
-  const mod = await import("embedded-postgres");
-  const EmbeddedPostgres = (mod as any).default || mod;
+  const mod = await import("embedded-postgres") as unknown as { default: EmbeddedPostgresConstructor };
+  const EmbeddedPostgres = mod.default;
   embedded = new EmbeddedPostgres({
     user: "postgres",
     password: "postgres",
@@ -67,19 +104,23 @@ async function startEmbeddedPostgres(): Promise<void> {
     await embedded.initialise();
     await embedded.start();
     await embedded.createDatabase("ghe_test");
-  } catch (err: any) {
+  } catch (err: unknown) {
     throw new Error(
       "Embedded PostgreSQL failed to start (port " + PG_PORT + "). " +
         "Backend tests require PostgreSQL: free the port, or set " +
         "TEST_PG_DATABASE_URL to a dedicated PostgreSQL database. " +
         "CI runs the suite against a postgres service. Cause: " +
-        (err?.message || String(err)),
+        (err instanceof Error ? err.message : String(err)),
     );
   }
 }
 
 export async function setup() {
-  await startAzurite();
+  if (process.env.TEST_SKIP_AZURITE === "1") {
+    console.warn("[test setup] Azurite startup skipped; run only tests that do not access attachments.");
+  } else {
+    await startAzurite();
+  }
   await startEmbeddedPostgres();
   process.env.DATABASE_URL = PG_URL;
 
@@ -120,9 +161,8 @@ export async function setup() {
         stdio: "pipe",
       },
     );
-  } catch (err: any) {
-    const detail =
-      err?.stdout?.toString() || err?.stderr?.toString() || err?.message || String(err);
+  } catch (err: unknown) {
+    const detail = migrationFailureDetail(err);
     console.error("Test database migration failed (`prisma migrate deploy`). Engine output:\n" + detail);
     throw new Error(`Test database migration failed: ${detail.split("\n")[0]}`);
   }
@@ -251,8 +291,6 @@ export async function setup() {
 }
 
 export async function teardown() {
-  const prisma = new PrismaClient();
-  await prisma.$disconnect();
   if (jwksClose) {
     try {
       await jwksClose();

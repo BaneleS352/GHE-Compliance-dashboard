@@ -38,6 +38,13 @@ services:
       OIDC_REQUIRED_SCOPE: ${OIDC_REQUIRED_SCOPE:?Set the delegated API scope name in the root .env file}
       OIDC_AUDIENCE: ${OIDC_AUDIENCE:?Set OIDC_AUDIENCE in the root .env file}
       OIDC_ISSUER: ${OIDC_ISSUER:-}
+      STAFF_PROFILE_SYNC_ENABLED: ${STAFF_PROFILE_SYNC_ENABLED:-false}
+      STAFF_API_ENDPOINT: ${STAFF_API_ENDPOINT:-https://his-api-uat.betsolutions.net/api/Staff/SearchEmployees}
+      STAFF_API_ALLOWED_HOSTS: ${STAFF_API_ALLOWED_HOSTS:-his-api-uat.betsolutions.net}
+      STAFF_BRANCH_ORG_MAP: ${STAFF_BRANCH_ORG_MAP:-}
+      AUTH_TOKEN: ${AUTH_TOKEN:-}
+      AUTH_TOKEN_HEADER: ${AUTH_TOKEN_HEADER:-Authorization}
+      AUTH_TOKEN_SCHEME: ${AUTH_TOKEN_SCHEME:-Bearer}
       SEED_ON_BOOT: ${SEED_ON_BOOT:-false}
       EMAIL_DELIVERY_ENABLED: ${EMAIL_DELIVERY_ENABLED:-false}
       SMTP_HOST: ${SMTP_HOST:-}

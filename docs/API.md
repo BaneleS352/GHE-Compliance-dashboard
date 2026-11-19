@@ -19,7 +19,7 @@ Base URL: `http://localhost:3001`; JSON requests use `Content-Type: application/
 | POST | `/api/declarations` | authenticated; create draft |
 | PUT/DELETE | `/api/declarations/:id` | owner/admin as enforced by route |
 | PATCH | `/api/declarations/:id/submit` | declaration owner/admin |
-| PATCH | `/api/declarations/:id/status` | authenticated status update with validation |
+| PATCH | `/api/declarations/:id/status` | admin-only override; workflow-backed states are checked under a declaration lock |
 | GET | `/api/declarations/stats` | `admin` or `approver` |
 
 ## Workflow and files
@@ -42,7 +42,7 @@ Admin namespaces and permissions:
 
 - `/api/admin/dashboard` — dashboard aggregates
 - `/api/admin/users` — list, read, create, update, delete users
-- `/api/admin/config` — system config, approval options, and organizations are admin-only; `GET /api/admin/config/dropdowns` is authenticated-user readable and its update route is admin-only
+- `/api/admin/config` — system config, approval options, and organizations are admin-only; the legacy `GET /api/admin/config/dropdowns` is also admin-only and its `PUT` route returns `410 Gone`. Regular declaration forms use the caller-scoped `/api/users/departments` endpoint for department options.
 - `/api/admin/workflows/rules` — workflow rule CRUD
 
 ## Errors and conventions

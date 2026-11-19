@@ -92,6 +92,10 @@ only by the one-time migration command; API routes never fall back to reading or
 writing files on disk. Azurite is an emulator, so this deployment choice does not
 provide a production cloud-storage durability or availability guarantee.
 
+PostgreSQL `AttachmentCleanupOutbox` rows make blob deletion retryable after
+metadata deletion. Every API instance runs the same `SKIP LOCKED` worker; retries
+use bounded exponential backoff and remain queued until Azurite confirms deletion.
+
 ## Authentication Flow
 
 1. The SPA signs in through MSAL using Authorization Code + PKCE.
@@ -124,8 +128,12 @@ Reports share inclusive date, department, and status filters with organization i
 
 ## Test Philosophy
 
-- Test counts are intentionally not hard-coded here; run each package's test command for the current count.
-- `break.test.ts`: 72 negative/attack tests (SQLi, XSS, JWT tampering, Zod bypasses)
-- `edge-cases.test.ts`: 50 vulnerability boundary tests (mass assignment, self-approval, data leaks)
-- `frontend-break.test.ts`: 31 HTTP-layer tests (error codes, network failure, malformed responses)
-- Tests document confirmed bugs with `// BUG:` comments in assertions
+- Test counts are not maintained in this architecture document; run each
+  package's test command for current counts.
+- `break.test.ts` covers hostile input and authorization regressions (including
+  SQL injection, XSS, token tampering, and validation bypasses).
+- `edge-cases.test.ts` covers authorization, upload, workflow, and data
+  integrity boundaries.
+- `frontend-break.test.ts` covers API client error and network resilience.
+- Regression tests describe the current expected behavior, even when they
+  originated from a previously reported defect.

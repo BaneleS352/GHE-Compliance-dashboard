@@ -7,6 +7,16 @@ const app = buildApp();
 
 const cleanupDeclIds: string[] = [];
 
+interface DeclarationListResponse {
+  id: string;
+  status: string;
+  employeeId: number;
+}
+
+interface WorkflowRuleResponse {
+  id: number;
+}
+
 afterAll(async () => {
   if (cleanupDeclIds.length === 0) return;
   const found = await prisma.declaration.findMany({ where: { id: { in: cleanupDeclIds } }, select: { declarationPk: true } });
@@ -21,7 +31,7 @@ afterAll(async () => {
   }).catch(() => undefined);
   if (links.length > 0) {
     await prisma.uploadedFile.deleteMany({
-      where: { id: { in: links.map((l: any) => l.fileId) } },
+      where: { id: { in: links.map((link) => link.fileId) } },
     }).catch(() => undefined);
   }
   await prisma.workflowInstanceStep.deleteMany({
@@ -152,11 +162,21 @@ describe("Edge-Case Tests", () => {
     });
 
     it("DELETE /api/files/:id — delete uploaded file", async () => {
+      const uploadedFile = await prisma.uploadedFile.findUnique({
+        where: { id: BigInt(uploadedId) },
+        select: { storageReference: true },
+      });
+      expect(uploadedFile).not.toBeNull();
       const res = await request(app)
         .delete(`/api/files/${uploadedId}`)
         .set("Authorization", `Bearer ${getAdminToken()}`);
       expect(res.status).toBe(200);
       expect(res.body.message).toBe("File deleted");
+      const cleanupJob = await prisma.attachmentCleanupOutbox.findUnique({
+        where: { storageReference: uploadedFile!.storageReference },
+      });
+      expect(cleanupJob).toMatchObject({ status: "pending", attemptCount: 0 });
+      await prisma.attachmentCleanupOutbox.delete({ where: { id: cleanupJob!.id } });
       // Verify it's gone
       const getRes = await request(app)
         .get(`/api/files/${uploadedId}`)
@@ -290,7 +310,7 @@ describe("Edge-Case Tests", () => {
       const decls = await request(app)
         .get("/api/declarations")
         .set("Authorization", `Bearer ${getAdminToken()}`);
-      const draft = decls.body.find((d: any) => d.status === "Draft");
+      const draft = (decls.body as DeclarationListResponse[]).find((declaration) => declaration.status === "Draft");
       if (!draft) return;
       const res = await request(app)
         .put(`/api/declarations/${draft.id}`)
@@ -304,7 +324,7 @@ describe("Edge-Case Tests", () => {
 
   // ── SELF-APPROVAL ──
   describe("Self-approval guard", () => {
-    it("POST /api/workflows/approve — creating declaration and self-approving (vulnerability: no guard)", async () => {
+    it("POST /api/workflows/approve — prevents an approver from self-approving", async () => {
       // Create declaration as admin for user-approver (who has lineManager=null)
       const createRes = await request(app)
         .post("/api/declarations")
@@ -327,21 +347,20 @@ describe("Edge-Case Tests", () => {
       const { persistWorkflowInstanceSteps } = await import("../services/normalization");
       await persistWorkflowInstanceSteps(await pkFor(declId), [
         { order: 1, role: "lineManager", assignee: 2, assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-      ] as any);
+      ]);
 
-      // Approve own declaration — currently succeeds (no self-approval guard)
+      // Attempt to approve the declaration assigned to the same user.
       const approveRes = await request(app)
         .post("/api/workflows/approve")
         .set("Authorization", `Bearer ${getApproverToken()}`)
         .send({ declarationId: declId, decision: "accept", notes: "Self-approving" });
-      // FIXED: Self-approval blocked
       expect(approveRes.status).toBe(403);
     });
   });
 
   // ── WORKFLOW ORDER ENFORCEMENT ──
   describe("Workflow step order enforcement", () => {
-    it("POST /api/workflows/approve — HR can approve their step before Line Manager (no order guard)", async () => {
+    it("POST /api/workflows/approve — rejects HR approval before the Line Manager step", async () => {
       // Create a fresh 2-step workflow: LM pending, HR pending, both assigned separately
       const createRes = await request(app)
         .post("/api/declarations")
@@ -364,14 +383,13 @@ describe("Edge-Case Tests", () => {
       await persist2(await pkFor(declId), [
         { order: 1, role: "lineManager", assignee: 2, assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
         { order: 2, role: "hr", assignee: 3, assigneeName: "Lindiwe HR", label: "HR Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-      ] as any);
+      ]);
 
-      // HR approves their step before LM has approved — currently succeeds (no order enforcement)
+      // Attempt to approve HR's step while the Line Manager step is pending.
       const hrApprove = await request(app)
         .post("/api/workflows/approve")
         .set("Authorization", `Bearer ${getHrToken()}`)
         .send({ declarationId: declId, decision: "accept" });
-      // FIXED: Step order enforced (HR must wait for LM)
       expect(hrApprove.status).toBe(403);
     });
   });
@@ -400,7 +418,7 @@ describe("Edge-Case Tests", () => {
       const { persistWorkflowInstanceSteps: persist3 } = await import("../services/normalization");
       await persist3(await pkFor(declId), [
         { order: 1, role: "lineManager", assignee: 2, assigneeName: "Sipho Approver", label: "Line Manager Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-      ] as any);
+      ]);
 
       // Fire two concurrent approve calls
       const results = await Promise.all([
@@ -433,7 +451,7 @@ describe("Edge-Case Tests", () => {
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
       // HR user sees ALL declarations (current behavior, not filtered by assignment)
-      const allEmployeeIds = [...new Set(res.body.map((d: any) => d.employeeId))];
+      const allEmployeeIds = [...new Set((res.body as DeclarationListResponse[]).map((declaration) => declaration.employeeId))];
       expect(allEmployeeIds.length).toBeGreaterThan(1);
     });
 
@@ -647,7 +665,7 @@ describe("Edge-Case Tests", () => {
       expect(res.status).toBe(404);
     });
 
-    it("GET /api/workflows/instances/:declarationId — any user can view non-owned workflow instances (BUG: no ownership check)", async () => {
+    it("GET /api/workflows/instances/:declarationId — denies a non-owner", async () => {
       // Create a declaration + workflow owned by admin
       const createRes = await request(app)
         .post("/api/declarations")
@@ -669,13 +687,12 @@ describe("Edge-Case Tests", () => {
       const { persistWorkflowInstanceSteps: persist4 } = await import("../services/normalization");
       await persist4(await pkFor(createRes.body.id), [
         { order: 1, role: "lineManager", assignee: 1, assigneeName: "Admin", label: "Admin Review", status: "pending", decision: null, approvedAt: null, notes: "", decidedAt: null, decidedById: null, decidedByName: null },
-      ] as any);
+      ]);
 
       // Team member reads admin's workflow instance
       const res = await request(app)
         .get(`/api/workflows/instances/${createRes.body.id}`)
         .set("Authorization", `Bearer ${getTeamToken()}`);
-      // FIXED: Workflow instance ownership enforced
       expect(res.status).toBe(403);
     });
   });
@@ -709,7 +726,7 @@ describe("Edge-Case Tests", () => {
 
   // ── SINGLE-DECLARATION DATA LEAK ──
   describe("Single-declaration data leak", () => {
-    it("GET /api/declarations/:id — team member can read non-owned declaration by ID (BUG: no ownership check on single-resource endpoint)", async () => {
+    it("GET /api/declarations/:id — denies a team member reading another user's declaration", async () => {
       // Create a declaration owned by admin
       const createRes = await request(app)
         .post("/api/declarations")
@@ -760,13 +777,12 @@ describe("Edge-Case Tests", () => {
 
   // ── FILE SIZE LIMIT ──
   describe("File upload size limit", () => {
-    it("POST /api/files/upload — file exceeding 10MB returns 500 instead of 413 (BUG: no multer error handler)", async () => {
+    it("POST /api/files/upload — rejects a file over 10 MB with 413", async () => {
       const bigFile = Buffer.alloc(10 * 1024 * 1024 + 1, "x");
       const res = await request(app)
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .attach("file", bigFile, "oversized.txt");
-      // FIXED: Returns proper 413 status
       expect(res.status).toBe(413);
       expect(res.body.error).toMatch(/File too large/i);
     });
@@ -774,7 +790,7 @@ describe("Edge-Case Tests", () => {
 
   // ── ORPHAN FILE UPLOAD ──
   describe("Orphan file upload", () => {
-    it("POST /api/files/upload — file linked to non-existent declarationId is rejected (BUG: no FK validation)", async () => {
+    it("POST /api/files/upload — rejects a missing declaration", async () => {
       const res = await request(app)
         .post("/api/files/upload")
         .set("Authorization", `Bearer ${getAdminToken()}`)
@@ -914,7 +930,7 @@ describe("Edge-Case Tests", () => {
         .get("/api/admin/workflows/rules")
         .set("Authorization", `Bearer ${getAdminToken()}`);
       expect(rulesRes.body.length).toBeGreaterThanOrEqual(2);
-      const rule2 = rulesRes.body.find((r: any) => r.id === 2);
+      const rule2 = (rulesRes.body as WorkflowRuleResponse[]).find((rule) => rule.id === 2);
       expect(rule2).toBeDefined();
 
       // Submit a high-value declaration successfully
@@ -1021,7 +1037,7 @@ describe("Edge-Case Tests", () => {
 
   // ── NO CASCADE ON DECLARATION DELETE ──
   describe("Cascade delete gap", () => {
-    it("Deleting a drafted declaration with uploaded files orphans the file records (BUG: no cascade)", async () => {
+    it("Deleting a draft with uploaded files removes metadata and queues blob cleanup", async () => {
       // Create a declaration
       const declRes = await request(app)
         .post("/api/declarations")
@@ -1047,18 +1063,27 @@ describe("Edge-Case Tests", () => {
         .attach("file", Buffer.from("cascade file"), "cascade.txt");
       expect(fileRes.status).toBe(201);
       const fileId = fileRes.body.id;
+      const uploadedFile = await prisma.uploadedFile.findUnique({
+        where: { id: BigInt(fileId) },
+        select: { storageReference: true },
+      });
+      expect(uploadedFile).not.toBeNull();
 
       // Delete the declaration
       const delRes = await request(app)
         .delete(`/api/declarations/${declId}`)
         .set("Authorization", `Bearer ${getAdminToken()}`);
       expect(delRes.status).toBe(200);
+      const cleanupJob = await prisma.attachmentCleanupOutbox.findUnique({
+        where: { storageReference: uploadedFile!.storageReference },
+      });
+      expect(cleanupJob).toMatchObject({ status: "pending", attemptCount: 0 });
+      await prisma.attachmentCleanupOutbox.delete({ where: { id: cleanupJob!.id } });
 
-      // File record still exists (orphaned) - cascade delete removes it
+      // The file metadata is removed and its blob cleanup is queued atomically.
       const getFile = await request(app)
         .get(`/api/files/${fileId}`)
         .set("Authorization", `Bearer ${getAdminToken()}`);
-      // FIXED: Cascade delete removes file records
       expect(getFile.status).toBe(404);
     });
   });
@@ -1070,7 +1095,7 @@ describe("Edge-Case Tests", () => {
 
   // ── TOKEN REUSE AFTER ROLE CHANGE ──
   describe("Token reuse after role change", () => {
-    it("Old JWT is still valid after user role change (BUG: JWT embeds role, not checked against DB)", async () => {
+    it("An existing token uses the user's current database role", async () => {
       // Create a team member
       const createRes = await request(app)
         .post("/api/admin/users")
@@ -1096,7 +1121,6 @@ describe("Edge-Case Tests", () => {
         .set("Authorization", `Bearer ${getAdminToken()}`)
         .send({ role: "admin" });
 
-      // FIXED: Server checks DB role — now sees admin and allows access
       const after = await request(app)
         .get("/api/admin/config")
         .set("Authorization", `Bearer ${oldToken}`);
@@ -1126,9 +1150,9 @@ describe("Edge-Case Tests", () => {
         .get("/api/reports/sla")
         .set("Authorization", `Bearer ${getAdminToken()}`);
       expect(res.status).toBe(200);
-      for (const entry of res.body) {
+      for (const entry of res.body as Array<{ role: string; avg: number; min: number; max: number }>) {
         if (entry.role === "Line Manager") {
-          const hasValid = [entry.avg, entry.min, entry.max].every((v: any) => typeof v === "number" && !isNaN(v));
+          const hasValid = [entry.avg, entry.min, entry.max].every((value) => Number.isFinite(value));
           expect(hasValid).toBe(true);
         }
       }

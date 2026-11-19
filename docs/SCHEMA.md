@@ -29,20 +29,22 @@ SystemConfig (1 record) configures thresholds
 | id | BigInt @id | Numeric user key (JWT `id`, API ids) |
 | name | String | |
 | email | String @unique | Global identity/login email; a migration-managed unique index also enforces `lower(trim(email))` |
-| providerSubject | String? @unique | Entra object ID bound on first successful login |
+| providerSubject | String? @unique | Entra `oid` claim bound only through audited identity linking |
 | providerIssuer | String? | Issuer associated with the provider subject |
 | role | String | "admin", "approver", "teamMember" (authoritative authorization source) |
 | teamMemberNumber | String | Employee number (business code, not a key) |
 | departmentId | BigInt? | Sole department source (`Department` FK, SetNull). The legacy `department` text column was removed in `0008_department_id_only`; display values derive from the related record. Links are not organization-constrained (master-data vocabulary); unscoped users resolve to `""` |
 | position | String | User's job position |
+| organizationId / teamId | BigInt? | Organization and team FKs; organizational placement remains separate from the department FK |
 | managerId | BigInt? | Self-FK to User.id (SetNull); sole persisted manager relationship |
+| staffBranchCode / staffEmploymentStatus / staffEmploymentType | String? | HIS-owned profile values; do not control local authorization |
+| staffProfileSyncedAt / staffTerminationDate | DateTime? | Last HIS profile sync and HIS termination date |
 
 `lineManager` remains an API display/compatibility property derived from
 `managerId` → `User.name`; it is not stored on `User`. Legacy admin writes may
 send a manager id or an unambiguous display name and are resolved to the FK.
 Declaration snapshots separately retain `managerDisplayName` as historical
 evidence.
-| organizationId / departmentId / teamId | BigInt? | FKs to master data |
 
 ### Declaration
 | Field | Type | Notes |
@@ -104,7 +106,7 @@ unique `(instanceId, stepOrder)`, numeric `assigneeId`/`decidedById`):
 ### UploadedFile
 | Field | Type | Notes |
 |-------|------|-------|
-| id | String @id | cuid |
+| id | BigInt @id | PostgreSQL identity key |
 | originalName | String | |
 | mimeType | String | |
 | size | Int | |
@@ -112,12 +114,19 @@ unique `(instanceId, stepOrder)`, numeric `assigneeId`/`decidedById`):
 
 File association is join-only: `DeclarationFile` links a declaration to a
 file. **File lifecycle policy (decided): unattached temporary uploads are not
-supported — every file requires its declaration link.** Upload creates
-metadata + join row in one transaction so orphans cannot be created through
-the API; `UploadedFile.link` is a required back-relation. Files without a
-join row (pre-policy data, if any) are admin-quarantined on read (403 for
-non-admins) and cascade-removed with their declaration. `pg:test` asserts a
-zero orphan-file count.
+supported.** Upload creates metadata + join row in one transaction. The
+Prisma back-relation is optional because a foreign key cannot require a row in
+the join table; `pg:test` asserts there are no orphans. Any legacy orphan is
+admin-only and must be explicitly deleted; it cannot cascade from a declaration
+because it has no declaration link.
+
+When metadata is deleted, `AttachmentCleanupOutbox` records the Azurite storage
+reference in the same database transaction. The API retry worker uses
+`FOR UPDATE SKIP LOCKED`, capped exponential backoff, and idempotent
+`deleteIfExists` operations so a transient storage failure does not silently
+lose the cleanup request. If both PostgreSQL and Azurite are unavailable during
+an upload rollback, the job cannot be persisted; the API logs the opaque blob
+reference for manual reconciliation.
 
 ### Workflow step identity
 
@@ -131,7 +140,11 @@ with a foreign-key violation (proven by `pg:test`).
 
 ### Other Models
 - **ApprovalOption** — Decision options (accept, org, foundation, decline, return)
+- **IdentityLinkAudit** — append-only evidence and actor record for admin identity linking
 - **DeclarationAuditEvent** — append-only actor, field, before/after, and timestamp history. It deliberately has no parent/user/organization FK so evidence survives deletion or retirement; `GET /api/declarations/:id/audit` applies declaration access rules, with admins able to inspect events for deleted drafts.
+- **EmailOutbox** — idempotent SMTP delivery queue with bounded attempts and retry scheduling
+- **AttachmentCleanupOutbox** — durable Azurite blob deletion queue; the API worker retries until deletion succeeds
+- **Counterparty / CounterpartyContact** — organization-scoped counterparty records and related contacts
 
 ### ERD review follow-up (migration `0012_financial_precision_integrity`)
 
@@ -183,12 +196,13 @@ lookup copies were removed.
   nullable by design, so this module plus the multi-tenant negative tests are
   the enforcement point — route query filters alone are not trusted.
 - **Counterparty identity policy (decided):** counterparty names are unique per
-  organization, enforced by the partial unique index
-  `Counterparty_name_org_unique ... WHERE "organizationId" IS NOT NULL`
-  (migration `0006_numeric_keys`). Global (`NULL`-org) rows are explicitly
-  exempt and may share a name — they are unscoped fallback rows, not the
-  canonical registry. Concurrent scoped creates resolve via the P2002
-  re-read in `ensureCounterparty`; `pg:test` proves both halves
+  organization, enforced by the Prisma/PostgreSQL unique constraint on
+  `(name, organizationId)`. PostgreSQL's ordinary unique semantics allow
+  repeated `NULL` organization IDs, so global rows may share a name — they are
+  unscoped fallback rows, not the canonical registry. Migration
+  `0022_remove_duplicate_counterparty_index` drops the redundant partial index
+  introduced during the older cutover. Concurrent scoped creates resolve via
+  the P2002 re-read in `ensureCounterparty`; `pg:test` proves both halves
   ("scoped duplicate counterparty rejected", "global same-name counterparties
   allowed").
 
@@ -196,7 +210,7 @@ lookup copies were removed.
 
 | Action | Result |
 |--------|--------|
-| Delete draft declaration | Workflow instance + step rows, snapshot, detail, file joins + file rows, and disk files are removed; append-only declaration audit events survive |
+| Delete draft declaration | Workflow instance + step rows, snapshot, detail, file joins + file rows are removed; Azurite deletes are queued transactionally; append-only declaration audit events survive |
 | Delete user | Declarations survive with `declarerUserId`/`currentApproverUserId` set to NULL (history stays in the immutable snapshot); step assignee links NULL the same way |
 | Delete workflow rule | Existing `WorkflowInstance` rows survive with `ruleId` set to NULL |
 | Delete counterparty | Linked declarations survive with `counterpartyId` set to NULL |

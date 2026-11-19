@@ -530,9 +530,13 @@ describe("Breaking / Negative / Edge-Case Tests", () => {
 
   // ── NEW: Deeply Nested / DoS Attempts ─────────────
   it("POST /api/declarations — deeply nested JSON (500 levels, IDOR check first)", async () => {
-    let deep: any = {};
+    const deep: Record<string, unknown> = {};
     let ptr = deep;
-    for (let i = 0; i < 500; i++) { ptr[i] = {}; ptr = ptr[i]; }
+    for (let i = 0; i < 500; i++) {
+      const child: Record<string, unknown> = {};
+      ptr[String(i)] = child;
+      ptr = child;
+    }
     const res = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)

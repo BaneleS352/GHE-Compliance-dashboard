@@ -4,6 +4,12 @@ import { buildApp, getAdminToken, getTeamToken } from "../helpers";
 
 const app = buildApp();
 
+interface WorkflowRuleResponse {
+  id: number;
+  name: string;
+  steps: Array<{ order: number; role: string; label: string }>;
+}
+
 describe("Admin Workflow Rules", () => {
   it("GET /api/admin/workflows/rules — lists rules", async () => {
     const res = await request(app)
@@ -13,11 +19,12 @@ describe("Admin Workflow Rules", () => {
     // Order-independent: other suites manage their own rules; the two seed
     // rules must always be present with row-backed step arrays.
     expect(res.body.length).toBeGreaterThanOrEqual(2);
-    const rule1 = res.body.find((r: any) => r.id === 1);
-    expect(rule1).toBeDefined();
+    const rules = res.body as WorkflowRuleResponse[];
+    const rule1 = rules.find((rule) => rule.id === 1);
+    if (!rule1) throw new Error("Seed workflow rule 1 is missing");
     expect(rule1.steps).toBeInstanceOf(Array);
-    expect(res.body[0].steps).toBeDefined();
-    expect(res.body[0].steps).toBeInstanceOf(Array);
+    expect(rules[0].steps).toBeDefined();
+    expect(rules[0].steps).toBeInstanceOf(Array);
   });
 
   it("POST /api/admin/workflows/rules — creates rule", async () => {
@@ -35,8 +42,8 @@ describe("Admin Workflow Rules", () => {
     const list = await request(app)
       .get("/api/admin/workflows/rules")
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    const owned = list.body.find((r: any) => r.name === "Test Rule");
-    expect(owned).toBeDefined();
+    const owned = (list.body as WorkflowRuleResponse[]).find((rule) => rule.name === "Test Rule");
+    if (!owned) throw new Error("The workflow rule created by this test is missing");
     const res = await request(app)
       .put(`/api/admin/workflows/rules/${owned.id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`)
@@ -49,8 +56,8 @@ describe("Admin Workflow Rules", () => {
     const list = await request(app)
       .get("/api/admin/workflows/rules")
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    const owned = list.body.find((r: any) => r.name === "Updated Rule Name");
-    expect(owned).toBeDefined();
+    const owned = (list.body as WorkflowRuleResponse[]).find((rule) => rule.name === "Updated Rule Name");
+    if (!owned) throw new Error("The workflow rule updated by this test is missing");
     const res = await request(app)
       .delete(`/api/admin/workflows/rules/${owned.id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
@@ -60,10 +67,11 @@ describe("Admin Workflow Rules", () => {
     const list2 = await request(app)
       .get("/api/admin/workflows/rules")
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(list2.body.find((r: any) => r.id === owned.id)).toBeUndefined();
+    const remainingRules = list2.body as WorkflowRuleResponse[];
+    expect(remainingRules.find((rule) => rule.id === owned.id)).toBeUndefined();
     // Shared seed rules are untouched.
-    expect(list2.body.find((r: any) => r.id === 1)).toBeDefined();
-    expect(list2.body.find((r: any) => r.id === 2)).toBeDefined();
+    expect(remainingRules.find((rule) => rule.id === 1)).toBeDefined();
+    expect(remainingRules.find((rule) => rule.id === 2)).toBeDefined();
   });
 
   it("Workflow rules — non-admin gets 403", async () => {

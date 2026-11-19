@@ -1,3 +1,4 @@
+import { setupResponsiveLayout } from "../test-helpers/responsiveLayout";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MyDeclarationsScreen } from "../app/pages/MyDeclarationsScreen";
@@ -76,17 +77,8 @@ vi.mock("../services/download", () => ({
 beforeEach(() => {
   mockUserRole = "approver";
   vi.clearAllMocks();
-  class RO {
-    cb: any;
-    constructor(cb: any) { this.cb = cb; }
-    observe() { this.cb([{ contentRect: { width: 400, height: 600 } }]); }
-    unobserve() {}
-    disconnect() {}
-  }
-  (globalThis as any).ResizeObserver = RO;
+  setupResponsiveLayout(400, 600);
   Element.prototype.scrollIntoView = vi.fn();
-  Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, value: 400 });
-  Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, value: 600 });
 });
 
 describe("MyDeclarationsScreen", () => {

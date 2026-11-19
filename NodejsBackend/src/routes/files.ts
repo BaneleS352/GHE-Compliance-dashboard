@@ -4,9 +4,11 @@ import path from "path";
 import { prisma } from "../config/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
-import { readWorkflowStepRows, getDeclarationPk } from "../services/normalization";
+import { readWorkflowStepRows, getDeclarationPk, lockDeclarationRow } from "../services/normalization";
 import { parseIdParam, toDbId, toJsonId } from "../services/ids";
 import { recordDeclarationAudit } from "../services/declarationAudit";
+import { isCrossDepartmentLineManager, isOutsideOrganizationScope } from "../services/declarationAccess";
+import { enqueueAttachmentCleanup, enqueueAttachmentCleanupAfterFailure } from "../services/attachmentCleanupQueue";
 import {
   deleteStoredAttachment,
   isAzuriteAttachment,
@@ -58,13 +60,7 @@ function handleMulterError(err: Error, _req: AuthRequest, res: Response, next: N
 async function isWorkflowAssignee(declarationPk: bigint, userPkJson: number): Promise<boolean> {
   const steps = await readWorkflowStepRows(declarationPk);
   if (!steps) return false;
-  return steps.some((s: any) => s.assignee === userPkJson);
-}
-
-/** Resolve the owning declaration key via the DeclarationFile join (the only association). */
-async function declarationPkForFile(filePk: bigint): Promise<bigint | null> {
-  const link = await prisma.declarationFile.findUnique({ where: { fileId: filePk } });
-  return link ? link.declarationPk : null;
+  return steps.some((step) => step.assignee === userPkJson);
 }
 
 // POST /api/files/upload
@@ -89,7 +85,7 @@ router.post(
     const cleanupFile = async () => {
       if (storageReference) {
         try { await deleteStoredAttachment(storageReference); } catch {
-          console.error(JSON.stringify({ event: "attachment_cleanup_failed", stage: "upload_rollback" }));
+          await enqueueAttachmentCleanupAfterFailure(storageReference, "upload_rollback");
         }
       }
     };
@@ -106,7 +102,7 @@ router.post(
       res.status(400).json({ error: "Declaration not found" });
       return;
     }
-    const decl = await prisma.declaration.findUnique({ where: { declarationPk: pk } });
+    const decl = await prisma.declaration.findUnique({ where: { declarationPk: pk }, include: { snapshot: true } });
     if (!decl) {
       await cleanupFile();
       res.status(400).json({ error: "Declaration not found" });
@@ -115,6 +111,16 @@ router.post(
     if (req.user!.role !== "admin" && decl.declarerUserId !== toDbId(req.user!.id)) {
       await cleanupFile();
       res.status(403).json({ error: "Cannot upload to another user's declaration" });
+      return;
+    }
+    if (isOutsideOrganizationScope(req.user!, decl.organizationId)) {
+      await cleanupFile();
+      res.status(403).json({ error: "Cannot upload to a declaration from another organization" });
+      return;
+    }
+    if (isCrossDepartmentLineManager(req.user!, decl.snapshot?.department)) {
+      await cleanupFile();
+      res.status(403).json({ error: "Access denied: declaration is outside your department" });
       return;
     }
     // Evidence is immutable after decision — same rule as PUT (Draft/Returned only).
@@ -128,9 +134,24 @@ router.post(
     // atomically. Orphan UploadedFile rows are rejected — a file without a
     // join row is never created.
     storageReference = await storeUploadedAttachment(req.file);
-    let file;
+    let result;
     try {
-      file = await prisma.$transaction(async (tx) => {
+      result = await prisma.$transaction(async (tx) => {
+        if (!await lockDeclarationRow(tx, pk)) return { kind: "not_found" as const };
+        const currentDeclaration = await tx.declaration.findUnique({ where: { declarationPk: pk }, include: { snapshot: true } });
+        if (!currentDeclaration) return { kind: "not_found" as const };
+        if (req.user!.role !== "admin" && currentDeclaration.declarerUserId !== toDbId(req.user!.id)) {
+          return { kind: "forbidden" as const };
+        }
+        if (isOutsideOrganizationScope(req.user!, currentDeclaration.organizationId)) {
+          return { kind: "wrong_organization" as const };
+        }
+        if (isCrossDepartmentLineManager(req.user!, currentDeclaration.snapshot?.department)) {
+          return { kind: "wrong_department" as const };
+        }
+        if (currentDeclaration.status !== "Draft" && currentDeclaration.status !== "Returned") {
+          return { kind: "locked" as const };
+        }
         const created = await tx.uploadedFile.create({
           data: {
             originalName: req.file!.originalname,
@@ -144,20 +165,37 @@ router.post(
         });
         await recordDeclarationAudit(tx, {
           declarationPk: pk,
-          declarationId: decl.id,
-          organizationId: decl.organizationId,
+          declarationId: currentDeclaration.id,
+          organizationId: currentDeclaration.organizationId,
           actorUserId: req.user!.id,
           actorName: req.user!.name,
           action: "file_uploaded",
           changedFields: ["files"],
           newValues: { id: created.id, name: created.originalName, mimeType: created.mimeType, size: created.size },
         });
-        return created;
+        return { kind: "created" as const, file: created };
       });
     } catch (error) {
       await cleanupFile();
       throw error;
     }
+
+    if (result.kind !== "created") {
+      await cleanupFile();
+      if (result.kind === "forbidden") {
+        res.status(403).json({ error: "Cannot upload to another user's declaration" });
+      } else if (result.kind === "wrong_organization") {
+        res.status(403).json({ error: "Cannot upload to a declaration from another organization" });
+      } else if (result.kind === "wrong_department") {
+        res.status(403).json({ error: "Access denied: declaration is outside your department" });
+      } else if (result.kind === "locked") {
+        res.status(400).json({ error: "Cannot upload files to a declaration that is not a draft or returned" });
+      } else {
+        res.status(404).json({ error: "Declaration not found" });
+      }
+      return;
+    }
+    const file = result.file;
 
     res.status(201).json({
       id: toJsonId(file.id),
@@ -177,7 +215,10 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
     res.status(404).json({ error: "File not found" });
     return;
   }
-  const file = await prisma.uploadedFile.findUnique({ where: { id: filePk }, include: { link: { include: { declaration: true } } } });
+  const file = await prisma.uploadedFile.findUnique({
+    where: { id: filePk },
+    include: { link: { include: { declaration: { include: { snapshot: true } } } } },
+  });
   if (!file) {
     res.status(404).json({ error: "File not found" });
     return;
@@ -186,17 +227,18 @@ router.get("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: Resp
   // Files without a join row are orphaned and only admins can access them.
   const userPkJson = toJsonId(req.user!.id);
   if (req.user!.role !== "admin") {
-    const declPk = await declarationPkForFile(filePk);
-    if (declPk === null) {
+    const declaration = file.link?.declaration;
+    if (!declaration) {
       res.status(403).json({ error: "Access denied" });
       return;
     }
-    const decl = await prisma.declaration.findUnique({ where: { declarationPk: declPk } });
-    if (!decl || decl.declarerUserId !== toDbId(req.user!.id)) {
-      let isApprover = false;
-      if (decl) {
-        isApprover = await isWorkflowAssignee(decl.declarationPk, userPkJson);
-      }
+    if (isOutsideOrganizationScope(req.user!, declaration.organizationId) ||
+      isCrossDepartmentLineManager(req.user!, declaration.snapshot?.department)) {
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
+    if (declaration.declarerUserId !== toDbId(req.user!.id)) {
+      const isApprover = await isWorkflowAssignee(declaration.declarationPk, userPkJson);
       if (!isApprover) {
         res.status(403).json({ error: "Access denied" });
         return;
@@ -230,56 +272,60 @@ router.delete("/:id", authenticate, asyncHandler(async (req: AuthRequest, res: R
     res.status(404).json({ error: "File not found" });
     return;
   }
-  const file = await prisma.uploadedFile.findUnique({ where: { id: filePk }, include: { link: { include: { declaration: true } } } });
-  if (!file) {
-    res.status(404).json({ error: "File not found" });
-    return;
-  }
-  // Ownership scoping — read allows owner, admin, or assigned workflow
-  // reviewer; DELETE is owner/admin only (a reviewer must never destroy
-  // the evidence they are judging). Evidence stays immutable during review
-  // for every actor, including admins; correction happens after return.
-  if (req.user!.role !== "admin") {
-    const decl = file.link?.declaration;
-    if (!decl) {
-      res.status(403).json({ error: "Access denied" });
-      return;
-    }
-    if (decl.declarerUserId !== toDbId(req.user!.id)) {
-      res.status(403).json({ error: "Only the owner or admin can delete files" });
-      return;
-    }
-  }
+  // Delete policy and current file ownership/status are resolved in one
+  // transaction so reviewers cannot erase evidence and submit cannot race it.
+  const deletion = await prisma.$transaction(async (tx) => {
+    const currentFile = await tx.uploadedFile.findUnique({
+      where: { id: filePk },
+      include: { link: { include: { declaration: { include: { snapshot: true } } } } },
+    });
+    if (!currentFile) return { kind: "not_found" as const };
 
-  const owningDeclaration = file.link?.declaration;
-  if (owningDeclaration && owningDeclaration.status !== "Draft" && owningDeclaration.status !== "Returned") {
-    res.status(400).json({ error: "Evidence is locked during review; files can be deleted only while a declaration is draft or returned" });
-    return;
-  }
-  if (!isAzuriteAttachment(file.storageReference)) {
-    res.status(503).json({ error: "Attachment storage migration required; ask an administrator to migrate existing uploads to Azurite" });
-    return;
-  }
-  await prisma.$transaction(async (tx) => {
-    if (owningDeclaration) {
+    let currentDeclaration = currentFile.link?.declaration ?? null;
+    if (currentDeclaration) {
+      if (!await lockDeclarationRow(tx, currentDeclaration.declarationPk)) return { kind: "not_found" as const };
+      currentDeclaration = await tx.declaration.findUnique({ where: { declarationPk: currentDeclaration.declarationPk }, include: { snapshot: true } });
+      if (!currentDeclaration) return { kind: "not_found" as const };
+      if (isOutsideOrganizationScope(req.user!, currentDeclaration.organizationId)) return { kind: "wrong_organization" as const };
+      if (isCrossDepartmentLineManager(req.user!, currentDeclaration.snapshot?.department)) return { kind: "wrong_department" as const };
+    } else if (req.user!.role !== "admin") {
+      return { kind: "forbidden" as const };
+    }
+
+    if (req.user!.role !== "admin" && currentDeclaration?.declarerUserId !== toDbId(req.user!.id)) {
+      return { kind: "forbidden" as const };
+    }
+    if (currentDeclaration && currentDeclaration.status !== "Draft" && currentDeclaration.status !== "Returned") {
+      return { kind: "locked" as const };
+    }
+    if (!isAzuriteAttachment(currentFile.storageReference)) return { kind: "migration" as const };
+
+    if (currentDeclaration) {
       await recordDeclarationAudit(tx, {
-        declarationPk: owningDeclaration.declarationPk,
-        declarationId: owningDeclaration.id,
-        organizationId: owningDeclaration.organizationId,
+        declarationPk: currentDeclaration.declarationPk,
+        declarationId: currentDeclaration.id,
+        organizationId: currentDeclaration.organizationId,
         actorUserId: req.user!.id,
         actorName: req.user!.name,
         action: "file_deleted",
         changedFields: ["files"],
-        oldValues: { id: file.id, name: file.originalName, mimeType: file.mimeType, size: file.size },
+        oldValues: { id: currentFile.id, name: currentFile.originalName, mimeType: currentFile.mimeType, size: currentFile.size },
       });
     }
+    await enqueueAttachmentCleanup(tx, currentFile.storageReference);
     await tx.declarationFile.deleteMany({ where: { fileId: filePk } });
     await tx.uploadedFile.delete({ where: { id: filePk } });
+    return { kind: "deleted" as const };
   });
-  try {
-    await deleteStoredAttachment(file.storageReference);
-  } catch {
-    console.error(JSON.stringify({ event: "attachment_cleanup_failed", fileId: String(filePk), stage: "delete" }));
+
+  if (deletion.kind !== "deleted") {
+    if (deletion.kind === "forbidden") res.status(403).json({ error: "Only the owner or admin can delete files" });
+    else if (deletion.kind === "wrong_organization") res.status(403).json({ error: "Cannot access files from another organization" });
+    else if (deletion.kind === "wrong_department") res.status(403).json({ error: "Access denied: declaration is outside your department" });
+    else if (deletion.kind === "locked") res.status(400).json({ error: "Evidence is locked during review; files can be deleted only while a declaration is draft or returned" });
+    else if (deletion.kind === "migration") res.status(503).json({ error: "Attachment storage migration required; ask an administrator to migrate existing uploads to Azurite" });
+    else res.status(404).json({ error: "File not found" });
+    return;
   }
   res.json({ message: "File deleted" });
 }));

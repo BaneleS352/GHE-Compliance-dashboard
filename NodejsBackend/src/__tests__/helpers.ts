@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import { afterAll } from "vitest";
+import { prisma } from "../config/prisma";
 import authRoutes from "../routes/auth";
 import userRoutes from "../routes/users";
 import declarationRoutes from "../routes/declarations";
@@ -10,6 +12,12 @@ import adminDashboardRoutes from "../routes/admin/dashboard";
 import adminUserRoutes from "../routes/admin/users";
 import adminConfigRoutes from "../routes/admin/config";
 import adminWorkflowRoutes from "../routes/admin/workflows";
+
+// Routes share this Prisma client. Close the actual client used by Supertest
+// after each file so Vitest does not keep its worker alive on idle DB handles.
+afterAll(async () => {
+  await prisma.$disconnect();
+});
 
 export function buildApp() {
   const app = express();

@@ -1,12 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { config } from "../config/env";
 import { notificationDedupeKey, queueNotification, queueNotificationSafely } from "../services/notificationService";
-import { claimEmailBatch, deliverClaimedEmail, markEmailFailed } from "../services/emailOutboxWorker";
+import { claimEmailBatch, deliverClaimedEmail, markEmailFailed, type EmailDeliveryTransport } from "../services/emailOutboxWorker";
 
 const prisma = new PrismaClient();
 const testKeyPrefix = `email-test:${process.pid}:`;
 const originalEmailDelivery = { ...config.emailDelivery };
+
+afterAll(async () => {
+  await prisma.$disconnect();
+});
 
 beforeEach(async () => {
   Object.assign(config.emailDelivery, originalEmailDelivery, { enabled: true, smtpFrom: "ghe-tests@example.test" });
@@ -96,9 +100,9 @@ describe("PostgreSQL email outbox notifications", () => {
     expect(claimed.attemptCount).toBe(1);
     expect(await claimEmailBatch(`other:${process.pid}`, 10)).toEqual([]);
 
-    const transport = {
-      sendMail: vi.fn().mockResolvedValue({ messageId: "message-id-test" }),
-    } as any;
+    const transport: EmailDeliveryTransport = {
+      sendMail: vi.fn<EmailDeliveryTransport["sendMail"]>().mockResolvedValue({ messageId: "message-id-test" }),
+    };
     await deliverClaimedEmail(claimed, workerId, transport);
 
     expect(transport.sendMail).toHaveBeenCalledWith(expect.objectContaining({

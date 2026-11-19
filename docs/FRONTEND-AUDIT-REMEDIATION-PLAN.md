@@ -230,10 +230,11 @@ of the release plan:
    backend, with redaction tests and a retention policy. Until then, the
    event is an integration seam, not a claim of centralized production
    observability.
-6. Add focused accessibility tests for the complete declaration form,
-   keyboard upload interaction, focus restoration, and screen-reader error
-   associations; supplement the existing component tests with browser-level
-   assertions.
+6. Accessibility coverage now includes keyboard upload activation and native
+   file selection, modal focus trapping/restoration, required-field error
+   associations, and live announcement of password-dialog errors. Remaining:
+   browser-level screen-reader/keyboard acceptance for the complete declaration
+   form and upload flow.
 
 The remediation goal remains open until these release, observability,
 architecture-gate, and browser-acceptance items are either completed or

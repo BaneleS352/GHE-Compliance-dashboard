@@ -86,9 +86,24 @@ async function main() {
   }
   console.log(`PostgreSQL integration checks against ${url.replace(/:[^:@/]+@/, ":***@")}`);
 
+  const p = prisma;
+  const counterpartyIndexes = await p.$queryRaw<Array<{ indexname: string; indexdef: string }>>`
+    SELECT indexname, indexdef
+    FROM pg_indexes
+    WHERE schemaname = 'public' AND tablename = 'Counterparty'
+    ORDER BY indexname
+  `;
+  const counterpartyScopedUniqueIndexes = counterpartyIndexes.filter((index) =>
+    /^CREATE UNIQUE INDEX/i.test(index.indexdef) && /\((?:"?name"?),\s*"organizationId"\)/i.test(index.indexdef),
+  );
+  check(
+    "counterparty scoped uniqueness uses only its Prisma unique constraint",
+    counterpartyScopedUniqueIndexes.length === 1 && counterpartyScopedUniqueIndexes[0]?.indexname === "Counterparty_name_organizationId_key",
+    JSON.stringify(counterpartyScopedUniqueIndexes),
+  );
+
   await wipe();
 
-  const p = prisma;
   const orgA = await p.organization.create({ data: { name: "PG Org A", shortCode: "PGA" } });
   const orgB = await p.organization.create({ data: { name: "PG Org B", shortCode: "PGB" } });
   const users: Record<string, any> = {};

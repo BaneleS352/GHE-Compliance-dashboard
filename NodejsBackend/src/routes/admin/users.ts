@@ -297,9 +297,35 @@ router.put("/:id", authenticate, authorize("admin"), asyncHandler(async (req: Au
     return;
   }
 
-  const user = await prisma.user.update({ where: { id: userPk }, data: updateData, include: { departmentRef: true, manager: true } });
+  const updateResult = await prisma.$transaction(async (tx) => {
+    // Role and enablement changes can remove the last usable administrator.
+    // Lock the admin set in a stable order so concurrent changes cannot both
+    // observe the same count and leave the application without an active admin.
+    if (data.role !== undefined || data.isActive !== undefined) {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "role" = 'admin' ORDER BY "id" FOR UPDATE`;
+      const current = await tx.user.findUnique({ where: { id: userPk } });
+      if (!current) return { kind: "not_found" as const };
+      const removesActiveAdmin = current.role === "admin" && current.isActive &&
+        ((data.role !== undefined && data.role !== "admin") || data.isActive === false);
+      if (removesActiveAdmin) {
+        const activeAdmins = await tx.user.count({ where: { role: "admin", isActive: true } });
+        if (activeAdmins <= 1) return { kind: "last_admin" as const };
+      }
+    }
+    const user = await tx.user.update({ where: { id: userPk }, data: updateData, include: { departmentRef: true, manager: true } });
+    return { kind: "updated" as const, user };
+  });
 
-  res.json(userResponse(user));
+  if (updateResult.kind === "not_found") {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (updateResult.kind === "last_admin") {
+    res.status(400).json({ error: "Cannot disable or demote the last active admin user" });
+    return;
+  }
+
+  res.json(userResponse(updateResult.user));
 }));
 
 // DELETE /api/admin/users/:id
@@ -309,41 +335,61 @@ router.delete("/:id", authenticate, authorize("admin"), asyncHandler(async (req:
     res.status(404).json({ error: "User not found" });
     return;
   }
-  const user = await prisma.user.findUnique({ where: { id: userPk } });
-  if (!user) {
+  const deleteResult = await prisma.$transaction(async (tx) => {
+    // Serialize last-admin checks, approval assignment via the user FK, and
+    // concurrent deletions. A failed pending-step query aborts the transaction
+    // instead of being treated as proof that no pending step exists.
+    await tx.$queryRaw`SELECT "id" FROM "User" WHERE "role" = 'admin' ORDER BY "id" FOR UPDATE`;
+    const rows = await tx.$queryRaw<Array<{ id: bigint }>>`
+      SELECT "id" FROM "User" WHERE "id" = ${userPk} FOR UPDATE
+    `;
+    if (rows.length === 0) return { kind: "not_found" as const };
+    const user = await tx.user.findUnique({ where: { id: userPk }, select: { role: true, isActive: true } });
+    if (!user) return { kind: "not_found" as const };
+
+    const identityAudit = await tx.identityLinkAudit.findFirst({
+      where: { OR: [{ targetUserId: userPk }, { actorUserId: userPk }] },
+      select: { id: true },
+    });
+    if (identityAudit) return { kind: "identity_audit" as const };
+
+    if (user.role === "admin") {
+      const adminCount = await tx.user.count({ where: { role: "admin" } });
+      const activeAdminCount = user.isActive
+        ? await tx.user.count({ where: { role: "admin", isActive: true } })
+        : adminCount;
+      if (adminCount <= 1 || (user.isActive && activeAdminCount <= 1)) {
+        return { kind: "last_admin" as const };
+      }
+    }
+
+    const pending = await tx.workflowInstanceStep.findFirst({
+      where: { assigneeId: userPk, status: "pending" },
+      select: { instanceId: true },
+    });
+    if (pending) return { kind: "pending_approval" as const };
+
+    await tx.user.delete({ where: { id: userPk } });
+    return { kind: "deleted" as const };
+  });
+
+  if (deleteResult.kind === "not_found") {
     res.status(404).json({ error: "User not found" });
     return;
   }
-
-  const identityAudit = await prisma.identityLinkAudit.findFirst({
-    where: { OR: [{ targetUserId: userPk }, { actorUserId: userPk }] },
-    select: { id: true },
-  });
-  if (identityAudit) {
+  if (deleteResult.kind === "identity_audit") {
     res.status(400).json({ error: "Cannot delete a user with identity-link audit history; disable the account instead" });
     return;
   }
-
-  if (user.role === "admin") {
-    const adminCount = await prisma.user.count({ where: { role: "admin" } });
-    if (adminCount <= 1) {
-      res.status(400).json({ error: "Cannot delete the last admin user" });
-      return;
-    }
+  if (deleteResult.kind === "last_admin") {
+    res.status(400).json({ error: "Cannot delete the last admin user" });
+    return;
   }
-
-  // Block deletion while the user holds a pending approval step.
-  // Step rows are the only workflow state.
-  const pending = await prisma.workflowInstanceStep.findFirst({
-    where: { assigneeId: userPk, status: "pending" },
-    select: { instanceId: true },
-  }).catch(() => null);
-  if (pending) {
+  if (deleteResult.kind === "pending_approval") {
     res.status(400).json({ error: "Cannot delete user with active pending approvals" });
     return;
   }
 
-  await prisma.user.delete({ where: { id: userPk } });
   res.json({ message: "User deleted" });
 }));
 

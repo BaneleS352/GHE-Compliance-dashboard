@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../config/prisma";
 import { authenticate, authorize, AuthRequest } from "../../middleware/auth";
@@ -24,7 +25,7 @@ router.get("/rules", authenticate, authorize("admin"), asyncHandler(async (_req:
         where: { ruleId: r.id },
         orderBy: { order: "asc" },
       });
-      const s: StepDef[] = rows.map((row: any) => ({ order: row.order, role: row.role, label: row.label }));
+      const s: StepDef[] = rows.map((row) => ({ order: row.order, role: row.role as StepDef["role"], label: row.label }));
       return { id: toJsonId(r.id), name: r.name, condition: r.condition, priority: r.priority, steps: s };
     })),
   );
@@ -122,11 +123,12 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
     // roles cannot strand anyone), and only against instances produced by
     // THIS rule (plus untracked pre-rule-FK history, conservatively).
     const oldDefs = await prisma.workflowRuleStep.findMany({ where: { ruleId: rulePk }, select: { role: true } });
-    const oldRoles: string[] = oldDefs.map((s: any) => s.role);
-    const newRoles: string[] = data.steps.map((s) => s.role);
+    const oldRoles = oldDefs.map((step) => step.role);
+    const newRoles = data.steps.map((step) => step.role);
     const changedRoles = new Set([
-      ...newRoles.filter((r) => !oldRoles.includes(r)),
-      ...oldRoles.filter((r) => !newRoles.includes(r)),
+      ...newRoles.filter((role) => !oldRoles.includes(role)),
+      ...oldRoles.filter((role): role is StepDef["role"] => role === "lineManager" || role === "hr")
+        .filter((role) => !newRoles.includes(role)),
     ]);
     for (const role of changedRoles) {
       const rows = await prisma.workflowInstanceStep.findMany({
@@ -135,7 +137,7 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
       });
       if (rows.length > 0) {
         const insts = await prisma.workflowInstance.findMany({
-          where: { declarationPk: { in: rows.map((r: any) => r.declarationPk) } },
+          where: { declarationPk: { in: rows.map((row) => row.declarationPk) } },
           select: { declarationPk: true, ruleId: true },
         });
         // Same-rule instances block; untracked (null ruleId) history blocks
@@ -153,7 +155,7 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
   }
 
   const rule = await prisma.$transaction(async (tx) => {
-    const updateData: any = {};
+    const updateData: Prisma.WorkflowRuleUncheckedUpdateInput = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.condition !== undefined) updateData.condition = data.condition;
     if (data.priority !== undefined) updateData.priority = data.priority;
@@ -170,7 +172,7 @@ router.put("/rules/:id", authenticate, authorize("admin"), asyncHandler(async (r
     name: rule.name,
     condition: rule.condition,
     priority: rule.priority,
-    steps: rows.map((r: any) => ({ order: r.order, role: r.role, label: r.label })),
+    steps: rows.map((row) => ({ order: row.order, role: row.role as StepDef["role"], label: row.label })),
   });
 }));
 

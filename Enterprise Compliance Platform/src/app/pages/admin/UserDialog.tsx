@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { F } from "@/config/theme";
 import { fetchDepartments } from "@/services/api";
 import type { User } from "@/types/declaration";
+import { useDialogFocus } from "@/app/hooks/useDialogFocus";
 
 const ROLES = [
   { value: "teamMember", label: "Team Member" },
@@ -30,31 +31,45 @@ export function UserDialog({
   const [email, setEmail] = useState(user?.email ?? "");
   const [role, setRole] = useState<User["role"]>((user?.role as User["role"]) ?? "teamMember");
   const [orgId, setOrgId] = useState<string>(user?.organizationId ? String(user.organizationId) : "");
+  const previousOrgId = useRef(orgId);
   const [department, setDepartment] = useState(user?.department ?? "");
   const [departments, setDepartments] = useState<string[]>([]);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
+  const [departmentError, setDepartmentError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const dialogRef = useDialogFocus<HTMLDivElement>({ onEscape: onCancel });
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onCancel]);
-
-  useEffect(() => {
+    const controller = new AbortController();
+    const organizationChanged = previousOrgId.current !== orgId;
+    previousOrgId.current = orgId;
     if (!orgId) {
       setDepartments([]);
-      return;
+      setDepartment("");
+      setDepartmentError(null);
+      setDepartmentsLoading(false);
+      return () => controller.abort();
     }
-    fetchDepartments(Number(orgId))
+    setDepartments([]);
+    if (organizationChanged) setDepartment("");
+    setDepartmentError(null);
+    setDepartmentsLoading(true);
+    fetchDepartments(Number(orgId), { signal: controller.signal })
       .then((names) => {
+        if (controller.signal.aborted) return;
         setDepartments(names);
         // Keep the current value only when it belongs to this organization.
         setDepartment((d) => (d && names.includes(d) ? d : ""));
       })
-      .catch(() => setDepartments([]));
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setDepartmentError("Departments could not be loaded. Retry by changing the organization or closing and reopening this dialog.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setDepartmentsLoading(false);
+      });
+    return () => controller.abort();
   }, [orgId]);
 
   const submit = async () => {
@@ -91,6 +106,7 @@ export function UserDialog({
       role="presentation"
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={user ? "Edit user" : "Add user"}
@@ -125,13 +141,14 @@ export function UserDialog({
           </div>
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-muted-foreground">Department</span>
-            <select value={department} onChange={(e) => setDepartment(e.target.value)} className={input} disabled={!orgId}>
-              <option value="">{orgId ? "Select department…" : "Select an organization first"}</option>
+            <select value={department} onChange={(e) => setDepartment(e.target.value)} className={input} disabled={!orgId || departmentsLoading || Boolean(departmentError)}>
+              <option value="">{!orgId ? "Select an organization first" : departmentsLoading ? "Loading departments…" : "Select department…"}</option>
               {departments.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
+            {departmentError && <span role="alert" className="mt-1 block text-xs text-red-700">{departmentError}</span>}
           </label>
         </div>
-        {formError && <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p>}
+        {formError && <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{formError}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button
             type="button"
@@ -143,7 +160,7 @@ export function UserDialog({
           <button
             type="button"
             onClick={submit}
-            disabled={saving}
+            disabled={saving || departmentsLoading || Boolean(departmentError)}
             className="h-10 rounded-xl bg-purple-700 px-4 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-60"
           >
             {saving ? "Saving…" : user ? "Save changes" : "Add user"}

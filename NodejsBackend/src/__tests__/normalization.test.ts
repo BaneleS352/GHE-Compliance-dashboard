@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterAll, describe, it, expect } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
 import { buildApp, getAdminToken, getTeamToken, getApproverToken, pkFor } from "./helpers";
@@ -8,6 +8,10 @@ import { viewStatusSummary, viewCounterparty, viewSlaRows } from "../services/re
 
 const app = buildApp();
 const prisma = new PrismaClient();
+
+afterAll(async () => {
+  await prisma.$disconnect();
+});
 
 describe("Database normalization (numeric identifiers)", () => {
   it("creating a declaration writes snapshot, detail, timestamps and counterparty link", async () => {
@@ -71,7 +75,8 @@ describe("Database normalization (numeric identifiers)", () => {
 
     // Canonical approver link tracks the current approver at submit.
     const decl = await prisma.declaration.findUnique({ where: { id } });
-    expect((decl as any)!.currentApproverUserId).toBe(2n);
+    if (!decl) throw new Error("Submitted declaration was not persisted");
+    expect(decl.currentApproverUserId).toBe(2n);
 
     let rows = await prisma.workflowInstanceStep.findMany({
       where: { declarationPk: pk }, orderBy: { stepOrder: "asc" },
@@ -98,11 +103,12 @@ describe("Database normalization (numeric identifiers)", () => {
 
     // Canonical approver link moves to HR after the LM approval.
     const decl2 = await prisma.declaration.findUnique({ where: { id } });
-    expect((decl2 as any)!.currentApproverUserId).toBe(3n);
+    if (!decl2) throw new Error("Approved declaration was not persisted");
+    expect(decl2.currentApproverUserId).toBe(3n);
   });
 
   it("reporting views agree with direct aggregations (result equivalence)", async () => {
-    const where: any = {};
+    const where = {};
     const grouped = await prisma.declaration.groupBy({ by: ["status"], where, _count: { status: true } });
     const legacy: Record<string, number> = {};
     for (const g of grouped) legacy[g.status] = g._count.status;
@@ -194,7 +200,8 @@ describe("Database normalization (numeric identifiers)", () => {
       .set("Authorization", `Bearer ${getTeamToken()}`);
     const inst = await prisma.workflowInstance.findUnique({ where: { declarationPk: pk } });
     // 5000 >= threshold 1000 → rule 2, recorded with an enforced FK.
-    expect((inst as any).ruleId).toBe(2n);
+    if (!inst) throw new Error("Submitted declaration is missing its workflow instance");
+    expect(inst.ruleId).toBe(2n);
   });
 
   it("identifier boundary converts BIGINT rows to JSON-safe numbers", async () => {
@@ -240,7 +247,7 @@ describe("Database normalization (numeric identifiers)", () => {
       expect(typeof t.declined).toBe("number");
     }
     expect(Array.isArray(typeBreakdown)).toBe(true);
-    const typeTotal = typeBreakdown.reduce((s: number, t: any) => s + t.value, 0);
+    const typeTotal = (typeBreakdown as Array<{ value: number }>).reduce((sum, item) => sum + item.value, 0);
     expect(typeTotal).toBe(total);
   });
 });

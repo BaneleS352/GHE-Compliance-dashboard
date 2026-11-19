@@ -4,6 +4,14 @@ import { buildApp, getAdminToken, getApproverToken, getTeamToken, testToken } fr
 
 const app = buildApp();
 
+interface WorkflowStepStatusResponse {
+  status: string;
+}
+
+interface PendingWorkflowResponse {
+  step: { assignee: number; status: string };
+}
+
 const BASE = {
   employee: "Nomvula Team",
   employeeId: 4,
@@ -266,7 +274,7 @@ describe("Workflow advanced scenarios", () => {
     const inst = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
-    expect(inst.body.steps.every((s: any) => s.status === "approved")).toBe(true);
+    expect((inst.body.steps as WorkflowStepStatusResponse[]).every((step) => step.status === "approved")).toBe(true);
   });
 
   it("POST /api/workflows/approve — decline sets status to Declined", async () => {
@@ -343,7 +351,7 @@ describe("Declaration CRUD limits", () => {
 
 // ── FILE-DECLARATION LIFECYCLE ──
 describe("File-declaration lifecycle", () => {
-  it("Upload file to declaration, delete declaration, file cascade-deleted", async () => {
+  it("deletes linked file metadata when its declaration is deleted", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -463,6 +471,29 @@ describe("Admin user operations integrity", () => {
     expect(res.body.error).toMatch(/last admin/i);
   });
 
+  it("PUT /api/admin/users/:id — cannot demote or deactivate the last active admin", async () => {
+    const demotion = await request(app)
+      .put("/api/admin/users/1")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ role: "approver" });
+    expect(demotion.status).toBe(400);
+    expect(demotion.body.error).toMatch(/last active admin/i);
+    const deactivation = await request(app)
+      .put("/api/admin/users/1")
+      .set("Authorization", `Bearer ${getAdminToken()}`)
+      .send({ isActive: false });
+    expect(deactivation.status).toBe(400);
+    expect(deactivation.body.error).toMatch(/last active admin/i);
+    const { PrismaClient } = await import("@prisma/client");
+    const db = new PrismaClient();
+    try {
+      const admin = await db.user.findUnique({ where: { id: 1n }, select: { role: true, isActive: true } });
+      expect(admin).toEqual({ role: "admin", isActive: true });
+    } finally {
+      await db.$disconnect();
+    }
+  });
+
   it("PUT /api/admin/users/:id — changing email to existing email returns 409", async () => {
     const res = await request(app)
       .put("/api/admin/users/4")
@@ -572,7 +603,7 @@ describe("Workflow pending query", () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.length).toBeGreaterThanOrEqual(1);
-    res.body.forEach((item: any) => {
+    (res.body as PendingWorkflowResponse[]).forEach((item) => {
       expect(item.step.assignee).toBe(2);
       expect(item.step.status).toBe("pending");
     });
