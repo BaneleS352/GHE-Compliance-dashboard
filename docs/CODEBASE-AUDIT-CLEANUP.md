@@ -62,6 +62,9 @@ cleanup findings in scope, or document evidence-backed blockers and decisions.
   clears inherited settings so the checked-out `.env` files are used, and
   signs in with Entra by default. The isolated test identity provider is
   opt-in through the Docker stub workflow or explicit manual configuration.
+- `dev.bat` now starts the npm-managed local Azurite emulator without Docker,
+  persists its data under `NodejsBackend/data/azurite`, and reuses an emulator
+  already listening on port 10000. Local setup now requires Node.js 22 or later.
 - Aligned threshold text in declaration details and the API description with
   the implemented inclusive comparison (`value >= highValueThreshold`).
 - Added direct tests for Low/Medium/High threshold boundaries and overlapping

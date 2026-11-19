@@ -16,7 +16,16 @@ where node >nul 2>nul
 if errorlevel 1 (
     echo.
     echo ERROR: Node.js is not installed or is not on PATH.
-    echo Install Node.js 20 LTS, restart Windows, then run dev.bat again.
+    echo Install Node.js 22 or later, restart Windows, then run dev.bat again.
+    pause
+    exit /b 1
+)
+
+node -e "if (Number(process.versions.node.split('.')[0]) < 22) process.exit(1)" >nul 2>nul
+if errorlevel 1 (
+    echo.
+    echo ERROR: This local setup requires Node.js 22 or later for Azurite.
+    echo Install Node.js 22 LTS or later, then run dev.bat again.
     pause
     exit /b 1
 )
@@ -24,24 +33,7 @@ if errorlevel 1 (
 where npm >nul 2>nul
 if errorlevel 1 (
     echo.
-    echo ERROR: npm was not found. Reinstall Node.js 20 LTS with npm enabled.
-    pause
-    exit /b 1
-)
-
-where docker >nul 2>nul
-if errorlevel 1 (
-    echo.
-    echo ERROR: Docker is required to run the Azurite attachment emulator.
-    echo Install Docker Desktop, or start Azurite on 127.0.0.1:10000 and launch the backend and frontend manually.
-    pause
-    exit /b 1
-)
-
-docker compose version >nul 2>nul
-if errorlevel 1 (
-    echo.
-    echo ERROR: Docker Compose is required to start Azurite.
+    echo ERROR: npm was not found. Reinstall Node.js 22 or later with npm enabled.
     pause
     exit /b 1
 )
@@ -70,7 +62,7 @@ if not exist .env (
     echo   Created .env from .env.example
 )
 
-findstr /R /C:"^DATABASE_URL=\"postgres" /C:"^DATABASE_URL=postgres" .env >nul
+findstr /B /C:"DATABASE_URL=" .env >nul
 if errorlevel 1 (
     echo.
     echo ERROR: The database address in NodejsBackend\.env is not configured.
@@ -80,15 +72,24 @@ if errorlevel 1 (
 )
 
 echo.
-echo [3/6] Starting Azurite attachment storage...
-cd /d "%~dp0"
-docker compose -f docker-compose.azurite.yml up -d --wait azurite
+echo [3/6] Starting the local Azurite attachment emulator...
+powershell -NoProfile -Command "if (Test-NetConnection -ComputerName 127.0.0.1 -Port 10000 -InformationLevel Quiet) { exit 0 } else { exit 1 }" >nul 2>nul
 if errorlevel 1 (
-    echo.
-    echo ERROR: Azurite could not be started. Check Docker Desktop and port 10000.
-    pause
-    exit /b 1
+    start "Azurite" cmd /k "cd /d "%~dp0NodejsBackend" && npm run attachments:dev"
+    powershell -NoProfile -Command "$ready = $false; for ($i = 0; $i -lt 30; $i++) { if (Test-NetConnection -ComputerName 127.0.0.1 -Port 10000 -InformationLevel Quiet) { $ready = $true; break }; Start-Sleep -Seconds 1 }; if ($ready) { exit 0 } else { exit 1 }" >nul 2>nul
+    if errorlevel 1 (
+        echo.
+        echo ERROR: Azurite did not start on 127.0.0.1:10000.
+        echo Check the Azurite window for errors, then run dev.bat again.
+        pause
+        exit /b 1
+    )
+) else (
+    echo Azurite is already running on 127.0.0.1:10000.
 )
+
+echo.
+echo Azurite attachment storage is ready.
 
 echo.
 echo [4/6] Checking PostgreSQL and preparing the database...
@@ -142,7 +143,7 @@ echo   Sign-in: Microsoft Entra ID from NodejsBackend\.env and Enterprise Compli
 echo ==========================================================
 echo.
 echo Close the Backend and Frontend windows to stop the servers.
-echo To stop Azurite, run: docker compose -f docker-compose.azurite.yml down
+echo Close the Azurite window or press Ctrl+C there to stop local storage.
 echo.
 
 endlocal
