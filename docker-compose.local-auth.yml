@@ -1,0 +1,42 @@
+# Explicit local employee-ID authentication profile. Never use this overlay in
+# production: it enables seeded credentials and the local SMS inbox.
+services:
+  frontend:
+    build:
+      args:
+        VITE_ENABLE_LOCAL_AUTH: "true"
+
+  backend:
+    environment:
+      NODE_ENV: development
+      LOCAL_AUTH_ENABLED: "true"
+      SEED_ON_BOOT: "true"
+      GHE_TEST_IDENTITY_SEED: "false"
+      EMAIL_DELIVERY_ENABLED: "true"
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      SMTP_FROM: ghe-local@example.test
+    depends_on:
+      db:
+        condition: service_healthy
+
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+    restart: unless-stopped
+
+  email-worker:
+    environment:
+      EMAIL_DELIVERY_ENABLED: "true"
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      SMTP_FROM: ghe-local@example.test
+    depends_on:
+      backend:
+        condition: service_healthy
+      mailpit:
+        condition: service_started

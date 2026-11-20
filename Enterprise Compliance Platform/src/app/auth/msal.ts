@@ -5,6 +5,8 @@ export const dockerStubAuthEnabled = import.meta.env.VITE_ENABLE_TEST_LOGIN === 
 export const testAuthEnabled = import.meta.env.DEV || dockerStubAuthEnabled;
 /** Explicitly selects the local issuer for E2E or local test-provider runs. */
 export const localTestProviderEnabled = import.meta.env.VITE_DEV_TEST_PROVIDER === "true";
+export const localEmployeeAuthEnabled = import.meta.env.VITE_ENABLE_LOCAL_AUTH === "true";
+const LOCAL_TOKEN_KEY = "ghe.local.auth.token";
 
 /**
  * Single MSAL adapter (OpenID Phase 4): the only module that touches the
@@ -163,6 +165,7 @@ function e2eStubAccount(): AccountInfo {
 }
 
 export async function initializeIdentity(): Promise<void> {
+  if (localEmployeeAuthEnabled && localToken()) return;
   if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) return;
   // The local dev quick-login is a complete authentication path when no
   // Entra settings are supplied. Do not block the landing screen with an
@@ -181,6 +184,7 @@ export async function initializeIdentity(): Promise<void> {
 }
 
 export function activeAccount(): AccountInfo | null {
+  if (localEmployeeAuthEnabled && localToken()) return e2eStubAccount();
   if (testAuthEnabled && e2eToken()) return e2eStubAccount();
   if (dockerStubAuthEnabled) return null;
   // getClient() throws without configuration — callers treat that as
@@ -198,7 +202,19 @@ export async function signIn(): Promise<AuthenticationResult | void> {
   return app.loginRedirect({ scopes: scopes(), ...(app.getAllAccounts().length > 1 ? { prompt: "select_account" } : {}) });
 }
 
+function localToken(): string | null {
+  if (!localEmployeeAuthEnabled) return null;
+  try { return sessionStorage.getItem(LOCAL_TOKEN_KEY); } catch { return null; }
+}
+
+export function setLocalEmployeeToken(token: string): void {
+  if (!localEmployeeAuthEnabled) throw new Error("Local employee authentication is disabled");
+  sessionStorage.setItem(LOCAL_TOKEN_KEY, token);
+}
+
 export async function getApiToken(): Promise<string> {
+  const local = localToken();
+  if (local) return local;
   if (testAuthEnabled) {
     const injected = e2eToken();
     if (injected) return injected;
@@ -226,7 +242,7 @@ export async function getApiToken(): Promise<string> {
 export async function getGraphAccessToken(): Promise<string | null> {
   // Local quick-login tokens are issued by the development test provider and
   // cannot be exchanged for a Microsoft Graph token.
-  if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) return null;
+  if (localEmployeeAuthEnabled || dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) return null;
   const app = getClient();
   const account = app.getActiveAccount();
   if (!account) throw new Error("No authenticated Entra account");
@@ -243,6 +259,10 @@ export async function getGraphAccessToken(): Promise<string | null> {
 }
 
 export function signOut(): void {
+  if (localEmployeeAuthEnabled) {
+    try { sessionStorage.removeItem(LOCAL_TOKEN_KEY); } catch { /* storage unavailable */ }
+    return;
+  }
   if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) {
     try {
       sessionStorage.removeItem("e2e.auth.token");

@@ -2,9 +2,10 @@ import { Request, Response, NextFunction } from "express";
 import { createRemoteJWKSet, jwtVerify, type JWTPayload, errors as joseErrors } from "jose";
 import { config } from "../config/env";
 import { prisma } from "../config/prisma";
-import { toJsonId } from "../services/ids";
+import { toDbId, toJsonId } from "../services/ids";
 import { logAuthDiagnostic } from "./authDiagnostics";
 import { StaffProfileSyncError, syncStaffProfile } from "../services/staffProfileSync";
+import { verifyLocalAccessToken } from "../services/localIdentity";
 
 const tenantAuthority = config.oidc.authority.replace(/\/v2\.0$/, "");
 const authorityUrl = new URL(tenantAuthority);
@@ -99,6 +100,21 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
     logAuthDiagnostic(res, "bearer_header", "failure", "empty_token");
     res.status(401).json({ error: "Missing or invalid authorization header" });
     return;
+  }
+
+  if (config.localAuth.enabled) {
+    try {
+      const payload = await verifyLocalAccessToken(token);
+      const subject = typeof payload.oid === "string" ? payload.oid : "";
+      if (!subject) { res.status(401).json({ error: "Local token is missing its subject" }); return; }
+      const dbUser = await prisma.user.findFirst({ where: { id: toDbId(subject), localAuthEnabled: true }, select: { id: true, name: true, email: true, role: true, position: true, organizationId: true, isActive: true, departmentRef: { select: { name: true } } } });
+      if (!dbUser || !dbUser.isActive) { res.status(403).json({ error: "Local account is not provisioned or is disabled" }); return; }
+      req.user = { id: toJsonId(dbUser.id), email: dbUser.email, role: dbUser.role, name: dbUser.name, department: dbUser.departmentRef?.name ?? undefined, position: dbUser.position ?? undefined, organizationId: dbUser.organizationId === null ? null : toJsonId(dbUser.organizationId) };
+      next();
+    } catch {
+      // Local auth is additive in development: an Entra/test-provider token
+      // must continue through the normal provider validation below.
+    }
   }
 
   try {

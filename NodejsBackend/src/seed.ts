@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import type { WorkflowStep } from "./services/workflowService";
 import { assertNonProductionSeed } from "./config/productionGuards";
 import { declarationPriorityForValue } from "./services/declarationPriority";
+import { hashLocalPassword } from "./services/localAuth";
 
 // Production safety (Phase 7): refuse to seed demo data into a production
 // database unless explicitly overridden with GHE_ALLOW_PROD_SEED=1. This
@@ -14,8 +15,8 @@ try {
 }
 
 const prisma = new PrismaClient();
-// Seed users carry no credentials: authentication is provider-managed
-// (Entra ID); sign-in uses the seeded email addresses.
+// Provider-managed authentication remains the default. Local credentials are
+// created only when the explicit development stub is enabled below.
 
 const organizations = [
   { id: 1n, name: "Hollywoodbets Group", shortCode: "HB" },
@@ -181,6 +182,14 @@ async function main() {
       },
       create: { ...rest, departmentId: deptIdByUser.get(u.id) ?? null, managerId: null },
     });
+  }
+  if (process.env.LOCAL_AUTH_ENABLED === "true") {
+    if (process.env.NODE_ENV === "production") throw new Error("Refusing to seed local credentials in production");
+    const passwordHash = await hashLocalPassword("LocalDevPassword!2026");
+    for (const [id, phone] of [[1n, "+15550000001"], [3n, "+15550000003"], [4n, "+15550000004"], [5n, "+15550000005"]] as const) {
+      await prisma.user.update({ where: { id }, data: { localAuthEnabled: true, passwordHash, passwordEnrollmentRequired: true, phoneNumber: phone } });
+    }
+    console.log("Seeded local employee-ID credentials for development stub users");
   }
   for (const u of users) {
     if (u.managerId !== null && u.managerId !== undefined) {

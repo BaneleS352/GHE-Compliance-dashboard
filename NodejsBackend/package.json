@@ -17,6 +17,7 @@
     "auth:verify-config": "tsx src/scripts/verify-oidc-config.ts",
     "email:verify-db": "tsx src/scripts/verify-email-database.ts",
     "email:worker": "tsx src/scripts/email-worker.ts",
+    "email:emulator": "tsx src/scripts/local-email-emulator.ts",
     "email:verify-smtp": "tsx src/scripts/verify-smtp.ts",
     "attachments:migrate-local-to-azurite": "tsx src/scripts/migrate-local-attachments-to-azurite.ts",
     "attachments:dev": "azurite-blob --blobHost 127.0.0.1 --blobPort 10000 --location data/azurite --disableTelemetry",

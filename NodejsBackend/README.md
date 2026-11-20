@@ -58,6 +58,29 @@ settings, local development identity, optional HIS sync, and SMTP outbox
 settings are documented in [`docs/SETUP.md`](../docs/SETUP.md). For a local
 stack, follow the Quick Start above so both PostgreSQL and Azurite are running.
 
+The separate `docker-compose.local-auth.yml` overlay is development-only. Run
+it with the existing stub identity overlay (`docker-compose.yml`,
+`docker-compose.stub.yml`, and `docker-compose.local-auth.yml`). It
+enables seeded employee-ID credentials, PostgreSQL-backed OTP challenges, and
+the local SMS inbox at `GET /api/auth/local/inbox`; never enable it in
+production. With the `email` Compose profile, Mailpit captures email at
+`http://localhost:8025`. Its seeded password is for local testing only and is
+accepted only when `LOCAL_AUTH_ENABLED=true` is explicitly set.
+
+Docker-free option: copy the values from `.env.local-auth.example` into the
+backend `.env`, copy the frontend example into `.env.local`, run
+`npm run email:emulator` in one backend terminal, then run the normal backend
+and frontend dev commands. The SMS inbox remains available at
+`/api/auth/local/inbox`.
+The root `dev-local-auth.bat` launcher starts the same Docker-free flow,
+including the local SMTP emulator.
+
+```powershell
+docker compose -p ghe-compliance-local-auth --env-file .env.docker-stub `
+  -f docker-compose.yml -f docker-compose.stub.yml -f docker-compose.local-auth.yml `
+  --profile email up -d --build --wait
+```
+
 ## API Endpoints
 
 All endpoints are documented in Swagger at `/api/docs`. Summary:

@@ -33,6 +33,15 @@ if (emailDeliveryEnabled) {
 }
 
 export const config = {
+  localAuth: {
+    enabled: process.env.LOCAL_AUTH_ENABLED === "true",
+    // This must be explicitly enabled in development/test; production cannot
+    // accidentally inherit a local credential path from a shared environment.
+    issuer: process.env.LOCAL_AUTH_ISSUER?.trim() || "ghe-local",
+    audience: "ghe-local-api",
+    allowedClientId: "ghe-local-spa",
+    requiredScope: "access_as_user",
+  },
   port: (() => { const p = parseInt(process.env.PORT || "3001", 10); return Number.isFinite(p) ? p : 3001; })(),
   oidc: {
     authority: requireEnv("OIDC_AUTHORITY").replace(/\/$/, ""),
@@ -77,6 +86,10 @@ export const config = {
     })(),
   },
 };
+
+if (config.localAuth.enabled && process.env.NODE_ENV === "production") {
+  throw new Error("LOCAL_AUTH_ENABLED must remain disabled in production");
+}
 
 // Re-exported here so production-posture checks have one import site; the
 // implementations live in ./productionGuards (side-effect free, so seed.ts
