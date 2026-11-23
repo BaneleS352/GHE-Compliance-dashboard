@@ -34,6 +34,14 @@ describe("local password recovery", () => {
     expect(typeof known.body.challengeId).toBe("string");
   });
 
+  it("starts employee-ID login with an email OTP and masked email hint", async () => {
+    const started = await request(app).post("/api/auth/local/start").send({ employeeId: "1", password: "RecoveryTestPassword!2026" });
+    expect(started.status).toBe(202);
+    expect(started.body.emailHint).toMatch(/^••••/);
+    expect(emailBody).toContain("emailSubject");
+    expect(emailBody).toContain("GHE employee sign-in verification code");
+  });
+
   it("accepts the captured OTP once and returns a local session after reset", async () => {
     const started = await request(app).post("/api/auth/local/forgot-password").send({ employeeId: "1" });
     const message = JSON.parse(emailBody) as { emailBody: string };

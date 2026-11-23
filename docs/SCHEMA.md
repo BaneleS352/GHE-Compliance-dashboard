@@ -164,7 +164,7 @@ lookup copies were removed.
 
 ## Notification Templates
 
-`SystemConfig.notificationTemplates` stores the administrator-editable subject/body pair for each event: manager approval, HR approval, returned, declined, and approved. The backend validates the complete object, renders supported placeholders, and calls `public.enqueue_email_notification` to add an idempotent row to `EmailOutbox`. A separately run worker delivers queued mail over SMTP when delivery is enabled.
+`SystemConfig.notificationTemplates` stores the administrator-editable subject/body pair for each event: manager approval, HR approval, returned, declined, and approved. The backend validates the complete object, renders supported placeholders, and calls `public.enqueue_email_notification` to add an idempotent row to `EmailOutbox`. A separately run worker delivers queued mail through the internal `EMAIL_API` when delivery is enabled, with SMTP retained only as a legacy fallback.
 
 ## Key Business Rules
 
