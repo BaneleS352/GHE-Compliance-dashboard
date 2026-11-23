@@ -9,6 +9,8 @@ export interface OtpMessage {
   destination: string;
   code: string;
   expiresAt: Date;
+  createdAt?: Date;
+  purpose?: "login" | "password_reset";
 }
 
 export interface OtpTransport {

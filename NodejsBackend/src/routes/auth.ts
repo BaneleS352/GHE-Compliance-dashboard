@@ -33,8 +33,40 @@ router.post("/local/start", localStartLimiter, asyncHandler(async (req, res): Pr
   const challengeId = randomBytes(24).toString("base64url");
   await prisma.localAuthChallenge.create({ data: { id: challengeId, userId: user.id, otpHash: createHash("sha256").update(code).digest("hex"), expiresAt } });
   await prisma.localAuthEvent.create({ data: { userId: user.id, action: "otp_sent", metadata: { destinationLast4: user.phoneNumber.slice(-4) } } });
-  await localOtpInbox.send({ destination: user.phoneNumber, code, expiresAt });
+  await localOtpInbox.send({ destination: user.phoneNumber, code, expiresAt, createdAt: new Date(), purpose: "login" });
   res.status(202).json({ challengeId, expiresAt: expiresAt.toISOString(), phoneHint: `••••${user.phoneNumber.slice(-4)}` });
+}));
+
+router.post("/local/forgot-password", localStartLimiter, asyncHandler(async (req, res): Promise<void> => {
+  if (!config.localAuth.enabled) { res.status(404).json({ error: "Not found" }); return; }
+  const employeeId = typeof req.body?.employeeId === "string" ? req.body.employeeId.trim() : "";
+  const challengeId = randomBytes(24).toString("base64url");
+  const user = /^\d+$/.test(employeeId) ? await prisma.user.findUnique({ where: { id: toDbId(employeeId) }, select: { id: true, phoneNumber: true, localAuthEnabled: true, isActive: true } }) : null;
+  if (user?.localAuthEnabled && user.isActive && user.phoneNumber) {
+    const { code, expiresAt } = createOtp();
+    await prisma.localAuthChallenge.create({ data: { id: challengeId, userId: user.id, purpose: "password_reset", otpHash: createHash("sha256").update(code).digest("hex"), expiresAt } });
+    await prisma.localAuthEvent.create({ data: { userId: user.id, action: "password_reset_otp_sent", metadata: { destinationLast4: user.phoneNumber.slice(-4) } } });
+    await localOtpInbox.send({ destination: user.phoneNumber, code, expiresAt, createdAt: new Date(), purpose: "password_reset" });
+  }
+  res.status(202).json({ message: "If the employee account is eligible, a verification code has been sent.", challengeId });
+}));
+
+router.post("/local/forgot-password/verify", localVerifyLimiter, asyncHandler(async (req, res): Promise<void> => {
+  if (!config.localAuth.enabled) { res.status(404).json({ error: "Not found" }); return; }
+  const challengeId = typeof req.body?.challengeId === "string" ? req.body.challengeId : "";
+  const code = typeof req.body?.code === "string" ? req.body.code : "";
+  const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+  const challenge = await prisma.localAuthChallenge.findUnique({ where: { id: challengeId }, include: { user: { select: { id: true, email: true, name: true, role: true, localAuthEnabled: true, isActive: true } } } });
+  if (!challenge || challenge.purpose !== "password_reset" || challenge.consumedAt || challenge.expiresAt.getTime() <= Date.now() || challenge.attempts >= 10 || !challenge.user.localAuthEnabled || !challenge.user.isActive) { res.status(401).json({ error: "Invalid or expired verification code" }); return; }
+  await prisma.localAuthChallenge.update({ where: { id: challengeId }, data: { attempts: { increment: 1 } } });
+  if (createHash("sha256").update(code).digest("hex") !== challenge.otpHash) { res.status(401).json({ error: "Invalid or expired verification code" }); return; }
+  const passwordHash = await hashLocalPassword(newPassword).catch(() => null);
+  if (!passwordHash) { res.status(400).json({ error: "Password must be between 12 and 128 characters" }); return; }
+  await prisma.localAuthChallenge.update({ where: { id: challengeId }, data: { consumedAt: new Date() } });
+  await prisma.user.update({ where: { id: challenge.userId }, data: { passwordHash, passwordEnrollmentRequired: false } });
+  await prisma.localAuthEvent.create({ data: { userId: challenge.userId, action: "password_reset_completed" } });
+  resetLocalAuthLimits(req);
+  res.json({ accessToken: await signLocalAccessToken({ subject: challenge.user.id.toString(), email: challenge.user.email, name: challenge.user.name, role: challenge.user.role }) });
 }));
 
 router.post("/local/verify", localVerifyLimiter, asyncHandler(async (req, res): Promise<void> => {
@@ -72,7 +104,7 @@ router.post("/local/enroll", localVerifyLimiter, asyncHandler(async (req, res): 
 
 router.get("/local/inbox", (_req, res) => {
   if (!config.localAuth.enabled) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(localOtpInbox.messages.map((message) => ({ ...message, code: message.code })));
+  res.json(localOtpInbox.messages.map((message) => ({ ...message, createdAt: message.createdAt?.toISOString(), expiresAt: message.expiresAt.toISOString(), expiresAtLocal: message.expiresAt.toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", hour12: false }), destinationLast4: message.destination.slice(-4), code: message.code })));
 });
 
 router.get("/me", authenticateAndSyncStaff, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {

@@ -119,6 +119,7 @@ model LocalAuthChallenge {
   userId     BigInt
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   otpHash    String
+  purpose    String    @default("login")
   expiresAt  DateTime
   attempts   Int       @default(0)
   consumedAt DateTime?

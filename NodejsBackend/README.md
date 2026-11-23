@@ -75,6 +75,13 @@ and frontend dev commands. The SMS inbox remains available at
 The root `dev-local-auth.bat` launcher starts the same Docker-free flow,
 including the local SMTP emulator.
 
+Forgotten local passwords use the registered phone number only. If an employee
+cannot access that number, self-service recovery is intentionally unavailable;
+an authorized administrator or HR operator must verify the employee through
+the organization’s separate support process and perform the approved account
+recovery action. The application never accepts a replacement phone number
+from the unauthenticated recovery form.
+
 ```powershell
 docker compose -p ghe-compliance-local-auth --env-file .env.docker-stub `
   -f docker-compose.yml -f docker-compose.stub.yml -f docker-compose.local-auth.yml `
