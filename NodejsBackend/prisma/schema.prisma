@@ -58,7 +58,6 @@ model User {
   localAuthEnabled          Boolean   @default(false)
   passwordHash              String?
   passwordEnrollmentRequired Boolean  @default(false)
-  phoneNumber               String?
   isActive         Boolean  @default(true)
   role             String
   teamMemberNumber String

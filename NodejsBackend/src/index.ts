@@ -99,9 +99,15 @@ const app = createApp();
 // The module is imported by tests (NODE_ENV=test) for wiring assertions —
 // only bind a port when actually serving.
 if (process.env.NODE_ENV !== "test") {
-  const attachmentCleanupWorker = startAttachmentCleanupWorker();
+  let attachmentCleanupWorker: ReturnType<typeof startAttachmentCleanupWorker> | undefined;
   const server = app.listen(config.port, () => {
+    attachmentCleanupWorker = startAttachmentCleanupWorker();
     console.log(`GHE Backend running on http://localhost:${config.port}`);
+  });
+  server.on("error", (error) => {
+    console.error(JSON.stringify({ event: "server_start_failed", ...safeErrorDetails(error) }));
+    process.exitCode = 1;
+    process.exit(1);
   });
 
   let shuttingDown = false;
@@ -110,7 +116,7 @@ if (process.env.NODE_ENV !== "test") {
     shuttingDown = true;
     console.log("Shutting down gracefully...");
     server.close(() => {
-      void attachmentCleanupWorker.stop().catch(() => {}).finally(() => {
+      void attachmentCleanupWorker?.stop().catch(() => {}).finally(() => {
         prisma.$disconnect().catch(() => {}).finally(() => process.exit(0));
       });
     });
@@ -120,10 +126,10 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 process.on("unhandledRejection", (reason) => {
-  console.error(JSON.stringify({ event: "unhandled_rejection", errorName: safeErrorName(reason) }));
+  console.error(JSON.stringify({ event: "unhandled_rejection", ...safeErrorDetails(reason) }));
 });
 process.on("uncaughtException", (err) => {
-  console.error(JSON.stringify({ event: "uncaught_exception", errorName: safeErrorName(err) }));
+  console.error(JSON.stringify({ event: "uncaught_exception", ...safeErrorDetails(err) }));
 });
 
 function safeErrorName(value: unknown): string {
@@ -131,6 +137,14 @@ function safeErrorName(value: unknown): string {
     return value.name.replace(/[^a-zA-Z0-9_.-]/g, "").slice(0, 64) || "Error";
   }
   return "UnknownError";
+}
+
+function safeErrorDetails(value: unknown): { errorName: string; errorMessage?: string; stack?: string } {
+  const errorName = safeErrorName(value);
+  if (!(value instanceof Error)) return { errorName };
+  const errorMessage = value.message.replace(/[\r\n]+/g, " ").slice(0, 500);
+  const stack = value.stack?.replace(/[\r\n]+/g, " ").slice(0, 2000);
+  return { errorName, ...(errorMessage ? { errorMessage } : {}), ...(stack ? { stack } : {}) };
 }
 
 export default app;

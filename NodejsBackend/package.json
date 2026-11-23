@@ -19,6 +19,7 @@
     "email:worker": "tsx src/scripts/email-worker.ts",
     "email:emulator": "tsx src/scripts/local-email-emulator.ts",
     "email:verify-smtp": "tsx src/scripts/verify-smtp.ts",
+    "email:verify-api": "tsx src/scripts/verify-email-api.ts",
     "attachments:migrate-local-to-azurite": "tsx src/scripts/migrate-local-attachments-to-azurite.ts",
     "attachments:dev": "azurite-blob --blobHost 127.0.0.1 --blobPort 10000 --location data/azurite --disableTelemetry",
     "attachments:verify-azurite": "tsx src/scripts/verify-azurite.ts",

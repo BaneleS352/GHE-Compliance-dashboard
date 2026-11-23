@@ -186,8 +186,8 @@ async function main() {
   if (process.env.LOCAL_AUTH_ENABLED === "true") {
     if (process.env.NODE_ENV === "production") throw new Error("Refusing to seed local credentials in production");
     const passwordHash = await hashLocalPassword("LocalDevPassword!2026");
-    for (const [id, phone] of [[1n, "+15550000001"], [3n, "+15550000003"], [4n, "+15550000004"], [5n, "+15550000005"]] as const) {
-      await prisma.user.update({ where: { id }, data: { localAuthEnabled: true, passwordHash, passwordEnrollmentRequired: true, phoneNumber: phone } });
+    for (const id of [1n, 3n, 4n, 5n]) {
+      await prisma.user.update({ where: { id }, data: { localAuthEnabled: true, passwordHash, passwordEnrollmentRequired: true } });
     }
     console.log("Seeded local employee-ID credentials for development stub users");
   }

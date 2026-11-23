@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import nodemailer from "nodemailer";
 import { config } from "../config/env";
 import { prisma } from "../config/prisma";
+import { sendEmailApi } from "./emailApi";
 
 export interface ClaimedEmail {
   id: bigint;
@@ -23,6 +24,8 @@ export interface EmailDeliveryTransport {
     disableFileAccess: true;
     disableUrlAccess: true;
   }): Promise<{ messageId?: string }>;
+  verify?: () => Promise<unknown>;
+  close?: () => void;
 }
 
 export function createSmtpTransport() {
@@ -41,6 +44,15 @@ export function createSmtpTransport() {
     greetingTimeout: 10_000,
     socketTimeout: 30_000,
   });
+}
+
+export function createEmailApiTransport(): EmailDeliveryTransport {
+  return {
+    async sendMail(message) {
+      const messageId = await sendEmailApi({ toEmail: message.to, emailSubject: message.subject, emailBody: message.text });
+      return { messageId };
+    },
+  };
 }
 
 export async function claimEmailBatch(workerId: string, batchSize = config.emailDelivery.batchSize, now = new Date()): Promise<ClaimedEmail[]> {
@@ -110,7 +122,7 @@ function transportErrorCode(error: unknown): string {
 export async function deliverClaimedEmail(
   email: ClaimedEmail,
   workerId: string,
-  transport: EmailDeliveryTransport = createSmtpTransport(),
+  transport: EmailDeliveryTransport = config.emailDelivery.apiUrl ? createEmailApiTransport() : createSmtpTransport(),
 ): Promise<void> {
   try {
     const info = await transport.sendMail({
@@ -122,14 +134,14 @@ export async function deliverClaimedEmail(
       disableUrlAccess: true,
     });
     await markEmailSent(email, workerId, typeof info.messageId === "string" ? info.messageId : undefined);
-    console.info(JSON.stringify({ event: "notification_delivery_succeeded", stage: "smtp_delivery", outboxId: String(email.id), notificationType: email.event }));
+    console.info(JSON.stringify({ event: "notification_delivery_succeeded", stage: config.emailDelivery.apiUrl ? "email_api_delivery" : "smtp_delivery", outboxId: String(email.id), notificationType: email.event }));
   } catch (error) {
     const reason = transportErrorCode(error);
     try {
       await markEmailFailed(email, workerId, reason);
       console.error(JSON.stringify({
         event: "notification_delivery_failed",
-        stage: "smtp_delivery",
+        stage: config.emailDelivery.apiUrl ? "email_api_delivery" : "smtp_delivery",
         outboxId: String(email.id),
         notificationType: email.event,
         attempt: email.attemptCount,
@@ -147,7 +159,7 @@ function wait(ms: number): Promise<void> {
 }
 
 export async function runEmailOutboxWorker(): Promise<void> {
-  const transport = createSmtpTransport();
+  const transport = config.emailDelivery.apiUrl ? createEmailApiTransport() : createSmtpTransport();
   const workerId = randomUUID();
 
   let stopping = false;
@@ -155,7 +167,7 @@ export async function runEmailOutboxWorker(): Promise<void> {
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
   try {
-    await transport.verify();
+    if ("verify" in transport && typeof transport.verify === "function") await transport.verify();
     console.info(JSON.stringify({ event: "email_worker_started", workerId, pollIntervalMs: config.emailDelivery.pollIntervalMs, batchSize: config.emailDelivery.batchSize }));
     while (!stopping) {
       const batch = await claimEmailBatch(workerId);
@@ -169,7 +181,7 @@ export async function runEmailOutboxWorker(): Promise<void> {
       }
     }
   } finally {
-    transport.close();
+    transport.close?.();
     process.removeListener("SIGINT", stop);
     process.removeListener("SIGTERM", stop);
     await prisma.$disconnect();

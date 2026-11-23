@@ -48,7 +48,14 @@ function prismaCmd(args: string[], env: NodeJS.ProcessEnv, hint: string) {
       env,
       stdio: "inherit",
     });
-  } catch {
+  } catch (error) {
+    // Windows can keep the query-engine DLL open when another local backend
+    // process is still running. An existing generated client is sufficient
+    // for migrations and seed, so do not block local startup on regeneration.
+    if (args[0] === "generate" && require("node:fs").existsSync(`${ROOT}/node_modules/.prisma/client/query_engine-windows.dll.node`)) {
+      console.warn("Warning: Prisma client regeneration was skipped because the existing Windows query engine is in use.");
+      return;
+    }
     console.error(`\nFAILED: prisma ${args.join(" ")}. ${hint}`);
     process.exit(1);
   }

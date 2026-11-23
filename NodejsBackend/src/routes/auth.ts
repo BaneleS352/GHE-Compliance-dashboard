@@ -4,13 +4,13 @@ import { authenticateAndSyncStaff, AuthRequest } from "../middleware/auth";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { toDbId, toJsonId } from "../services/ids";
 import { createHash, randomBytes } from "node:crypto";
-import { hashLocalPassword, verifyLocalPassword, createOtp, LocalOtpInbox } from "../services/localAuth";
+import { hashLocalPassword, verifyLocalPassword, createOtp } from "../services/localAuth";
+import { sendEmailApi } from "../services/emailApi";
 import { signLocalAccessToken } from "../services/localIdentity";
 import { config } from "../config/env";
 import { rateLimit } from "express-rate-limit";
 
 const router = Router();
-const localOtpInbox = new LocalOtpInbox();
 const localRateLimitHandler = (_req: Request, res: Response): void => {
   res.status(429).json({ error: "Too many authentication attempts. Please try again later." });
 };
@@ -26,27 +26,27 @@ router.post("/local/start", localStartLimiter, asyncHandler(async (req, res): Pr
   const employeeId = typeof req.body?.employeeId === "string" ? req.body.employeeId.trim() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   if (!/^\d+$/.test(employeeId) || !password) { res.status(400).json({ error: "Employee ID and password are required" }); return; }
-  const user = await prisma.user.findUnique({ where: { id: toDbId(employeeId) }, select: { id: true, email: true, name: true, role: true, phoneNumber: true, passwordHash: true, localAuthEnabled: true, isActive: true } });
+  const user = await prisma.user.findUnique({ where: { id: toDbId(employeeId) }, select: { id: true, email: true, name: true, role: true, passwordHash: true, localAuthEnabled: true, isActive: true } });
   if (!user || !user.localAuthEnabled || !user.isActive || !user.passwordHash || !(await verifyLocalPassword(password, user.passwordHash))) { res.status(401).json({ error: "Invalid employee ID or password" }); return; }
-  if (!user.phoneNumber) { res.status(403).json({ error: "This account has no phone number configured" }); return; }
+  if (!user.email) { res.status(403).json({ error: "This account has no email configured" }); return; }
   const { code, expiresAt } = createOtp();
   const challengeId = randomBytes(24).toString("base64url");
   await prisma.localAuthChallenge.create({ data: { id: challengeId, userId: user.id, otpHash: createHash("sha256").update(code).digest("hex"), expiresAt } });
-  await prisma.localAuthEvent.create({ data: { userId: user.id, action: "otp_sent", metadata: { destinationLast4: user.phoneNumber.slice(-4) } } });
-  await localOtpInbox.send({ destination: user.phoneNumber, code, expiresAt, createdAt: new Date(), purpose: "login" });
-  res.status(202).json({ challengeId, expiresAt: expiresAt.toISOString(), phoneHint: `••••${user.phoneNumber.slice(-4)}` });
+  await prisma.localAuthEvent.create({ data: { userId: user.id, action: "otp_sent", metadata: { destinationLast4: user.email.slice(-4) } } });
+  await sendEmailApi({ toEmail: user.email, emailSubject: "GHE employee sign-in verification code", emailBody: `Your GHE verification code is ${code}. It expires at ${expiresAt.toISOString()}.` });
+  res.status(202).json({ challengeId, expiresAt: expiresAt.toISOString(), emailHint: `••••${user.email.slice(-4)}` });
 }));
 
 router.post("/local/forgot-password", localStartLimiter, asyncHandler(async (req, res): Promise<void> => {
   if (!config.localAuth.enabled) { res.status(404).json({ error: "Not found" }); return; }
   const employeeId = typeof req.body?.employeeId === "string" ? req.body.employeeId.trim() : "";
   const challengeId = randomBytes(24).toString("base64url");
-  const user = /^\d+$/.test(employeeId) ? await prisma.user.findUnique({ where: { id: toDbId(employeeId) }, select: { id: true, phoneNumber: true, localAuthEnabled: true, isActive: true } }) : null;
-  if (user?.localAuthEnabled && user.isActive && user.phoneNumber) {
+  const user = /^\d+$/.test(employeeId) ? await prisma.user.findUnique({ where: { id: toDbId(employeeId) }, select: { id: true, email: true, localAuthEnabled: true, isActive: true } }) : null;
+  if (user?.localAuthEnabled && user.isActive && user.email) {
     const { code, expiresAt } = createOtp();
     await prisma.localAuthChallenge.create({ data: { id: challengeId, userId: user.id, purpose: "password_reset", otpHash: createHash("sha256").update(code).digest("hex"), expiresAt } });
-    await prisma.localAuthEvent.create({ data: { userId: user.id, action: "password_reset_otp_sent", metadata: { destinationLast4: user.phoneNumber.slice(-4) } } });
-    await localOtpInbox.send({ destination: user.phoneNumber, code, expiresAt, createdAt: new Date(), purpose: "password_reset" });
+    await prisma.localAuthEvent.create({ data: { userId: user.id, action: "password_reset_otp_sent", metadata: { destinationLast4: user.email.slice(-4) } } });
+    await sendEmailApi({ toEmail: user.email, emailSubject: "GHE password reset verification code", emailBody: `Your GHE password reset code is ${code}. It expires at ${expiresAt.toISOString()}.` });
   }
   res.status(202).json({ message: "If the employee account is eligible, a verification code has been sent.", challengeId });
 }));
@@ -101,11 +101,6 @@ router.post("/local/enroll", localVerifyLimiter, asyncHandler(async (req, res): 
   resetLocalAuthLimits(req);
   res.json({ accessToken: await signLocalAccessToken({ subject: user.id.toString(), email: user.email, name: user.name, role: user.role }) });
 }));
-
-router.get("/local/inbox", (_req, res) => {
-  if (!config.localAuth.enabled) { res.status(404).json({ error: "Not found" }); return; }
-  res.json(localOtpInbox.messages.map((message) => ({ ...message, createdAt: message.createdAt?.toISOString(), expiresAt: message.expiresAt.toISOString(), expiresAtLocal: message.expiresAt.toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", hour12: false }), destinationLast4: message.destination.slice(-4), code: message.code })));
-});
 
 router.get("/me", authenticateAndSyncStaff, asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
   const user = await prisma.user.findUnique({

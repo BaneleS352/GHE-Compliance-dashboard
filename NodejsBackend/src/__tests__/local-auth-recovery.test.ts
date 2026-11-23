@@ -1,19 +1,23 @@
 import request from "supertest";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { buildApp } from "./helpers";
 import { prisma } from "../config/prisma";
 import { hashLocalPassword } from "../services/localAuth";
 
 describe("local password recovery", () => {
   const app = buildApp();
+  let emailBody = "";
 
   beforeAll(async () => {
+    vi.stubGlobal("fetch", vi.fn(async (_input: string | URL, init?: RequestInit) => {
+      emailBody = String(init?.body ?? "");
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+    }));
     await prisma.user.update({
       where: { id: 1n },
       data: {
         localAuthEnabled: true,
         isActive: true,
-        phoneNumber: "+15550000001",
         passwordHash: await hashLocalPassword("RecoveryTestPassword!2026"),
         passwordEnrollmentRequired: false,
       },
@@ -32,18 +36,18 @@ describe("local password recovery", () => {
 
   it("accepts the captured OTP once and returns a local session after reset", async () => {
     const started = await request(app).post("/api/auth/local/forgot-password").send({ employeeId: "1" });
-    const inbox = await request(app).get("/api/auth/local/inbox");
-    const message = inbox.body[inbox.body.length - 1];
+    const message = JSON.parse(emailBody) as { emailBody: string };
+    const code = message.emailBody.match(/code is (\d{6})/)?.[1] ?? "";
     const completed = await request(app).post("/api/auth/local/forgot-password/verify").send({
       challengeId: started.body.challengeId,
-      code: message.code,
+      code,
       newPassword: "RecoveryResetPassword!2026",
     });
     expect(completed.status).toBe(200);
     expect(typeof completed.body.accessToken).toBe("string");
     const replay = await request(app).post("/api/auth/local/forgot-password/verify").send({
       challengeId: started.body.challengeId,
-      code: message.code,
+      code,
       newPassword: "RecoveryResetPassword!2026",
     });
     expect(replay.status).toBe(401);

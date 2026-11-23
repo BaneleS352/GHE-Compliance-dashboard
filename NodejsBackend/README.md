@@ -46,6 +46,7 @@ Explore and test all endpoints interactively.
 | `npm run attachments:migrate-local-to-azurite` | One-time copy of historical local uploads; preserves source files |
 | `npm run email:verify-db` | Read-only check of the email procedure and outbox schema |
 | `npm run email:verify-smtp` | Check SMTP connectivity without sending a message |
+| `npm run email:verify-api` | Validate or test the internal `EMAIL_API` HTTP contract; dry-run by default |
 | `npm run email:worker` | Run the separate PostgreSQL outbox delivery worker |
 | `npm run staff:inspect` | Inspect the HIS staff API response without printing credentials |
 
@@ -54,29 +55,25 @@ Explore and test all endpoints interactively.
 Use `NodejsBackend/.env.example` as the backend configuration template. The
 root `.env.example` is a separate template for Docker Compose. The backend
 requires PostgreSQL and an explicit Azurite connection string; provider
-settings, local development identity, optional HIS sync, and SMTP outbox
+settings, local development identity, optional HIS sync, and email API outbox
 settings are documented in [`docs/SETUP.md`](../docs/SETUP.md). For a local
 stack, follow the Quick Start above so both PostgreSQL and Azurite are running.
 
 The separate `docker-compose.local-auth.yml` overlay is development-only. Run
 it with the existing stub identity overlay (`docker-compose.yml`,
 `docker-compose.stub.yml`, and `docker-compose.local-auth.yml`). It
-enables seeded employee-ID credentials, PostgreSQL-backed OTP challenges, and
-the local SMS inbox at `GET /api/auth/local/inbox`; never enable it in
+enables seeded employee-ID credentials and PostgreSQL-backed OTP challenges delivered through `EMAIL_API`; never enable it in
 production. With the `email` Compose profile, Mailpit captures email at
 `http://localhost:8025`. Its seeded password is for local testing only and is
 accepted only when `LOCAL_AUTH_ENABLED=true` is explicitly set.
 
-Docker-free option: copy the values from `.env.local-auth.example` into the
-backend `.env`, copy the frontend example into `.env.local`, run
-`npm run email:emulator` in one backend terminal, then run the normal backend
-and frontend dev commands. The SMS inbox remains available at
-`/api/auth/local/inbox`.
-The root `dev-local-auth.bat` launcher starts the same Docker-free flow,
-including the local SMTP emulator.
+Docker-free option: set `LOCAL_AUTH_ENABLED=true` and `EMAIL_API` in the
+backend `.env`, set the matching frontend flag in `.env.local`, then run the
+normal backend and frontend dev commands. Configure a registered company or
+personal email on each local employee account before testing.
 
-Forgotten local passwords use the registered phone number only. If an employee
-cannot access that number, self-service recovery is intentionally unavailable;
+Forgotten local passwords use the registered email address only. If an employee
+cannot access that address, self-service recovery is intentionally unavailable;
 an authorized administrator or HR operator must verify the employee through
 the organization’s separate support process and perform the approved account
 recovery action. The application never accepts a replacement phone number

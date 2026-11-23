@@ -5,26 +5,6 @@ const scrypt = promisify(nodeScrypt);
 const PASSWORD_KEY_LENGTH = 64;
 const OTP_TTL_MS = 5 * 60 * 1000;
 
-export interface OtpMessage {
-  destination: string;
-  code: string;
-  expiresAt: Date;
-  createdAt?: Date;
-  purpose?: "login" | "password_reset";
-}
-
-export interface OtpTransport {
-  send(message: OtpMessage): Promise<void>;
-}
-
-export class LocalOtpInbox implements OtpTransport {
-  readonly messages: OtpMessage[] = [];
-
-  async send(message: OtpMessage): Promise<void> {
-    this.messages.push(message);
-  }
-}
-
 export async function hashLocalPassword(password: string): Promise<string> {
   if (password.length < 12 || password.length > 128) throw new Error("Password must be between 12 and 128 characters");
   const salt = randomBytes(16);

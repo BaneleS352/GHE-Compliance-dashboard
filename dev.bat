@@ -93,7 +93,6 @@ echo Azurite attachment storage is ready.
 
 echo.
 echo [4/6] Checking PostgreSQL and preparing the database...
-cd NodejsBackend
 set "NODE_ENV=development"
 call npm run db:pg:up
 if errorlevel 1 (
