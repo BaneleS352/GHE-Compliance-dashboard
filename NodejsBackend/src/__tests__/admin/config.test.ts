@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
-import { buildApp, getAdminToken, getTeamToken } from "../helpers";
+import { buildApp, configRestorePayload, getAdminToken, getTeamToken } from "../helpers";
 
 const app = buildApp();
 
@@ -49,10 +49,11 @@ describe("Admin Config", () => {
     } finally {
       // This suite shares the integration database with the other Vitest
       // files, so restore routing thresholds even if an assertion fails.
-      await request(app)
+      const restore = await request(app)
         .put("/api/admin/config")
         .set("Authorization", `Bearer ${getAdminToken()}`)
-        .send(original.body);
+        .send(configRestorePayload(original.body));
+      expect(restore.status).toBe(200);
     }
   });
 

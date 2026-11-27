@@ -58,8 +58,12 @@ here for remaining coverage work.
 - **Phase 3 backend regressions:** real blob cleanup, competing workers, retry
   exhaustion, evidence/lifecycle races, cross-organization timeline/report
   isolation, 501-row pagination, and 5,000/5,001 export boundaries are covered.
+- **Controlled email worker:** the real worker process is spawned against a
+  local HTTP provider to verify delivery, provider-failure retry with a worker
+  restart, and dead-lettering after the bounded attempt count. HTTP provider
+  failures now retain their status code (`EMAIL_API_HTTP_503`) in the outbox.
 - **Verification:** Playwright **55/55**, frontend Vitest **306/306**, backend
-  Vitest **532/532**, PostgreSQL integration **117/117**, and clean smoke
+  Vitest **535/535**, PostgreSQL integration **117/117**, and clean smoke
   **22/22** passed. Frontend/backend TypeScript and production builds passed.
 
 ### Remaining external acceptance and accepted local limitations
@@ -69,9 +73,11 @@ here for remaining coverage work.
   behavior still needs the stub stack or staging environment.
 - Real Entra authorization-code/PKCE, returning login, provider logout, Graph
   consent, and HIS synchronization require a configured staging tenant.
-- Live email-provider delivery, worker restart, TLS credential handling, and
-  dead-letter operations require a controlled staging mail service. Local OTP
-  delivery is verified through the test capture server.
+- Live email-provider delivery against the production provider, TLS credential
+  handling, and operational dead-letter recovery still require a controlled
+  staging mail service. Worker delivery, retry after restart, and bounded
+  dead-lettering are covered locally through a real worker process and a local
+  HTTP provider; local OTP delivery uses the test capture server.
 - Complete screen-reader acceptance remains a manual/staging activity; automated
   keyboard, label, ARIA, focus, and dialog coverage is in place.
 - Production telemetry collection, retention, and cleanup alerting require an
@@ -193,6 +199,8 @@ Add backend integration coverage for:
 - Cross-organization workflow-timeline denial.
 - Cross-organization status, counterparty, and high-value report isolation.
 - Report pagination beyond the 500-row fetch batch and export row limits.
+- The real email worker process delivering through a local HTTP provider,
+  retrying after a worker restart, and dead-lettering at the attempt limit.
 
 **Exit criteria:** races leave no post-submission evidence mutation, orphaned
 metadata/blob, or cross-organization data leakage; cleanup is idempotent and
@@ -208,7 +216,9 @@ Complete evidence for:
 - Production-built browser journeys through Nginx, including SPA assets,
   same-origin `/api` proxying, baked identity configuration, and Azurite access.
 - Protected-export sidecars running inside the backend deployment image.
-- Live or controlled email delivery, OTP delivery, worker retry, and restart.
+- Live email-provider delivery against the production provider and TLS
+  credential handling. The real worker process, retry after restart, and
+  bounded dead-lettering are verified locally against a local HTTP provider.
 - Keyboard and screen-reader acceptance for the complete declaration, upload,
   dynamic-error, dialog, and mobile flows.
 - Client telemetry collector/redaction/retention configuration and cleanup
@@ -231,7 +241,7 @@ presented as staging proof.
 | Reports/dashboard | Filters, totals, badge/list parity | Organization isolation, batch/scale boundaries | UI values reconciled with API data |
 | Mobile | Critical declaration and approval outcomes | Shared API contracts | Mobile project completion, not desktop skips |
 | Accessibility | Full keyboard and assistive-technology journeys | Labels, ARIA, focus, announcements | Browser/manual acceptance record |
-| Operations | Failure recovery and retry feedback | Email/storage workers, telemetry, alerting | Controlled staging or deployment exercise |
+| Operations | Failure recovery and retry feedback | Email/storage workers, telemetry, alerting | Local worker-process tests; staging/deployment exercise for telemetry and alerting |
 
 ## Verification Commands
 
@@ -324,7 +334,7 @@ This goal is complete when:
 
 1. Run the Docker stub stack and production-built Nginx browser acceptance when
    Docker Desktop is available.
-2. Schedule staging Entra/Graph/HIS, controlled email-worker, and manual
+2. Schedule staging Entra/Graph/HIS, live email-provider/TLS delivery, and manual
    screen-reader acceptance with the release owner.
 3. Approve a telemetry collector/retention policy and cleanup alert routing.
 4. Resolve or explicitly accept the remaining backend development-dependency

@@ -1007,7 +1007,7 @@ describe("Config threshold change effect", () => {
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(inst.body.steps).toHaveLength(2);
 
-    await request(app)
+    const restore = await request(app)
       .put("/api/admin/config")
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({
@@ -1017,6 +1017,7 @@ describe("Config threshold change effect", () => {
         maxDeclarationsPerCounterparty,
         emailTemplate,
       });
+    expect(restore.status).toBe(200);
   });
 });
 

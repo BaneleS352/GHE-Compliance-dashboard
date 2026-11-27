@@ -1,7 +1,7 @@
 import { describe, it, expect, afterAll, beforeEach } from "vitest";
 import request from "supertest";
 import { PrismaClient } from "@prisma/client";
-import { buildApp, getAdminToken, getApproverToken, getTeamToken } from "./helpers";
+import { buildApp, configRestorePayload, getAdminToken, getApproverToken, getTeamToken } from "./helpers";
 
 const prisma = new PrismaClient();
 
@@ -174,10 +174,12 @@ describe("Admin config CRUD", () => {
     expect(reread.body.highValueThreshold).toBe(9999);
     expect(reread.body.mediumValueThreshold).toBe(111);
 
-    await request(app)
+    const restore = await request(app)
       .put("/api/admin/config")
       .set("Authorization", `Bearer ${getAdminToken()}`)
-      .send(orig.body);
+      .send(configRestorePayload(orig.body));
+    expect(restore.status).toBe(200);
+    expect(restore.body.highValueThreshold).toBe(orig.body.highValueThreshold);
   });
 
   it("GET /api/admin/config/dropdowns — returns parsed dropdown data", async () => {

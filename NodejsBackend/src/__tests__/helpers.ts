@@ -64,6 +64,36 @@ export {
   testToken,
 } from "./testAuth";
 
+export interface SystemConfigResponse {
+  highValueThreshold: number;
+  mediumValueThreshold: number;
+  slaEscalationDays: number;
+  maxDeclarationsPerCounterparty: number;
+  maximumValue: number;
+  emailTemplate: string;
+  notificationTemplates?: string;
+}
+
+/**
+ * Build a PUT body that restores a previously read admin config.
+ *
+ * `notificationTemplates` is deliberately omitted: the seeded value is the
+ * legacy `"{}"` string, which the strict PUT validator rejects. Echoing it
+ * back makes the restore fail silently, leaving the test's temporary
+ * thresholds in the shared database and changing workflow routing for later
+ * suites. Omitting an optional field preserves the stored value.
+ */
+export function configRestorePayload(config: SystemConfigResponse): Omit<SystemConfigResponse, "notificationTemplates"> {
+  return {
+    highValueThreshold: config.highValueThreshold,
+    mediumValueThreshold: config.mediumValueThreshold,
+    slaEscalationDays: config.slaEscalationDays,
+    maxDeclarationsPerCounterparty: config.maxDeclarationsPerCounterparty,
+    maximumValue: config.maximumValue,
+    emailTemplate: config.emailTemplate,
+  };
+}
+
 /** Resolve the internal numeric key for a public GHE- declaration id. */
 export async function pkFor(publicId: string): Promise<bigint> {
   const { PrismaClient } = await import("@prisma/client");

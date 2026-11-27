@@ -19,7 +19,11 @@ export async function sendEmailApi(message: EmailApiMessage): Promise<string | u
       signal: controller.signal,
     });
     const text = await response.text();
-    if (!response.ok) throw new Error(`EMAIL_API_HTTP_${response.status}`);
+    if (!response.ok) {
+      const error = new Error(`EMAIL_API_HTTP_${response.status}`) as Error & { code: string };
+      error.code = `EMAIL_API_HTTP_${response.status}`;
+      throw error;
+    }
     try { const body = JSON.parse(text) as { messageId?: unknown }; return typeof body.messageId === "string" ? body.messageId : undefined; } catch { return undefined; }
   } finally { clearTimeout(timeout); }
 }
