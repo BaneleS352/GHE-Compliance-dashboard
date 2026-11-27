@@ -53,6 +53,11 @@ describe("local password recovery", () => {
     });
     expect(completed.status).toBe(200);
     expect(typeof completed.body.accessToken).toBe("string");
+    const session = await request(app)
+      .get("/api/auth/me")
+      .set("Authorization", `Bearer ${completed.body.accessToken}`);
+    expect(session.status).toBe(200);
+    expect(session.body).toMatchObject({ id: 1, email: "admin@test.com", role: "admin" });
     const replay = await request(app).post("/api/auth/local/forgot-password/verify").send({
       challengeId: started.body.challengeId,
       code,

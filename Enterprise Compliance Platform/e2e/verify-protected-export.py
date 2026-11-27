@@ -109,7 +109,8 @@ def verify_xlsx(path: Path, password: str, wrong_password: str) -> tuple[str, in
         office = encrypted_office()
         try:
             try:
-                office.decrypt(candidate, io.BytesIO())
+                office.load_key(password=candidate)
+                office.decrypt(io.BytesIO())
             except Exception:
                 continue
             raise VerificationError(f"XLSX opened with {label}")
@@ -120,7 +121,8 @@ def verify_xlsx(path: Path, password: str, wrong_password: str) -> tuple[str, in
     decrypted = io.BytesIO()
     try:
         try:
-            office.decrypt(password, decrypted)
+            office.load_key(password=password)
+            office.decrypt(decrypted)
         except Exception as exc:
             raise VerificationError("XLSX rejected the correct password") from exc
     finally:

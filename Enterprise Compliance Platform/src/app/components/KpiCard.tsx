@@ -37,6 +37,7 @@ function DecorPending() {
       aria-hidden="true"
       style={{
         position: "absolute",
+        pointerEvents: "none",
         right: 6,
         bottom: 0,
         width: 180,
@@ -66,7 +67,7 @@ function DecorPending() {
 
 function DecorApproved() {
   return (
-    <div className="art person" aria-hidden="true" style={{ position: "absolute", right: 6, bottom: 0, width: 130, height: 120, transform: "scale(clamp(.78, 5vw, 1))", transformOrigin: "bottom right" }}>
+    <div className="art person" aria-hidden="true" style={{ position: "absolute", pointerEvents: "none", right: 6, bottom: 0, width: 130, height: 120, transform: "scale(clamp(.78, 5vw, 1))", transformOrigin: "bottom right" }}>
       <div style={{ position: "absolute", top: 6, left: 42, width: 48, height: 48, borderRadius: "50%", background: "#A5D2B5" }} />
       <div style={{ position: "absolute", bottom: 8, left: 28, width: 72, height: 54, borderRadius: "40px 40px 0 0", background: "#A5D2B5" }} />
       <span
@@ -96,7 +97,7 @@ function DecorApproved() {
 
 function DecorDeclined() {
   return (
-    <div className="art person decline-person" aria-hidden="true" style={{ position: "absolute", right: 6, bottom: 0, width: 130, height: 120, transform: "scale(clamp(.78, 5vw, 1))", transformOrigin: "bottom right" }}>
+    <div className="art person decline-person" aria-hidden="true" style={{ position: "absolute", pointerEvents: "none", right: 6, bottom: 0, width: 130, height: 120, transform: "scale(clamp(.78, 5vw, 1))", transformOrigin: "bottom right" }}>
       <div style={{ position: "absolute", top: 6, left: 42, width: 48, height: 48, borderRadius: "50%", background: "#FF5757" }} />
       <div style={{ position: "absolute", bottom: 8, left: 28, width: 72, height: 54, borderRadius: "40px 40px 0 0", background: "#FF5757" }} />
       <span
@@ -129,7 +130,7 @@ function DecorDeclined() {
 
 function DecorReturned() {
   return (
-    <svg className="returned-arrows" viewBox="0 0 194 166" aria-hidden="true" style={{ position: "absolute", top: 4, right: 6, width: 138, height: 118, opacity: 0.62 }}>
+    <svg className="returned-arrows" viewBox="0 0 194 166" aria-hidden="true" style={{ position: "absolute", pointerEvents: "none", top: 4, right: 6, width: 138, height: 118, opacity: 0.62 }}>
       <path d="M16 91 C18 55 42 35 79 35 H104 V15 L147 50 L104 85 V66 H80 C52 66 30 77 16 91 Z" fill="none" stroke="#cbd4d7" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
       <path d="M178 79 C176 115 152 136 114 136 H89 V153 L47 116 L89 80 V98 H113 C141 98 164 87 178 79 Z" fill="none" stroke="#cbd4d7" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -203,7 +204,17 @@ export function KpiCard({
   return (
     <div
       id={uid}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? `Filter by ${label}` : undefined}
+      aria-pressed={onClick ? active : undefined}
       onClick={onClick}
+      onKeyDown={onClick ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          event.currentTarget.click();
+        }
+      } : undefined}
       className={`relative overflow-hidden select-none transition-all duration-300 ${onClick ? "cursor-pointer" : "cursor-default"} ${active ? "scale-[1.02] shadow-xl" : "hover:-translate-y-0.5 hover:shadow-lg"}`}
       style={{
         height: "clamp(108px, 8vw, 128px)",

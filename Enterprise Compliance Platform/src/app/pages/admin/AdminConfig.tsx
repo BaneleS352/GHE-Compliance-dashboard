@@ -195,26 +195,26 @@ export function AdminConfig() {
           <div className="space-y-4">
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-foreground">High Value Declaration Threshold (ZAR)</label>
-              <input type="number" value={config.highValueThreshold} onChange={(e) => setConfig({ ...config, highValueThreshold: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
+              <input aria-label="High Value Declaration Threshold (ZAR)" type="number" value={config.highValueThreshold} onChange={(e) => setConfig({ ...config, highValueThreshold: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
               <p className="mt-1 text-xs text-muted-foreground">Declarations at or above this value require HR approval. Affects new declarations’ workflow routing (LM → HR). Existing workflows are frozen.</p>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-foreground">Medium Priority Threshold (ZAR)</label>
-              <input type="number" min={0} max={config.highValueThreshold} step="0.01" value={config.mediumValueThreshold} onChange={(e) => setConfig({ ...config, mediumValueThreshold: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
+              <input aria-label="Medium Priority Threshold (ZAR)" type="number" min={0} max={config.highValueThreshold} step="0.01" value={config.mediumValueThreshold} onChange={(e) => setConfig({ ...config, mediumValueThreshold: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
               <p className="mt-1 text-xs text-muted-foreground">Values at or above this threshold and below the high-value threshold are labeled Medium. This must not exceed the high-value threshold; if both thresholds are equal, no Medium band exists.</p>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-foreground">Maximum Value (ZAR)</label>
-              <input type="number" value={config.maximumValue ?? 1000000} onChange={(e) => setConfig({ ...config, maximumValue: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
+              <input aria-label="Maximum Value (ZAR)" type="number" value={config.maximumValue ?? 1000000} onChange={(e) => setConfig({ ...config, maximumValue: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
               <p className="mt-1 text-xs text-muted-foreground">Declarations above this value are blocked. Shown as “Maximum value exceeded” in the New Declaration form.</p>
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-foreground">SLA Escalation Time (Days)</label>
-              <input type="number" value={config.slaEscalationDays} onChange={(e) => setConfig({ ...config, slaEscalationDays: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
+              <input aria-label="SLA Escalation Time (Days)" type="number" value={config.slaEscalationDays} onChange={(e) => setConfig({ ...config, slaEscalationDays: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-semibold text-foreground">Max Declarations per Counterparty (Annual)</label>
-              <input type="number" value={config.maxDeclarationsPerCounterparty} onChange={(e) => setConfig({ ...config, maxDeclarationsPerCounterparty: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
+              <input aria-label="Max Declarations per Counterparty (Annual)" type="number" value={config.maxDeclarationsPerCounterparty} onChange={(e) => setConfig({ ...config, maxDeclarationsPerCounterparty: Number(e.target.value) })} className="h-11 w-full rounded-xl border border-border bg-white/90 px-4 transition-all focus:border-purple-300 focus:outline-none focus:ring-4 focus:ring-purple-500/10" />
             </div>
           </div>
         </Card>

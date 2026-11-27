@@ -212,22 +212,22 @@ export function AdminReports() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <div>
             <label className="mb-1 block text-xs font-semibold text-muted-foreground">Start Date</label>
-            <input type="date" className="table-filter-input" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <input aria-label="Start Date" type="date" className="table-filter-input" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-muted-foreground">End Date</label>
-            <input type="date" className="table-filter-input" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <input aria-label="End Date" type="date" className="table-filter-input" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-muted-foreground">Department</label>
-            <select className="table-filter-select" value={department} onChange={(e) => setDepartment(e.target.value)}>
+            <select aria-label="Department" className="table-filter-select" value={department} onChange={(e) => setDepartment(e.target.value)}>
               <option>All Departments</option>
               {departments.map((d) => <option key={d}>{d}</option>)}
             </select>
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-muted-foreground">Status</label>
-            <select className="table-filter-select" value={status} onChange={(e) => setStatus(e.target.value)}>
+            <select aria-label="Status" className="table-filter-select" value={status} onChange={(e) => setStatus(e.target.value)}>
               <option>All Statuses</option>
               <option>Draft</option>
               <option>Pending</option>

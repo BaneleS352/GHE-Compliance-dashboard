@@ -111,6 +111,7 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
       if (!dbUser || !dbUser.isActive) { res.status(403).json({ error: "Local account is not provisioned or is disabled" }); return; }
       req.user = { id: toJsonId(dbUser.id), email: dbUser.email, role: dbUser.role, name: dbUser.name, department: dbUser.departmentRef?.name ?? undefined, position: dbUser.position ?? undefined, organizationId: dbUser.organizationId === null ? null : toJsonId(dbUser.organizationId) };
       next();
+      return;
     } catch {
       // Local auth is additive in development: an Entra/test-provider token
       // must continue through the normal provider validation below.

@@ -118,7 +118,7 @@ export class NewDeclarationPage {
   }
 
   /** Fill the common, valid low-value gift path without submitting it. */
-  async completeLowValueGift(counterparty: string, description: string) {
+  async completeLowValueGift(counterparty: string, description: string, value = "100") {
     await this.receivedGiven("Received");
     await this.select("Who did you receive a Gift", "Supplier");
     await this.fill("Name of the Supplier", counterparty);
@@ -130,7 +130,7 @@ export class NewDeclarationPage {
     await this.fill("Please describe the nature", description);
     await this.select("Reason/Occasion for the GHE", "Business Meeting");
     await this.date("2026-01-15");
-    await this.number("Rand Value or Equivalent", "100");
+    await this.number("Rand Value or Equivalent", value);
   }
 
   async autoFilled(teamMember: string, manager: string) {

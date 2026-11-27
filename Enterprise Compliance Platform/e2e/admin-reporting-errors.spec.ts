@@ -92,16 +92,15 @@ async function deleteFixtureIfPresent(page: Page, path: string, token: string): 
   expect([200, 404], `${path} cleanup returned ${result.status}: ${JSON.stringify(result.body)}`).toContain(result.status);
 }
 
-async function createGiftDeclaration(page: Page, counterparty: string, value: number, date = "2026-07-15"): Promise<string> {
+async function createGiftDeclaration(page: Page, counterparty: string, value: number, date = "2026-07-15", substantiationRequired = value >= 1000): Promise<string> {
   const app = new AppPage(page);
   const declaration = new NewDeclarationPage(page);
   await app.login(USERS.nomvula.email);
   await app.sidebar("New Declaration");
   await declaration.autoFilled(USERS.nomvula.name, USERS.sipho.name);
-  await declaration.completeLowValueGift(counterparty, `Automated declaration for ${counterparty}`);
+  await declaration.completeLowValueGift(counterparty, `Automated declaration for ${counterparty}`, String(value));
   await declaration.date(date);
-  await declaration.number("Rand Value or Equivalent", String(value));
-  await declaration.substantiation(`Supporting business rationale for ${counterparty}`);
+  if (substantiationRequired) await declaration.substantiation(`Supporting business rationale for ${counterparty}`);
   await declaration.submit();
   const id = await declaration.getId();
   expect(id).toMatch(/^GHE-/);
@@ -161,11 +160,12 @@ test.describe("Phase 2 desktop journey breadth", () => {
       expect(configPuts).toBe(1);
 
       await page.reload({ waitUntil: "domcontentloaded" });
+      await app.sidebar("Config");
       await expect(highValue).toHaveValue("500");
       await expect(mediumValue).toHaveValue("100");
 
       const counterparty = uniqueFixture("E2E Threshold Supplies");
-      const declarationId = await createGiftDeclaration(page, counterparty, 750);
+      const declarationId = await createGiftDeclaration(page, counterparty, 750, "2026-07-15", true);
       const workflow = await apiGet<WorkflowInstanceResponse>(page, `/api/workflows/instances/${declarationId}`);
       expect(workflow.steps.map((step) => step.role)).toEqual(["lineManager", "hr"]);
 
@@ -358,20 +358,20 @@ test.describe("Phase 2 desktop journey breadth", () => {
 
       let row = page.getByRole("table").getByRole("row").filter({ hasText: optionLabel });
       await row.getByRole("button", { name: `Edit ${optionLabel}`, exact: true }).click();
-      await row.getByLabel("Approval option value", { exact: true }).fill("return");
-      await row.getByLabel("Approval option label", { exact: true }).fill(updatedLabel);
-      await row.getByRole("button", { name: "Save", exact: true }).click();
+      await page.getByRole("textbox", { name: "Approval option value", exact: true }).first().fill("return");
+      await page.getByRole("textbox", { name: "Approval option label", exact: true }).first().fill(updatedLabel);
+      await page.getByRole("button", { name: "Save", exact: true }).first().click();
       await expect(page.getByText("Approval option updated.", { exact: true }).first()).toBeVisible();
       expect(updateUrls).toEqual([`/api/admin/config/approval-options/${optionId}`]);
 
       row = page.getByRole("table").getByRole("row").filter({ hasText: updatedLabel });
       await row.getByRole("button", { name: `Edit ${updatedLabel}`, exact: true }).click();
-      await row.getByLabel("Approval option label", { exact: true }).fill("");
-      await row.getByRole("button", { name: "Save", exact: true }).click();
+      await page.getByRole("textbox", { name: "Approval option label", exact: true }).first().fill("");
+      await page.getByRole("button", { name: "Save", exact: true }).first().click();
       await expect(page.locator("main").getByRole("alert").filter({ hasText: "Value and label are required." })).toHaveText("Value and label are required.");
       expect(updateUrls).toHaveLength(1);
-      await row.getByLabel("Approval option label", { exact: true }).fill(updatedLabel);
-      await row.getByRole("button", { name: "Save", exact: true }).click();
+      await page.getByRole("textbox", { name: "Approval option label", exact: true }).first().fill(updatedLabel);
+      await page.getByRole("button", { name: "Save", exact: true }).first().click();
       await expect(page.getByText("Approval option updated.", { exact: true }).first()).toBeVisible();
 
       const persisted = await apiGet<ApprovalOption[]>(page, "/api/admin/config/approval-options");
@@ -399,7 +399,8 @@ test.describe("Phase 2 desktop journey breadth", () => {
     await app.sidebar("Dashboard");
     for (const status of ["Pending", "Approved", "Returned", "Declined"]) {
       const declarations = await apiGet<Array<{ status: string }>>(page, `/api/declarations?status=${status}`);
-      await page.getByText(status, { exact: false }).first().click();
+      const cardLabel = status === "Pending" ? "Pending Queue" : status;
+      await page.getByRole("button", { name: `Filter by ${cardLabel}`, exact: true }).click();
       await expect(page.locator("p").filter({ hasText: "Total Declarations" })).toHaveText(
         new RegExp(`^${declarations.length}\\s+Total Declarations$`),
       );
@@ -407,7 +408,7 @@ test.describe("Phase 2 desktop journey breadth", () => {
 
     const initialQueue = await apiGet<QueueResponse>(page, "/api/workflows/queue");
     const queueButton = page.locator("main").getByRole("button", { name: /Approval Queue/ });
-    await expect(queueButton).toHaveText(new RegExp(`Approval Queue\\s+${initialQueue.total}$`));
+    await expect(queueButton).toHaveText(new RegExp(`Approval Queue\\s*${initialQueue.total}$`));
     await queueButton.click();
     await expect(page.getByText(/actionable approvals awaiting your review/)).toHaveText(
       `${initialQueue.total} actionable approvals awaiting your review`,
@@ -424,7 +425,7 @@ test.describe("Phase 2 desktop journey breadth", () => {
     const remainingQueue = await apiGet<QueueResponse>(page, "/api/workflows/queue");
     expect(remainingQueue.total).toBe(initialQueue.total - 1);
     await expect(page.locator("main").getByRole("button", { name: /Approval Queue/ })).toHaveText(
-      new RegExp(`Approval Queue\\s+${remainingQueue.total}$`),
+      new RegExp(`Approval Queue\\s*${remainingQueue.total}$`),
     );
     await page.locator("main").getByRole("button", { name: /Approval Queue/ }).click();
     await app.search(declarationId);
@@ -565,7 +566,7 @@ test.describe("Phase 2 desktop journey breadth", () => {
     const navigation = page.locator("aside nav:visible");
     await expect(navigation.getByRole("button", { name: "Users", exact: true })).toHaveCount(0);
     await page.goto("/admin-users", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: "My Declarations", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New Declaration", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "User Management", exact: true })).toHaveCount(0);
     const forbidden = await apiRequest<{ error: string }>(page, "/api/admin/users");
     expect(forbidden.status).toBe(403);
@@ -589,6 +590,6 @@ test.describe("Phase 2 desktop journey breadth", () => {
     const developerTesting = page.getByRole("region", { name: "Developer testing" });
     await developerTesting.getByRole("combobox").selectOption(USERS.nomvula.email);
     await developerTesting.getByRole("button", { name: "Quick login", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "My Declarations", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "New Declaration", exact: true })).toBeVisible();
   });
 });

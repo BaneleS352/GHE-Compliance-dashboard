@@ -341,7 +341,7 @@ test.describe("Protected exports — desktop", () => {
       successMessage: "Protected Excel export downloaded.",
     });
 
-    const exportedIds = summary.text.match(/\bGHE-\d{4}-(?:\d{5,6}|[0-9a-f]{8})\b/g) ?? [];
+    const exportedIds = summary.text.match(/\bGHE-\d{4}-(?:\d{4,6}|[0-9a-f]{8})\b/g) ?? [];
     expect(exportedIds).toHaveLength(expectedCount);
     expect(new Set(exportedIds).size).toBe(expectedCount);
   });
