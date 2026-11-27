@@ -12,6 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AZURITE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+      TEST_PG_DATABASE_URL: postgresql://ghe_user:ghe_password@localhost:5432/ghe_ci?schema=public
+      SMOKE_PG_DATABASE_URL: postgresql://ghe_user:ghe_password@localhost:5432/ghe_smoke?schema=public
+      POSTGRES_MAINTENANCE_URL: postgresql://ghe_user:ghe_password@localhost:5432/postgres
     services:
       postgres:
         image: postgres:16-alpine
@@ -47,15 +50,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Create empty PostgreSQL smoke database
+        run: psql "$POSTGRES_MAINTENANCE_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE ghe_smoke;'
+
+      - name: Verify smoke database is empty
+        run: |
+          table_count=$(psql "$POSTGRES_MAINTENANCE_URL" -d ghe_smoke -Atqc "SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname = 'public';")
+          test "$table_count" = "0"
+
       - name: Run PostgreSQL integration checks
         run: npm run pg:test
-        env:
-          TEST_PG_DATABASE_URL: postgresql://ghe_user:ghe_password@localhost:5432/ghe_ci?schema=public
 
       - name: Run backend build
         run: npm run build
 
       - name: Run PostgreSQL smoke checks
         run: npm run pg:smoke
-        env:
-          SMOKE_PG_DATABASE_URL: postgresql://ghe_user:ghe_password@localhost:5432/ghe_ci?schema=public

@@ -82,7 +82,11 @@ export function createApp(): express.Express {
   });
 
   app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error(JSON.stringify({ event: "http_error", requestId: requestIdFor(res), errorName: safeErrorName(err) }));
+    console.error(JSON.stringify({
+      event: "http_error",
+      requestId: requestIdFor(res),
+      ...(process.env.NODE_ENV === "production" ? { errorName: safeErrorName(err) } : safeErrorDetails(err)),
+    }));
     res.status(500).json({ error: "Internal server error" });
   });
 

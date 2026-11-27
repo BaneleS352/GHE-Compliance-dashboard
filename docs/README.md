@@ -14,6 +14,7 @@ The current declaration UI presents Team Member Details in this order: Team Memb
 | [DEPLOY.md](DEPLOY.md) | Docker deployment and production checklist |
 | [CI-CD.md](CI-CD.md) | CI gates, Docker smoke coverage, and CD limitations |
 | [DATABASE-NORMALIZATION-GOAL.md](DATABASE-NORMALIZATION-GOAL.md) | Authoritative schema, migration, and data-integrity plan |
+| [TEST-COVERAGE-GOAL.md](TEST-COVERAGE-GOAL.md) | Authoritative test coverage backlog, acceptance gates, and release evidence requirements |
 | [IDENTITY-CONTRACT.md](IDENTITY-CONTRACT.md) | Authoritative OpenID/Entra identity contract |
 
 Additional package notes are in `NodejsBackend/docs/` and `Enterprise Compliance Platform/docs/`.

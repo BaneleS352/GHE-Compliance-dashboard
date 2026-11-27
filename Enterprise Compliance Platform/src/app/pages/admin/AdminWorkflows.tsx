@@ -34,6 +34,7 @@ export function AdminWorkflows() {
   }, []);
 
   const handleAdd = async () => {
+    setError(null);
     try {
       const newRule: WorkflowRule = {
         id: 0,
@@ -53,11 +54,13 @@ export function AdminWorkflows() {
   };
 
   const handleEditClick = (rule: WorkflowRule) => {
+    setError(null);
     setEditingId(rule.id);
     setEditName(rule.name);
   };
 
   const handleSaveEdit = async (id: number) => {
+    setError(null);
     try {
       await updateWorkflowRule(id, { name: editName });
       setEditingId(null);
@@ -71,6 +74,7 @@ export function AdminWorkflows() {
   };
 
   const handleDelete = async (id: number) => {
+    setError(null);
     try {
       await deleteWorkflowRule(id);
       setDeletingId(null);
@@ -115,14 +119,14 @@ export function AdminWorkflows() {
             return !steps.some((s) => String(s.role) === "ceo" || s.label?.toLowerCase().includes("ceo"));
           })
           .map((rule) => (
-          <Card key={rule.id} className="group flex flex-col justify-between gap-4 border-white/70 bg-white/80 p-5 card-shadow transition-all md:flex-row md:items-center">
+          <Card role="region" aria-label={rule.name} key={rule.id} className="group flex flex-col justify-between gap-4 border-white/70 bg-white/80 p-5 card-shadow transition-all md:flex-row md:items-center">
             <div className="flex flex-1 gap-4">
               <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-secondary shadow-sm transition-transform group-hover:scale-105 group-hover:bg-purple-100">
                 <Workflow size={18} style={{ color: PURPLE }} />
               </div>
               <div className="flex-1">
                 {editingId === rule.id ? (
-                  <input value={editName} onChange={(e) => setEditName(e.target.value)} className="text-base font-bold rounded border px-2 py-1 w-full mb-2" />
+                  <input aria-label="Workflow rule name" value={editName} onChange={(e) => setEditName(e.target.value)} className="text-base font-bold rounded border px-2 py-1 w-full mb-2" />
                 ) : (
                   <h3 className="text-base font-bold text-foreground">{rule.name}</h3>
                 )}
@@ -145,18 +149,18 @@ export function AdminWorkflows() {
                   Save
                 </button>
               ) : (
-                <button onClick={() => handleEditClick(rule)} className="flex h-9 items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold shadow-sm hover:-translate-y-0.5 hover:border-purple-200 hover:bg-purple-50 hover:text-purple-700">
+                <button aria-label={`Edit ${rule.name}`} onClick={() => handleEditClick(rule)} className="flex h-9 items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold shadow-sm hover:-translate-y-0.5 hover:border-purple-200 hover:bg-purple-50 hover:text-purple-700">
                   <Edit size={13} /> Edit
                 </button>
               )}
-              <button onClick={() => setDeletingId(rule.id)} className="flex h-9 items-center justify-center gap-1 rounded-xl border border-red-100 bg-red-50 px-3 text-xs font-semibold text-red-600 hover:-translate-y-0.5 hover:bg-red-100">
+              <button aria-label={`Delete ${rule.name}`} onClick={() => setDeletingId(rule.id)} className="flex h-9 items-center justify-center gap-1 rounded-xl border border-red-100 bg-red-50 px-3 text-xs font-semibold text-red-600 hover:-translate-y-0.5 hover:bg-red-100">
                 <Trash2 size={13} /> Delete
               </button>
             </div>
           </Card>
         ))}
       </div>
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
       {deletingId !== null && (
         <ConfirmDialog
           title="Delete workflow rule"

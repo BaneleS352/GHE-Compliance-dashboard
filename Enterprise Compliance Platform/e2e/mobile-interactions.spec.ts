@@ -58,4 +58,54 @@ test.describe("Mobile interactions", () => {
     await declaration.waitForDraftDescription(description);
     await expect(declaration.page.getByLabel("Name of the Supplier, Customer, Team Member or Public Official", { exact: true })).toHaveValue(counterparty);
   });
+
+  test("mobile declaration can be submitted, returned, resubmitted, and approved", async ({ page }) => {
+    const declaration = new NewDeclarationPage(page);
+    const counterparty = uniqueFixture("E2E Mobile Lifecycle Supplies");
+    const description = `Mobile return and approval lifecycle for ${counterparty}`;
+
+    await login(page, USERS.nomvula.email);
+    await declaration.open();
+    await declaration.autoFilled(USERS.nomvula.name, USERS.sipho.name);
+    await declaration.completeLowValueGift(counterparty, description);
+    await declaration.submit();
+    const declarationId = await declaration.getId();
+    expect(declarationId).toMatch(/^GHE-/);
+    await declaration.closeModal();
+
+    await login(page, USERS.sipho.email);
+    await page.getByRole("button", { name: "Approval Queue", exact: true }).first().click();
+    await page.getByPlaceholder("ID, Employee or Counterparty", { exact: true }).fill(declarationId);
+    await page.locator("main").getByRole("button", { name: "Review", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Approval Workflow", exact: true })).toBeVisible();
+    await page.getByText("Return - Team member to provide additional information.", { exact: true }).click();
+    await page.getByRole("button", { name: "Submit Decision", exact: true }).click();
+    await expect(page.getByText("Decision submitted.", { exact: true })).toBeVisible();
+
+    await login(page, USERS.nomvula.email);
+    await page.getByRole("button", { name: "My Declarations", exact: true }).first().click();
+    await page.getByPlaceholder("ID, Counterparty, Employee or Approver", { exact: true }).fill(declarationId);
+    await page.locator("main").getByRole("button", { name: "Edit & Resubmit", exact: true }).click();
+    await declaration.waitForDraftDescription(description);
+    await declaration.submit();
+    await declaration.closeModal();
+
+    await login(page, USERS.sipho.email);
+    await page.getByRole("button", { name: "Approval Queue", exact: true }).first().click();
+    await page.getByPlaceholder("ID, Employee or Counterparty", { exact: true }).fill(declarationId);
+    await page.locator("main").getByRole("button", { name: "Review", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Approval Workflow", exact: true })).toBeVisible();
+    await page.getByText("Approved - Team Member to accept the actual GHE or offered GHE in their personal capacity.", { exact: true }).click();
+    await page.getByRole("button", { name: "Submit Decision", exact: true }).click();
+    await expect(page.getByText("Decision submitted.", { exact: true })).toBeVisible();
+
+    await login(page, USERS.nomvula.email);
+    await page.getByRole("button", { name: "My Declarations", exact: true }).first().click();
+    await page.getByPlaceholder("ID, Counterparty, Employee or Approver", { exact: true }).fill(declarationId);
+    const viewButton = page.locator("main").getByRole("button", { name: "View", exact: true });
+    await expect(viewButton).toBeVisible();
+    const declarationCard = viewButton.locator("xpath=../..");
+    await expect(declarationCard).toContainText(declarationId);
+    await expect(declarationCard).toContainText("Approved");
+  });
 });

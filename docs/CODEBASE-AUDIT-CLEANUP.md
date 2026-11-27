@@ -378,13 +378,11 @@ cleanup findings in scope, or document evidence-backed blockers and decisions.
 
 ## Open work
 
-- The frontend remediation plan remains open for browser-level accessibility
-  acceptance of the complete declaration form and upload flow, fine-grained
-  feature-boundary rules (the ownership graph needs agreement), and connection
-  of client telemetry to an approved production collector with a retention
-  policy. Unit coverage now includes modal focus management, upload keyboard
-  activation and errors; see
-  [`FRONTEND-AUDIT-REMEDIATION-PLAN.md`](FRONTEND-AUDIT-REMEDIATION-PLAN.md).
+- Remaining browser, backend integration, staging, accessibility, and operational
+  coverage is tracked in [`TEST-COVERAGE-GOAL.md`](TEST-COVERAGE-GOAL.md). The
+  frontend remediation plan remains open for fine-grained feature-boundary
+  rules and connection of client telemetry to an approved production collector
+  with a retention policy.
 - Run real staging Entra and rendered browser acceptance; local Playwright
   evidence uses the throwaway provider and does not substitute for staging.
 - Continue route/service authorization, identity, upload/download, export, and

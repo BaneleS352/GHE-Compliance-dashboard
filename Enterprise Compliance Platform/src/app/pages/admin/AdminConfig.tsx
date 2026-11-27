@@ -85,6 +85,7 @@ export function AdminConfig() {
   };
 
   const handleSave = async () => {
+    setFetchError(null);
     if (config.mediumValueThreshold > config.highValueThreshold) {
       const message = "Medium priority threshold must not exceed the high-value threshold.";
       setFetchError(message);
@@ -105,6 +106,7 @@ export function AdminConfig() {
   };
 
   const handleAddOrg = async () => {
+    setFetchError(null);
     if (!newOrgName.trim() || !newOrgShortCode.trim()) return;
     try {
       const created = await createOrganization({ name: newOrgName.trim(), shortCode: newOrgShortCode.trim() });
@@ -120,6 +122,7 @@ export function AdminConfig() {
   };
 
   const handleUpdateOrg = async () => {
+    setFetchError(null);
     if (!editingOrg) return;
     try {
       const updated = await updateOrganization(editingOrg.id, { name: editingOrg.name, shortCode: editingOrg.shortCode });
@@ -134,6 +137,7 @@ export function AdminConfig() {
   };
 
   const handleDeleteOrg = async (id: number) => {
+    setFetchError(null);
     try {
       await deleteOrganization(id);
       setOrganizations(organizations.filter((o) => o.id !== id));
@@ -162,7 +166,7 @@ export function AdminConfig() {
       />
 
       {fetchError && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {fetchError}
         </div>
       )}
@@ -172,7 +176,7 @@ export function AdminConfig() {
         </div>
       )}
       {saved && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+        <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
           Configuration saved successfully.
         </div>
       )}
@@ -281,24 +285,24 @@ export function AdminConfig() {
               <div key={org.id} className="flex items-center gap-3 rounded-xl border border-border px-4 py-3">
                 {editingOrg?.id === org.id ? (
                   <>
-                    <input value={editingOrg.name} onChange={(e) => setEditingOrg({ ...editingOrg, name: e.target.value })} className="h-9 flex-1 rounded-lg border border-border px-3 text-sm" />
-                    <input value={editingOrg.shortCode} onChange={(e) => setEditingOrg({ ...editingOrg, shortCode: e.target.value })} className="h-9 w-24 rounded-lg border border-border px-3 text-sm" />
-                    <button onClick={handleUpdateOrg} className="rounded-lg px-3 py-1 text-xs font-semibold text-white" style={{ background: PURPLE }}>Save</button>
+                    <input aria-label="Edited organization name" value={editingOrg.name} onChange={(e) => setEditingOrg({ ...editingOrg, name: e.target.value })} className="h-9 flex-1 rounded-lg border border-border px-3 text-sm" />
+                    <input aria-label="Edited organization short code" value={editingOrg.shortCode} onChange={(e) => setEditingOrg({ ...editingOrg, shortCode: e.target.value })} className="h-9 w-24 rounded-lg border border-border px-3 text-sm" />
+                    <button aria-label={`Save ${org.name}`} onClick={handleUpdateOrg} className="rounded-lg px-3 py-1 text-xs font-semibold text-white" style={{ background: PURPLE }}>Save</button>
                     <button onClick={() => setEditingOrg(null)} className="rounded-lg px-3 py-1 text-xs font-semibold text-muted-foreground border border-border">Cancel</button>
                   </>
                 ) : (
                   <>
                     <span className="flex-1 text-sm font-medium text-foreground">{org.name}</span>
                     <span className="rounded-lg bg-muted px-2 py-1 text-xs font-mono text-muted-foreground">{org.shortCode}</span>
-                    <button onClick={() => setEditingOrg(org)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"><Pencil size={14} /></button>
-                    <button onClick={() => setDeletingOrgId(org.id)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={14} /></button>
+                    <button aria-label={`Edit ${org.name}`} title={`Edit ${org.name}`} onClick={() => setEditingOrg(org)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"><Pencil size={14} /></button>
+                    <button aria-label={`Delete ${org.name}`} title={`Delete ${org.name}`} onClick={() => setDeletingOrgId(org.id)} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 transition-colors"><Trash2 size={14} /></button>
                   </>
                 )}
               </div>
             ))}
             <div className="flex items-center gap-3 rounded-xl border border-dashed border-border px-4 py-3">
-              <input value={newOrgName} onChange={(e) => setNewOrgName(e.target.value)} placeholder="Organization name" className="h-9 flex-1 rounded-lg border border-border px-3 text-sm" />
-              <input value={newOrgShortCode} onChange={(e) => setNewOrgShortCode(e.target.value)} placeholder="Short code" className="h-9 w-24 rounded-lg border border-border px-3 text-sm" />
+              <input aria-label="Organization name" value={newOrgName} onChange={(e) => setNewOrgName(e.target.value)} placeholder="Organization name" className="h-9 flex-1 rounded-lg border border-border px-3 text-sm" />
+              <input aria-label="Organization short code" value={newOrgShortCode} onChange={(e) => setNewOrgShortCode(e.target.value)} placeholder="Short code" className="h-9 w-24 rounded-lg border border-border px-3 text-sm" />
               <button onClick={handleAddOrg} className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-white" style={{ background: PURPLE }}><Plus size={14} /> Add</button>
             </div>
           </div>

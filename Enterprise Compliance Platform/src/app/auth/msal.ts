@@ -259,17 +259,15 @@ export async function getGraphAccessToken(): Promise<string | null> {
 }
 
 export function signOut(): void {
+  let usesTestSession = false;
   if (localEmployeeAuthEnabled) {
+    usesTestSession = true;
     try { sessionStorage.removeItem(LOCAL_TOKEN_KEY); } catch { /* storage unavailable */ }
-    return;
   }
   if (dockerStubAuthEnabled || (import.meta.env.DEV && e2eToken())) {
-    try {
-      sessionStorage.removeItem("e2e.auth.token");
-    } catch {
-      // Storage unavailable — nothing to clear.
-    }
-    return;
+    usesTestSession = true;
+    try { sessionStorage.removeItem("e2e.auth.token"); } catch { /* storage unavailable */ }
   }
+  if (usesTestSession) return;
   void getClient().logoutRedirect();
 }

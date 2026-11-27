@@ -9,6 +9,8 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Used only by /api/auth/me to let the backend verify the Graph user profile. */
   graphAccessToken?: string | null;
+  /** Public authentication bootstrap calls must work before a bearer token exists. */
+  skipAuth?: boolean;
 }
 
 export class ApiClientError extends Error {
@@ -30,7 +32,7 @@ async function request<T>(
 ): Promise<T> {
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const headers: Record<string, string> = isFormData ? {} : { "Content-Type": "application/json" };
-  headers["Authorization"] = `Bearer ${await getApiToken()}`;
+  if (!options?.skipAuth) headers["Authorization"] = `Bearer ${await getApiToken()}`;
   if (path === "/api/auth/me" && options?.graphAccessToken) headers["X-Microsoft-Graph-Token"] = options.graphAccessToken;
 
   const controller = new AbortController();

@@ -10,6 +10,7 @@ import { notifySuccess, notifyError } from "../../components/notify";
 import { useDialogFocus } from "@/app/hooks/useDialogFocus";
 
 interface Option {
+  id: string;
   value: string;
   label: string;
 }
@@ -33,6 +34,7 @@ export function AdminApprovalOptions() {
   useEffect(() => { fetchApprovalOptions().then(setOptions).catch((err: Error) => setError(err.message)); }, []);
 
   const handleAdd = async () => {
+    setError(null);
     try {
       if (!newId.trim() || !newValue.trim() || !newLabel.trim()) {
         setError("ID, value, and label are all required.");
@@ -53,16 +55,21 @@ export function AdminApprovalOptions() {
   };
 
   const handleEdit = (idx: number) => {
+    setError(null);
     setEditingIdx(idx);
     setEditValue(options[idx].value);
     setEditLabel(options[idx].label);
   };
 
   const handleSaveEdit = async () => {
+    setError(null);
     try {
-      if (editingIdx === null || !editValue || !editLabel) return;
+      if (editingIdx === null || !editValue.trim() || !editLabel.trim()) {
+        setError("Value and label are required.");
+        return;
+      }
       const option = options[editingIdx];
-      await updateApprovalOption(option.value, { value: editValue, label: editLabel });
+      await updateApprovalOption(option.id, { value: editValue.trim(), label: editLabel.trim() });
       setOptions(await fetchApprovalOptions());
       setEditingIdx(null);
       notifySuccess("Approval option updated.");
@@ -74,8 +81,9 @@ export function AdminApprovalOptions() {
   };
 
   const handleDelete = async (idx: number) => {
+    setError(null);
     try {
-      await deleteApprovalOption(options[idx].value);
+      await deleteApprovalOption(options[idx].id);
       setDeletingIdx(null);
       setOptions(await fetchApprovalOptions());
       notifySuccess("Approval option deleted.");
@@ -118,15 +126,15 @@ export function AdminApprovalOptions() {
             <THead cols={["Value", "Label", "Actions"]} />
             <tbody className="divide-y divide-border">
               {options.map((opt, idx) => (
-                <tr key={opt.value} className="transition-all hover:bg-purple-50/45">
+                <tr key={opt.id} className="transition-all hover:bg-purple-50/45">
                   <td className="px-5 py-3">
                     {editingIdx === idx ? (
-                      <input value={editValue} onChange={(e) => setEditValue(e.target.value)} className="rounded border px-2 py-1 text-sm w-full" />
+                      <input aria-label="Approval option value" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="rounded border px-2 py-1 text-sm w-full" />
                     ) : <span className="font-mono text-xs text-muted-foreground">{opt.value}</span>}
                   </td>
                   <td className="px-5 py-3">
                     {editingIdx === idx ? (
-                      <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)} className="rounded border px-2 py-1 text-sm w-full" />
+                      <input aria-label="Approval option label" value={editLabel} onChange={(e) => setEditLabel(e.target.value)} className="rounded border px-2 py-1 text-sm w-full" />
                     ) : <span className="font-medium text-foreground">{opt.label}</span>}
                   </td>
                   <td className="w-32 px-5 py-3">
@@ -134,9 +142,9 @@ export function AdminApprovalOptions() {
                       {editingIdx === idx ? (
                         <button onClick={handleSaveEdit} className="rounded-xl px-3 py-1 text-xs font-semibold text-white" style={{ background: PURPLE }}>Save</button>
                       ) : (
-                        <button onClick={() => handleEdit(idx)} className="rounded-xl p-1.5 text-muted-foreground hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
+                        <button aria-label={`Edit ${opt.label}`} title={`Edit ${opt.label}`} onClick={() => handleEdit(idx)} className="rounded-xl p-1.5 text-muted-foreground hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
                       )}
-                      <button onClick={() => setDeletingIdx(idx)} className="rounded-xl p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                      <button aria-label={`Delete ${opt.label}`} title={`Delete ${opt.label}`} onClick={() => setDeletingIdx(idx)} className="rounded-xl p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
@@ -148,13 +156,13 @@ export function AdminApprovalOptions() {
         <div className="space-y-2 p-4 md:hidden">
           {options.length === 0 && <p className="py-4 text-center text-sm text-muted-foreground">No approval options configured.</p>}
           {options.map((opt, idx) => (
-            <div key={opt.value} className="group rounded-xl border border-primary/10 bg-white/95 p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-purple-200/70">
+            <div key={opt.id} className="group rounded-xl border border-primary/10 bg-white/95 p-3 shadow-sm transition-all hover:-translate-y-0.5 hover:border-purple-200/70">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex-1">
                   {editingIdx === idx ? (
                     <div className="space-y-2">
-                      <input value={editValue} onChange={(e) => setEditValue(e.target.value)} className="w-full rounded border px-2 py-1 text-sm" placeholder="Value" autoFocus />
-                      <input value={editLabel} onChange={(e) => setEditLabel(e.target.value)} className="w-full rounded border px-2 py-1 text-sm" placeholder="Label" />
+                      <input aria-label="Approval option value" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="w-full rounded border px-2 py-1 text-sm" placeholder="Value" autoFocus />
+                      <input aria-label="Approval option label" value={editLabel} onChange={(e) => setEditLabel(e.target.value)} className="w-full rounded border px-2 py-1 text-sm" placeholder="Label" />
                     </div>
                   ) : (
                     <div>
@@ -167,9 +175,9 @@ export function AdminApprovalOptions() {
                   {editingIdx === idx ? (
                     <button onClick={handleSaveEdit} className="rounded-lg px-2.5 py-1 text-xs font-semibold text-white" style={{ background: PURPLE }}>Save</button>
                   ) : (
-                    <button onClick={() => handleEdit(idx)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
+                    <button aria-label={`Edit ${opt.label}`} title={`Edit ${opt.label}`} onClick={() => handleEdit(idx)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-purple-50 hover:text-purple-700"><Edit size={14} /></button>
                   )}
-                  <button onClick={() => setDeletingIdx(idx)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                  <button aria-label={`Delete ${opt.label}`} title={`Delete ${opt.label}`} onClick={() => setDeletingIdx(idx)} className="rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
                 </div>
               </div>
             </div>

@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const TEST_JWKS_URL = process.env.E2E_JWKS_URL || "http://127.0.0.1:55439";
+const TEST_EMAIL_CAPTURE_URL = process.env.E2E_EMAIL_CAPTURE_URL || "http://127.0.0.1:55444";
 const TEST_DATABASE_URL = process.env.E2E_PG_DATABASE_URL || process.env.DATABASE_URL || "";
 const API_PORT = process.env.E2E_API_PORT || "3001";
 const WEB_PORT = process.env.E2E_WEB_PORT || "5173";
@@ -20,7 +21,7 @@ export default defineConfig({
     baseURL: WEB_URL,
     headless: true,
     screenshot: "only-on-failure",
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
     actionTimeout: 15000,
     navigationTimeout: 45000,
   },
@@ -35,10 +36,9 @@ export default defineConfig({
     {
       name: "mobile",
       use: { ...devices["Pixel 5"] },
-      // approval-flows.spec.ts drives desktop table layouts, which render
-      // as cards on mobile. Mobile card-flow coverage lives in
-      // mobile-interactions.spec.ts.
-      testIgnore: ["approval-flows.spec.ts", "declaration-contracts.spec.ts"],
+      // Desktop table/admin/report flows are covered by their own specs;
+      // mobile-only card journeys live in mobile-interactions.spec.ts.
+      testMatch: "mobile-interactions.spec.ts",
     },
   ],
   webServer: [
@@ -61,6 +61,10 @@ export default defineConfig({
         OIDC_AUDIENCE: "ghe-test-api-audience",
         OIDC_ALLOWED_CLIENT_IDS: "test-spa-client-id",
         OIDC_REQUIRED_SCOPE: "access_as_user",
+        LOCAL_AUTH_ENABLED: "true",
+        EMAIL_API: `${TEST_EMAIL_CAPTURE_URL}/messages`,
+        AZURITE_CONNECTION_STRING: process.env.AZURITE_CONNECTION_STRING || "",
+        AZURITE_CONTAINER: process.env.E2E_AZURITE_CONTAINER || "ghe-e2e",
       },
     },
     {
@@ -69,7 +73,13 @@ export default defineConfig({
       port: Number(WEB_PORT),
       timeout: 30000,
       reuseExistingServer: false,
-      env: { E2E_API_URL: API_URL, E2E_JWKS_URL: TEST_JWKS_URL, VITE_DEV_TEST_PROVIDER: "true" },
+      env: {
+        E2E_API_URL: API_URL,
+        E2E_JWKS_URL: TEST_JWKS_URL,
+        E2E_EMAIL_CAPTURE_URL: TEST_EMAIL_CAPTURE_URL,
+        VITE_DEV_TEST_PROVIDER: "true",
+        VITE_ENABLE_LOCAL_AUTH: "true",
+      },
     },
   ],
 });

@@ -97,6 +97,10 @@ async function startEmbeddedPostgres(): Promise<void> {
 }
 
 export async function setup() {
+  // Local employee-ID auth is exercised by the recovery/API suites. Enable it
+  // before test modules import the environment-backed config.
+  process.env.LOCAL_AUTH_ENABLED = "true";
+  process.env.EMAIL_API ||= "http://127.0.0.1:55444";
   if (process.env.TEST_SKIP_AZURITE === "1") {
     console.warn("[test setup] Azurite startup skipped; run only tests that do not access attachments.");
   } else {

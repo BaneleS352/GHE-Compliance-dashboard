@@ -2,6 +2,43 @@ import { Declaration, ComplianceTrendPoint, TypeBreakdownItem, UploadedFile, Use
 import { api } from "@/services/httpClient"
 import type { RequestOptions } from "@/services/httpClient";
 
+// ── Local employee authentication ────────────────────
+export interface LocalAuthChallenge {
+  challengeId: string;
+  expiresAt?: string;
+  emailHint?: string;
+  message?: string;
+}
+
+export interface LocalAuthSession {
+  accessToken: string;
+}
+
+export interface LocalAuthVerification extends Partial<LocalAuthSession> {
+  enrollmentRequired?: boolean;
+  enrollmentToken?: string;
+}
+
+export function startLocalEmployeeSignIn(employeeId: string, password: string): Promise<LocalAuthChallenge> {
+  return api.post<LocalAuthChallenge>("/api/auth/local/start", { employeeId, password }, { skipAuth: true });
+}
+
+export function verifyLocalEmployeeSignIn(challengeId: string, code: string): Promise<LocalAuthVerification> {
+  return api.post<LocalAuthVerification>("/api/auth/local/verify", { challengeId, code }, { skipAuth: true });
+}
+
+export function enrollLocalEmployee(enrollmentToken: string, newPassword: string): Promise<LocalAuthSession> {
+  return api.post<LocalAuthSession>("/api/auth/local/enroll", { enrollmentToken, newPassword }, { skipAuth: true });
+}
+
+export function startLocalEmployeePasswordReset(employeeId: string): Promise<LocalAuthChallenge> {
+  return api.post<LocalAuthChallenge>("/api/auth/local/forgot-password", { employeeId }, { skipAuth: true });
+}
+
+export function resetLocalEmployeePassword(challengeId: string, code: string, newPassword: string): Promise<LocalAuthSession> {
+  return api.post<LocalAuthSession>("/api/auth/local/forgot-password/verify", { challengeId, code, newPassword }, { skipAuth: true });
+}
+
 /** The declaration response contract returned by the backend. Keep mapping at this boundary. */
 type DeclarationResponse = Declaration & {
   workflowSteps?: Declaration["workflowSteps"];

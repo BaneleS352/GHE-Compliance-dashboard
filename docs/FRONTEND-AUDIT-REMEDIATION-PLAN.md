@@ -808,6 +808,9 @@ recorded above. No additional Phase 7A implementation decision is pending.
 
 ### Phase 7B — browser acceptance
 
+The actionable coverage backlog, priorities, and release evidence requirements
+are tracked in [`TEST-COVERAGE-GOAL.md`](TEST-COVERAGE-GOAL.md).
+
 Run a clean browser session against a migrated PostgreSQL database and record evidence for:
 
 - OIDC login and logout;
