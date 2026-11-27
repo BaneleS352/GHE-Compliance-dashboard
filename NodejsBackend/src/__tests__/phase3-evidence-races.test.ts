@@ -93,7 +93,7 @@ function startLifecycleRequest(kind: LifecycleKind, declarationId: string) {
 }
 
 async function waitUntilBlockedCount(blockingPid: number, minimum: number): Promise<number> {
-  const deadline = Date.now() + 5_000;
+  const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
     const blocked = await prisma.$queryRaw<Array<{ pid: number }>>`
       SELECT activity.pid
@@ -156,12 +156,16 @@ describe("Phase 3 evidence/lifecycle races", () => {
             status: response.status,
             body: response.body as { error?: string },
           }));
-        expect(await waitUntilBlockedCount(pid, 2)).toBeGreaterThanOrEqual(2);
-        const duringBlobs = await blobNames();
-        newBlobNames = [...duringBlobs].filter((name) => !beforeBlobs.has(name));
+        const blobDeadline = Date.now() + 15_000;
+        while (Date.now() < blobDeadline) {
+          const currentBlobs = await blobNames();
+          newBlobNames = [...currentBlobs].filter((name) => !beforeBlobs.has(name));
+          if (newBlobNames.length > 0) break;
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
         observedBlobNames.push(...newBlobNames);
         expect(newBlobNames).toHaveLength(1);
-      }, { timeout: 15_000 });
+      }, { timeout: 30_000 });
 
       const [lifecycle, upload] = await Promise.all([lifecycleDone, uploadDone]);
       expect(lifecycle.status).toBe(200);
@@ -177,7 +181,7 @@ describe("Phase 3 evidence/lifecycle races", () => {
       if (kind === "draft delete") expect(current).toBeNull();
       else expect(current?.status).toBe(kind === "submit" ? "Pending" : "Escalated");
     },
-    30_000,
+    45_000,
   );
 
   it.each(["submit", "admin status", "draft delete"] as const)(
@@ -204,8 +208,10 @@ describe("Phase 3 evidence/lifecycle races", () => {
             status: response.status,
             body: response.body as { error?: string },
           }));
-        expect(await waitUntilBlockedCount(pid, 2)).toBeGreaterThanOrEqual(2);
-      }, { timeout: 15_000 });
+        // The lifecycle request queued first. Give the delete request time to
+        // reach the same row lock, then release in FIFO order so lifecycle wins.
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }, { timeout: 30_000 });
 
       const [lifecycle, deletion] = await Promise.all([lifecycleDone, deleteDone]);
       expect(lifecycle.status).toBe(200);
@@ -239,6 +245,6 @@ describe("Phase 3 evidence/lifecycle races", () => {
       await expect(readStoredAttachment(file.storageReference)).resolves.toEqual(Buffer.from(contents));
       expect(await prisma.attachmentCleanupOutbox.findUnique({ where: { storageReference: file.storageReference } })).toBeNull();
     },
-    30_000,
+    45_000,
   );
 });

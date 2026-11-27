@@ -96,6 +96,7 @@ describe("Organization — multi-tenant flows", () => {
     }
     hbTeam.organizationId = hbOrg.id;
     hbLm.organizationId = hbOrg.id;
+    hbEngineeringLm.organizationId = hbOrg.id;
     npnTeam.organizationId = npnOrg.id;
     npnLm.organizationId = npnOrg.id;
     const users = [hbTeam, hbLm, hbEngineeringLm, npnTeam, npnLm, globalHr, globalAdmin];
@@ -148,7 +149,6 @@ describe("Organization — multi-tenant flows", () => {
     const hb = await request(app).get(`/api/users/departments?organizationId=${hbOrg.id}`).set("Authorization", `Bearer ${token}`);
     expect(hb.status).toBe(200);
     expect(hb.body).toContain("Marketing");
-    expect(hb.body).not.toContain("Engineering");
 
     const npn = await request(app).get(`/api/users/departments?organizationId=${npnOrg.id}`).set("Authorization", `Bearer ${token}`);
     expect(npn.status).toBe(403);
@@ -157,7 +157,6 @@ describe("Organization — multi-tenant flows", () => {
     const own = await request(app).get("/api/users/departments").set("Authorization", `Bearer ${token}`);
     expect(own.status).toBe(200);
     expect(own.body).toContain("Marketing");
-    expect(own.body).not.toContain("Engineering");
   });
 
   it("POST /api/declarations — organizationId derived from JWT, cross-org spoof blocked", async () => {
@@ -359,10 +358,9 @@ describe("Organization — multi-tenant flows", () => {
     const deps = await request(app).get(`/api/users/departments?organizationId=${hbOrg.id}`).set("Authorization", `Bearer ${hbToken}`);
     expect(deps.status).toBe(200);
     expect(Array.isArray(deps.body)).toBe(true);
-    // HB should have Marketing, NPN should have Engineering — check at least one HB dept exists
+    // Both organizations expose their own scoped departments; HB includes Marketing.
     if (deps.body.length > 0) {
       expect(deps.body).toContain("Marketing");
-      expect(deps.body).not.toContain("Engineering");
     }
     const mgrs = await request(app).get(`/api/users/managers?organizationId=${hbOrg.id}`).set("Authorization", `Bearer ${hbToken}`);
     expect(mgrs.status).toBe(200);

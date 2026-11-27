@@ -37,22 +37,25 @@ Tests use Vitest's `vi.mock()` to:
 ## Playwright end-to-end tests
 
 Browser tests live in `e2e/` and run in desktop and mobile projects. They use a
-real backend and a migrated PostgreSQL database; the global setup also starts a
-throwaway local JWKS provider, so no Entra tenant or production credentials are
-required.
+real backend, migrated PostgreSQL, real Azurite, and a controlled local email
+capture server. Global setup also starts a throwaway local JWKS provider, so no
+Entra tenant or production credentials are required. Protected-export checks use
+the Python packages pinned in `NodejsBackend/requirements.txt`.
 
 ```powershell
 cd "Enterprise Compliance Platform"
 npx playwright install chromium
 $env:E2E_PG_DATABASE_URL = "postgresql://user:password@localhost:5432/ghe_e2e?schema=public"
-npx playwright test
+$env:AZURITE_CONNECTION_STRING = "<dedicated test Azurite connection string>"
+npx playwright test --retries=0
 ```
 
-Use a dedicated E2E database: setup applies migrations and seeds fixtures. The
-suite covers authentication/sign-out, declaration creation and draft resume,
-approval/return/rejection flows, queue filtering and refresh, role boundaries,
-profile locks, form validation, declaration search/empty states, admin user
-lifecycle, protected exports, and mobile declaration cards.
+Use dedicated E2E PostgreSQL and Azurite instances: setup applies migrations and
+seeds fixtures. The suite covers authentication/sign-out and employee-ID OTP,
+declaration creation/drafts/approval/return/rejection, attachments and rollback,
+password-verified Excel/PDF exports, queue filtering/refresh, role boundaries,
+profile locks, validation/empty/error/session states, admin CRUD, report totals,
+and mobile declaration cards/lifecycle.
 
 ```bash
 # Desktop contract tests only
@@ -64,5 +67,4 @@ npx playwright test mobile-interactions.spec.ts --project=mobile
 
 Playwright writes failure screenshots/traces and an HTML report under
 `test-results/` and `playwright-report/`; both are generated, ignored artifacts.
-Attachment-upload acceptance still requires Azurite and is not part of the
-current local browser suite.
+Release runs use `--retries=0` and CI uploads both artifact directories.

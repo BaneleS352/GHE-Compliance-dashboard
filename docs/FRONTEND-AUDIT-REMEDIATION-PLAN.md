@@ -859,3 +859,11 @@ The plan can be closed only when all Phase 7 decisions are recorded, automated g
 - Added mobile declaration-card search/filter recovery and partial-draft continuation. Desktop-only table flows remain excluded from the mobile project.
 - Updated the existing quick-login and sign-out assertions to use the current accessible `Developer testing` region instead of removed landing-page labels. Corrected Playwright helper timeout option placement and made the shared declaration-form opener responsive-navigation safe.
 - Frontend typecheck and a strict standalone TypeScript check of the E2E specs/config pass. Staging OIDC, attachment/upload browser acceptance, and production-like document-protection checks remain outstanding.
+
+## Verification update — 2026-11-27 coverage goal implementation
+
+- Expanded Playwright from 31 to **55 tests** and passed **55/55** with retries disabled against fresh embedded PostgreSQL, real Azurite, controlled email capture, and the throwaway JWKS provider (desktop 50/50, mobile 5/5).
+- Added real attachment persistence/preview/download/delete/rollback coverage; password-verified Excel/PDF exports and PDF fallback; admin configuration/organization/workflow/approval-option CRUD; dashboard/report reconciliation; loading/network/server/timeout/expired-session states; employee-ID OTP enrollment/recovery; and a complete mobile declaration lifecycle.
+- Fixed the shared local-auth API boundary, accessible reset confirmation, dual test-token sign-out, approval-option stable-ID requests, KPI keyboard/pointer behavior, and local-token middleware fall-through.
+- Frontend Vitest passed **306/306**, quality/typecheck/build passed, backend Vitest passed **532/532**, PostgreSQL integration passed **117/117**, and clean smoke passed **22/22**.
+- Remaining external acceptance is tracked in [`TEST-COVERAGE-GOAL.md`](TEST-COVERAGE-GOAL.md): Docker/Nginx, staging Entra/Graph/HIS, live email-worker behavior, manual screen-reader acceptance, telemetry/alerting, and backend development-dependency advisory disposition.

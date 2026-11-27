@@ -40,9 +40,11 @@ provider. It proves test and local stub behavior, not tenant configuration.
 A release still needs the staging Entra sign-in/refresh/logout checks and
 manual browser acceptance recorded in
 [FRONTEND-AUDIT-REMEDIATION-PLAN.md](FRONTEND-AUDIT-REMEDIATION-PLAN.md).
-Playwright HTML reports and traces are not currently uploaded as workflow
-artifacts, so retain failure evidence from the job before rerunning if it is
-needed for diagnosis.
+Playwright runs with retries disabled for release evidence. The HTML report and
+`test-results/` directory (failure screenshots/traces and export-verification
+summaries) are uploaded as workflow artifacts with 14-day retention. Remaining
+staging and external acceptance is tracked in
+[TEST-COVERAGE-GOAL.md](TEST-COVERAGE-GOAL.md).
 
 GitHub branch protection and required-check selection are repository settings
 and cannot be guaranteed by workflow files alone. Configure the backend,

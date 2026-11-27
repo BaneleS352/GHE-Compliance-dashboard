@@ -444,7 +444,13 @@ describe("Phase 3 report scale boundaries", () => {
 
       const atLimit = await request(app)
         .get("/api/reports/export?status=Pending")
-        .set("Authorization", `Bearer ${token}`);
+        .set("Authorization", `Bearer ${token}`)
+        .parse((res, callback) => {
+          const chunks: Buffer[] = [];
+          res.on("data", (chunk: Buffer) => chunks.push(chunk));
+          res.on("end", () => callback(null, Buffer.concat(chunks)));
+          res.on("error", callback);
+        });
       expect(atLimit.status).toBe(200);
       expect(atLimit.headers["content-type"]).toContain("spreadsheetml.sheet");
       const bytes = Buffer.isBuffer(atLimit.body) ? atLimit.body : Buffer.from(atLimit.body as Uint8Array);

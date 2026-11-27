@@ -120,7 +120,7 @@ test.describe("Supporting-document browser flows", () => {
     const counterparty = uniqueFixture("E2E Attachment Delete Supplies");
     const removedFile = "remove-before-save.txt";
     const deletedFile = "delete-after-save.txt";
-    const { app, declaration } = await openGiftForm(page, counterparty);
+    await openGiftForm(page, counterparty);
     const input = page.locator('input[type="file"]');
 
     await input.setInputFiles({ name: removedFile, mimeType: "text/plain", buffer: Buffer.from("remove me") });

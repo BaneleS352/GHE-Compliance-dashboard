@@ -252,7 +252,7 @@ describe("Data consistency", () => {
     expect(create.status).toBe(400);
   });
 
-  it("PATCH /api/declarations/:id/submit — admin resets Approved to Draft then resubmit creates fresh workflow steps", async () => {
+  it("PATCH /api/declarations/:id/status — admin cannot erase approved workflow history by resetting to Draft", async () => {
     const create = await request(app)
       .post("/api/declarations")
       .set("Authorization", `Bearer ${getTeamToken()}`)
@@ -278,19 +278,18 @@ describe("Data consistency", () => {
       .patch(`/api/declarations/${id}/status`)
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({ status: "Draft" });
-    expect(reset.status).toBe(200);
+    expect(reset.status).toBe(400);
+    expect(reset.body.error).toMatch(/workflow history/i);
 
-    const resubmit = await request(app)
-      .patch(`/api/declarations/${id}/submit`)
-      .set("Authorization", `Bearer ${getTeamToken()}`);
-    expect(resubmit.status).toBe(200);
-    expect(resubmit.body.status).toBe("Pending");
-
+    const unchanged = await request(app)
+      .get(`/api/declarations/${id}`)
+      .set("Authorization", `Bearer ${getAdminToken()}`);
+    expect(unchanged.body.status).toBe("Approved");
     const inst = await request(app)
       .get(`/api/workflows/instances/${id}`)
       .set("Authorization", `Bearer ${getAdminToken()}`);
     expect(inst.body.steps).toHaveLength(1);
-    expect(inst.body.steps[0].status).toBe("pending");
+    expect(inst.body.steps[0].status).toBe("approved");
   });
 
   it("GET /api/workflows/instances/:declarationId — admin creates decl for user-approver, team-member cannot view", async () => {
@@ -979,12 +978,13 @@ describe("Config threshold change effect", () => {
     const { highValueThreshold: origHigh, mediumValueThreshold, slaEscalationDays, maxDeclarationsPerCounterparty, emailTemplate } = origConfig.body;
 
     const lowerThreshold = Math.max(origHigh - 500, 500);
+    const lowerMedium = Math.min(mediumValueThreshold, lowerThreshold);
     const configUpdate = await request(app)
       .put("/api/admin/config")
       .set("Authorization", `Bearer ${getAdminToken()}`)
       .send({
         highValueThreshold: lowerThreshold,
-        mediumValueThreshold,
+        mediumValueThreshold: lowerMedium,
         slaEscalationDays,
         maxDeclarationsPerCounterparty,
         emailTemplate,

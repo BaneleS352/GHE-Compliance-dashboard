@@ -30,7 +30,11 @@ afterEach(async () => {
 async function enqueueTestEmail(suffix: string) {
   const dedupeKey = `${testKeyPrefix}${suffix}`;
   await prisma.$transaction((tx) => queueNotification(tx, "managerApproval", "GHE-TEST-001", 2, dedupeKey, "accept"));
-  return prisma.emailOutbox.findUniqueOrThrow({ where: { dedupeKey } });
+  const email = await prisma.emailOutbox.findUniqueOrThrow({ where: { dedupeKey } });
+  // Make this fixture unambiguously due and oldest even when other suites have
+  // generated notifications in the shared test database.
+  await prisma.emailOutbox.update({ where: { id: email.id }, data: { nextAttemptAt: new Date(0) } });
+  return email;
 }
 
 describe("PostgreSQL email outbox notifications", () => {

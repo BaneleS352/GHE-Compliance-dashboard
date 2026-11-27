@@ -148,7 +148,7 @@ router.get("/list", authenticate, authorize("admin", "approver"), validateReport
 
   const declarations = await prisma.declaration.findMany({
     where,
-    orderBy: { submittedAt: "desc" },
+    orderBy: [{ submittedAt: "desc" }, { declarationPk: "desc" }],
     take,
     skip,
     include: { snapshot: true, counterpartyRef: true },
@@ -174,7 +174,7 @@ router.get("/export", authenticate, authorize("admin", "approver"), validateRepo
 
   const declarations = await prisma.declaration.findMany({
     where,
-    orderBy: { submittedAt: "desc" },
+    orderBy: [{ submittedAt: "desc" }, { declarationPk: "desc" }],
     take: 5001,
     include: { snapshot: true, counterpartyRef: true },
   });

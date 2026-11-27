@@ -296,7 +296,8 @@ async function main() {
   // Only the documented text identifiers may remain: Declaration.id is the
   // public GHE-YYYY-NNNNNN reference, SystemConfig ("default") and
   // ApprovalOption ("opt-*"/"ao-*") are singleton/code-list rows outside the
-  // numeric-key scope. Views are excluded (they project text columns).
+  // numeric-key scope, and LocalAuthChallenge uses an opaque challenge token.
+  // Views are excluded (they project text columns).
   const textIdTables: { table_name: string }[] = await p.$queryRawUnsafe(
     `SELECT c.table_name AS table_name
      FROM information_schema.columns c JOIN information_schema.tables t
@@ -307,8 +308,8 @@ async function main() {
   );
   const textIdNames = textIdTables.map((r) => r.table_name);
   check(
-    "only documented text ids remain (ApprovalOption/Declaration/SystemConfig)",
-    JSON.stringify(textIdNames) === JSON.stringify(["ApprovalOption", "Declaration", "SystemConfig"]),
+    "only documented text ids remain (ApprovalOption/Declaration/LocalAuthChallenge/SystemConfig)",
+    JSON.stringify(textIdNames) === JSON.stringify(["ApprovalOption", "Declaration", "LocalAuthChallenge", "SystemConfig"]),
     JSON.stringify(textIdNames),
   );
   // departmentId is the sole department source: the legacy User.department

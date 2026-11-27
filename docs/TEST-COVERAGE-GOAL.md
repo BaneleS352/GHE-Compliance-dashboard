@@ -1,6 +1,6 @@
 # Test Coverage Completion Goal
 
-**Status:** Active  
+**Status:** Active — local implementation and automated gates complete; external acceptance pending
 **Started:** 2026-11-27  
 **Scope:** Browser, frontend unit, backend API/PostgreSQL/Azurite, CI, staging, deployment, accessibility, and operational acceptance.
 
@@ -40,19 +40,47 @@ here for remaining coverage work.
 - Basic dashboard/report smoke checks and one protected Excel download.
 - Mobile navigation, declaration-card search, and partial-draft continuation.
 
-### Known blockers and gate defects
+### Implemented and verified — 2026-11-27
 
-- The Playwright run uses the Vite development server and does not exercise
-  Azurite, the production bundle, Nginx, or a real identity provider.
-- The full backend suite, `pg:test`, `pg:smoke`, attachment cleanup, and Docker
-  image acceptance remain unverified for the current checkout.
-- `npm run quality` currently fails on the direct local-auth `fetch` in
-  `Enterprise Compliance Platform/src/app/pages/LandingScreen.tsx:24`.
-- `.github/workflows/database.yml` points `TEST_PG_DATABASE_URL` and
-  `SMOKE_PG_DATABASE_URL` at the same `ghe_ci` database, although the smoke gate
-  requires an empty disposable database.
-- Real Entra/Graph/HIS, live email delivery, and production deployment evidence
-  require external environments and credentials.
+- **P0 gate integrity:** local-auth calls use the shared API client; PostgreSQL
+  integration and smoke use separate CI databases; Playwright CI disables
+  retries and retains reports/results. Frontend quality, typecheck, unit tests,
+  production build, backend tests/build, `pg:test`, and `pg:smoke` pass.
+- **Phase 1 files/exports:** real-Azurite upload, persisted draft evidence,
+  preview/download/delete, validation, rollback, and read-only locking are
+  covered. Protected Excel/PDF exports are opened with the correct password and
+  rejected with wrong/no passwords, including PDF fallback and protection
+  failures.
+- **Phase 2 browser breadth:** configuration, organizations, workflows, approval
+  options, dashboard/report totals, loading/network/server/timeout/expired
+  session states, employee-ID OTP enrollment/recovery, and a complete mobile
+  submit/return/resubmit/approve journey are covered.
+- **Phase 3 backend regressions:** real blob cleanup, competing workers, retry
+  exhaustion, evidence/lifecycle races, cross-organization timeline/report
+  isolation, 501-row pagination, and 5,000/5,001 export boundaries are covered.
+- **Verification:** Playwright **55/55**, frontend Vitest **306/306**, backend
+  Vitest **532/532**, PostgreSQL integration **117/117**, and clean smoke
+  **22/22** passed. Frontend/backend TypeScript and production builds passed.
+
+### Remaining external acceptance and accepted local limitations
+
+- Docker/Nginx image acceptance could not run because Docker Desktop is
+  unavailable. The production bundles build, but deployed proxy/static-asset
+  behavior still needs the stub stack or staging environment.
+- Real Entra authorization-code/PKCE, returning login, provider logout, Graph
+  consent, and HIS synchronization require a configured staging tenant.
+- Live email-provider delivery, worker restart, TLS credential handling, and
+  dead-letter operations require a controlled staging mail service. Local OTP
+  delivery is verified through the test capture server.
+- Complete screen-reader acceptance remains a manual/staging activity; automated
+  keyboard, label, ARIA, focus, and dialog coverage is in place.
+- Production telemetry collection, retention, and cleanup alerting require an
+  approved collector and operational owner.
+- Frontend dependency audit reports zero vulnerabilities. Backend audit still
+  reports 13 advisories (10 moderate, 3 high) in the Prisma CLI/Azurite development
+  dependency chain; the available forced fixes downgrade Azurite or Swagger and
+  are not accepted as safe non-breaking changes. The release owner must accept
+  this development-tool risk or schedule a controlled dependency upgrade.
 
 Use live command output for current counts. The numbers above are the dated
 baseline, not permanent guarantees.
@@ -294,8 +322,12 @@ This goal is complete when:
 
 ## Next Move
 
-1. Fix the frontend quality-gate boundary and isolate the PostgreSQL CI databases.
-2. Add real-Azurite attachment and protected-export Playwright coverage.
-3. Run the complete backend suite and clean PostgreSQL/Azurite gates.
-4. Complete admin, dashboard/report, error/session, and mobile journey coverage.
-5. Schedule staging Entra/Graph/HIS and production-built browser acceptance.
+1. Run the Docker stub stack and production-built Nginx browser acceptance when
+   Docker Desktop is available.
+2. Schedule staging Entra/Graph/HIS, controlled email-worker, and manual
+   screen-reader acceptance with the release owner.
+3. Approve a telemetry collector/retention policy and cleanup alert routing.
+4. Resolve or explicitly accept the remaining backend development-dependency
+   advisories before production sign-off.
+5. Attach CI reports, commit SHA, migration version, environment, and dated
+   results to the release record.
