@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const TEST_JWKS_URL = process.env.E2E_JWKS_URL || "http://127.0.0.1:55439";
-const TEST_DATABASE_URL = process.env.E2E_PG_DATABASE_URL || process.env.DATABASE_URL;
+const TEST_DATABASE_URL = process.env.E2E_PG_DATABASE_URL || process.env.DATABASE_URL || "";
 const API_PORT = process.env.E2E_API_PORT || "3001";
 const WEB_PORT = process.env.E2E_WEB_PORT || "5173";
 const API_URL = `http://127.0.0.1:${API_PORT}`;
@@ -36,8 +36,9 @@ export default defineConfig({
       name: "mobile",
       use: { ...devices["Pixel 5"] },
       // approval-flows.spec.ts drives desktop table layouts, which render
-      // as cards on mobile. Mobile card-flow coverage is a follow-up.
-      testIgnore: "approval-flows.spec.ts",
+      // as cards on mobile. Mobile card-flow coverage lives in
+      // mobile-interactions.spec.ts.
+      testIgnore: ["approval-flows.spec.ts", "declaration-contracts.spec.ts"],
     },
   ],
   webServer: [

@@ -9,8 +9,9 @@ test.beforeEach(async ({ context }) => {
 
 test("Developer quick login authenticates a selected seeded user", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.getByLabel("Test account").selectOption("sipho@hb.co.za");
-  await page.getByRole("button", { name: "Quick login" }).click();
+  const developerTesting = page.getByRole("region", { name: "Developer testing" });
+  await developerTesting.getByRole("combobox").selectOption("sipho@hb.co.za");
+  await developerTesting.getByRole("button", { name: "Quick login" }).click();
   await expect(page.locator('aside nav button:has-text("Approval Queue"):visible')).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole("banner").getByText("Sipho Nkosi", { exact: true })).toBeVisible();
 });
@@ -344,10 +345,12 @@ test.describe("Edge Cases & Error Handling", () => {
     await app.login(USERS.nomvula.email);
     await page.getByRole("button", { name: "Sign out" }).click();
     // The E2E server uses the local test provider, so the landing screen
-    // offers its local sign-in controls instead of the production Microsoft button.
+    // exposes its developer sign-in controls.
     await expect(page.getByRole("heading", { name: "Welcome back!" })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText("Sign in with a local test account.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Quick login" })).toBeVisible();
+    const developerTesting = page.getByRole("region", { name: "Developer testing" });
+    await expect(developerTesting).toBeVisible();
+    await expect(developerTesting.getByRole("combobox")).toBeVisible();
+    await expect(developerTesting.getByRole("button", { name: "Quick login" })).toBeVisible();
     await expect(page.locator("aside nav, nav")).toHaveCount(0);
     // …and the injected session token is cleared, so a reload cannot
     // silently re-authenticate.

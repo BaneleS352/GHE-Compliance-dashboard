@@ -848,3 +848,11 @@ The plan can be closed only when all Phase 7 decisions are recorded, automated g
 - The local Prisma schema-engine failure was caused by using CI sample credentials against the local server. With a dedicated database and the configured local PostgreSQL account, migrations and seeding completed successfully.
 - `dev.bat` now starts the test identity provider and configures the local backend to trust its issuer/audience. The landing page offers a development-only picker for seeded users; it preflights `/api/auth/me` and fails clearly if the account is linked to another provider identity.
 - Frontend typecheck, quality gate, and `git diff --check` pass. Staging OIDC and production-like document-protection checks remain outstanding; this does not close the release plan.
+
+## Verification update — 2026-11-27
+
+- Expanded the Playwright suite from 21 to **31 tests**. A clean run against a fresh embedded PostgreSQL database and the throwaway RS256/JWKS provider passed **31/31** (desktop 27/27, mobile 4/4), without Entra credentials, Docker, or Azurite.
+- Added self-contained browser coverage for locked team-member profile fields, role navigation plus admin API authorization, invalid/over-limit declaration submissions, declaration search/date-filter empty states, partial draft save/resume/submit, queue filtering and authoritative totals, queue refresh after approval, and admin duplicate validation plus user edit/disable/enable/delete.
+- Added mobile declaration-card search/filter recovery and partial-draft continuation. Desktop-only table flows remain excluded from the mobile project.
+- Updated the existing quick-login and sign-out assertions to use the current accessible `Developer testing` region instead of removed landing-page labels. Corrected Playwright helper timeout option placement and made the shared declaration-form opener responsive-navigation safe.
+- Frontend typecheck and a strict standalone TypeScript check of the E2E specs/config pass. Staging OIDC, attachment/upload browser acceptance, and production-like document-protection checks remain outstanding.

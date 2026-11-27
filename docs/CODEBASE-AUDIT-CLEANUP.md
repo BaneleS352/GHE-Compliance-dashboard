@@ -335,7 +335,7 @@ cleanup findings in scope, or document evidence-backed blockers and decisions.
 | Backend TypeScript | Pass | Re-run 2026-11-19: `npx tsc --noEmit` passes after typed notification transport, smoke-script JSON/raw-query handling, test setup diagnostics, admin response contracts, and Prisma teardown; `npm run build` passed after typed request/report/workflow cleanups, migration 0021, smoke-gate assertions, and file access-scope changes. |
 | Prisma schema validation/generation | Pass | `PRISMA_SCHEMA_ENGINE_BINARY` pointed Prisma at the installed matching Windows schema engine; `npx prisma validate` and `npx prisma generate` passed for migration 0021's model. |
 | Frontend typecheck | Pass | `Enterprise Compliance Platform/npm run typecheck` |
-| Frontend quality gate | Pass | Re-run 2026-11-19: no forbidden `any`, dependency cycles, deep imports, boundary violations, or browser side channels. |
+| Frontend quality gate | Fail: pre-existing browser side channel | Re-run 2026-11-27: the gate flags the direct local-auth `fetch` in `src/app/pages/LandingScreen.tsx:24`. That source is unchanged by the Playwright expansion; the 2026-11-19 pass is historical and does not describe the current checkout. |
 | Frontend unit suite | Pass: 290/290 | Re-run 2026-11-19 after department loading, modal focus management, file-upload keyboard regressions, approval-option Escape/focus restoration, typed shared layout/fetch mocks, and removal of the unused legacy declaration-detail branch. Expected ErrorBoundary tests print simulated component errors; React `act(...)` warnings and jsdom navigation diagnostics remain non-failing test output. |
 | Frontend production build | Pass | Re-run 2026-11-19 after cleanup: `npm run build` transformed 2,750 modules and completed; CSS fell from 137 KB to 81 KB. |
 | Backend source reachability | Pass, static only | TypeScript import graph over 89 backend source files with API, seed, scripts, and tests as roots found no unreachable `.ts` modules. This does not prove every runtime branch executes. |
@@ -350,7 +350,8 @@ cleanup findings in scope, or document evidence-backed blockers and decisions.
 | Backend unit suite | Partial: focused suites pass; full suite not completed | The organization endpoint regression passed (1/1), admin workflow/config suites passed (27/27), workflow regression tests passed (7/7), declarations suite passed (16/16), queue/report suites passed (11/11), eight selected edge-case tests passed, two approval-option tests passed, normalization passed (8/8), and notifications passed (6/6), each against fresh embedded PostgreSQL with `TEST_SKIP_AZURITE=1`. Hanging-process reporter runs exited cleanly for workflow, approval-option, normalization, and notification suites. The full suite remains unverified: an earlier full run stalled, and attachment cases require unavailable Azurite. |
 | Backend production build | Pass | Re-run 2026-11-19 after migration 0022 and cleanup checks; `npm run build` passed with `PRISMA_SCHEMA_ENGINE_BINARY` set to the installed schema engine. |
 | PostgreSQL integration/smoke and Docker image builds | Not run | Docker daemon unavailable; do not treat earlier historical counts as current verification. |
-| Live browser journeys and staging Entra | Not run | To be scheduled after local clean-database gates; staging identity requires a configured tenant. |
+| Local Playwright journeys | Pass: 31/31 | Re-run 2026-11-27 against a fresh embedded PostgreSQL database and the throwaway RS256/JWKS provider: desktop 27/27 and mobile 4/4. Added profile-lock, role/API authorization, validation, declaration filter/empty-state, draft resume, queue filter/refresh, admin user lifecycle, and mobile card/draft coverage. No Azurite or production identity was used. |
+| Live browser journeys and staging Entra | Not run | The local Playwright gate uses the throwaway provider and does not replace staging Entra, attachment/upload acceptance, or production-like document-protection verification. |
 | Security dependency audit | Pass | `npm audit --audit-level=high` passed for both Node packages: zero vulnerabilities. |
 | Declaration priority boundaries | Pass | Node's native TypeScript stripping ran assertions against the actual helper for Low, Medium, High, exact boundaries, and overlapping thresholds. The new Vitest file remains covered by the blocked backend suite. |
 | Attachment cleanup retry | Implemented; database gate pending | Migration `0021_attachment_cleanup_outbox` durably queues deletions in the same transaction as metadata removal; the API worker retries with bounded backoff and multi-instance-safe claims. Added regression tests, but migration application and retry behavior still require the blocked PostgreSQL/Azurite integration gates. If both PostgreSQL and Azurite fail during upload rollback, durable enqueue is unavailable; the backend logs the opaque reference for manual reconciliation. |
@@ -405,8 +406,8 @@ cleanup findings in scope, or document evidence-backed blockers and decisions.
   annotations or casts. Continue reviewing other explicit type assertions and
   non-`any` unsafe boundaries based on actual contracts.
 - Run the full backend suite with Azurite available; run `pg:test`, `pg:smoke`,
-  Playwright, Compose image validation, and dependency audits where tooling and
-  services are available.
+  the expanded Playwright suite in CI, Compose image validation, and dependency
+  audits where tooling and services are available.
 - Run the new attachment cleanup outbox through backend tests and clean
   PostgreSQL/Azurite gates when local services are available.
 - Update this document and `AGENTS.md` with final evidence and remaining

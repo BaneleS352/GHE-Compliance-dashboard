@@ -14,6 +14,11 @@ export const USERS = {
 // production footprint (the hook is tree-shaken out of production builds).
 const JWKS_BASE = process.env.E2E_JWKS_URL || "http://127.0.0.1:55439";
 
+/** Unique fixture text for self-contained tests and retry attempts. */
+export function uniqueFixture(prefix: string): string {
+  return `${prefix} ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export async function login(page: Page, email: string) {
   const user = Object.values(USERS).find((u) => u.email === email);
   const mint = await fetch(`${JWKS_BASE}/test-token`, {
@@ -88,7 +93,7 @@ export class AppPage {
 
   async submitDecision() {
     await this.page.click('button:has-text("Submit Decision")');
-    await this.page.getByText("Decision submitted", { timeout: 10000 }).waitFor();
+    await this.page.getByText("Decision submitted").waitFor({ timeout: 10000 });
   }
 
   async verifyStatus(declarationId: string, status: string) {
@@ -109,7 +114,23 @@ export class NewDeclarationPage {
   constructor(public page: Page) {}
 
   async open() {
-    await this.page.click('button:has-text("New Declaration")');
+    await this.page.getByRole("button", { name: "New Declaration", exact: true }).first().click();
+  }
+
+  /** Fill the common, valid low-value gift path without submitting it. */
+  async completeLowValueGift(counterparty: string, description: string) {
+    await this.receivedGiven("Received");
+    await this.select("Who did you receive a Gift", "Supplier");
+    await this.fill("Name of the Supplier", counterparty);
+    await this.fill("Name of the person giving", "E2E Contact");
+    await this.select("Are we currently negotiating", "No");
+    await this.select("Is the Supplier or potential Supplier", "No");
+    await this.select("Is there an existing or imminent", "No");
+    await this.select("What category does the nature", "Gift");
+    await this.fill("Please describe the nature", description);
+    await this.select("Reason/Occasion for the GHE", "Business Meeting");
+    await this.date("2026-01-15");
+    await this.number("Rand Value or Equivalent", "100");
   }
 
   async autoFilled(teamMember: string, manager: string) {
@@ -154,7 +175,7 @@ export class NewDeclarationPage {
 
   async submit() {
     await this.page.click('button:has-text("Submit Declaration")');
-    await this.page.getByText("Declaration Submitted", { timeout: 15000 }).waitFor();
+    await this.page.getByText("Declaration Submitted").waitFor({ timeout: 15000 });
   }
 
   /** Draft-edit flows populate the form asynchronously — wait for the saved
@@ -170,7 +191,8 @@ export class NewDeclarationPage {
 
   async closeModal() {
     const btn = this.page.getByRole("button", { name: "Close" });
-    if (await btn.isVisible({ timeout: 3000 }).catch(() => false)) {
+    const visible = await btn.waitFor({ state: "visible", timeout: 3000 }).then(() => true).catch(() => false);
+    if (visible) {
       await btn.click();
     }
   }
